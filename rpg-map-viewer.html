@@ -1821,6 +1821,7 @@ function RPGMapViewer() {
   const [defeated,    setDefeated]    = useState({}); // { tokenId: true } enemigos derrotados
   const [appMode,     setAppMode]     = useState('map'); // 'map' | 'expositor'
   const [contextMenu, setContextMenu] = useState(null); // { id, name, x, y }
+  const [sceneConfigMenu, setSceneConfigMenu] = useState(null); // { id, name, tokenPos, menuX, menuY }
   const [paintedZones, setPaintedZones] = useState([]); // [{ id, element, points, bbox }]
   const [shapeMenu,   setShapeMenu]   = useState(null); // { points, cx, cy, bbox } – radial element picker
   const [zonesLocked, setZonesLocked] = useState(true); // bloquea re-activar zonas invisibles desde el canvas
@@ -2234,8 +2235,9 @@ function RPGMapViewer() {
       st.id = 'cin-style';
       st.textContent = `
         @keyframes cinFlick{0%,100%{opacity:1}12%{opacity:.5}14%{opacity:1}72%{opacity:.7}74%{opacity:1}}
-        @keyframes cinGlitch{0%,94%,100%{transform:none;opacity:1}95%{transform:translate(-3px,1px) skewX(-1deg);opacity:.85}97%{transform:translate(3px,-1px) skewX(1deg);opacity:.9}98%{transform:none;opacity:1}}
-        @keyframes cinGlow{0%,100%{text-shadow:0 0 35px #d4a017,0 0 70px rgba(212,160,23,.6),0 5px 12px rgba(0,0,0,.9)}50%{text-shadow:0 0 55px #d4a017,0 0 110px rgba(212,160,23,.7),0 0 200px rgba(212,160,23,.4),0 5px 12px rgba(0,0,0,.9)}}
+        @keyframes cinGlitch{0%,94%,100%{transform:translateX(-50%) translateY(0) scale(1)}95%{transform:translateX(calc(-50% - 3px)) translateY(1px) skewX(-1deg)}97%{transform:translateX(calc(-50% + 3px)) translateY(-1px) skewX(1deg)}}
+        @keyframes cinGlow{0%,100%{text-shadow:0 0 35px #d4a017,0 0 70px rgba(212,160,23,.6),0 5px 12px rgba(0,0,0,.9)}50%{text-shadow:0 0 55px #d4a017,0 0 120px rgba(212,160,23,.75),0 0 200px rgba(212,160,23,.4),0 5px 12px rgba(0,0,0,.9)}}
+        @keyframes cinParallax{0%,100%{transform:translate(-50%,-50%) translateX(0px) scale(1)}50%{transform:translate(-50%,-50%) translateX(-18px) scale(1.012)}}
       `;
       document.head.appendChild(st);
     }
@@ -2255,69 +2257,78 @@ function RPGMapViewer() {
 
     // Dim overlay
     const dim = document.createElement('div');
-    dim.style.cssText = `position:absolute;inset:0;background:#000;opacity:0;transition:opacity 0.75s ease;pointer-events:none;z-index:59`;
+    dim.style.cssText = `position:absolute;inset:0;background:#000;opacity:0;transition:opacity 0.65s ease;pointer-events:none;z-index:59`;
     stage.appendChild(dim);
 
     // Vignette
     const vig = document.createElement('div');
-    vig.style.cssText = `position:absolute;inset:0;background:radial-gradient(ellipse at 35% 50%,transparent 25%,rgba(0,0,0,0.75) 100%);opacity:0;transition:opacity 0.9s ease;pointer-events:none;z-index:59`;
+    vig.style.cssText = `position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,transparent 20%,rgba(0,0,0,0.82) 100%);opacity:0;transition:opacity 0.75s ease;pointer-events:none;z-index:59`;
     stage.appendChild(vig);
 
     // Atmospheric tint
     const tint = document.createElement('div');
-    tint.style.cssText = `position:absolute;inset:0;background:${BGTINT};opacity:0;transition:opacity 0.8s ease;pointer-events:none;z-index:59`;
+    tint.style.cssText = `position:absolute;inset:0;background:${BGTINT};opacity:0;transition:opacity 0.7s ease;pointer-events:none;z-index:59`;
     stage.appendChild(tint);
 
     // Letterbox bars
     const lbTop = document.createElement('div');
-    lbTop.style.cssText = `position:absolute;top:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(-100%);transition:transform 0.65s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
+    lbTop.style.cssText = `position:absolute;top:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(-100%);transition:transform 0.5s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
     const accTop = document.createElement('div');
-    accTop.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.6s`;
+    accTop.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.5s`;
     lbTop.appendChild(accTop);
     stage.appendChild(lbTop);
 
     const lbBot = document.createElement('div');
-    lbBot.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(100%);transition:transform 0.65s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
+    lbBot.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(100%);transition:transform 0.5s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
     const accBot = document.createElement('div');
-    accBot.style.cssText = `position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.6s`;
+    accBot.style.cssText = `position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.5s`;
     lbBot.appendChild(accBot);
     stage.appendChild(lbBot);
 
-    // Portrait (right side)
-    const prtH = Math.round(SH * 0.78);
-    const prtW = Math.round(prtH * 0.60);
+    // Portrait — centered, tall
+    const prtH = Math.round(SH * 0.88);
+    const prtW = Math.round(prtH * 0.78);
     const prtWrap = document.createElement('div');
-    prtWrap.style.cssText = `position:absolute;right:0;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(105%,-50%);transition:transform 0.85s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`;
+    prtWrap.style.cssText = `position:absolute;left:50%;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(-50%,-50%) scale(0.88);opacity:0;transition:transform 0.55s cubic-bezier(.16,1,.3,1),opacity 0.55s ease;pointer-events:none;z-index:60`;
     const prtGlow = document.createElement('div');
-    prtGlow.style.cssText = `position:absolute;inset:-40px;background:radial-gradient(ellipse at 50% 50%,${GLOW} 0%,transparent 68%);filter:blur(22px);opacity:0;transition:opacity 1.1s ease`;
+    prtGlow.style.cssText = `position:absolute;inset:-50px;background:radial-gradient(ellipse at 50% 55%,${GLOW} 0%,transparent 65%);filter:blur(28px);opacity:0;transition:opacity 1s ease`;
     prtWrap.appendChild(prtGlow);
+    // Portrait image — fade bottom
+    const MASK_STYLE = `-webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,1) 55%,transparent 100%);mask-image:linear-gradient(to bottom,rgba(0,0,0,1) 55%,transparent 100%)`;
+    const IMG_BASE_CSS = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;${MASK_STYLE}`;
     if (portrait) {
-      // portrait is an HTMLCanvasElement
-      const prtCanvas = document.createElement('canvas');
-      prtCanvas.width = portrait.width; prtCanvas.height = portrait.height;
-      prtCanvas.getContext('2d').drawImage(portrait, 0, 0);
-      prtCanvas.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;-webkit-mask-image:linear-gradient(to left,rgba(0,0,0,.95) 45%,transparent 100%);mask-image:linear-gradient(to left,rgba(0,0,0,.95) 45%,transparent 100%)`;
-      prtWrap.appendChild(prtCanvas);
+      if (portrait instanceof HTMLCanvasElement) {
+        const prtCanvas = document.createElement('canvas');
+        prtCanvas.width = portrait.width; prtCanvas.height = portrait.height;
+        prtCanvas.getContext('2d').drawImage(portrait, 0, 0);
+        prtCanvas.style.cssText = IMG_BASE_CSS;
+        prtWrap.appendChild(prtCanvas);
+      } else {
+        const prtImg = document.createElement('img');
+        prtImg.src = portrait.src || portrait;
+        prtImg.style.cssText = IMG_BASE_CSS;
+        prtWrap.appendChild(prtImg);
+      }
     } else {
       const ph = document.createElement('div');
-      const initL = (bossName||'?').slice(0,1).toUpperCase();
-      const phFs = Math.round(prtH * 0.48);
-      ph.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:${phFs}px;font-weight:900;color:${PRIMARY};text-shadow:0 0 80px ${GLOW},0 0 160px ${GLOW};-webkit-mask-image:linear-gradient(to left,rgba(0,0,0,.95) 35%,transparent 100%);mask-image:linear-gradient(to left,rgba(0,0,0,.95) 35%,transparent 100%)`;
-      ph.textContent = initL;
+      const phFs = Math.round(prtH * 0.42);
+      ph.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:${phFs}px;font-weight:900;color:${PRIMARY};text-shadow:0 0 80px ${GLOW},0 0 160px ${GLOW};${MASK_STYLE}`;
+      ph.textContent = (bossName||'?').slice(0,1).toUpperCase();
       prtWrap.appendChild(ph);
     }
     stage.appendChild(prtWrap);
 
-    // Boss name
-    const nmFS = Math.max(34, Math.min(88, Math.round(SW / 11)));
+    // Boss name — centered, big
+    const nmFS = Math.max(46, Math.min(110, Math.round(SW / 8)));
     const nmEl = document.createElement('div');
-    nmEl.style.cssText = `position:absolute;left:5%;bottom:${lbH + Math.round(SH*0.16)}px;font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);opacity:0;transform:translateY(18px) scale(0.93);transition:opacity 0.55s cubic-bezier(.16,1,.3,1),transform 0.55s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:62;max-width:58%;line-height:1.1`;
+    nmEl.style.cssText = `position:absolute;left:50%;bottom:${lbH + Math.round(SH*0.07)}px;transform:translateX(-50%) translateY(22px) scale(0.88);text-align:center;width:max-content;max-width:88%;font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);opacity:0;transition:opacity 0.38s cubic-bezier(.16,1,.3,1),transform 0.38s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:62;line-height:1.05`;
     nmEl.textContent = bossName || 'BOSS';
     stage.appendChild(nmEl);
 
-    // Underline bar
+    // Underline bar — centered
+    const barW = Math.min(Math.round(nmFS * (bossName||'BOSS').length * 0.62), Math.round(SW*0.7));
     const nmBar = document.createElement('div');
-    nmBar.style.cssText = `position:absolute;left:5%;bottom:${lbH + Math.round(SH*0.148)}px;height:3px;width:${Math.min(Math.round(nmFS * (bossName||'BOSS').length * 0.62), Math.round(SW*0.55))}px;background:linear-gradient(90deg,${PRIMARY},${SECONDARY},transparent);transform:scaleX(0);transform-origin:left;transition:transform 0.6s cubic-bezier(.16,1,.3,1) 0.15s;pointer-events:none;z-index:62`;
+    nmBar.style.cssText = `position:absolute;left:50%;bottom:${lbH + Math.round(SH*0.063)}px;height:3px;width:${barW}px;margin-left:${-barW/2}px;background:linear-gradient(90deg,transparent,${PRIMARY},${SECONDARY},transparent);transform:scaleX(0);transform-origin:center;transition:transform 0.5s cubic-bezier(.16,1,.3,1) 0.12s;pointer-events:none;z-index:62`;
     stage.appendChild(nmBar);
 
     cinematicDataRef.current = { cinCanvas, dim, vig, tint, lbTop, lbBot, accTop, accBot, prtWrap, prtGlow, nmEl, nmBar, tokenPos };
@@ -2336,7 +2347,7 @@ function RPGMapViewer() {
       const baseZ = rZoom.current;
       const tZ = Math.min(4, Math.max(baseZ * 2.0, 1.8));
       const sc2 = Math.min(W2/mw2, H2/mh2) * tZ;
-      const tPanX = W2 * 0.35 - tokenPos.x * sc2 - (W2 - mw2*sc2)/2;
+      const tPanX = W2 * 0.50 - tokenPos.x * sc2 - (W2 - mw2*sc2)/2;
       const tPanY = H2 * 0.50 - tokenPos.y * sc2 - (H2 - mh2*sc2)/2;
       const curZ = rZoom.current * dmLocalZoom.current;
       const curPX = rPanOffset.current.x + dmLocalPan.current.x;
@@ -2344,48 +2355,56 @@ function RPGMapViewer() {
       cinematicCamRef.current = { active:true, tgtZoom:tZ, tgtPan:{x:tPanX, y:tPanY}, curZoom:curZ, curPan:{x:curPX, y:curPY} };
     };
 
-    // Timeline
+    // Timeline (faster)
     const tl = new CinematicTimeline();
     tl
       .add(60, () => {
-        dim.style.opacity = '0.50';
+        dim.style.opacity = '0.52';
         vig.style.opacity = '1';
         tint.style.opacity = '1';
         lbTop.style.transform = 'translateY(0)';
         lbBot.style.transform = 'translateY(0)';
-        setTimeout(() => { accTop.style.opacity='1'; accBot.style.opacity='1'; }, 620);
+        setTimeout(() => { accTop.style.opacity='1'; accBot.style.opacity='1'; }, 500);
         _cinCam();
       })
-      .add(950, () => {
-        prtWrap.style.transform = 'translate(0,-50%)';
-        setTimeout(() => { prtGlow.style.opacity='1'; }, 380);
+      .add(500, () => {
+        prtWrap.style.transform = 'translate(-50%,-50%) scale(1)';
+        prtWrap.style.opacity = '1';
+        setTimeout(() => { prtGlow.style.opacity='1'; }, 280);
+        setTimeout(() => { prtWrap.style.animation = 'cinParallax 9s ease-in-out infinite'; }, 680);
       })
-      .add(1700, () => {
+      .add(1100, () => {
         nmEl.style.opacity = '1';
-        nmEl.style.transform = 'translateY(0) scale(1)';
-        setTimeout(() => { nmBar.style.transform = 'scaleX(1)'; }, 200);
+        nmEl.style.transform = 'translateX(-50%) translateY(0) scale(1)';
+        setTimeout(() => { nmBar.style.transform = 'scaleX(1)'; }, 120);
+        // Impact frame: white flash then gold
         const flash = document.createElement('div');
-        flash.style.cssText = `position:absolute;inset:0;background:${PRIMARY};opacity:0.22;transition:opacity 0.6s ease;pointer-events:none;z-index:63`;
+        flash.style.cssText = `position:absolute;inset:0;background:#fff;opacity:0.88;transition:opacity 0.12s linear;pointer-events:none;z-index:63`;
         stage.appendChild(flash);
-        setTimeout(() => { flash.style.opacity='0'; setTimeout(()=>flash.remove(),650); }, 30);
+        setTimeout(() => { flash.style.opacity='0'; setTimeout(()=>flash.remove(),180); }, 16);
+        const flash2 = document.createElement('div');
+        flash2.style.cssText = `position:absolute;inset:0;background:${PRIMARY};opacity:0.28;transition:opacity 0.5s ease;pointer-events:none;z-index:63`;
+        stage.appendChild(flash2);
+        setTimeout(() => { flash2.style.opacity='0'; setTimeout(()=>flash2.remove(),520); }, 200);
         setTimeout(() => {
           nmEl.style.animation = 'cinFlick 0.9s ease, cinGlitch 5s ease 2s infinite, cinGlow 2.5s ease 0.8s infinite';
-        }, 600);
+        }, 500);
       })
-      .add(5400, () => {
+      .add(4200, () => {
+        prtWrap.style.animation = '';
         [dim, vig, tint, prtWrap, nmEl, nmBar].forEach(el => {
           if (!el) return;
-          el.style.transition = (el === prtWrap) ? 'transform 0.85s cubic-bezier(.4,0,1,1),opacity 0.85s ease' : 'opacity 0.85s ease';
+          el.style.transition = (el === prtWrap) ? 'transform 0.7s cubic-bezier(.4,0,1,1),opacity 0.7s ease' : 'opacity 0.75s ease';
           el.style.opacity = '0';
         });
-        if (prtWrap) prtWrap.style.transform = 'translate(105%,-50%)';
-        lbTop.style.transition = 'transform 0.75s cubic-bezier(.4,0,1,1)';
+        if (prtWrap) prtWrap.style.transform = 'translate(-50%,-50%) scale(1.04) translateY(-12px)';
+        lbTop.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)';
         lbTop.style.transform = 'translateY(-100%)';
-        lbBot.style.transition = 'transform 0.75s cubic-bezier(.4,0,1,1)';
+        lbBot.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)';
         lbBot.style.transform = 'translateY(100%)';
         cinematicCamRef.current.active = false;
       })
-      .add(6450, () => {
+      .add(5100, () => {
         [cinCanvas, dim, vig, tint, lbTop, lbBot, prtWrap, nmEl, nmBar].forEach(el => {
           if (el && el.parentNode) el.parentNode.removeChild(el);
         });
@@ -2406,6 +2425,7 @@ function RPGMapViewer() {
     const cd = cinematicDataRef.current;
     if (cd) {
       const { cinCanvas, dim, vig, tint, lbTop, lbBot, prtWrap, nmEl, nmBar } = cd;
+      if (prtWrap) { prtWrap.style.animation = ''; }
       [dim, vig, tint, prtWrap, nmEl, nmBar].forEach(el => {
         if (!el) return;
         el.style.transition = 'opacity 0.28s ease';
@@ -3954,12 +3974,41 @@ function RPGMapViewer() {
             </div>
           )}
           <div style={{ borderTop:`1px solid ${C.border}`, padding:'4px 6px' }}>
-            <button onMouseDown={e => { e.stopPropagation(); const tp=rPos.current[contextMenu.id]; const pt=rLayerImages.current[contextMenu.id]||null; triggerBossIntro({tokenId:contextMenu.id, bossName:contextMenu.name, portrait:pt, tokenPos:tp}); bcRef.current?.postMessage({type:'BOSS_INTRO', tokenId:contextMenu.id, bossName:contextMenu.name, tokenPos:tp}); setContextMenu(null); }}
+            <button onMouseDown={e => { e.stopPropagation(); setSceneConfigMenu({id:contextMenu.id, name:contextMenu.name, tokenPos:rPos.current[contextMenu.id], menuX:contextMenu.x, menuY:contextMenu.y}); setContextMenu(null); }}
               style={{ width:'100%', padding:'6px', background:'rgba(168,85,247,.12)', border:'1px solid rgba(168,85,247,.35)', borderRadius:5, color:'#c084fc', cursor:'pointer', fontSize:11, fontWeight:600 }}>
               ⚡ Escena
             </button>
           </div>
         </>)}
+      </div>
+    )}
+
+    {/* ══ SCENE CONFIG MENU ══ */}
+    {sceneConfigMenu && !isPlayerWindow && (
+      <div data-ctxmenu="1" style={{
+        position:'fixed', left:Math.min(sceneConfigMenu.menuX, window.innerWidth-250), top:Math.min(sceneConfigMenu.menuY, window.innerHeight-220),
+        background:C.panel, border:`1px solid rgba(168,85,247,.45)`, borderRadius:10, zIndex:9999,
+        boxShadow:'0 8px 32px rgba(0,0,0,0.7)', width:240, overflow:'hidden',
+      }}>
+        <div style={{ padding:'8px 12px 6px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ color:'#c084fc', fontWeight:700, fontSize:12 }}>⚡ {sceneConfigMenu.name}</span>
+          <button onMouseDown={e=>{e.stopPropagation(); setSceneConfigMenu(null);}}
+            style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, padding:'2px', display:'flex', alignItems:'center' }}>
+            <X size={12}/>
+          </button>
+        </div>
+        <div style={{ padding:10, display:'flex', flexDirection:'column', gap:8 }}>
+          <SceneImgPicker
+            defaultCanvas={rLayerImages.current[sceneConfigMenu.id] || null}
+            onTrigger={(imgEl) => {
+              const tp = sceneConfigMenu.tokenPos;
+              triggerBossIntro({ tokenId:sceneConfigMenu.id, bossName:sceneConfigMenu.name, portrait:imgEl, tokenPos:tp });
+              bcRef.current?.postMessage({ type:'BOSS_INTRO', tokenId:sceneConfigMenu.id, bossName:sceneConfigMenu.name, tokenPos:tp });
+              setSceneConfigMenu(null);
+            }}
+            onCancel={() => setSceneConfigMenu(null)}
+          />
+        </div>
       </div>
     )}
   </>
@@ -3969,6 +4018,42 @@ function RPGMapViewer() {
 // ══════════════════════════════════════════════════════════════════════════
 // SUBCOMPONENTES
 // ══════════════════════════════════════════════════════════════════════════
+
+function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }) {
+  const [custom, setCustom] = React.useState(null); // { url, imgEl }
+  const defaultUrl = React.useMemo(() => defaultCanvas ? defaultCanvas.toDataURL() : null, [defaultCanvas]);
+  const previewUrl = custom?.url || defaultUrl;
+  const imgEl      = custom?.imgEl || defaultCanvas;
+
+  const handleFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => setCustom({ url, imgEl: img });
+    img.src = url;
+  };
+
+  return (
+    <>
+      <label style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', border:'1px dashed rgba(168,85,247,.4)', borderRadius:6, cursor:'pointer', background:'rgba(168,85,247,.06)' }}
+        onDragOver={e=>e.preventDefault()}
+        onDrop={e=>{ e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}>
+        <input type="file" accept="image/*" style={{ display:'none' }} onChange={e => e.target.files[0] && handleFile(e.target.files[0])} />
+        {previewUrl
+          ? <img src={previewUrl} style={{ width:44, height:44, objectFit:'cover', borderRadius:4, flexShrink:0 }} />
+          : <Upload size={14} color="rgba(168,85,247,.7)" />}
+        <span style={{ color:'rgba(168,85,247,.85)', fontSize:11, lineHeight:1.3 }}>
+          {custom ? 'Canviar imatge' : defaultCanvas ? 'Imatge del token\n(clic per canviar)' : 'Importar imatge'}
+        </span>
+      </label>
+      <button onMouseDown={e => { e.stopPropagation(); onTrigger(imgEl); }}
+        style={{ width:'100%', padding:'8px', background:'rgba(168,85,247,.18)', border:'1px solid rgba(168,85,247,.55)', borderRadius:6, color:'#c084fc', cursor:'pointer', fontSize:12, fontWeight:700 }}>
+        ⚡ Llançar escena
+      </button>
+    </>
+  );
+}
+
 function DropZone({ accept, label, sub, active, color, onFile, onDrop, disabled }) {
   return (
     <label style={{ display:'flex', alignItems:'center', gap:7, padding:'5px 8px', borderRadius:5, cursor:disabled?'wait':'pointer', border:`1px dashed ${active?color:C.border}`, background:active?`${color}10`:'transparent' }}
