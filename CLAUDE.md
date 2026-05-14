@@ -5,7 +5,7 @@
 
 ---
 
-## Versió actual: v2.9
+## Versió actual: v2.10
 
 Cada vegada que facis un canvi al codi, actualitza **sempre**:
 1. `<title>RPG Map Viewer vX.Y</title>` (dins `<head>`)

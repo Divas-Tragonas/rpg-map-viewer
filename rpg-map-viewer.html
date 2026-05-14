@@ -5,7 +5,7 @@
     1.  <title>RPG Map Viewer vX.Y</title>   (dins <head>)
     2.  El comentari // Versió: vX.Y          (dins <script>, prop del inici)
   Si no actualitzes la versió, el canvi és invàlid.
-  Versió actual del fitxer: v2.9
+  Versió actual del fitxer: v2.10
   ═══════════════════════════════════════════════════════════════════════════ -->
 <!DOCTYPE html>
 <html lang="es">
@@ -1009,7 +1009,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.9
+// Versió: v2.10
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1741,6 +1741,324 @@ function renderDMPointer(ctx, fc) {
         ctx.restore();
       }}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SCENE ENGINE — Boss reveal / dramatic intro system                   v2.10
+// ─────────────────────────────────────────────────────────────────────────────
+class SceneTimeline {
+  constructor() { this.events = []; this.t0 = 0; this.alive = false; }
+  at(ms, fn) { this.events.push({ ms, fn, fired: false }); return this; }
+  start() { this.t0 = performance.now(); this.alive = true; this.events.forEach(e => e.fired = false); return this; }
+  tick() {
+    if (!this.alive) return;
+    const now = performance.now() - this.t0;
+    this.events.forEach(e => { if (!e.fired && now >= e.ms) { e.fn(now); e.fired = true; } });
+  }
+  cancel() { this.alive = false; }
+}
+
+const _easeOutExpo = t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+const _easeInOutQuad = t => t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+
+// Particle pool (fixed-size, reused)
+const _SP_SIZE = 160;
+const _SP = Array.from({ length: _SP_SIZE }, () => ({
+  on: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, r: 2, col: '#fff',
+}));
+const _spGet = () => { for (let i = 0; i < _SP.length; i++) if (!_SP[i].on) return _SP[i]; return null; };
+const _spEmit = (cx, cy, n, col) => {
+  for (let i = 0; i < n; i++) {
+    const p = _spGet(); if (!p) break;
+    const a = Math.random() * Math.PI * 2;
+    const spd = 1.2 + Math.random() * 3.5;
+    p.on = true; p.x = cx; p.y = cy;
+    p.vx = Math.cos(a) * spd; p.vy = Math.sin(a) * spd;
+    p.life = 0; p.maxLife = 0.55 + Math.random() * 0.55;
+    p.r = 1.5 + Math.random() * 3; p.col = col;
+  }
+};
+
+// Scene State — single mutable object, never recreated
+const SS = {
+  on: false, phase: 'idle', tl: null,
+  tokenId: null, title: '', subtitle: '', style: 'arcane',
+  portrait: null, onDone: null,
+  flash: 0, flashCol: '#fff',
+  shakeI: 0, shakeStart: 0,
+  shockwaves: [], // [{ x, y, r, maxR, alpha, col }]
+  camOn: false,
+  camCZ: 1, camCX: 0, camCY: 0,   // current camera
+  camTZ: 1, camTX: 0, camTY: 0,   // target camera
+  camOZ: 1, camOX: 0, camOY: 0,   // original camera (to return to)
+  camRet: false, camRetStart: 0,
+  prtAlpha: 0, prtX: 0, prtTX: 0,
+  titAlpha: 0, titScale: 1.25, subAlpha: 0,
+  bgAlpha: 0,
+};
+
+function sceneCleanup() {
+  if (SS.tl) SS.tl.cancel();
+  SS.on = false; SS.phase = 'idle'; SS.tl = null;
+  SS.tokenId = null; SS.title = ''; SS.subtitle = ''; SS.style = 'arcane';
+  SS.portrait = null; SS.onDone = null;
+  SS.flash = 0; SS.shakeI = 0; SS.shockwaves = [];
+  SS.camOn = false; SS.camRet = false;
+  SS.prtAlpha = 0; SS.titAlpha = 0; SS.subAlpha = 0; SS.bgAlpha = 0;
+  SS.camCZ = 1; SS.camCX = 0; SS.camCY = 0;
+  _SP.forEach(p => { p.on = false; });
+}
+
+function sceneSkip() {
+  const cb = SS.onDone;
+  sceneCleanup();
+  if (cb) cb();
+}
+
+function sceneInit({ tokenId, title, subtitle, style, portrait,
+    origZoom, origPanX, origPanY, targetZoom, targetPanX, targetPanY,
+    canvasW, canvasH, onDone }) {
+  sceneCleanup();
+  SS.on = true; SS.phase = 'intro';
+  SS.tokenId = tokenId; SS.title = title; SS.subtitle = subtitle;
+  SS.style = style || 'arcane'; SS.portrait = portrait; SS.onDone = onDone;
+  SS.camOn = true;
+  SS.camOZ = origZoom; SS.camOX = origPanX; SS.camOY = origPanY;
+  SS.camTZ = targetZoom; SS.camTX = targetPanX; SS.camTY = targetPanY;
+  SS.camCZ = origZoom; SS.camCX = origPanX; SS.camCY = origPanY;
+
+  const styleColors = {
+    arcane: { flash: '#a855f7', shock: '#c084fc', part: '#e9d5ff' },
+    fire:   { flash: '#f97316', shock: '#fb923c', part: '#fed7aa' },
+    shadow: { flash: '#1e1b4b', shock: '#312e81', part: '#a5b4fc' },
+  };
+  const col = styleColors[SS.style] || styleColors.arcane;
+
+  const W = canvasW || 1280, H = canvasH || 720;
+  const cx = W / 2, cy = H / 2;
+
+  const tl = new SceneTimeline();
+  tl
+    // Hitstop flash
+    .at(0, () => { SS.flash = 1; SS.flashCol = col.flash; SS.shakeI = 14; SS.shakeStart = performance.now(); })
+    // Shockwave burst
+    .at(80, () => {
+      SS.shockwaves.push({ x: cx, y: cy, r: 0, maxR: Math.max(W, H) * 0.6, alpha: 0.9, col: col.shock });
+      _spEmit(cx, cy, 55, col.part);
+    })
+    // Camera zoom starts
+    .at(120, () => { SS.camTZ = targetZoom; SS.camTX = targetPanX; SS.camTY = targetPanY; })
+    // Background vignette fades in
+    .at(200, () => { SS.bgAlpha = 0; })
+    // Portrait slides in
+    .at(450, () => { SS.prtAlpha = 0; SS.prtX = -340; SS.prtTX = -160; })
+    // Title slams in
+    .at(700, () => { SS.titAlpha = 0; SS.titScale = 1.35; })
+    // Subtitle fades in
+    .at(950, () => { SS.subAlpha = 0; })
+    // Scene is now "live" — stays until ESC
+    .at(1000, () => { SS.phase = 'live'; })
+    // Camera return begins
+    .at(4500, () => {
+      SS.camRet = true; SS.camRetStart = performance.now();
+      SS.camTZ = origZoom; SS.camTX = origPanX; SS.camTY = origPanY;
+    })
+    // Done
+    .at(5800, () => {
+      const cb = SS.onDone;
+      sceneCleanup();
+      if (cb) cb();
+    });
+  SS.tl = tl;
+  tl.start();
+}
+
+function sceneTick() {
+  if (!SS.on) return;
+  if (SS.tl) SS.tl.tick();
+
+  const dt = 1 / 60;
+
+  // Flash decay
+  SS.flash = Math.max(0, SS.flash - dt * 3.5);
+
+  // Shake decay
+  if (SS.shakeI > 0) {
+    const elapsed = (performance.now() - SS.shakeStart) / 1000;
+    SS.shakeI = Math.max(0, 14 * (1 - elapsed / 0.45));
+  }
+
+  // Camera lerp
+  if (SS.camOn) {
+    const spd = SS.camRet ? 0.045 : 0.055;
+    SS.camCZ += (SS.camTZ - SS.camCZ) * spd;
+    SS.camCX += (SS.camTX - SS.camCX) * spd;
+    SS.camCY += (SS.camTY - SS.camCY) * spd;
+  }
+
+  // Vignette bg fade in
+  if (SS.phase === 'live' || SS.phase === 'intro') {
+    SS.bgAlpha = Math.min(0.55, SS.bgAlpha + dt * 1.2);
+  }
+
+  // Portrait slide
+  if (SS.prtAlpha < 1) SS.prtAlpha = Math.min(1, SS.prtAlpha + dt * 2.2);
+  if (SS.prtX !== undefined && SS.prtTX !== undefined) {
+    SS.prtX += (SS.prtTX - SS.prtX) * 0.09;
+  }
+
+  // Title alpha + scale settle
+  if (SS.titAlpha < 1) SS.titAlpha = Math.min(1, SS.titAlpha + dt * 3.5);
+  if (SS.titScale > 1) SS.titScale = Math.max(1, SS.titScale - dt * 1.5);
+
+  // Subtitle fade in
+  if (SS.subAlpha < 1) SS.subAlpha = Math.min(1, SS.subAlpha + dt * 2.0);
+
+  // Shockwaves expand
+  SS.shockwaves = SS.shockwaves.filter(sw => {
+    sw.r += (sw.maxR - sw.r) * 0.08 + 8;
+    sw.alpha -= dt * 1.2;
+    return sw.alpha > 0 && sw.r < sw.maxR;
+  });
+
+  // Particles physics
+  for (const p of _SP) {
+    if (!p.on) continue;
+    p.life += dt;
+    if (p.life >= p.maxLife) { p.on = false; continue; }
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.08;
+    p.vx *= 0.97; p.vy *= 0.97;
+  }
+}
+
+function renderSceneOverlay(ctx, W, H) {
+  if (!SS.on) return;
+
+  const cx = W / 2, cy = H / 2;
+
+  // Vignette / bg overlay
+  if (SS.bgAlpha > 0) {
+    const grad = ctx.createRadialGradient(cx, cy, H * 0.1, cx, cy, H * 0.9);
+    grad.addColorStop(0, `rgba(0,0,0,0)`);
+    grad.addColorStop(1, `rgba(0,0,0,${SS.bgAlpha})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Shockwaves
+  for (const sw of SS.shockwaves) {
+    ctx.save();
+    ctx.strokeStyle = sw.col;
+    ctx.globalAlpha = sw.alpha;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Particles
+  ctx.save();
+  for (const p of _SP) {
+    if (!p.on) continue;
+    const a = 1 - p.life / p.maxLife;
+    ctx.globalAlpha = a * 0.9;
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * a, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // Portrait
+  if (SS.portrait && SS.prtAlpha > 0) {
+    const ph = Math.round(H * 0.72);
+    const pw = ph;
+    const px = Math.round(SS.prtX + cx - pw / 2);
+    const py = Math.round(cy - ph * 0.55);
+
+    ctx.save();
+    ctx.globalAlpha = SS.prtAlpha;
+
+    // Glow behind portrait
+    const styleGlow = { arcane: '#a855f7', fire: '#f97316', shadow: '#6366f1' };
+    const glowCol = styleGlow[SS.style] || '#a855f7';
+    const glowGrad = ctx.createRadialGradient(px + pw/2, py + ph/2, ph*0.1, px + pw/2, py + ph/2, ph*0.7);
+    glowGrad.addColorStop(0, glowCol + '55');
+    glowGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(px - 40, py - 40, pw + 80, ph + 80);
+
+    // Portrait image clipped to circle
+    ctx.save();
+    ctx.beginPath(); ctx.arc(px + pw/2, py + ph/2, pw/2, 0, Math.PI*2); ctx.clip();
+    ctx.drawImage(SS.portrait, px, py, pw, ph);
+    ctx.restore();
+
+    // Ring around portrait
+    ctx.strokeStyle = glowCol;
+    ctx.lineWidth = 2.5;
+    ctx.globalAlpha = SS.prtAlpha * 0.8;
+    ctx.beginPath(); ctx.arc(px + pw/2, py + ph/2, pw/2 + 1, 0, Math.PI*2); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Title text
+  if (SS.titAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = SS.titAlpha;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const titleY = cy + H * 0.22;
+    const fontSize = Math.round(H * 0.075);
+    ctx.save();
+    ctx.translate(cx, titleY);
+    ctx.scale(SS.titScale, SS.titScale);
+
+    // Shadow/outline
+    ctx.font = `900 ${fontSize}px 'Georgia', serif`;
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 18;
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.lineWidth = 5;
+    ctx.strokeText(SS.title, 0, 0);
+
+    // Fill
+    const titleGrad = ctx.createLinearGradient(0, -fontSize/2, 0, fontSize/2);
+    const styleTitle = { arcane: ['#f3e8ff','#c084fc'], fire: ['#fff7ed','#fb923c'], shadow: ['#e0e7ff','#6366f1'] };
+    const [tc1, tc2] = styleTitle[SS.style] || styleTitle.arcane;
+    titleGrad.addColorStop(0, tc1);
+    titleGrad.addColorStop(1, tc2);
+    ctx.fillStyle = titleGrad;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = tc2;
+    ctx.fillText(SS.title, 0, 0);
+    ctx.restore();
+    ctx.restore();
+  }
+
+  // Subtitle
+  if (SS.subAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = SS.subAlpha * 0.85;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const subFontSize = Math.round(H * 0.028);
+    ctx.font = `400 ${subFontSize}px 'Georgia', serif`;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 8;
+    ctx.letterSpacing = '0.15em';
+    ctx.fillText(SS.subtitle.toUpperCase(), cx, cy + H * 0.22 + H * 0.075 * 0.8);
+    ctx.restore();
+  }
+
+  // Flash overlay
+  if (SS.flash > 0) {
+    ctx.save();
+    ctx.globalAlpha = SS.flash * 0.72;
+    ctx.fillStyle = SS.flashCol;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+}
+
 function RPGMapViewer() {
   // Detect player mode from URL
   const isPlayerWindow = new URLSearchParams(location.search).get('mode') === 'player';
@@ -1788,6 +2106,7 @@ function RPGMapViewer() {
   const [highlightLocked,   setHighlightLocked]   = useState(false);
   const [activeSpells,      setActiveSpells]      = useState([]);
   const [spellMenu,         setSpellMenu]         = useState(null); // { points, cx, cy } menú de hechizo
+  const [activeScene,       setActiveScene]       = useState(null); // { tokenId, title, ... } | null
 
   // DOM refs
   const stageRef  = useRef(null);
@@ -2080,6 +2399,26 @@ function RPGMapViewer() {
           const sp = { ...msg.spell, startTime: performance.now() };
           const ns = [...rActiveSpells.current, sp];
           rActiveSpells.current = ns; setActiveSpells(ns);
+        } else if (msg.type === 'SCENE_START') {
+          const canvas = canvasRef.current;
+          const W2 = canvas?.clientWidth || 1280, H2 = canvas?.clientHeight || 720;
+          const med2 = mediaRef.current;
+          let mw2 = 1920, mh2 = 1080;
+          if (med2?.tagName === 'IMG'   && med2.naturalWidth)  { mw2 = med2.naturalWidth;  mh2 = med2.naturalHeight; }
+          if (med2?.tagName === 'VIDEO' && med2.videoWidth)    { mw2 = med2.videoWidth;    mh2 = med2.videoHeight; }
+          const portrait2 = rLayerImages.current[msg.tokenId] || null;
+          const origZ2 = visualZoomRef.current;
+          const origPX2 = visualPanRef.current.x, origPY2 = visualPanRef.current.y;
+          const tgtZ2 = Math.min(origZ2 * 2.2, 4);
+          const tgtSc2 = Math.min(W2/mw2, H2/mh2) * tgtZ2;
+          const pp3 = rPos.current[msg.tokenId];
+          let tPX2 = origPX2, tPY2 = origPY2;
+          if (pp3) { tPX2 = (W2/2) - pp3.x * tgtSc2; tPY2 = (H2/2) - pp3.y * tgtSc2; }
+          sceneInit({ tokenId: msg.tokenId, title: msg.title, subtitle: msg.subtitle, style: msg.style,
+            portrait: portrait2, origZoom: origZ2, origPanX: origPX2, origPanY: origPY2,
+            targetZoom: tgtZ2, targetPanX: tPX2, targetPanY: tPY2, canvasW: W2, canvasH: H2,
+            onDone: () => setActiveScene(null) });
+          setActiveScene({ tokenId: msg.tokenId });
         }
       } else {
         // DM receives messages from player
@@ -2152,6 +2491,37 @@ function RPGMapViewer() {
     };
     if (withFade && overlay) { overlay.style.opacity = '1'; setTimeout(doLoad, 520); }
     else doLoad();
+  }, []);
+
+  // ── Trigger boss scene ──────────────────────────────────────────────────
+  const triggerScene = useCallback((tokenId, title, subtitle, style) => {
+    const portrait = rLayerImages.current[tokenId] || null;
+    const canvas = canvasRef.current; if (!canvas) return;
+    const media = mediaRef.current;
+    const W = canvas.clientWidth || 1280, H = canvas.clientHeight || 720;
+    let mw = 1920, mh = 1080;
+    if (media?.tagName === 'IMG'   && media.naturalWidth)  { mw = media.naturalWidth;  mh = media.naturalHeight; }
+    if (media?.tagName === 'VIDEO' && media.videoWidth)    { mw = media.videoWidth;    mh = media.videoHeight; }
+    const origZ    = rZoom.current * dmLocalZoom.current;
+    const origPanX = rPanOffset.current.x + dmLocalPan.current.x;
+    const origPanY = rPanOffset.current.y + dmLocalPan.current.y;
+    const targetZ  = Math.min(origZ * 2.2, 4);
+    const targetSc = Math.min(W/mw, H/mh) * targetZ;
+    const pp2 = rPos.current[tokenId];
+    let targetPanX = origPanX, targetPanY = origPanY;
+    if (pp2) {
+      targetPanX = (W/2) - pp2.x * targetSc;
+      targetPanY = (H/2) - pp2.y * targetSc;
+    }
+    sceneInit({
+      tokenId, title: title || '???', subtitle: subtitle || '', style: style || 'arcane',
+      portrait, origZoom: origZ, origPanX, origPanY,
+      targetZoom: targetZ, targetPanX, targetPanY,
+      canvasW: W, canvasH: H,
+      onDone: () => setActiveScene(null),
+    });
+    setActiveScene({ tokenId });
+    bcRef.current?.postMessage({ type: 'SCENE_START', tokenId, title: title || '???', subtitle: subtitle || '', style: style || 'arcane' });
   }, []);
 
   // ── Load background ─────────────────────────────────────────────────────
@@ -2286,10 +2656,25 @@ function RPGMapViewer() {
       const sc = Math.min(W/mw, H/mh) * z;
       const ox = (W - mw*sc)/2 + pan.x, oy = (H - mh*sc)/2 + pan.y;
 
+      // ── Scene Engine tick + camera override ─────────────────────────────
+      sceneTick();
+      let _sc = sc, _ox = ox, _oy = oy;
+      if (SS.camOn) {
+        _sc = Math.min(W/mw, H/mh) * SS.camCZ;
+        _ox = (W - mw*_sc)/2 + SS.camCX;
+        _oy = (H - mh*_sc)/2 + SS.camCY;
+      }
+      // Shake offset
+      if (SS.shakeI > 0) {
+        const sa = SS.shakeI;
+        _ox += (Math.random() - 0.5) * sa;
+        _oy += (Math.random() - 0.5) * sa;
+      }
+
       // ── Update background image position/size to match zoom (Change #6) ──
       if (media) {
-        const bgW = Math.round(mw * sc), bgH = Math.round(mh * sc);
-        const bgL = Math.round(ox), bgT = Math.round(oy);
+        const bgW = Math.round(mw * _sc), bgH = Math.round(mh * _sc);
+        const bgL = Math.round(_ox), bgT = Math.round(_oy);
         const newStyle = `${bgW},${bgH},${bgL},${bgT}`;
         if (newStyle !== prevBgStyle) {
           media.style.width  = bgW + 'px';
@@ -2300,12 +2685,11 @@ function RPGMapViewer() {
         }
       }
 
-
-      if (!s) return;
+      if (!s) { renderSceneOverlay(ctx, W, H); return; }
 
       // ── Frame context — una sola allocació per frame ──────────────────────
       const fc = {
-        sc, ox, oy, mw, mh, isDM, s, v, pp,
+        sc: _sc, ox: _ox, oy: _oy, mw, mh, isDM, s, v, pp,
         rLayerImages, rHoveredZone, zoneAnimRef,
         rPaintedZones, rContextMenu, zoneAppearRef, txCache,
         isShapeDrawingRef, shapePointsRef,
@@ -2321,7 +2705,7 @@ function RPGMapViewer() {
         rPointerPos, rSelectedToken,
       };
 
-      ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+      ctx.save(); ctx.translate(_ox, _oy); ctx.scale(_sc, _sc);
 
       renderZoneOverlays(ctx, fc);
       renderExtras(ctx, fc);
@@ -2370,6 +2754,7 @@ function RPGMapViewer() {
       renderGrid(ctx, fc);
       renderGridCalib(ctx, fc);
       renderDMPointer(ctx, fc);
+      renderSceneOverlay(ctx, W, H);
     };
 
     rafRef.current = requestAnimationFrame(tick);
@@ -3085,6 +3470,7 @@ function RPGMapViewer() {
     const handler = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoStroke(); return; }
+      if (e.key === 'Escape' && SS.on) { sceneSkip(); setActiveScene(null); return; }
       if (e.ctrlKey) return;
       if      (e.key === '1') setDrawTool(t => t === 'pen'     ? 'none' : 'pen');
       else if (e.key === '2') setDrawTool(t => t === 'eraser'  ? 'none' : 'eraser');
@@ -3501,7 +3887,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.9</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.10</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>
@@ -3638,6 +4024,12 @@ function RPGMapViewer() {
               </button>
             </div>
           )}
+          <div style={{ borderTop:`1px solid ${C.border}`, padding:'4px 6px' }}>
+            <button onMouseDown={e => { e.stopPropagation(); triggerScene(contextMenu.id, contextMenu.name, '', 'arcane'); setContextMenu(null); }}
+              style={{ width:'100%', padding:'6px', background:'rgba(168,85,247,.12)', border:'1px solid rgba(168,85,247,.35)', borderRadius:5, color:'#c084fc', cursor:'pointer', fontSize:11, fontWeight:600 }}>
+              ⚡ Escena
+            </button>
+          </div>
         </>)}
       </div>
     )}

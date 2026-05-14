@@ -8,6 +8,12 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.10
+- Scene Engine: boss reveal system amb timeline, camera snap, zoom dramàtic, portrait overlay, títol animat, partícules i shockwave
+- Botó "⚡ Escena" al context menu de tokens enemics (clic dret)
+- ESC per saltar l'escena
+- Sincronització de l'escena al jugador via BroadcastChannel (SCENE_START)
+
 ### v2.9
 - Botons importar imatge i PSD ara side by side i més compactes
 - Box d'avisos de capes faltants: es tanca sol als 10s, X centrada
