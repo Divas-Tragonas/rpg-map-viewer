@@ -11,8 +11,18 @@ Cada vegada que facis un canvi al codi, actualitza **sempre**:
 1. `<title>RPG Map Viewer vX.Y</title>` (dins `<head>`)
 2. `// Versió: vX.Y` (comentari dins `<script>`, prop del inici)
 3. La línia **"Versió actual"** d'aquest CLAUDE.md
+4. El `README.md` — afegir entrada al Changelog amb punts breus del que s'ha canviat
 
 Si no actualitzes la versió, el canvi és invàlid.
+
+### Git workflow (obligatori)
+- **Sempre push directe a `master`** — mai crear branches ni pull requests
+- Commit i push després de cada canvi:
+  ```bash
+  git add rpg-map-viewer-v2_7.html CLAUDE.md README.md
+  git commit -m "vX.Y — Títol del canvi"
+  git push origin master
+  ```
 
 ---
 
