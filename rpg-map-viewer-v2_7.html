@@ -5,14 +5,14 @@
     1.  <title>RPG Map Viewer vX.Y</title>   (dins <head>)
     2.  El comentari // Versió: vX.Y          (dins <script>, prop del inici)
   Si no actualitzes la versió, el canvi és invàlid.
-  Versió actual del fitxer: v2.7
+  Versió actual del fitxer: v2.8
   ═══════════════════════════════════════════════════════════════════════════ -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RPG Map Viewer v2.7</title>
+  <title>RPG Map Viewer v2.8</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1009,7 +1009,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.7
+// Versió: v2.8
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -2695,7 +2695,7 @@ function RPGMapViewer() {
       rGridOriginY.current = qy;      setGridOriginY(qy);
       rGridCalibrating.current = false; setGridCalibrating(false);
       gridCalibRef.current = null; gridCalibCurrRef.current = null;
-      _broadcastState({});
+      if (rGridSnap.current) snapAllTokens(); else _broadcastState({});
       return;
     }
 
@@ -2858,6 +2858,26 @@ function RPGMapViewer() {
     rPos.current = { ...rPos.current, [en.id]: np };
     setPos(p => ({ ...p, [en.id]: np }));
   }, []);
+
+  const snapAllTokens = useCallback(() => {
+    const gs = rGridSize.current;
+    if (gs <= 0) return;
+    const gox = ((rGridOriginX.current % gs) + gs) % gs;
+    const goy = ((rGridOriginY.current % gs) + gs) % gs;
+    const snapCC = (v, origin) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
+    const newPos = { ...rPos.current };
+    const R = 22;
+    for (const [id, p] of Object.entries(newPos)) {
+      if (String(id).startsWith('pl_')) {
+        newPos[id] = { x: snapCC(p.x + R, gox) - R, y: snapCC(p.y + R, goy) - R };
+      } else {
+        newPos[id] = { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
+      }
+    }
+    rPos.current = newPos;
+    setPos(newPos);
+    _broadcastState({});
+  }, [_broadcastState]);
 
   const addPlayer = () => {
     const name = newPName.trim(); if (!name) return;
@@ -3263,7 +3283,7 @@ function RPGMapViewer() {
               {gridVisible ? 'Desactivar' : 'Activar'}
             </button>
             <label style={{ display:'flex', alignItems:'center', gap:3, fontSize:10, color:C.dim, cursor:'pointer' }}>
-              <input type="checkbox" checked={gridSnap} onChange={e => { setGridSnap(e.target.checked); rGridSnap.current=e.target.checked; }} style={{ accentColor:C.accent }}/>
+              <input type="checkbox" checked={gridSnap} onChange={e => { setGridSnap(e.target.checked); rGridSnap.current=e.target.checked; if(e.target.checked) snapAllTokens(); }} style={{ accentColor:C.accent }}/>
               Snap
             </label>
           </div>
