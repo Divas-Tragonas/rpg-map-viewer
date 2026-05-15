@@ -5,37 +5,45 @@
 
 ---
 
+## ⚡ SETUP OBLIGATORI AL INICI DE CADA SESSIÓ
+
+El proxy git de la sessió no té permisos d'escriptura a GitHub. **Fer això abans del primer push:**
+
+```bash
+git remote set-url origin https://Divas-Tragonas:TOKEN@github.com/Divas-Tragonas/rpg-map-viewer.git
+```
+
+**On trobar el TOKEN** (PAT de Divas-Tragonas, scope `repo`):
+```bash
+grep -o "github_pat_[A-Za-z0-9_]*" /root/.claude/projects/-home-user-rpg-map-viewer/*.jsonl | head -1
+```
+
+Si el push falla amb `Permission denied to devevalles` → és sempre aquest problema.
+
+---
+
 ## Versió actual: v2.13
 
 Cada vegada que facis un canvi al codi, actualitza **sempre**:
-1. `<title>RPG Map Viewer vX.Y</title>` (dins `<head>`)
-2. `// Versió: vX.Y` (comentari dins `<script>`, prop del inici)
+1. `// Versió: vX.Y` (comentari dins `<script>`, prop del inici)
+2. `RPG Map Viewer vX.Y` (string visible dins l'app, a la secció "Sobre")
 3. La línia **"Versió actual"** d'aquest CLAUDE.md
-4. El `README.md` — afegir entrada al Changelog amb punts breus del que s'ha canviat
+4. El `README.md` — afegir entrada al Changelog amb punts breus
 
 Si no actualitzes la versió, el canvi és invàlid.
 
-### Git workflow (obligatori)
+---
+
+## Git workflow
+
 - **Sempre push directe a `master`** — mai crear branches ni pull requests
+- El fitxer principal es diu `rpg-map-viewer.html`
 - Commit i push després de cada canvi:
   ```bash
   git add rpg-map-viewer.html CLAUDE.md README.md
   git commit -m "vX.Y — Títol del canvi"
   git push origin master
   ```
-
-### Fix push 403 (fer-ho al INICI de cada sessió)
-
-El proxy git de la sessió no té permisos d'escriptura. Cal configurar el remote amb el PAT de Divas-Tragonas **abans del primer push**:
-
-```bash
-git remote set-url origin https://Divas-Tragonas:TOKEN@github.com/Divas-Tragonas/rpg-map-viewer.git
-```
-
-On `TOKEN` és el GitHub Personal Access Token (PAT) de Divas-Tragonas (scope: `repo`).
-El token es troba als logs de sessió anteriors: `/root/.claude/projects/-home-user-rpg-map-viewer/`.
-
-Si el push falla amb "Permission denied to devevalles" → és sempre aquest problema.
 
 ---
 
@@ -79,7 +87,7 @@ Fora del component (nivell de mòdul):
 
 ## Render loop — tick()
 
-`tick()` és una funció minimalista (~138 línies) que:
+`tick()` és una funció minimalista que:
 
 1. Resize del canvas i obtenció del `ctx`
 2. Càlcul de `s, v, pp, isDM, media, mw, mh`
@@ -91,8 +99,7 @@ Fora del component (nivell de mòdul):
 8. `ctx.save() / translate(ox,oy) / scale(sc,sc)`
 9. Crida a les render phases (en ordre)
 10. `ctx.restore()`
-11. Update `rGridDmAlpha` (inline, necessita `dragRef` local)
-12. `renderGrid / renderGridCalib / renderDMPointer` (espai pantalla)
+11. `renderGrid / renderGridCalib / renderDMPointer` (espai pantalla)
 
 ### Frame Context (fc)
 
@@ -100,29 +107,20 @@ Objecte construït una vegada per frame dins `tick()` i passat a totes les rende
 
 ```js
 const fc = {
-  // Per-frame computed
   sc, ox, oy, mw, mh, isDM, s, v, pp,
-  // Zones
   rLayerImages, rHoveredZone, zoneAnimRef,
   rPaintedZones, rContextMenu, zoneAppearRef, txCache,
-  // Drawing tools
   isShapeDrawingRef, shapePointsRef,
   activeStrokeAnim, strokeQueueRef, drawCanvasRef,
-  // Spells
   rActiveSpells, setActiveSpells,
-  // Enemy tokens
   rConditions, rDefeated, rDeathCanvas,
   defeatedAnimRef, invisAlphaRef,
   rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
-  visualPosRef,
-  // Player tokens
-  rPlayers,
-  // Grid
+  visualPosRef, rPlayers, rTokenSizeOverride,
   rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
   rGridCalibrating, rGridDmAlpha,
   gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
-  // Pointer
-  rPointerPos,
+  rPointerPos, rSelectedToken,
 };
 ```
 
@@ -130,28 +128,20 @@ const fc = {
 
 ## Render phases — com afegir-ne una de nova
 
-Les render phases viuen a **nivell de mòdul**, just abans de `function RPGMapViewer()`. Reben `ctx` i `fc`. El cos de la funció destrutura el que necessita.
+Les render phases viuen a **nivell de mòdul**, just abans de `function RPGMapViewer()`. Reben `ctx` i `fc`.
 
 ```js
-// 1. Definir la funció (nivell de mòdul, abans de RPGMapViewer)
 function renderFog(ctx, fc) {
   const { sc, ox, oy, isDM, rGridSize } = fc;
-  // ... codi de render ...
+  // ...
 }
-
-// 2. Si necessita un ref que no és a fc{}, afegir-lo:
-//    a) A fc{} dins tick()
-//    b) Al destructuring de la funció
-
-// 3. Cridar-la a tick() en l'ordre correcte
-renderFog(ctx, fc);  // dins tick(), entre ctx.save() i ctx.restore()
+// Cridar-la dins tick(), entre ctx.save() i ctx.restore()
 ```
 
-**Regla crítica:** Mai definir funcions amb `function` dins un `useEffect`.
-Babel Standalone no les resol correctament en aquest context.
-
-**Regla crítica:** Sempre destructurar tots els refs que s'usen.
-Si un ref s'usa al cos però no està al `const { ... } = fc`, llença un error silenciós i la fase no renderitza res.
+**Regles crítiques:**
+- Mai definir funcions amb `function` dins un `useEffect` — Babel no les resol
+- Sempre destructurar tots els refs usats de `fc` — si no, silentfail sense render
+- Si el ref no és a `fc{}`, afegir-lo a l'objecte `fc` de `tick()` i destructurar
 
 ---
 
@@ -182,16 +172,9 @@ const [vis, setVis] = useState({});   // ← React (triggers re-render, UI)
 const rVis = useRef({});              // ← ref mirall (lectura O(1) dins tick)
 ```
 
-L'efecte de sincronització (un sol `useEffect` amb totes les deps) manté els refs al dia:
-
-```js
-useEffect(() => {
-  rVis.current = vis;
-  // ... tots els altres refs ...
-}, [vis, pos, zoom, ...]);
-```
-
 **Regla:** Quan modifiques un estat, actualitza sempre `setState` i el `ref` corresponent. Mai usar `useState` dins `tick()`.
+
+L'efecte de sincronització manté els refs al dia (un sol `useEffect` amb totes les deps).
 
 ---
 
@@ -207,92 +190,62 @@ useEffect(() => {
 | `UNDO_DRAW` | DM→Jugador | Desfer + reapplicar historial |
 | `POINTER` | DM→Jugador | Posició del cursor DM |
 | `SPELL` | DM→Jugador | Inici d'animació de spell |
+| `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
 
-`_broadcastState(extra)` — funció `useCallback` al component. Envia `STATE` amb tot l'estat rellevant. Cridar-la sempre que canviï alguna cosa que el jugador hagi de veure.
+`_broadcastState(extra)` envia `STATE` amb tot l'estat rellevant. Cridar-la sempre que canviï alguna cosa que el jugador hagi de veure.
+
+**Quan s'afegeix un nou estat sincronitzat**, cal actualitzar en 3 llocs:
+1. `_broadcastState` → afegir al missatge `STATE`
+2. `_sendFullState` → afegir al missatge `STRUCT`
+3. Handler del jugador → processar tant `STRUCT` com `STATE`
 
 ---
 
 ## Funcionalitats principals
 
-### PSD Import
-- Parser binari propi a `parsePSDStructure(buffer)`
-- Estructura esperada: grups `zones`, `enemies`, `extras` (validat per `validateStructure`)
-- Extreu imatges per capa a `rLayerImages.current` (canvas elements)
-- Genera URLs per a la transmissió BC
-
-### Zones (DM/Jugador)
-- Visibilitat per zona: `vis[id]` boolean
-- Fade animat al jugador: `zoneAnimRef.current[id]` (0→1 / 1→0, LERP 0.07)
-- DM veu totes amb indicador visual (eye icon al hover)
-- Zones bloquejables: `zonesLocked` evita canvis accidentals
+### Grid i tokens
+- Grid configurable: mida, origen, gruix de línia
+- **Snap**: `rGridSnap` — snapa tokens al centre de cel·la en moure i en activar
+- **Mida** (`gridAutoSize`): `rTokenSizeOverride` — map `{tokenId: R}` que escala tokens al 90% de la cel·la
+  - `sizeAllTokens()` recalcula tots els tokens actuals
+  - Nous jugadors hereden la mida si `rGridAutoSize.current` és true
+  - Override s'envia via `STATE` i `STRUCT`; render usa `rTokenSizeOverride.current[id] ?? defaultR`
 
 ### Tokens enemics
-- Definits a l'estructura PSD (grup `enemies`)
-- Posició: `pos[id]` — DM arrossega, jugador interpola (TOKEN_LERP)
-- Condicions D&D 5e: `conditions[id]` → array d'IDs
-- Derrota: `defeated[id]` → animació de desaturació
-- Invisibilitat: `invisAlphaRef` (fade alpha)
-- Highlight: `enemyHighlight` + `rHighlightAlpha`
+- R calculat: `Math.max(Math.min(en.w, en.h) / 2, 22)` (o override)
+- Imatge escalada a `drawW × drawH` on `drawW = hasOverride ? R*2 : en.w`
+- Condicions, derrota (animació de desaturació), invisibilitat, highlight
 
 ### Tokens jugador
-- Definits a `players` (array d'objectes `{id, name, color, icon}`)
-- Posició: `pos[pl_${id}]`
-- Condicions igual que enemics
+- R per defecte: 22 (o override)
+- Posició: `pos[pl_${id}]` — esquina superior-esquerra del quadrat R×R
+
+### Cinematica boss reveal
+- `triggerBossIntroRef` → funció per llançar la cinematica
+- `BOSS_INTRO` BC message inclou `portraitDataUrl` (JPEG base64, max 600px)
+- `SceneImgPicker` component per importar imatge custom al popup de context menu
+
+### PSD Import
+- Parser binari a `parsePSDStructure(buffer)`
+- Grups esperats: `zones`, `enemies`, `extras`
+- Imatges per capa a `rLayerImages.current` (canvas elements)
 
 ### Zones màgiques (Painted Zones)
-- Polígons amb element assignat: `ELEMENTS` (fire, ice, water, lightning, poison, magic)
-- DM: flat color + highlight en context menu
-- Jugador: textura procedural animada (`txFBM`, `txWorley`...) amb cache temporal
-- `zoneAppearRef` → glow d'aparició
+- Polígons amb element: `ELEMENTS` (fire, ice, water, lightning, poison, magic)
+- Textures procedurals animades al jugador (`txFBM`, `txWorley`...)
 
 ### Spells
-- `rActiveSpells.current`: array de `{id, type, points, startTime}`
+- `rActiveSpells.current`: `{id, type, points, startTime}`
 - Tipus: `fireball`, `lightning`, `magic_beam`
-- Durades i colors a `SPELL_DUR` / `SPELL_COL` dins `renderSpells`
-
-### Grid
-- Configurable: mida, origen, gruix de línia
-- DM: visible només en arrossegar un token (alpha fade via `rGridDmAlpha`)
-- Jugador: sempre visible quan activat
-- Mode calibració: drag per definir mida de cel·la (`gridCalibRef`)
-- Snap: `rGridSnap` (usat en event handlers, no en render)
 
 ### Dibuix
-- Eina de llapis i goma al DM
-- Traços enviats al jugador com a animació frame-a-frame (`STROKE` BC)
-- Canvas de dibuix separat (`drawCanvasRef`), compositat sobre el principal
-- Historial per a undo
+- Canvas separat (`drawCanvasRef`), historial per undo
+- Traços enviats al jugador com a animació frame a frame
 
 ### Vista privada DM
-- `Ctrl+scroll/drag`: zoom i pan locals del DM, no sincronitzats
+- `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats
 - `dmLocalPan`, `dmLocalZoom` (useRef, no state)
-- Animació de retorn en soltar Ctrl: `dmPrivateReturnAnim`
-
-### Expositor
-- App secundària embeguda en base64 dins el HTML
-- Muntada lazy com a `<iframe>` en primer accés
-
----
-
-## Constants a nivell de mòdul
-
-Per afegir una condició, element màgic o altre constant:
-
-```js
-// Afegir a l'array corresponent — res més a tocar
-const CONDITIONS = [
-  { id: 'blinded', label: 'Encegat', color: '#aaa', ... },
-  // ...
-];
-
-const ELEMENTS = [
-  { id: 'fire', label: 'Foc', color: '#ff6600', ... },
-  // ...
-];
-```
-
-Els lookup maps `CONDITIONS_BY_ID` i `ELEMENTS_BY_ID` es generen automàticament.
 
 ---
 
@@ -300,8 +253,9 @@ Els lookup maps `CONDITIONS_BY_ID` i `ELEMENTS_BY_ID` es generen automàticament
 
 | Error | Símptoma | Causa | Fix |
 |---|---|---|---|
-| Ref no destructurada de `fc` | Render phase no dibuixa res | `ref.current` llença TypeError silenciós | Afegir al `const { ... } = fc` |
+| Ref no destructurada de `fc` | Render phase no dibuixa res | TypeError silenciós | Afegir al `const { ... } = fc` |
 | `function` dins `useEffect` | Tot el canvas en blanc | Babel Standalone no ho resol | Sempre a nivell de mòdul |
-| Ref nou no afegit a `fc{}` | `undefined` a la fase | Oblidar-lo a l'objecte `fc` de `tick()` | Afegir a `fc{}` i destructurar |
+| Ref nou no afegit a `fc{}` | `undefined` a la fase | Oblidat a l'objecte `fc` | Afegir a `fc{}` i destructurar |
 | `setState` sense ref mirall | UI actualitzada, render no | `tick()` llegeix refs, no state | Actualitzar sempre els dos |
-| Versió no actualitzada | Confusió entre versions | — | Actualitzar títol + comentari + CLAUDE.md |
+| Nou estat no afegit a STRUCT | Jugador no rep l'estat en connectar | Oblidat a `_sendFullState` | Afegir a STRUCT i al seu handler |
+| Versió no actualitzada | Confusió entre versions | — | Actualitzar comentari + app + CLAUDE.md |
