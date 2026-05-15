@@ -1009,7 +1009,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.11
+// Versió: v2.12
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1414,10 +1414,13 @@ function renderEnemyTokens(ctx, fc) {
         const enTintCond = [...enCondIds].reverse().map(id=>CONDITIONS_BY_ID.get(id)).find(c=>c?.tint);
 
         // ── Cuerpo del token ─────────────────────────────────────────────
+        const hasROverride = rTokenSizeOverride.current[en.id] !== undefined;
+        const drawW = hasROverride ? R*2 : en.w;
+        const drawH = hasROverride ? R*2 : en.h;
         if (isDefeated && colorProg > 0) {
           // Canvas offscreen: permite tinte rojo pixel-perfect (source-atop respeta transparencias)
-          const ow = enImg ? Math.ceil(en.w) : Math.ceil(R*2+4);
-          const oh = enImg ? Math.ceil(en.h) : Math.ceil(R*2+4);
+          const ow = enImg ? Math.ceil(drawW) : Math.ceil(R*2+4);
+          const oh = enImg ? Math.ceil(drawH) : Math.ceil(R*2+4);
           if (!rDeathCanvas.current) rDeathCanvas.current = document.createElement('canvas');
           if (rDeathCanvas.current.width !== ow) rDeathCanvas.current.width = ow;
           if (rDeathCanvas.current.height !== oh) rDeathCanvas.current.height = oh;
@@ -1425,7 +1428,7 @@ function renderEnemyTokens(ctx, fc) {
           oCtx.clearRect(0, 0, ow, oh);
 
           if (enImg) {
-            oCtx.drawImage(enImg, 0, 0, en.w, en.h);
+            oCtx.drawImage(enImg, 0, 0, drawW, drawH);
             if (enTintCond && isVis) {
               oCtx.globalCompositeOperation = 'source-atop'; oCtx.globalAlpha = 0.45;
               oCtx.fillStyle = enTintCond.tint; oCtx.fillRect(0, 0, ow, oh);
@@ -1455,17 +1458,17 @@ function renderEnemyTokens(ctx, fc) {
           ctx.save();
           ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
           ctx.globalAlpha = enAlpha * (1 - colorProg * 0.35);
-          if (enImg) ctx.drawImage(rDeathCanvas.current, ep.x - en.w/2, ep.y - en.h/2);
+          if (enImg) ctx.drawImage(rDeathCanvas.current, ep.x - drawW/2, ep.y - drawH/2);
           else ctx.drawImage(rDeathCanvas.current, ep.x - R - 2, ep.y - R - 2);
           ctx.restore();
         } else {
           // Sin efecto de muerte: renderizado normal
           ctx.save(); ctx.globalAlpha = enAlpha;
           if (enImg) {
-            ctx.drawImage(enImg, ep.x - en.w/2, ep.y - en.h/2, en.w, en.h);
+            ctx.drawImage(enImg, ep.x - drawW/2, ep.y - drawH/2, drawW, drawH);
             if (enTintCond && isVis) {
               ctx.save(); ctx.globalCompositeOperation='source-atop'; ctx.globalAlpha=0.45;
-              ctx.fillStyle=enTintCond.tint; ctx.fillRect(ep.x-en.w/2,ep.y-en.h/2,en.w,en.h); ctx.restore();
+              ctx.fillStyle=enTintCond.tint; ctx.fillRect(ep.x-drawW/2,ep.y-drawH/2,drawW,drawH); ctx.restore();
             }
           } else {
             ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI*2);
@@ -3886,7 +3889,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.11</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.12</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>

@@ -8,6 +8,9 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.12
+- Fix Mida: la imatge del token ara s'escala correctament (abans només canviava el box blanc del DM)
+
 ### v2.11
 - Nova opció "Mida" al costat del Snap: ajusta tots els tokens (enemics i jugadors) al 90% de la cel·la del grid
 - Els nous tokens de jugador creats amb Mida actiu hereden la mida del grid automàticament
