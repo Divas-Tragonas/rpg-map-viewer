@@ -24,6 +24,19 @@ Si no actualitzes la versió, el canvi és invàlid.
   git push origin master
   ```
 
+### Fix push 403 (fer-ho al INICI de cada sessió)
+
+El proxy git de la sessió no té permisos d'escriptura. Cal configurar el remote amb el PAT de Divas-Tragonas **abans del primer push**:
+
+```bash
+git remote set-url origin https://Divas-Tragonas:TOKEN@github.com/Divas-Tragonas/rpg-map-viewer.git
+```
+
+On `TOKEN` és el GitHub Personal Access Token (PAT) de Divas-Tragonas (scope: `repo`).
+El token es troba als logs de sessió anteriors: `/root/.claude/projects/-home-user-rpg-map-viewer/`.
+
+Si el push falla amb "Permission denied to devevalles" → és sempre aquest problema.
+
 ---
 
 ## Stack
