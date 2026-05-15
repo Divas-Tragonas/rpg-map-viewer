@@ -8,6 +8,14 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.15
+- Sidebar reorganitzat en dues pestanyes: **Mapa** (capes + jugadors) i **Eines** (dibuix + grid)
+- Tot el contingut de cada pestanya és scrollable: ja no es perden opcions amb molts jugadors
+- Jugadors en 2 columnes compactes: botó − (+1) i + (+1), clic dret per ±10
+- Barra de vida eliminada del sidebar (queda al canvas DM)
+- Colors i slider de mida del dibuix fusionats en una sola fila
+- Botons d'importar BG i PSD ara ocupen tot l'ample disponible
+
 ### v2.14
 - Jugadors amb vida: cada jugador té HP actual i HP màxims
 - Botó "Carrega Party" al panell DM: crea els 5 jugadors per defecte (noms i HP editables a `DEFAULT_PARTY`)
