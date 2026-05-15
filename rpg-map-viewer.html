@@ -5,7 +5,7 @@
     1.  <title>RPG Map Viewer vX.Y</title>   (dins <head>)
     2.  El comentari // Versió: vX.Y          (dins <script>, prop del inici)
   Si no actualitzes la versió, el canvi és invàlid.
-  Versió actual del fitxer: v2.10
+  Versió actual del fitxer: v2.14
   ═══════════════════════════════════════════════════════════════════════════ -->
 <!DOCTYPE html>
 <html lang="es">
@@ -363,6 +363,15 @@ const PALETTE = [
   '#3a9090', // azul verdoso
   '#b09030', // ámbar dorado
   '#7a8888', // gris azulado
+];
+
+// ── Party per defecte — edita noms, colors i hpMax per adaptar a la teva campanya ──
+const DEFAULT_PARTY = [
+  { name: 'Jugador 1', color: '#4472a8', hpMax: 45 },
+  { name: 'Jugador 2', color: '#b84040', hpMax: 60 },
+  { name: 'Jugador 3', color: '#4a9460', hpMax: 38 },
+  { name: 'Jugador 4', color: '#8a52a0', hpMax: 52 },
+  { name: 'Jugador 5', color: '#c46e28', hpMax: 42 },
 ];
 
 function getBBox(points) {
@@ -1009,7 +1018,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.13
+// Versió: v2.14
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1612,6 +1621,24 @@ function renderPlayerTokens(ctx, fc) {
         ctx.textAlign = 'left';
         drawConditionBadges(ctx, ppos.x+R, ppos.y+R, R, plCondIds, sc);
 
+        // ── Barra de vida (DM) ─────────────────────────────────────────
+        if (isDM && pl.hpMax > 0) {
+          const hp = pl.hp ?? pl.hpMax;
+          const hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
+          const barW = R * 2;
+          const barH = 5 / sc;
+          const barX = ppos.x;
+          const barY = ppos.y + R * 2 + 18 / sc;
+          ctx.fillStyle = 'rgba(0,0,0,0.55)';
+          ctx.fillRect(barX, barY, barW, barH);
+          ctx.fillStyle = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+          ctx.fillRect(barX, barY, barW * hpRatio, barH);
+          ctx.font = `bold ${9/sc}px system-ui`; ctx.textAlign = 'center';
+          ctx.fillStyle = '#e6edf3';
+          ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH + 9 / sc);
+          ctx.textAlign = 'left';
+        }
+
         // ── Anell de selecció ──────────────────────────────────────────
         if (isDM && rSelectedToken.current === `pl_${pl.id}`) {
           const pT = performance.now() / 1000;
@@ -1815,6 +1842,7 @@ function RPGMapViewer() {
   const [players,    setPlayers]    = useState([]);
   const [newPName,   setNewPName]   = useState('');
   const [newPColor,  setNewPColor]  = useState('#58a6ff');
+  const [newPHpMax,  setNewPHpMax]  = useState(20);
   const [drawTool,   setDrawTool]   = useState('none');
   const [drawColor,  setDrawColor]  = useState('#f85149');
   const [drawSize,   setDrawSize]   = useState(6);
@@ -3322,7 +3350,8 @@ function RPGMapViewer() {
       cy = Math.max(44, Math.min(mh - 44, (H/2 - oy) / sc));
     }
     const plR = rGridAutoSize.current ? Math.round(rGridSize.current * 0.45) : 22;
-    const pl = { id: Date.now(), name, color: newPColor, x: cx - plR, y: cy - plR, visible: true };
+    const hpMax = Math.max(1, newPHpMax || 20);
+    const pl = { id: Date.now(), name, color: newPColor, x: cx - plR, y: cy - plR, visible: true, hp: hpMax, hpMax };
     const nsPlayers = [...rPlayers.current, pl];
     rPlayers.current = nsPlayers;
     setPlayers(nsPlayers);
@@ -3343,6 +3372,64 @@ function RPGMapViewer() {
   const removePlayer = id => {
     setPlayers(ps => { const ns = ps.filter(p => p.id !== id); rPlayers.current = ns; return ns; });
     setPos(p => { const n = {...p}; delete n[`pl_${id}`]; return n; });
+  };
+
+  const adjustPlayerHp = (id, delta) => {
+    const updated = rPlayers.current.map(pl =>
+      pl.id === id ? { ...pl, hp: Math.max(0, Math.min(pl.hpMax, (pl.hp ?? pl.hpMax) + delta)) } : pl
+    );
+    rPlayers.current = updated;
+    setPlayers(updated);
+    _broadcastState({});
+  };
+
+  const loadParty = () => {
+    const m = mediaRef.current;
+    let mw = 1920, mh = 1080;
+    if (m?.tagName === 'IMG'   && m.naturalWidth) { mw = m.naturalWidth;  mh = m.naturalHeight; }
+    if (m?.tagName === 'VIDEO' && m.videoWidth)   { mw = m.videoWidth;    mh = m.videoHeight; }
+    const canvas = canvasRef.current;
+    let cx = mw / 2, cy = mh / 2;
+    if (canvas && canvas.clientWidth) {
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      const sc = Math.min(W / mw, H / mh) * rZoom.current;
+      const pan = rPanOffset.current;
+      const ox = (W - mw * sc) / 2 + pan.x;
+      const oy = (H - mh * sc) / 2 + pan.y;
+      cx = Math.max(44, Math.min(mw - 44, (W / 2 - ox) / sc));
+      cy = Math.max(44, Math.min(mh - 44, (H / 2 - oy) / sc));
+    }
+    const plR = rGridAutoSize.current ? Math.round(rGridSize.current * 0.45) : 22;
+    const spacing = plR * 2 + 12;
+    const totalW = spacing * (DEFAULT_PARTY.length - 1);
+    const baseX = cx - totalW / 2;
+    const now = Date.now();
+    const newPlayers = DEFAULT_PARTY.map((def, i) => ({
+      id: now + i,
+      name: def.name,
+      color: def.color,
+      x: baseX + i * spacing - plR,
+      y: cy - plR,
+      visible: true,
+      hp: def.hpMax,
+      hpMax: def.hpMax,
+    }));
+    const nsPlayers = [...rPlayers.current, ...newPlayers];
+    rPlayers.current = nsPlayers;
+    setPlayers(nsPlayers);
+    const newPos = {};
+    newPlayers.forEach(pl => { newPos[`pl_${pl.id}`] = { x: pl.x, y: pl.y }; });
+    rPos.current = { ...rPos.current, ...newPos };
+    setPos(p => ({ ...p, ...newPos }));
+    if (rGridAutoSize.current) {
+      const overrides = { ...rTokenSizeOverride.current };
+      newPlayers.forEach(pl => { overrides[`pl_${pl.id}`] = plR; });
+      rTokenSizeOverride.current = overrides;
+      setTokenSizeOverride(overrides);
+      _broadcastState({ tokenSizeOverride: overrides });
+    } else {
+      _broadcastState({});
+    }
   };
 
   const clearDrawing = () => {
@@ -3634,13 +3721,21 @@ function RPGMapViewer() {
 
         {/* Jugadores */}
         <div style={{ borderTop:`1px solid ${C.border}`, padding:'10px 14px' }}>
-          <div style={{ fontSize:11, fontWeight:600, color:C.dim, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Jugadores</div>
-          <div style={{ display:'flex', gap:6, marginBottom:8 }}>
+          <div style={{ display:'flex', alignItems:'center', marginBottom:7 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.dim, textTransform:'uppercase', letterSpacing:'0.1em', flex:1 }}>Jugadors</div>
+            <button onClick={loadParty} title="Carrega els 5 jugadors per defecte"
+              style={{ fontSize:9, padding:'3px 7px', borderRadius:4, border:`1px solid ${C.accent}`, background:`${C.accent}22`, cursor:'pointer', color:C.accent, fontWeight:600 }}>
+              Carrega Party
+            </button>
+          </div>
+          <div style={{ display:'flex', gap:6, marginBottom:6 }}>
             <input value={newPName} onChange={e => setNewPName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addPlayer()}
-              placeholder="Nombre del jugador"
+              placeholder="Nom del jugador"
               style={{ flex:1, background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:5, padding:'5px 8px', color:C.text, fontSize:12, outline:'none' }}/>
-            
+            <input type="number" min={1} max={999} value={newPHpMax} onChange={e => setNewPHpMax(parseInt(e.target.value)||20)}
+              title="HP màxims"
+              style={{ width:44, background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:5, padding:'5px 4px', color:'#56d364', fontSize:12, outline:'none', textAlign:'center' }}/>
             <button onClick={addPlayer} style={{ background:C.accent, border:'none', borderRadius:5, cursor:'pointer', color:'#0d1117', padding:'0 8px', display:'flex', alignItems:'center' }}>
               <UserPlus size={13}/>
             </button>
@@ -3651,13 +3746,34 @@ function RPGMapViewer() {
                 style={{ width:18, height:18, borderRadius:'50%', background:c, cursor:'pointer', border:`2px solid ${newPColor===c?'#e6edf3':'transparent'}`, boxSizing:'border-box', flexShrink:0 }}/>
             ))}
           </div>
-          {players.map(pl => (
-            <div key={pl.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'3px 0' }}>
-              <div style={{ width:14, height:14, borderRadius:'50%', background:pl.color, flexShrink:0 }}/>
-              <span style={{ flex:1, fontSize:13, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pl.name}</span>
-              <button onClick={() => removePlayer(pl.id)} style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, padding:2, display:'flex' }}><X size={11}/></button>
-            </div>
-          ))}
+          {players.map(pl => {
+            const hp = pl.hp ?? pl.hpMax;
+            const hpRatio = pl.hpMax > 0 ? Math.max(0, hp / pl.hpMax) : 0;
+            const hpColor = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+            return (
+              <div key={pl.id} style={{ padding:'5px 0', borderBottom:`1px solid rgba(255,255,255,0.05)` }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                  <div style={{ width:12, height:12, borderRadius:'50%', background:pl.color, flexShrink:0 }}/>
+                  <span style={{ flex:1, fontSize:12, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pl.name}</span>
+                  <button onClick={() => removePlayer(pl.id)} style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, padding:2, display:'flex' }}><X size={10}/></button>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                  {[-10,-1,1,10].map(d => (
+                    <button key={d} onClick={() => adjustPlayerHp(pl.id, d)}
+                      style={{ flex:1, fontSize:9, padding:'2px 0', borderRadius:3, border:`1px solid ${d<0?'rgba(248,81,73,0.3)':'rgba(86,211,100,0.3)'}`, background:d<0?'rgba(248,81,73,0.1)':'rgba(86,211,100,0.1)', cursor:'pointer', color:d<0?'#f85149':'#56d364', fontWeight:700 }}>
+                      {d>0?`+${d}`:d}
+                    </button>
+                  ))}
+                  <span style={{ fontSize:11, color:hpColor, minWidth:40, textAlign:'right', fontWeight:700 }}>
+                    {hp}/{pl.hpMax}
+                  </span>
+                </div>
+                <div style={{ marginTop:3, height:3, borderRadius:2, background:'rgba(255,255,255,0.08)', overflow:'hidden' }}>
+                  <div style={{ width:`${hpRatio*100}%`, height:'100%', background:hpColor, borderRadius:2, transition:'width 0.2s' }}/>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Herramientas de dibujo */}
@@ -3891,7 +4007,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.13</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.14</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>

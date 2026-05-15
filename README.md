@@ -8,6 +8,13 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.14
+- Jugadors amb vida: cada jugador té HP actual i HP màxims
+- Botó "Carrega Party" al panell DM: crea els 5 jugadors per defecte (noms i HP editables a `DEFAULT_PARTY`)
+- Controls HP al sidebar: -10, -1, +1, +10 per a cada jugador, amb barra de vida de colors
+- Barra de vida visible al canvas (DM): HP actual/màxim i barra de color sota cada token de jugador
+- El formulari d'afegir jugador inclou camp de HP màxims
+
 ### v2.13
 - Fix Mida jugador: tokenSizeOverride ara s'envia al STRUCT inicial i al handler receptor del jugador
 
