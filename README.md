@@ -8,6 +8,9 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.16
+- Fix scroll lateral: punts de color del formulari de jugadors moguts a fila pròpia sota el nom
+
 ### v2.15
 - Sidebar reorganitzat en dues pestanyes: **Mapa** (capes + jugadors) i **Eines** (dibuix + grid)
 - Tot el contingut de cada pestanya és scrollable: ja no es perden opcions amb molts jugadors
