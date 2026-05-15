@@ -8,6 +8,9 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.13
+- Fix Mida jugador: tokenSizeOverride ara s'envia al STRUCT inicial i al handler receptor del jugador
+
 ### v2.12
 - Fix Mida: la imatge del token ara s'escala correctament (abans només canviava el box blanc del DM)
 
