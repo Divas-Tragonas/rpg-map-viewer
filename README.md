@@ -1,12 +1,18 @@
 # RPG Map Viewer
 
-**[▶ Obrir l'app](https://divas-tragonas.github.io/rpg-map-viewer/rpg-map-viewer.html)**
+**[▶ Obrir l'app](https://divas-tragonas.github.io/rpg-map-viewer/rpg-map-viewer-v2_7.html)**
 
 App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i **Jugador**, sincronitzades en temps real via BroadcastChannel.
 
 ---
 
 ## Changelog
+
+### v2.11
+- Nova opció "Mida" al costat del Snap: ajusta tots els tokens (enemics i jugadors) al 90% de la cel·la del grid
+- Els nous tokens de jugador creats amb Mida actiu hereden la mida del grid automàticament
+- En re-calibrar el grid amb Mida actiu, es recalcula la mida de tots els tokens
+- La mida override es sincronitza al jugador via BroadcastChannel
 
 ### v2.10
 - Scene Engine: boss reveal cinematogràfic — portrait centrat, títol gran, parallax, impact frame, partícules

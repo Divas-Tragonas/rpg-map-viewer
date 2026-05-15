@@ -1009,7 +1009,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.10
+// Versió: v2.11
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1347,7 +1347,7 @@ function renderSpells(ctx, fc) {
 
 }
 function renderEnemyTokens(ctx, fc) {
-  const { sc, s, v, pp, isDM, rLayerImages, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef, visualPosRef, rSelectedToken } = fc;
+  const { sc, s, v, pp, isDM, rLayerImages, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
       // ── Enemy tokens ──────────────────────────────────────────────────── ──────────────────────
       s.enemyZones.forEach(zone => zone.enemies.forEach(en => {
         const rawEp = pp[en.id]; if (!rawEp) return;
@@ -1379,7 +1379,7 @@ function renderEnemyTokens(ctx, fc) {
           });
           if (coveredByZone) return;
         }
-        const R = Math.max(Math.min(en.w, en.h) / 2, 22);
+        const R = rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
         const imgs2 = rLayerImages.current;
         const enImg = imgs2[en.id];
         const enCondIds = rConditions.current[en.id] || [];
@@ -1555,7 +1555,7 @@ function renderEnemyTokens(ctx, fc) {
 
 }
 function renderPlayerTokens(ctx, fc) {
-  const { sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken } = fc;
+  const { sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
       // ── Player tokens ────────────────────────────────────────────────────
       rPlayers.current.forEach(pl => {
         const rawPos = pp[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
@@ -1572,7 +1572,7 @@ function renderPlayerTokens(ctx, fc) {
             ppos = vp;
           }
         }
-        const R = 22;
+        const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
         const plCondIds = rConditions.current[`pl_${pl.id}`] || [];
         const isInvis = plCondIds.includes('invisible');
         ctx.globalAlpha = isInvis && !isDM ? 0.25 : 1;
@@ -1830,6 +1830,8 @@ function RPGMapViewer() {
   const [gridVisible,  setGridVisible]  = useState(false);
   const [gridSize,     setGridSize]     = useState(70);  // px en coordenadas de mapa
   const [gridSnap,     setGridSnap]     = useState(false);
+  const [gridAutoSize, setGridAutoSize] = useState(false);
+  const [tokenSizeOverride, setTokenSizeOverride] = useState({});
   const [canUndo,      setCanUndo]      = useState(false); // hay trazos deshacer
   const [gridLineWidth, setGridLineWidth] = useState(1.5);
   const [gridOriginX,   setGridOriginX]   = useState(0);
@@ -1900,6 +1902,8 @@ function RPGMapViewer() {
   const rGridVisible      = useRef(false);
   const rGridSize         = useRef(70);
   const rGridSnap         = useRef(false);
+  const rGridAutoSize     = useRef(false);
+  const rTokenSizeOverride = useRef({});
   const rPointerPos       = useRef(null);       // { x, y } puntero DM en mapa (null = oculto)
   const pointerThrottleRef = useRef(0);
   const bgTransitionRef   = useRef(null);       // overlay negro para fade de mapa
@@ -1944,6 +1948,7 @@ function RPGMapViewer() {
     rPaintedZones.current = paintedZones; rZonesLocked.current = zonesLocked;
     rContextMenu.current = contextMenu;   rDefeated.current = defeated;
     rGridVisible.current = gridVisible;   rGridSize.current = gridSize; rGridSnap.current = gridSnap;
+    rGridAutoSize.current = gridAutoSize; rTokenSizeOverride.current = tokenSizeOverride;
     rGridLineWidth.current = gridLineWidth; rGridOriginX.current = gridOriginX; rGridOriginY.current = gridOriginY;
     rGridCalibrating.current = gridCalibrating;
     rEnemyHighlight.current = enemyHighlight;
@@ -1952,7 +1957,7 @@ function RPGMapViewer() {
     rAppMode.current = appMode;
   }, [struct, vis, pos, zoom, players, drawTool, drawColor, drawSize,
       layerImages, conditions, paintedZones, zonesLocked, contextMenu, defeated,
-      gridVisible, gridSize, gridSnap, gridLineWidth, gridOriginX, gridOriginY, gridCalibrating,
+      gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride, gridLineWidth, gridOriginX, gridOriginY, gridCalibrating,
       enemyHighlight, highlightLocked, selectedToken, appMode]);
   useEffect(() => { rPsdInfo.current   = psdInfo;   }, [psdInfo]);
   // Reset warning dismiss quan arriben noves warnings (nou PSD)
@@ -2100,6 +2105,7 @@ function RPGMapViewer() {
           if (msg.gridOriginY   !== undefined) { setGridOriginY(msg.gridOriginY);       rGridOriginY.current   = msg.gridOriginY; }
           if (msg.gridLineWidth   !== undefined) { setGridLineWidth(msg.gridLineWidth);     rGridLineWidth.current   = msg.gridLineWidth; }
           if (msg.enemyHighlight  !== undefined) { setEnemyHighlight(msg.enemyHighlight);   rEnemyHighlight.current  = msg.enemyHighlight; }
+          if (msg.tokenSizeOverride !== undefined) { setTokenSizeOverride(msg.tokenSizeOverride); rTokenSizeOverride.current = msg.tokenSizeOverride; }
           if (msg.appMode !== undefined) { setAppMode(msg.appMode); rAppMode.current = msg.appMode; }
           // DM preview zoom/pan
           if (msg.dmPreviewActive !== undefined) {
@@ -2210,7 +2216,7 @@ function RPGMapViewer() {
     const _isDMPrev = !isPlayerWindow && (dmLocalPan.current.x!==0||dmLocalPan.current.y!==0||dmLocalZoom.current!==1);
     const _effZ   = rZoom.current * dmLocalZoom.current;
     const _effPan = { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y };
-    bc.postMessage({ type: 'STATE', vis: rVis.current, pos: rPos.current, zoom: rZoom.current, players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current, paintedZones: rPaintedZones.current, panOffset: rPanOffset.current, gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current, gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current, appMode: rAppMode.current, dmPreviewActive: _isDMPrev, dmPreviewZoom: _effZ, dmPreviewPan: _effPan, ...extra });
+    bc.postMessage({ type: 'STATE', vis: rVis.current, pos: rPos.current, zoom: rZoom.current, players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current, paintedZones: rPaintedZones.current, panOffset: rPanOffset.current, gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current, gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current, tokenSizeOverride: rTokenSizeOverride.current, appMode: rAppMode.current, dmPreviewActive: _isDMPrev, dmPreviewZoom: _effZ, dmPreviewPan: _effPan, ...extra });
   }, []);
 
   // Load background from URL (used by player) — withFade = fade to black first
@@ -2648,7 +2654,7 @@ function RPGMapViewer() {
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
-        rPointerPos, rSelectedToken,
+        rPointerPos, rSelectedToken, rTokenSizeOverride,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
@@ -2902,7 +2908,7 @@ function RPGMapViewer() {
           const en = zone.enemies[i];
           const ep = pp[en.id]; if (!ep) continue;
           if (!rVis.current[en.id] && !false) {/* invisible enemies still draggable by DM */}
-          const R = Math.max(Math.min(en.w, en.h) / 2, 22);
+          const R = rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
           if (Math.hypot(mx - ep.x, my - ep.y) <= R) {
             dragRef.current = { id: en.id, ox: mx - ep.x, oy: my - ep.y };
             setActiveDrag(en.id);
@@ -2973,7 +2979,7 @@ function RPGMapViewer() {
         for (const zone of (s2.enemyZones || [])) {
           for (const en of zone.enemies) {
             const ep = rPos.current[en.id]; if (!ep) continue;
-            const R = Math.max(Math.min(en.w, en.h) / 2, 22);
+            const R = rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
             if (Math.hypot(mx - ep.x, my - ep.y) <= R) { overEnemy = true; break; }
           }
           if (overEnemy) break;
@@ -3060,8 +3066,8 @@ function RPGMapViewer() {
       const snapCC = (v, origin) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
       const dragId = dragRef.current?.id;
       if (dragId && String(dragId).startsWith('pl_')) {
-        // Token jugador: np es la esquina superior-izq, centro = np + R (R=22)
-        const R = 22;
+        // Token jugador: np es la esquina superior-izq, centro = np + R
+        const R = rTokenSizeOverride.current[dragId] ?? 22;
         np = { x: snapCC(np.x + R, gox) - R, y: snapCC(np.y + R, goy) - R };
       } else {
         // Token enemigo: np ES el centro
@@ -3091,7 +3097,9 @@ function RPGMapViewer() {
       rGridOriginY.current = qy;      setGridOriginY(qy);
       rGridCalibrating.current = false; setGridCalibrating(false);
       gridCalibRef.current = null; gridCalibCurrRef.current = null;
-      if (rGridSnap.current) snapAllTokens(); else _broadcastState({});
+      if (rGridSnap.current) snapAllTokens();
+      if (rGridAutoSize.current) sizeAllTokens();
+      if (!rGridSnap.current && !rGridAutoSize.current) _broadcastState({});
       return;
     }
 
@@ -3231,7 +3239,7 @@ function RPGMapViewer() {
       for (let i = zone.enemies.length - 1; i >= 0; i--) {
         const en = zone.enemies[i];
         const ep = pp[en.id]; if (!ep) continue;
-        const R = Math.max(Math.min(en.w, en.h)/2, 22);
+        const R = rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h)/2, 22);
         if (Math.hypot(mx-ep.x, my-ep.y) <= R) {
           setContextMenu({ id: en.id, name: en.name, x: e.clientX, y: e.clientY });
           return;
@@ -3262,9 +3270,9 @@ function RPGMapViewer() {
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
     const snapCC = (v, origin) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
     const newPos = { ...rPos.current };
-    const R = 22;
     for (const [id, p] of Object.entries(newPos)) {
       if (String(id).startsWith('pl_')) {
+        const R = rTokenSizeOverride.current[id] ?? 22;
         newPos[id] = { x: snapCC(p.x + R, gox) - R, y: snapCC(p.y + R, goy) - R };
       } else {
         newPos[id] = { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
@@ -3273,6 +3281,21 @@ function RPGMapViewer() {
     rPos.current = newPos;
     setPos(newPos);
     _broadcastState({});
+  }, [_broadcastState]);
+
+  const sizeAllTokens = useCallback(() => {
+    const gs = rGridSize.current;
+    if (gs <= 0) return;
+    const R = Math.round(gs * 0.45);
+    const overrides = {};
+    const s2 = rStruct.current;
+    if (s2) {
+      s2.enemyZones.forEach(zone => zone.enemies.forEach(en => { overrides[en.id] = R; }));
+    }
+    rPlayers.current.forEach(pl => { overrides[`pl_${pl.id}`] = R; });
+    rTokenSizeOverride.current = overrides;
+    setTokenSizeOverride(overrides);
+    _broadcastState({ tokenSizeOverride: overrides });
   }, [_broadcastState]);
 
   const addPlayer = () => {
@@ -3293,14 +3316,22 @@ function RPGMapViewer() {
       cx = Math.max(44, Math.min(mw - 44, (W/2 - ox) / sc));
       cy = Math.max(44, Math.min(mh - 44, (H/2 - oy) / sc));
     }
-    const pl = { id: Date.now(), name, color: newPColor, x: cx - 22, y: cy - 22, visible: true };
+    const plR = rGridAutoSize.current ? Math.round(rGridSize.current * 0.45) : 22;
+    const pl = { id: Date.now(), name, color: newPColor, x: cx - plR, y: cy - plR, visible: true };
     const nsPlayers = [...rPlayers.current, pl];
     rPlayers.current = nsPlayers;
     setPlayers(nsPlayers);
-    _broadcastState({});
     const np = { x: pl.x, y: pl.y };
     rPos.current[`pl_${pl.id}`] = np;
     setPos(p => ({ ...p, [`pl_${pl.id}`]: np }));
+    if (rGridAutoSize.current) {
+      const overrides = { ...rTokenSizeOverride.current, [`pl_${pl.id}`]: plR };
+      rTokenSizeOverride.current = overrides;
+      setTokenSizeOverride(overrides);
+      _broadcastState({ tokenSizeOverride: overrides });
+    } else {
+      _broadcastState({});
+    }
     setNewPName('');
   };
 
@@ -3684,6 +3715,10 @@ function RPGMapViewer() {
               <input type="checkbox" checked={gridSnap} onChange={e => { setGridSnap(e.target.checked); rGridSnap.current=e.target.checked; if(e.target.checked) snapAllTokens(); }} style={{ accentColor:C.accent }}/>
               Snap
             </label>
+            <label style={{ display:'flex', alignItems:'center', gap:3, fontSize:10, color:C.dim, cursor:'pointer' }} title="Ajusta tots els tokens al 90% de la cel·la del grid">
+              <input type="checkbox" checked={gridAutoSize} onChange={e => { setGridAutoSize(e.target.checked); rGridAutoSize.current=e.target.checked; if(e.target.checked) sizeAllTokens(); else { setTokenSizeOverride({}); rTokenSizeOverride.current={}; _broadcastState({ tokenSizeOverride:{} }); } }} style={{ accentColor:C.accent }}/>
+              Mida
+            </label>
           </div>
           {gridVisible && (
             <div>
@@ -3851,7 +3886,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.10</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.11</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>
