@@ -1,6 +1,6 @@
 # RPG Map Viewer
 
-**[▶ Obrir l'app](https://divas-tragonas.github.io/rpg-map-viewer/rpg-map-viewer-v2_7.html)**
+**[▶ Obrir l'app](https://divas-tragonas.github.io/rpg-map-viewer/rpg-map-viewer.html)**
 
 App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i **Jugador**, sincronitzades en temps real via BroadcastChannel.
 
