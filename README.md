@@ -8,6 +8,9 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.19
+- Fix Demo: la imatge de fons carrega ara la capa "BG" del PSD (imatge real del mapa), no el composite exportat
+
 ### v2.18
 - Botó "▶ Demo" a la secció d'importar: carrega automàticament la imatge de fons i el PSD de prova embedits al HTML
 
