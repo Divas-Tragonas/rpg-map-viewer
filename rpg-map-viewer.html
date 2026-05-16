@@ -5,7 +5,7 @@
     1.  <title>RPG Map Viewer vX.Y</title>   (dins <head>)
     2.  El comentari // Versió: vX.Y          (dins <script>, prop del inici)
   Si no actualitzes la versió, el canvi és invàlid.
-  Versió actual del fitxer: v2.16
+  Versió actual del fitxer: v2.17
   ═══════════════════════════════════════════════════════════════════════════ -->
 <!DOCTYPE html>
 <html lang="es">
@@ -1018,7 +1018,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.16
+// Versió: v2.17
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1621,22 +1621,23 @@ function renderPlayerTokens(ctx, fc) {
         ctx.textAlign = 'left';
         drawConditionBadges(ctx, ppos.x+R, ppos.y+R, R, plCondIds, sc);
 
-        // ── Barra de vida (DM) ─────────────────────────────────────────
-        if (isDM && pl.hpMax > 0) {
+        // ── Barra de vida ──────────────────────────────────────────────
+        if (pl.hpMax > 0) {
           const hp = pl.hp ?? pl.hpMax;
           const hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
           const barW = R * 2;
-          const barH = 5 / sc;
+          const barH = 13 / sc;
           const barX = ppos.x;
-          const barY = ppos.y + R * 2 + 18 / sc;
-          ctx.fillStyle = 'rgba(0,0,0,0.55)';
+          const barY = ppos.y + R * 2 + 16 / sc;
+          ctx.fillStyle = 'rgba(0,0,0,0.6)';
           ctx.fillRect(barX, barY, barW, barH);
           ctx.fillStyle = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
           ctx.fillRect(barX, barY, barW * hpRatio, barH);
-          ctx.font = `bold ${9/sc}px system-ui`; ctx.textAlign = 'center';
-          ctx.fillStyle = '#e6edf3';
-          ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH + 9 / sc);
-          ctx.textAlign = 'left';
+          ctx.font = `bold ${9/sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#fff';
+          ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 2/sc;
+          ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH / 2);
+          ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
         }
 
         // ── Anell de selecció ──────────────────────────────────────────
@@ -1920,6 +1921,7 @@ function RPGMapViewer() {
   const dmLocalPan   = useRef({ x: 0, y: 0 }); // vista privada DM: offset de pan
   const dmLocalZoom  = useRef(1);               // vista privada DM: factor de zoom extra
   const dmPrivateReturnAnim = useRef(false);    // animando vuelta a vista compartida
+  const dmShiftReturnAnim   = useRef(false);    // retorn silenciós (Shift pan, sense broadcast)
   const visualZoomRef= useRef(1);               // zoom interpolado para el jugador
   const visualPanRef = useRef({ x: 0, y: 0 }); // pan interpolado para el jugador
   const rContextMenu = useRef(null);            // espejo de contextMenu para el RAF loop
@@ -2602,6 +2604,16 @@ function RPGMapViewer() {
       if (media?.tagName === 'VIDEO' && media.videoWidth)    { mw = media.videoWidth;    mh = media.videoHeight; }
 
       // ── Zoom y pan efectivos según ventana ───────────────────────────────
+      // Retorn silenciós del Shift-pan (sense broadcast al jugador)
+      if (isDM && dmShiftReturnAnim.current && !dmPrivateReturnAnim.current) {
+        const RL = 0.14;
+        dmLocalPan.current.x *= (1 - RL);
+        dmLocalPan.current.y *= (1 - RL);
+        if (Math.abs(dmLocalPan.current.x) < 0.4 && Math.abs(dmLocalPan.current.y) < 0.4) {
+          dmLocalPan.current = { x: 0, y: 0 };
+          dmShiftReturnAnim.current = false;
+        }
+      }
       // Animación de vuelta a vista compartida cuando se suelta Ctrl
       if (isDM && dmPrivateReturnAnim.current) {
         const RL = 0.12;
@@ -2847,12 +2859,18 @@ function RPGMapViewer() {
       }
     };
     const onUp = (e) => {
-      if (e.key !== 'Control') return;
-      setCtrlHeld(false); ctrlHeldRef.current = false;
-      setZonesLocked(true); rZonesLocked.current = true;
-      // Animar vuelta a la vista compartida si el DM estaba en vista privada
-      if (dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1) {
-        dmPrivateReturnAnim.current = true;
+      if (e.key === 'Control') {
+        setCtrlHeld(false); ctrlHeldRef.current = false;
+        setZonesLocked(true); rZonesLocked.current = true;
+        if (dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1) {
+          dmPrivateReturnAnim.current = true;
+        }
+      }
+      if (e.key === 'Shift') {
+        if (panDragRef.current?.shiftOnly) panDragRef.current = null;
+        if (dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0) {
+          dmShiftReturnAnim.current = true;
+        }
       }
     };
     window.addEventListener('keydown', onDown);
@@ -2876,11 +2894,14 @@ function RPGMapViewer() {
 
   // ── Mouse handlers ───────────────────────────────────────────────────────
   const onMouseDown = useCallback((e) => {
-    // Middle mouse button → pan (Ctrl+Middle = pan privado DM)
+    // Middle mouse button → pan (Ctrl+Middle = pan privado DM con sync; Shift+Middle = pan DM silenciós)
     if (e.button === 1) {
       e.preventDefault();
       if (!isPlayerWindow && e.ctrlKey) {
         panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: dmLocalPan.current.x, startPanY: dmLocalPan.current.y, private: true };
+      } else if (!isPlayerWindow && e.shiftKey) {
+        dmShiftReturnAnim.current = false;
+        panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: dmLocalPan.current.x, startPanY: dmLocalPan.current.y, private: true, shiftOnly: true };
       } else {
         panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: rPanOffset.current.x, startPanY: rPanOffset.current.y };
       }
@@ -2979,13 +3000,15 @@ function RPGMapViewer() {
   const onMouseMove = useCallback((e) => {
     // Middle mouse pan (shared or private)
     if (panDragRef.current) {
-      const { startX, startY, startPanX, startPanY, private: isPrivate } = panDragRef.current;
+      const { startX, startY, startPanX, startPanY, private: isPrivate, shiftOnly } = panDragRef.current;
       const nx = startPanX + (e.clientX - startX), ny = startPanY + (e.clientY - startY);
       if (isPrivate) {
         dmLocalPan.current = { x: nx, y: ny };
-        setDmPrivateActive(true);
-        const _now = Date.now();
-        if (_now - dmPreviewBcastRef.current > 48) { dmPreviewBcastRef.current = _now; _broadcastState({}); }
+        if (!shiftOnly) {
+          setDmPrivateActive(true);
+          const _now = Date.now();
+          if (_now - dmPreviewBcastRef.current > 48) { dmPreviewBcastRef.current = _now; _broadcastState({}); }
+        }
       } else {
         rPanOffset.current = { x: nx, y: ny };
         _broadcastState({});
@@ -4016,7 +4039,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.16</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.17</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>
