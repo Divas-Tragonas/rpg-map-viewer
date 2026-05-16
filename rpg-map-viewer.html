@@ -374,6 +374,20 @@ const DEFAULT_PARTY = [
   { name: 'Jugador 5', color: '#c46e28', hpMax: 42 },
 ];
 
+const ENEMY_TEMPLATES = [
+  { id: 'goblin',   name: 'Goblin',   color: '#3a8a3a', hpMax: 7,   R: 18 },
+  { id: 'wolf',     name: 'Llop',     color: '#8a7060', hpMax: 11,  R: 22 },
+  { id: 'bear',     name: 'Ós',       color: '#8B5E3C', hpMax: 34,  R: 28 },
+  { id: 'zombie',   name: 'Zombie',   color: '#4a7a4a', hpMax: 22,  R: 22 },
+  { id: 'skeleton', name: 'Esquelet', color: '#c8b87a', hpMax: 13,  R: 18 },
+  { id: 'orc',      name: 'Orc',      color: '#5a7a2a', hpMax: 15,  R: 24 },
+  { id: 'troll',    name: 'Troll',    color: '#3a6030', hpMax: 84,  R: 32 },
+  { id: 'rat',      name: 'Rata',     color: '#7a6060', hpMax: 2,   R: 12 },
+  { id: 'bandit',   name: 'Bandid',   color: '#6a5a4a', hpMax: 11,  R: 22 },
+  { id: 'spider',   name: 'Aranya',   color: '#3a3a5a', hpMax: 4,   R: 14 },
+  { id: 'dragon',   name: 'Drac',     color: '#c0392b', hpMax: 178, R: 45 },
+];
+
 function getBBox(points) {
   let left=Infinity, top=Infinity, right=-Infinity, bottom=-Infinity;
   for (const p of points) {
@@ -1018,7 +1032,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.21
+// Versió: v2.22
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1657,6 +1671,126 @@ function renderPlayerTokens(ctx, fc) {
       });
 
 }
+function renderLibEnemyTokens(ctx, fc) {
+  const { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
+  rLibEnemies.current.forEach(en => {
+    const rawEp = pp[`lib_${en.id}`] || { x: en.x || 0, y: en.y || 0 };
+    let ep;
+    if (isDM) {
+      ep = rawEp;
+    } else {
+      const key = `lib_${en.id}`;
+      const vp = visualPosRef.current[key];
+      if (!vp) { visualPosRef.current[key] = { ...rawEp }; ep = rawEp; }
+      else { vp.x += (rawEp.x - vp.x) * TOKEN_LERP; vp.y += (rawEp.y - vp.y) * TOKEN_LERP; ep = vp; }
+    }
+    const R = rTokenSizeOverride.current[`lib_${en.id}`] ?? en.R;
+    const enCondIds = rConditions.current[`lib_${en.id}`] || [];
+    const isInvis = enCondIds.includes('invisible');
+    const isDefeated = !!rDefeated.current[`lib_${en.id}`];
+    const isVis = en.visible !== false;
+    let enAlpha;
+    if (isDM) {
+      enAlpha = isVis ? 1 : 0.3;
+    } else {
+      const target = (!isVis || isInvis) ? 0 : 1;
+      const prev = invisAlphaRef.current[`lib_${en.id}`] ?? target;
+      const next = prev + (target - prev) * 0.07;
+      invisAlphaRef.current[`lib_${en.id}`] = Math.abs(next - target) < 0.004 ? target : next;
+      enAlpha = invisAlphaRef.current[`lib_${en.id}`];
+      if (enAlpha < 0.02) return;
+    }
+    let colorProg = 0, crossProg = 0;
+    if (isDefeated) {
+      if (isDM) { colorProg = 1; crossProg = 1; }
+      else {
+        let prog = defeatedAnimRef.current[`lib_${en.id}`] ?? 0;
+        if (prog < 1) { prog = Math.min(1, prog + 0.018); defeatedAnimRef.current[`lib_${en.id}`] = prog; }
+        colorProg = Math.min(1, prog * 2); crossProg = Math.max(0, prog * 2 - 1);
+      }
+    }
+    const enTintCond = [...enCondIds].reverse().map(id => CONDITIONS_BY_ID.get(id)).find(c => c?.tint);
+    ctx.globalAlpha = enAlpha;
+    ctx.fillStyle = 'rgba(0,0,0,.4)';
+    ctx.beginPath(); ctx.arc(ep.x+2/sc, ep.y+2/sc, R, 0, Math.PI*2); ctx.fill();
+    if (isDefeated && colorProg > 0) {
+      const ow = Math.ceil(R*2+4), oh = Math.ceil(R*2+4);
+      if (!rDeathCanvas.current) rDeathCanvas.current = document.createElement('canvas');
+      if (rDeathCanvas.current.width !== ow) rDeathCanvas.current.width = ow;
+      if (rDeathCanvas.current.height !== oh) rDeathCanvas.current.height = oh;
+      const oCtx = rDeathCanvas.current.getContext('2d');
+      oCtx.clearRect(0, 0, ow, oh);
+      const cx2 = R+2, cy2 = R+2;
+      oCtx.beginPath(); oCtx.arc(cx2, cy2, R, 0, Math.PI*2);
+      oCtx.fillStyle = en.color; oCtx.fill();
+      if (enTintCond) { oCtx.globalCompositeOperation='source-atop'; oCtx.globalAlpha=0.45; oCtx.fillStyle=enTintCond.tint; oCtx.fillRect(0,0,ow,oh); oCtx.globalCompositeOperation='source-over'; oCtx.globalAlpha=1; }
+      oCtx.strokeStyle='rgba(255,255,255,.85)'; oCtx.lineWidth=2; oCtx.beginPath(); oCtx.arc(cx2,cy2,R,0,Math.PI*2); oCtx.stroke();
+      oCtx.globalCompositeOperation='source-atop'; oCtx.globalAlpha=colorProg*0.42; oCtx.fillStyle='#cc1111'; oCtx.fillRect(0,0,ow,oh);
+      oCtx.globalCompositeOperation='source-over'; oCtx.globalAlpha=1;
+      ctx.save(); ctx.filter=`grayscale(${Math.round(colorProg*100)}%)`; ctx.globalAlpha=enAlpha*(1-colorProg*0.35);
+      ctx.drawImage(rDeathCanvas.current, ep.x-R-2, ep.y-R-2); ctx.restore();
+    } else {
+      ctx.fillStyle = en.color;
+      ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI*2); ctx.fill();
+      if (enTintCond) { ctx.save(); ctx.globalCompositeOperation='source-atop'; ctx.globalAlpha=0.45; ctx.fillStyle=enTintCond.tint; ctx.beginPath(); ctx.arc(ep.x,ep.y,R,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+      ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2/sc;
+      if (isInvis) ctx.setLineDash([5/sc,3/sc]);
+      ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const showStates = isDM || !isInvis;
+    ctx.globalAlpha = enAlpha;
+    ctx.font = `bold ${11/sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(en.name.slice(0,2).toUpperCase(), ep.x, ep.y);
+    ctx.textBaseline = 'alphabetic';
+    if (showStates) {
+      const tw = ctx.measureText(en.name).width;
+      ctx.fillStyle = 'rgba(8,12,18,.85)';
+      ctx.fillRect(ep.x - tw/2 - 4/sc, ep.y + R + 2/sc, tw + 8/sc, 13/sc);
+      ctx.fillStyle = isVis ? '#ffaaaa' : '#888';
+      ctx.fillText(en.name, ep.x, ep.y + R + 12/sc);
+    }
+    ctx.globalAlpha = 1;
+    if (showStates) drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc);
+    if (isDM && en.hpMax > 0) {
+      const hp = Math.max(0, en.hp ?? en.hpMax);
+      const hpRatio = hp / en.hpMax;
+      const barW = R * 2, barH = Math.max(13/sc, R * 0.35);
+      const barX = ep.x - R, barY = ep.y + R + 16/sc;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
+      ctx.fillStyle = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+      ctx.fillRect(barX, barY, barW * hpRatio, barH);
+      const barFontSize = Math.max(9/sc, barH*0.62);
+      ctx.font = `bold ${barFontSize}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#fff'; ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=2/sc;
+      ctx.fillText(`${hp}/${en.hpMax}`, ep.x, barY+barH/2);
+      ctx.shadowBlur=0; ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+    }
+    if (isDefeated && showStates && (isDM || crossProg > 0)) {
+      const cr = R * 0.82;
+      ctx.save(); ctx.strokeStyle='#ef4444'; ctx.lineWidth=5/sc; ctx.lineCap='round';
+      if (isDM) {
+        ctx.beginPath(); ctx.moveTo(ep.x-cr,ep.y-cr); ctx.lineTo(ep.x+cr,ep.y+cr); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ep.x+cr,ep.y-cr); ctx.lineTo(ep.x-cr,ep.y+cr); ctx.stroke();
+      } else {
+        const lineLen = cr*2*1.42;
+        const p1 = Math.min(1,crossProg*2);
+        if (p1>0) { ctx.setLineDash([p1*lineLen,lineLen*2]); ctx.beginPath(); ctx.moveTo(ep.x-cr,ep.y-cr); ctx.lineTo(ep.x+cr,ep.y+cr); ctx.stroke(); }
+        const p2 = Math.max(0,crossProg*2-1);
+        if (p2>0) { ctx.setLineDash([p2*lineLen,lineLen*2]); ctx.beginPath(); ctx.moveTo(ep.x+cr,ep.y-cr); ctx.lineTo(ep.x-cr,ep.y+cr); ctx.stroke(); }
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+    if (isDM && rSelectedToken.current === `lib_${en.id}`) {
+      const pT = performance.now()/1000, pulse = 0.5+0.5*Math.sin(pT*4.5);
+      ctx.save(); ctx.strokeStyle=`rgba(100,210,255,${0.65+0.35*pulse})`; ctx.lineWidth=2.5/sc;
+      ctx.setLineDash([6/sc,3/sc]); ctx.beginPath(); ctx.arc(ep.x,ep.y,R+7/sc,0,Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+  });
+}
 function renderGrid(ctx, fc) {
   const { sc, ox, oy, mw, mh, isDM, rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY, rGridDmAlpha, rGridCalibrating } = fc;
       // ── Grid overlay (líneas homogéneas) ─────────────────────────────────
@@ -1847,6 +1981,7 @@ function RPGMapViewer() {
   const [expanded,   setExpanded]   = useState({});
   const [activeDrag, setActiveDrag] = useState(null);
   const [players,    setPlayers]    = useState([]);
+  const [libEnemies,  setLibEnemies]  = useState([]);
   const [newPName,   setNewPName]   = useState('');
   const [newPColor,  setNewPColor]  = useState('#58a6ff');
   const [newPHpMax,  setNewPHpMax]  = useState(20);
@@ -1900,6 +2035,7 @@ function RPGMapViewer() {
   const isDrawingRef = useRef(false);
   const lastDrawRef  = useRef(null);
   const rPlayers     = useRef([]);
+  const rLibEnemies   = useRef([]);
   const rDrawTool    = useRef('none');
   const rDrawColor   = useRef('#f85149');
   const rDrawSize    = useRef(6);
@@ -1982,7 +2118,7 @@ function RPGMapViewer() {
   useEffect(() => {
     rStruct.current = struct; rStruct2.current = struct;
     rVis.current = vis;       rPos.current = pos;       rZoom.current = zoom;
-    rPlayers.current = players; rDrawTool.current = drawTool;
+    rPlayers.current = players; rLibEnemies.current = libEnemies; rDrawTool.current = drawTool;
     rDrawColor.current = drawColor; rDrawSize.current = drawSize;
     rLayerImages.current = layerImages; rConditions.current = conditions;
     rPaintedZones.current = paintedZones; rZonesLocked.current = zonesLocked;
@@ -2095,6 +2231,7 @@ function RPGMapViewer() {
           if (msg.gridLineWidth   !== undefined) { setGridLineWidth(msg.gridLineWidth);     rGridLineWidth.current   = msg.gridLineWidth; }
           if (msg.enemyHighlight  !== undefined) { setEnemyHighlight(msg.enemyHighlight);   rEnemyHighlight.current  = msg.enemyHighlight; }
           if (msg.tokenSizeOverride !== undefined) { setTokenSizeOverride(msg.tokenSizeOverride); rTokenSizeOverride.current = msg.tokenSizeOverride; }
+          if (msg.libEnemies) { setLibEnemies(msg.libEnemies); rLibEnemies.current = msg.libEnemies; }
           // Reconstruct layer images from data URLs
           const urls = msg.layerImageUrls || {};
           const imgs = {};
@@ -2147,6 +2284,7 @@ function RPGMapViewer() {
           if (msg.gridLineWidth   !== undefined) { setGridLineWidth(msg.gridLineWidth);     rGridLineWidth.current   = msg.gridLineWidth; }
           if (msg.enemyHighlight  !== undefined) { setEnemyHighlight(msg.enemyHighlight);   rEnemyHighlight.current  = msg.enemyHighlight; }
           if (msg.tokenSizeOverride !== undefined) { setTokenSizeOverride(msg.tokenSizeOverride); rTokenSizeOverride.current = msg.tokenSizeOverride; }
+          if (msg.libEnemies) { setLibEnemies(msg.libEnemies); rLibEnemies.current = msg.libEnemies; }
           if (msg.appMode !== undefined) { setAppMode(msg.appMode); rAppMode.current = msg.appMode; }
           // DM preview zoom/pan
           if (msg.dmPreviewActive !== undefined) {
@@ -2249,6 +2387,7 @@ function RPGMapViewer() {
       gridLineWidth: rGridLineWidth.current,
       enemyHighlight: rEnemyHighlight.current,
       tokenSizeOverride: rTokenSizeOverride.current,
+      libEnemies: rLibEnemies.current,
     });
   }, []);
 
@@ -2258,7 +2397,7 @@ function RPGMapViewer() {
     const _isDMPrev = !isPlayerWindow && (dmLocalPan.current.x!==0||dmLocalPan.current.y!==0||dmLocalZoom.current!==1);
     const _effZ   = rZoom.current * dmLocalZoom.current;
     const _effPan = { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y };
-    bc.postMessage({ type: 'STATE', vis: rVis.current, pos: rPos.current, zoom: rZoom.current, players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current, paintedZones: rPaintedZones.current, panOffset: rPanOffset.current, gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current, gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current, tokenSizeOverride: rTokenSizeOverride.current, appMode: rAppMode.current, dmPreviewActive: _isDMPrev, dmPreviewZoom: _effZ, dmPreviewPan: _effPan, ...extra });
+    bc.postMessage({ type: 'STATE', vis: rVis.current, pos: rPos.current, zoom: rZoom.current, players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current, paintedZones: rPaintedZones.current, panOffset: rPanOffset.current, gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current, gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current, tokenSizeOverride: rTokenSizeOverride.current, libEnemies: rLibEnemies.current, appMode: rAppMode.current, dmPreviewActive: _isDMPrev, dmPreviewZoom: _effZ, dmPreviewPan: _effPan, ...extra });
   }, []);
 
   // Load background from URL (used by player) — withFade = fade to black first
@@ -2703,10 +2842,10 @@ function RPGMapViewer() {
       }
 
       if (!s) {
-        // No PSD loaded: still render player tokens so HP bars are visible on player window
-        if (rPlayers.current.length > 0) {
+        if (rPlayers.current.length > 0 || rLibEnemies.current.length > 0) {
           ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
-          renderPlayerTokens(ctx, { sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride });
+          if (rPlayers.current.length > 0) renderPlayerTokens(ctx, { sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride });
+          if (rLibEnemies.current.length > 0) renderLibEnemyTokens(ctx, { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride });
           ctx.restore();
         }
         return;
@@ -2723,7 +2862,7 @@ function RPGMapViewer() {
         rConditions, rDefeated, rDeathCanvas,
         defeatedAnimRef, invisAlphaRef,
         rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
-        visualPosRef, rPlayers,
+        visualPosRef, rPlayers, rLibEnemies,
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
@@ -2764,6 +2903,7 @@ function RPGMapViewer() {
 
       renderEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
+      renderLibEnemyTokens(ctx, fc);
 
       ctx.restore();
 
@@ -2982,6 +3122,17 @@ function RPGMapViewer() {
       }
     }
 
+    // ── Library enemies ──────────────────────────────────────────────────
+    for (let i = rLibEnemies.current.length - 1; i >= 0; i--) {
+      const len = rLibEnemies.current[i];
+      const lep = pp[`lib_${len.id}`] || { x: 0, y: 0 };
+      const lR = rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
+      if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
+        dragRef.current = { id: `lib_${len.id}`, ox: mx - lep.x, oy: my - lep.y };
+        setActiveDrag(`lib_${len.id}`); setSelectedToken(`lib_${len.id}`); rSelectedToken.current = `lib_${len.id}`;
+        e.preventDefault(); return;
+      }
+    }
     // ── Enemies (priority 2 — always above zones) ───────────────────────
     const s = rStruct.current;
     if (s) {
@@ -3317,6 +3468,16 @@ function RPGMapViewer() {
         return;
       }
     }
+    // Check library enemies
+    for (let i = rLibEnemies.current.length - 1; i >= 0; i--) {
+      const len = rLibEnemies.current[i];
+      const lep = pp[`lib_${len.id}`] || { x: 0, y: 0 };
+      const lR = rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
+      if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
+        setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id });
+        return;
+      }
+    }
     // Check enemies
     const s2 = rStruct.current; if (!s2) return;
     for (const zone of s2.enemyZones) {
@@ -3483,6 +3644,50 @@ function RPGMapViewer() {
     }
   };
 
+  const addLibEnemy = useCallback((tmpl) => {
+    const canvas = canvasRef.current;
+    let cx = 480, cy = 360;
+    if (canvas) {
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      const mw = rPsdInfo.current?.width || 960; const mh = rPsdInfo.current?.height || 720;
+      const sc2 = Math.min(W/mw, H/mh) * rZoom.current;
+      const pan = rPanOffset.current;
+      const ox2 = (W - mw*sc2)/2 + pan.x; const oy2 = (H - mh*sc2)/2 + pan.y;
+      cx = (W/2 - ox2) / sc2; cy = (H/2 - oy2) / sc2;
+    }
+    const newEn = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: tmpl.R, visible: true };
+    const ns = [...rLibEnemies.current, newEn];
+    rLibEnemies.current = ns; setLibEnemies(ns);
+    const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };
+    rPos.current = np; setPos(np);
+    _broadcastState({});
+  }, [_broadcastState]);
+
+  const adjustLibEnemyHp = useCallback((id, delta) => {
+    const updated = rLibEnemies.current.map(en =>
+      en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)) } : en
+    );
+    rLibEnemies.current = updated; setLibEnemies(updated);
+    _broadcastState({});
+  }, [_broadcastState]);
+
+  const removeLibEnemy = useCallback((id) => {
+    const updated = rLibEnemies.current.filter(en => en.id !== id);
+    rLibEnemies.current = updated; setLibEnemies(updated);
+    const np = { ...rPos.current }; delete np[`lib_${id}`];
+    rPos.current = np; setPos(np);
+    if (rSelectedToken.current === `lib_${id}`) { setSelectedToken(null); rSelectedToken.current = null; }
+    _broadcastState({});
+  }, [_broadcastState]);
+
+  const toggleLibEnemyVisibility = useCallback((id) => {
+    const updated = rLibEnemies.current.map(en =>
+      en.id === id ? { ...en, visible: !en.visible } : en
+    );
+    rLibEnemies.current = updated; setLibEnemies(updated);
+    _broadcastState({});
+  }, [_broadcastState]);
+
   const clearDrawing = () => {
     const oc = drawCanvasRef.current; if (!oc) return;
     oc.getContext('2d').clearRect(0, 0, oc.width, oc.height);
@@ -3518,6 +3723,7 @@ function RPGMapViewer() {
       gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridSnap: rGridSnap.current,
       gridLineWidth: rGridLineWidth.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       tokenSizeOverride: rTokenSizeOverride.current,
+      libEnemies: rLibEnemies.current,
       drawCanvas: oc && oc.width > 1 ? oc.toDataURL('image/png') : null,
     };
     if (bgBufferRef.current) {
@@ -3580,6 +3786,7 @@ function RPGMapViewer() {
       if (state.gridOriginX   !== undefined) { rGridOriginX.current   = state.gridOriginX;   setGridOriginX(state.gridOriginX); }
       if (state.gridOriginY   !== undefined) { rGridOriginY.current   = state.gridOriginY;   setGridOriginY(state.gridOriginY); }
       if (state.tokenSizeOverride) { rTokenSizeOverride.current = state.tokenSizeOverride; setTokenSizeOverride(state.tokenSizeOverride); }
+      if (state.libEnemies) { rLibEnemies.current = state.libEnemies; setLibEnemies(state.libEnemies); }
       if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;
         if (oc) {
@@ -3761,7 +3968,7 @@ function RPGMapViewer() {
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
-          {[['mapa','Mapa'],['eines','Eines']].map(([t,label]) => (
+          {[['mapa','Mapa'],['eines','Eines'],['enemics','Enemics']].map(([t,label]) => (
             <button key={t} onClick={() => setSidebarTab(t)}
               style={{ flex:1, padding:'7px 4px', border:'none', borderBottom:`2px solid ${sidebarTab===t?C.accent:'transparent'}`, background:sidebarTab===t?`${C.accent}12`:'transparent', color:sidebarTab===t?C.accent:C.dim, fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', cursor:'pointer' }}>
               {label}
@@ -3878,6 +4085,61 @@ function RPGMapViewer() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* ── TAB ENEMICS ── */}
+          {sidebarTab === 'enemics' && (
+            <div style={{ flex:1, overflowY:'auto', padding:'8px 10px', display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ fontSize:10, color:C.dim, letterSpacing:'0.06em', textTransform:'uppercase', fontWeight:700 }}>Biblioteca</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:5 }}>
+                {ENEMY_TEMPLATES.map(tmpl => (
+                  <button key={tmpl.id} onClick={() => addLibEnemy(tmpl)}
+                    style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 8px', background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, cursor:'pointer', color:C.text, fontSize:11, textAlign:'left' }}>
+                    <div style={{ width:16, height:16, borderRadius:'50%', background:tmpl.color, flexShrink:0, border:'1px solid rgba(255,255,255,.2)' }}/>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:700, fontSize:11, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tmpl.name}</div>
+                      <div style={{ fontSize:9, color:C.dim }}>HP {tmpl.hpMax}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {libEnemies.length > 0 && (
+                <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
+                  <div style={{ fontSize:10, color:C.dim, letterSpacing:'0.06em', textTransform:'uppercase', fontWeight:700, marginBottom:6 }}>A l'escena ({libEnemies.length})</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    {libEnemies.map(en => {
+                      const hp = en.hp ?? en.hpMax;
+                      const hpRatio = en.hpMax > 0 ? Math.max(0, hp/en.hpMax) : 0;
+                      const hpCol = hpRatio > 0.5 ? C.ok : hpRatio > 0.25 ? C.warn : '#f85149';
+                      return (
+                        <div key={en.id} style={{ background:C.dark, border:`1px solid ${C.border}`, borderRadius:6, padding:'5px 8px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:4 }}>
+                            <div style={{ width:10, height:10, borderRadius:'50%', background:en.color, flexShrink:0 }}/>
+                            <span style={{ flex:1, fontSize:11, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{en.name}</span>
+                            <button onClick={() => toggleLibEnemyVisibility(en.id)} title={en.visible ? 'Ocultar al jugador' : 'Mostrar al jugador'}
+                              style={{ background:'none', border:'none', cursor:'pointer', color:en.visible ? C.dim : '#f85149', fontSize:12, padding:0, lineHeight:1, flexShrink:0 }}>
+                              {en.visible ? '👁' : '🚫'}
+                            </button>
+                            <button onClick={() => removeLibEnemy(en.id)} title="Eliminar"
+                              style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, fontSize:12, padding:0, lineHeight:1, flexShrink:0 }}>✕</button>
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                            <button onClick={() => adjustLibEnemyHp(en.id, -1)} onContextMenu={e=>{e.preventDefault();adjustLibEnemyHp(en.id,-10);}}
+                              style={{ background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', width:22, height:22, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
+                            <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:4, height:14, overflow:'hidden', position:'relative' }}>
+                              <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${hpRatio*100}%`, background:hpCol }}/>
+                              <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', fontWeight:700 }}>{hp}/{en.hpMax}</span>
+                            </div>
+                            <button onClick={() => adjustLibEnemyHp(en.id, 1)} onContextMenu={e=>{e.preventDefault();adjustLibEnemyHp(en.id,10);}}
+                              style={{ background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', width:22, height:22, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── TAB EINES ── */}
@@ -4108,7 +4370,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.21</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.22</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>
@@ -4245,6 +4507,30 @@ function RPGMapViewer() {
               </button>
             </div>
           )}
+          {contextMenu.isLibEnemy && (() => {
+            const _le = rLibEnemies.current.find(e => e.id === contextMenu.libEnemyId);
+            if (!_le) return null;
+            const _lhp = _le.hp ?? _le.hpMax;
+            const _lhr = _le.hpMax > 0 ? Math.max(0,_lhp/_le.hpMax) : 0;
+            const _lhc = _lhr > 0.5 ? '#56d364' : _lhr > 0.25 ? '#e3b341' : '#f85149';
+            return (
+              <div style={{ borderTop:`1px solid ${C.border}`, padding:'6px 8px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:3, marginBottom:5 }}>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustLibEnemyHp(_le.id,-10);}} style={{ flex:1, padding:'3px 0', background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', fontSize:10, fontWeight:700 }}>-10</button>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustLibEnemyHp(_le.id,-1);}} style={{ flex:1, padding:'3px 0', background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', fontSize:10, fontWeight:700 }}>-1</button>
+                  <div style={{ flex:2, background:'rgba(0,0,0,.5)', borderRadius:4, height:20, position:'relative', overflow:'hidden' }}>
+                    <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${_lhr*100}%`, background:_lhc }}/>
+                    <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', fontWeight:700 }}>{_lhp}/{_le.hpMax}</span>
+                  </div>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustLibEnemyHp(_le.id,1);}} style={{ flex:1, padding:'3px 0', background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', fontSize:10, fontWeight:700 }}>+1</button>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustLibEnemyHp(_le.id,10);}} style={{ flex:1, padding:'3px 0', background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', fontSize:10, fontWeight:700 }}>+10</button>
+                </div>
+                <button onMouseDown={e=>{e.stopPropagation();removeLibEnemy(_le.id);setContextMenu(null);}} style={{ width:'100%', padding:'5px', background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:5, color:'#f85149', cursor:'pointer', fontSize:11 }}>
+                  🗑 Eliminar de l'escena
+                </button>
+              </div>
+            );
+          })()}
           <div style={{ borderTop:`1px solid ${C.border}`, padding:'4px 6px' }}>
             <button onMouseDown={e => { e.stopPropagation(); setSceneConfigMenu({id:contextMenu.id, name:contextMenu.name, tokenPos:rPos.current[contextMenu.id], menuX:contextMenu.x, menuY:contextMenu.y}); setContextMenu(null); }}
               style={{ width:'100%', padding:'6px', background:'rgba(168,85,247,.12)', border:'1px solid rgba(168,85,247,.35)', borderRadius:5, color:'#c084fc', cursor:'pointer', fontSize:11, fontWeight:600 }}>

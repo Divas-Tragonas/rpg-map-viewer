@@ -8,6 +8,15 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.22
+- Pestanya "Enemics" al sidebar (al costat de "Mapa" i "Eines")
+- Biblioteca d'11 tipus d'enemic: Goblin, Llop, Ós, Zombie, Esquelet, Orc, Troll, Rata, Bandid, Aranya, Drac
+- Clic a la biblioteca afegeix l'enemic al centre de la vista; arrossegable al mapa
+- Tokens visuals: cercle de color amb inicials, barra de vida visible només al DM
+- Funcionalitats: HP +/-10/+/-1 via menú contextual, eliminar de l'escena, condicions, Escena, Derrotado
+- Sincronitzat al jugador via BroadcastChannel (sense barra de vida)
+- Guardat/carregat a sessions
+
 ### v2.21
 - Fix definitiu barra de vida en mode jugador: els tokens de jugador es renditen independentment de si hi ha PSD carregat (fix del `if (!s) return` que bloquejava el render)
 
