@@ -8,6 +8,9 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.18
+- Botó "▶ Demo" a la secció d'importar: carrega automàticament la imatge de fons i el PSD de prova embedits al HTML
+
 ### v2.17
 - Barra de vida dels tokens jugador més alta, text HP dins la barra; visible també a la pantalla del jugador
 - SHIFT + botó mig: pan privat del DM (no sincronitzat al jugador); quan soltes Shift, torna suaument a la posició original
