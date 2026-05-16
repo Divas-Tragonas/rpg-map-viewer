@@ -1018,7 +1018,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.19
+// Versió: v2.20
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1622,21 +1622,23 @@ function renderPlayerTokens(ctx, fc) {
         drawConditionBadges(ctx, ppos.x+R, ppos.y+R, R, plCondIds, sc);
 
         // ── Barra de vida ──────────────────────────────────────────────
-        if (pl.hpMax > 0) {
-          const hp = pl.hp ?? pl.hpMax;
-          const hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
+        const hpMax = pl.hpMax || 0;
+        if (hpMax > 0) {
+          const hp = Math.max(0, pl.hp ?? hpMax);
+          const hpRatio = Math.max(0, Math.min(1, hp / hpMax));
           const barW = R * 2;
-          const barH = 13 / sc;
+          const barH = Math.max(13 / sc, R * 0.35);
           const barX = ppos.x;
           const barY = ppos.y + R * 2 + 16 / sc;
           ctx.fillStyle = 'rgba(0,0,0,0.6)';
           ctx.fillRect(barX, barY, barW, barH);
           ctx.fillStyle = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
           ctx.fillRect(barX, barY, barW * hpRatio, barH);
-          ctx.font = `bold ${9/sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          const barFontSize = Math.max(9 / sc, barH * 0.62);
+          ctx.font = `bold ${barFontSize}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillStyle = '#fff';
           ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 2/sc;
-          ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH / 2);
+          ctx.fillText(`${hp}/${hpMax}`, ppos.x + R, barY + barH / 2);
           ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
         }
 
@@ -3499,7 +3501,7 @@ function RPGMapViewer() {
   const saveSession = useCallback(() => {
     const oc = drawCanvasRef.current;
     const state = {
-      version: '2.1',
+      version: '2.2',
       vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
       panOffset: rPanOffset.current, players: rPlayers.current,
       conditions: rConditions.current, defeated: rDefeated.current,
@@ -3507,24 +3509,58 @@ function RPGMapViewer() {
       strokeHistory: strokeHistoryRef.current,
       gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridSnap: rGridSnap.current,
       gridLineWidth: rGridLineWidth.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
+      tokenSizeOverride: rTokenSizeOverride.current,
       drawCanvas: oc && oc.width > 1 ? oc.toDataURL('image/png') : null,
     };
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    if (bgBufferRef.current) {
+      const u8 = new Uint8Array(bgBufferRef.current.buffer);
+      let bin = ''; const CHUNK = 8192;
+      for (let i = 0; i < u8.length; i += CHUNK) bin += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+      state.bgData = btoa(bin); state.bgMimeType = bgBufferRef.current.mimeType; state.bgName = bgName;
+    }
+    if (rStruct2.current) {
+      state.psdStruct = rStruct2.current;
+      state.psdInfo = rPsdInfo.current;
+      state.layerImageUrls = rLayerUrls.current;
+    }
+    const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'sesion-rpg.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, []);
+  }, [bgName]);
 
   // ── Cargar sesión ─────────────────────────────────────────────────────
   const loadSession = useCallback(async (file) => {
     try {
       const state = JSON.parse(await file.text());
+      // Restore BG image
+      if (state.bgData) {
+        const bin = atob(state.bgData); const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        await loadBg(new File([arr], state.bgName || 'background.png', { type: state.bgMimeType || 'image/png' }));
+      }
+      // Restore PSD struct and layer images
+      if (state.psdStruct) {
+        rStruct.current = state.psdStruct; rStruct2.current = state.psdStruct;
+        setStruct(state.psdStruct);
+        if (state.psdInfo) { rPsdInfo.current = state.psdInfo; setPsdInfo(state.psdInfo); }
+        const urls = state.layerImageUrls || {};
+        const imgs = {};
+        await Promise.all(Object.keys(urls).map(id => new Promise(res => {
+          const img = new Image();
+          img.onload = () => { const oc2 = document.createElement('canvas'); oc2.width = img.naturalWidth; oc2.height = img.naturalHeight; oc2.getContext('2d').drawImage(img, 0, 0); imgs[id] = oc2; res(); };
+          img.onerror = res; img.src = urls[id];
+        })));
+        rLayerImages.current = imgs; setLayerImages(imgs); rLayerUrls.current = urls;
+      }
+      // Normalize players to ensure hp/hpMax exist
+      const normPlayers = (state.players || []).map(pl => ({ ...pl, hpMax: pl.hpMax || 0, hp: pl.hp ?? (pl.hpMax || 0) }));
       if (state.vis)           { rVis.current = state.vis;         setVis(state.vis); }
       if (state.pos)           { rPos.current = state.pos;         setPos(state.pos); }
       if (state.zoom)          { rZoom.current = state.zoom;        setZoom(state.zoom); }
       if (state.panOffset)     { rPanOffset.current = state.panOffset; }
-      if (state.players)       { rPlayers.current = state.players;  setPlayers(state.players); }
+      if (normPlayers.length)  { rPlayers.current = normPlayers;   setPlayers(normPlayers); }
       if (state.conditions)    { rConditions.current = state.conditions; setConditions(state.conditions); }
       if (state.defeated)      { rDefeated.current = state.defeated; setDefeated(state.defeated); }
       if (state.paintedZones)  { rPaintedZones.current = state.paintedZones; setPaintedZones(state.paintedZones); }
@@ -3535,17 +3571,21 @@ function RPGMapViewer() {
       if (state.gridLineWidth !== undefined) { rGridLineWidth.current = state.gridLineWidth; setGridLineWidth(state.gridLineWidth); }
       if (state.gridOriginX   !== undefined) { rGridOriginX.current   = state.gridOriginX;   setGridOriginX(state.gridOriginX); }
       if (state.gridOriginY   !== undefined) { rGridOriginY.current   = state.gridOriginY;   setGridOriginY(state.gridOriginY); }
-      if (state.drawCanvas) {
+      if (state.tokenSizeOverride) { rTokenSizeOverride.current = state.tokenSizeOverride; setTokenSizeOverride(state.tokenSizeOverride); }
+      if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;
         if (oc) {
+          const w = state.psdInfo?.width || oc.width, h = state.psdInfo?.height || oc.height;
+          if (oc.width !== w || oc.height !== h) { oc.width = w; oc.height = h; }
           const ctx2 = oc.getContext('2d');
           ctx2.clearRect(0, 0, oc.width, oc.height);
-          for (const stroke of (state.strokeHistory || [])) replayStroke(ctx2, stroke);
+          for (const stroke of state.strokeHistory) replayStroke(ctx2, stroke);
         }
       }
       _broadcastState({});
+      if (state.psdStruct && bcRef.current) setTimeout(() => _sendFullState(), 150);
     } catch (err) { console.error('Error cargando sesión:', err); }
-  }, [_broadcastState]);
+  }, [_broadcastState, _sendFullState, loadBg]);
 
   // ── Lanzar un hechizo a lo largo de una trayectoria abierta ─────────
   const addSpell = (type) => {
@@ -4060,7 +4100,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.19</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.20</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>
