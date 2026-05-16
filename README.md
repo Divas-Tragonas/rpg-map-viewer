@@ -8,6 +8,9 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.21
+- Fix definitiu barra de vida en mode jugador: els tokens de jugador es renditen independentment de si hi ha PSD carregat (fix del `if (!s) return` que bloquejava el render)
+
 ### v2.20
 - Barra de vida dels tokens: alçada proporcional al token en zoom alt (400% = barra gran), text escalat
 - Barra de vida visible a la pantalla del jugador (defensiva: `hpMax || 0` en comptes de només `hpMax`)
