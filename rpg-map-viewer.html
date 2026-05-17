@@ -1051,7 +1051,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.23
+// Versió: v2.24
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -1389,7 +1389,7 @@ function renderSpells(ctx, fc) {
 
 }
 function renderEnemyTokens(ctx, fc) {
-  const { sc, s, v, pp, isDM, rLayerImages, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
+  const { sc, s, v, pp, isDM, rLayerImages, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef, visualPosRef, rSelectedToken, rTokenSizeOverride, rPsdEnemyOverrides, rPsdEnemyImgCache } = fc;
       // ── Enemy tokens ──────────────────────────────────────────────────── ──────────────────────
       s.enemyZones.forEach(zone => zone.enemies.forEach(en => {
         const rawEp = pp[en.id]; if (!rawEp) return;
@@ -1423,7 +1423,8 @@ function renderEnemyTokens(ctx, fc) {
         }
         const R = rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
         const imgs2 = rLayerImages.current;
-        const enImg = imgs2[en.id];
+        const _psdOv = (rPsdEnemyOverrides && rPsdEnemyOverrides.current) ? (rPsdEnemyOverrides.current[en.id] || {}) : {};
+        const enImg = (rPsdEnemyImgCache && rPsdEnemyImgCache.current && rPsdEnemyImgCache.current[en.id]) || imgs2[en.id];
         const enCondIds = rConditions.current[en.id] || [];
         const isInvis = enCondIds.includes('invisible');
 
@@ -1532,17 +1533,35 @@ function renderEnemyTokens(ctx, fc) {
         // En ventana jugador: si invisible, no mostrar nombre ni estados
         const showStates = isDM || !isInvis;
         if (showStates) {
-          const tw = ctx.measureText(en.name).width;
+          const _enName = _psdOv.name || en.name;
+          const tw = ctx.measureText(_enName).width;
           ctx.globalAlpha = enAlpha;
           ctx.fillStyle = 'rgba(8,12,18,.85)';
           ctx.fillRect(ep.x - tw/2 - 4/sc, ep.y + R + 2/sc, tw + 8/sc, 13/sc);
           ctx.fillStyle = isVis ? '#ffaaaa' : '#888';
-          ctx.fillText(en.name, ep.x, ep.y + R + 12/sc);
+          ctx.fillText(_enName, ep.x, ep.y + R + 12/sc);
         }
         ctx.globalAlpha = 1;
         // En ventana jugador: si el enemigo es invisible, no mostrar estados ni nombre
         if (!isDM && isInvis) { /* nada */ } else {
           drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc);
+        }
+        // ── HP bar per PSD enemy ──────────────────────────────────────────
+        if (isDM && _psdOv.hpMax > 0 && !isDefeated) {
+          const _hp = Math.max(0, _psdOv.hp ?? _psdOv.hpMax);
+          const _hr = _hp / _psdOv.hpMax;
+          const barW = R * 2, barH = Math.max(13/sc, R * 0.35);
+          const barX = ep.x - R, barY = ep.y + R + 16/sc;
+          ctx.globalAlpha = enAlpha;
+          ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
+          ctx.fillStyle = _hr > 0.5 ? '#56d364' : _hr > 0.25 ? '#e3b341' : '#f85149';
+          ctx.fillRect(barX, barY, barW * _hr, barH);
+          const bfs = Math.max(9/sc, barH * 0.62);
+          ctx.font = `bold ${bfs}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 2/sc;
+          ctx.fillText(`${_hp}/${_psdOv.hpMax}`, ep.x, barY + barH / 2);
+          ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+          ctx.globalAlpha = 1;
         }
 
         // ── Aureola resaltado (con alpha animado) ─────────────────────────
@@ -2023,6 +2042,9 @@ function RPGMapViewer() {
   const [playerReady, setPlayerReady] = useState(false);
   const [conditions,  setConditions]  = useState({}); // { tokenId: [condId,...] }
   const [defeated,    setDefeated]    = useState({}); // { tokenId: true } enemigos derrotados
+  const [psdEnemyOverrides, setPsdEnemyOverrides] = useState({}); // { [numericId]: { hp, hpMax, name, imageData } }
+  const [sceneEditName, setSceneEditName] = useState('');
+  const [sceneEditHpMax, setSceneEditHpMax] = useState(0);
   const [appMode,     setAppMode]     = useState('map'); // 'map' | 'expositor'
   const [contextMenu, setContextMenu] = useState(null); // { id, name, x, y }
   const [sceneConfigMenu, setSceneConfigMenu] = useState(null); // { id, name, tokenPos, menuX, menuY }
@@ -2099,6 +2121,8 @@ function RPGMapViewer() {
   const rContextMenu = useRef(null);            // espejo de contextMenu para el RAF loop
   const zoneDragRef  = useRef(null);            // { zoneId, startMx, startMy, origPoints, origBbox }
   const rDefeated    = useRef({});              // { tokenId: true } — espejo de defeated
+  const rPsdEnemyOverrides = useRef({});        // espejo de psdEnemyOverrides
+  const rPsdEnemyImgCache  = useRef({});        // { [numericId]: canvas } imatges decodificades
   const defeatedAnimRef = useRef({});           // { tokenId: 0..1 } — progreso animación cruz
   const ctrlHeldRef  = useRef(false);           // Ctrl pulsado (ref para handlers)
   const expositorRef = useRef(null);            // iframe del expositor
@@ -2153,6 +2177,7 @@ function RPGMapViewer() {
     rLayerImages.current = layerImages; rConditions.current = conditions;
     rPaintedZones.current = paintedZones; rZonesLocked.current = zonesLocked;
     rContextMenu.current = contextMenu;   rDefeated.current = defeated;
+    rPsdEnemyOverrides.current = psdEnemyOverrides;
     rGridVisible.current = gridVisible;   rGridSize.current = gridSize; rGridSnap.current = gridSnap;
     rGridAutoSize.current = gridAutoSize; rTokenSizeOverride.current = tokenSizeOverride;
     rGridLineWidth.current = gridLineWidth; rGridOriginX.current = gridOriginX; rGridOriginY.current = gridOriginY;
@@ -2162,7 +2187,7 @@ function RPGMapViewer() {
     rSelectedToken.current = selectedToken;
     rAppMode.current = appMode;
   }, [struct, vis, pos, zoom, players, drawTool, drawColor, drawSize,
-      layerImages, conditions, paintedZones, zonesLocked, contextMenu, defeated,
+      layerImages, conditions, paintedZones, zonesLocked, contextMenu, defeated, psdEnemyOverrides,
       gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride, gridLineWidth, gridOriginX, gridOriginY, gridCalibrating,
       enemyHighlight, highlightLocked, selectedToken, appMode]);
   useEffect(() => { rPsdInfo.current   = psdInfo;   }, [psdInfo]);
@@ -2175,6 +2200,16 @@ function RPGMapViewer() {
       return () => clearTimeout(t);
     }
   }, [warnings, parseError, warningsDismissed]);
+
+  // Init sceneEditName/sceneEditHpMax when dialog opens
+  useEffect(() => {
+    if (sceneConfigMenu) {
+      const _isp = typeof sceneConfigMenu.id === 'number';
+      const _pov = _isp ? (psdEnemyOverrides[sceneConfigMenu.id] || {}) : {};
+      setSceneEditName(sceneConfigMenu.name || '');
+      setSceneEditHpMax(_pov.hpMax || 0);
+    }
+  }, [sceneConfigMenu]);
 
   // Init draw canvas
   useEffect(() => {
@@ -2262,6 +2297,7 @@ function RPGMapViewer() {
           if (msg.enemyHighlight  !== undefined) { setEnemyHighlight(msg.enemyHighlight);   rEnemyHighlight.current  = msg.enemyHighlight; }
           if (msg.tokenSizeOverride !== undefined) { setTokenSizeOverride(msg.tokenSizeOverride); rTokenSizeOverride.current = msg.tokenSizeOverride; }
           if (msg.libEnemies) { setLibEnemies(msg.libEnemies); rLibEnemies.current = msg.libEnemies; }
+          if (msg.psdEnemyOverrides) { setPsdEnemyOverrides(msg.psdEnemyOverrides); rPsdEnemyOverrides.current = msg.psdEnemyOverrides; }
           // Reconstruct layer images from data URLs
           const urls = msg.layerImageUrls || {};
           const imgs = {};
@@ -2315,6 +2351,7 @@ function RPGMapViewer() {
           if (msg.enemyHighlight  !== undefined) { setEnemyHighlight(msg.enemyHighlight);   rEnemyHighlight.current  = msg.enemyHighlight; }
           if (msg.tokenSizeOverride !== undefined) { setTokenSizeOverride(msg.tokenSizeOverride); rTokenSizeOverride.current = msg.tokenSizeOverride; }
           if (msg.libEnemies) { setLibEnemies(msg.libEnemies); rLibEnemies.current = msg.libEnemies; }
+          if (msg.psdEnemyOverrides) { setPsdEnemyOverrides(msg.psdEnemyOverrides); rPsdEnemyOverrides.current = msg.psdEnemyOverrides; }
           if (msg.appMode !== undefined) { setAppMode(msg.appMode); rAppMode.current = msg.appMode; }
           // DM preview zoom/pan
           if (msg.dmPreviewActive !== undefined) {
@@ -2418,6 +2455,7 @@ function RPGMapViewer() {
       enemyHighlight: rEnemyHighlight.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
+      psdEnemyOverrides: rPsdEnemyOverrides.current,
     });
   }, []);
 
@@ -2427,7 +2465,7 @@ function RPGMapViewer() {
     const _isDMPrev = !isPlayerWindow && (dmLocalPan.current.x!==0||dmLocalPan.current.y!==0||dmLocalZoom.current!==1);
     const _effZ   = rZoom.current * dmLocalZoom.current;
     const _effPan = { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y };
-    bc.postMessage({ type: 'STATE', vis: rVis.current, pos: rPos.current, zoom: rZoom.current, players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current, paintedZones: rPaintedZones.current, panOffset: rPanOffset.current, gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current, gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current, tokenSizeOverride: rTokenSizeOverride.current, libEnemies: rLibEnemies.current, appMode: rAppMode.current, dmPreviewActive: _isDMPrev, dmPreviewZoom: _effZ, dmPreviewPan: _effPan, ...extra });
+    bc.postMessage({ type: 'STATE', vis: rVis.current, pos: rPos.current, zoom: rZoom.current, players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current, paintedZones: rPaintedZones.current, panOffset: rPanOffset.current, gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current, gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current, tokenSizeOverride: rTokenSizeOverride.current, libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current, appMode: rAppMode.current, dmPreviewActive: _isDMPrev, dmPreviewZoom: _effZ, dmPreviewPan: _effPan, ...extra });
   }, []);
 
   // Load background from URL (used by player) — withFade = fade to black first
@@ -2898,6 +2936,7 @@ function RPGMapViewer() {
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
         rPointerPos, rSelectedToken, rTokenSizeOverride,
+        rPsdEnemyOverrides, rPsdEnemyImgCache,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
@@ -3722,6 +3761,49 @@ function RPGMapViewer() {
     _broadcastState({});
   }, [_broadcastState, setDefeated]);
 
+
+  const adjustPsdEnemyHp = useCallback((id, delta) => {
+    const ov = rPsdEnemyOverrides.current;
+    const cur = ov[id] || {};
+    const hpMax = cur.hpMax || 0;
+    if (hpMax <= 0) return;
+    const newHp = Math.max(0, Math.min(hpMax, (cur.hp ?? hpMax) + delta));
+    const nOv = { ...ov, [id]: { ...cur, hp: newHp } };
+    rPsdEnemyOverrides.current = nOv; setPsdEnemyOverrides(nOv);
+    const isNowDefeated = newHp <= 0;
+    const wasDefeated = !!rDefeated.current[id];
+    if (isNowDefeated !== wasDefeated) {
+      const nd = { ...rDefeated.current };
+      if (isNowDefeated) nd[id] = true; else delete nd[id];
+      rDefeated.current = nd; setDefeated(nd);
+    }
+    _broadcastState({});
+  }, [_broadcastState, setDefeated]);
+
+  const setPsdEnemyProps = useCallback((id, props) => {
+    const ov = rPsdEnemyOverrides.current;
+    const cur = ov[id] || {};
+    const nOv = { ...ov, [id]: { ...cur, ...props } };
+    rPsdEnemyOverrides.current = nOv; setPsdEnemyOverrides(nOv);
+    if (props.imageData) {
+      const img = new Image();
+      img.onload = () => {
+        const oc = document.createElement('canvas');
+        oc.width = img.naturalWidth; oc.height = img.naturalHeight;
+        oc.getContext('2d').drawImage(img, 0, 0);
+        rPsdEnemyImgCache.current[id] = oc;
+      };
+      img.src = props.imageData;
+    }
+    _broadcastState({});
+  }, [_broadcastState]);
+
+  const setLibEnemyProps = useCallback((id, props) => {
+    const updated = rLibEnemies.current.map(en => en.id === id ? { ...en, ...props } : en);
+    rLibEnemies.current = updated; setLibEnemies(updated);
+    _broadcastState({});
+  }, [_broadcastState]);
+
   const removeLibEnemy = useCallback((id) => {
     const updated = rLibEnemies.current.filter(en => en.id !== id);
     rLibEnemies.current = updated; setLibEnemies(updated);
@@ -4059,9 +4141,27 @@ function RPGMapViewer() {
                         <span style={{ fontSize:11, color:C.dim }}>{zone.enemies.filter(en=>vis[en.id]).length}/{zone.enemies.length}</span>
                       </button>
                       {expanded[zone.id] && (<>
-                        {(zone.directEnemies || zone.enemies).map(en => (
-                          <LayerRow key={en.id} layer={en} visible={!!vis[en.id]} onToggle={() => toggleVis(en.id)} color={C.enemy} indent draggable active={activeDrag===en.id} onReset={() => resetToken(en)} onDelete={() => deleteLayer(en.id, 'enemy')} selected={selectedToken===en.id} onSelect={() => { setSelectedToken(en.id); rSelectedToken.current=en.id; }}/>
-                        ))}
+                        {(zone.directEnemies || zone.enemies).map(en => {
+                          const _pov = psdEnemyOverrides[en.id] || {};
+                          const _php = _pov.hp ?? _pov.hpMax;
+                          const _phr = _pov.hpMax > 0 ? Math.max(0, _php / _pov.hpMax) : 0;
+                          const _phc = _phr > 0.5 ? '#56d364' : _phr > 0.25 ? '#e3b341' : '#f85149';
+                          return (
+                            <div key={en.id}>
+                              <LayerRow layer={en} visible={!!vis[en.id]} onToggle={() => toggleVis(en.id)} color={C.enemy} indent draggable active={activeDrag===en.id} onReset={() => resetToken(en)} onDelete={() => deleteLayer(en.id, 'enemy')} selected={selectedToken===en.id} onSelect={() => { setSelectedToken(en.id); rSelectedToken.current=en.id; }}/>
+                              {_pov.hpMax > 0 && (
+                                <div style={{ display:'flex', alignItems:'center', gap:2, padding:'2px 8px 4px 36px' }}>
+                                  <button onClick={() => adjustPsdEnemyHp(en.id, -1)} onContextMenu={e=>{e.preventDefault();adjustPsdEnemyHp(en.id,-10);}} style={{ width:16, height:16, borderRadius:3, border:'1px solid rgba(248,81,73,0.4)', background:'rgba(248,81,73,0.1)', cursor:'pointer', color:'#f85149', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
+                                  <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:9, overflow:'hidden', position:'relative' }}>
+                                    <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${_phr*100}%`, background:_phc }}/>
+                                    <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, color:'#fff', fontWeight:700 }}>{_php}/{_pov.hpMax}</span>
+                                  </div>
+                                  <button onClick={() => adjustPsdEnemyHp(en.id, 1)} onContextMenu={e=>{e.preventDefault();adjustPsdEnemyHp(en.id,10);}} style={{ width:16, height:16, borderRadius:3, border:'1px solid rgba(86,211,100,0.4)', background:'rgba(86,211,100,0.1)', cursor:'pointer', color:'#56d364', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>+</button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                         {(zone.subGroups||[]).map(sg => (
                           <div key={sg.id}>
                             <button onClick={() => setExpanded(ex => ({...ex, [sg.id]: !ex[sg.id]}))}
@@ -4070,9 +4170,27 @@ function RPGMapViewer() {
                               <span style={{ fontSize:11, color:C.dim, flex:1, textAlign:'left' }}>📁 {sg.name}</span>
                               <span style={{ fontSize:10, color:C.dim }}>{sg.enemies.filter(en=>vis[en.id]).length}/{sg.enemies.length}</span>
                             </button>
-                            {expanded[sg.id] && sg.enemies.map(en => (
-                              <LayerRow key={en.id} layer={en} visible={!!vis[en.id]} onToggle={() => toggleVis(en.id)} color={C.enemy} indent2 draggable active={activeDrag===en.id} onReset={() => resetToken(en)} onDelete={() => deleteLayer(en.id, 'enemy')} selected={selectedToken===en.id} onSelect={() => { setSelectedToken(en.id); rSelectedToken.current=en.id; }}/>
-                            ))}
+                            {expanded[sg.id] && sg.enemies.map(en => {
+                              const _pov2 = psdEnemyOverrides[en.id] || {};
+                              const _php2 = _pov2.hp ?? _pov2.hpMax;
+                              const _phr2 = _pov2.hpMax > 0 ? Math.max(0, _php2 / _pov2.hpMax) : 0;
+                              const _phc2 = _phr2 > 0.5 ? '#56d364' : _phr2 > 0.25 ? '#e3b341' : '#f85149';
+                              return (
+                                <div key={en.id}>
+                                  <LayerRow layer={en} visible={!!vis[en.id]} onToggle={() => toggleVis(en.id)} color={C.enemy} indent2 draggable active={activeDrag===en.id} onReset={() => resetToken(en)} onDelete={() => deleteLayer(en.id, 'enemy')} selected={selectedToken===en.id} onSelect={() => { setSelectedToken(en.id); rSelectedToken.current=en.id; }}/>
+                                  {_pov2.hpMax > 0 && (
+                                    <div style={{ display:'flex', alignItems:'center', gap:2, padding:'2px 8px 4px 52px' }}>
+                                      <button onClick={() => adjustPsdEnemyHp(en.id, -1)} onContextMenu={e=>{e.preventDefault();adjustPsdEnemyHp(en.id,-10);}} style={{ width:16, height:16, borderRadius:3, border:'1px solid rgba(248,81,73,0.4)', background:'rgba(248,81,73,0.1)', cursor:'pointer', color:'#f85149', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
+                                      <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:9, overflow:'hidden', position:'relative' }}>
+                                        <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${_phr2*100}%`, background:_phc2 }}/>
+                                        <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, color:'#fff', fontWeight:700 }}>{_php2}/{_pov2.hpMax}</span>
+                                      </div>
+                                      <button onClick={() => adjustPsdEnemyHp(en.id, 1)} onContextMenu={e=>{e.preventDefault();adjustPsdEnemyHp(en.id,10);}} style={{ width:16, height:16, borderRadius:3, border:'1px solid rgba(86,211,100,0.4)', background:'rgba(86,211,100,0.1)', cursor:'pointer', color:'#56d364', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>+</button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         ))}
                       </>)}
@@ -4425,7 +4543,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.23</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.24</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>
@@ -4586,6 +4704,28 @@ function RPGMapViewer() {
               </div>
             );
           })()}
+          {typeof contextMenu.id === 'number' && (() => {
+            const _pov = rPsdEnemyOverrides.current[contextMenu.id] || {};
+            const _hm = _pov.hpMax || 0;
+            if (_hm <= 0) return null;
+            const _hp = Math.max(0, _pov.hp ?? _hm);
+            const _hr = _hm > 0 ? _hp / _hm : 0;
+            const _hc = _hr > 0.5 ? '#56d364' : _hr > 0.25 ? '#e3b341' : '#f85149';
+            return (
+              <div style={{ borderTop:`1px solid ${C.border}`, padding:'6px 8px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPsdEnemyHp(contextMenu.id,-10);}} style={{ flex:1, padding:'3px 0', background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', fontSize:10, fontWeight:700 }}>-10</button>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPsdEnemyHp(contextMenu.id,-1);}} style={{ flex:1, padding:'3px 0', background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', fontSize:10, fontWeight:700 }}>-1</button>
+                  <div style={{ flex:2, background:'rgba(0,0,0,.5)', borderRadius:4, height:20, position:'relative', overflow:'hidden' }}>
+                    <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${_hr*100}%`, background:_hc }}/>
+                    <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', fontWeight:700 }}>{_hp}/{_hm}</span>
+                  </div>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPsdEnemyHp(contextMenu.id,1);}} style={{ flex:1, padding:'3px 0', background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', fontSize:10, fontWeight:700 }}>+1</button>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPsdEnemyHp(contextMenu.id,10);}} style={{ flex:1, padding:'3px 0', background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', fontSize:10, fontWeight:700 }}>+10</button>
+                </div>
+              </div>
+            );
+          })()}
           {typeof contextMenu.id === 'string' && contextMenu.id.startsWith('pl_') && (() => {
             const _pl = rPlayers.current.find(p => `pl_${p.id}` === contextMenu.id);
             if (!_pl || !_pl.hpMax) return null;
@@ -4632,25 +4772,60 @@ function RPGMapViewer() {
     )}
 
     {/* ══ SCENE CONFIG MENU ══ */}
-    {sceneConfigMenu && !isPlayerWindow && (
+    {sceneConfigMenu && !isPlayerWindow && (() => {
+      const _scIsPsd = typeof sceneConfigMenu.id === 'number';
+      const _scIsLib = typeof sceneConfigMenu.id === 'string' && sceneConfigMenu.id.startsWith('lib_');
+      const _scLibId = _scIsLib ? parseInt(sceneConfigMenu.id.replace('lib_','')) : null;
+      const _scPov = _scIsPsd ? (psdEnemyOverrides[sceneConfigMenu.id] || {}) : {};
+      const _scLibEn = _scIsLib ? libEnemies.find(e => e.id === _scLibId) : null;
+      return (
       <div data-ctxmenu="1" style={{
-        position:'fixed', left:Math.min(sceneConfigMenu.menuX, window.innerWidth-250), top:Math.min(sceneConfigMenu.menuY, window.innerHeight-220),
+        position:'fixed', left:Math.min(sceneConfigMenu.menuX, window.innerWidth-260), top:Math.min(sceneConfigMenu.menuY, window.innerHeight-320),
         background:C.panel, border:`1px solid rgba(168,85,247,.45)`, borderRadius:10, zIndex:9999,
-        boxShadow:'0 8px 32px rgba(0,0,0,0.7)', width:240, overflow:'hidden',
+        boxShadow:'0 8px 32px rgba(0,0,0,0.7)', width:254, overflow:'hidden',
       }}>
         <div style={{ padding:'8px 12px 6px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ color:'#c084fc', fontWeight:700, fontSize:12 }}>⚡ {sceneConfigMenu.name}</span>
+          <span style={{ color:'#c084fc', fontWeight:700, fontSize:12 }}>⚡ Escena</span>
           <button onMouseDown={e=>{e.stopPropagation(); setSceneConfigMenu(null);}}
             style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, padding:'2px', display:'flex', alignItems:'center' }}>
             <X size={12}/>
           </button>
         </div>
-        <div style={{ padding:10, display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ padding:10, display:'flex', flexDirection:'column', gap:7 }}>
+          {/* Nom editable */}
+          <div>
+            <div style={{ fontSize:9, color:C.dim, marginBottom:3, textTransform:'uppercase', letterSpacing:'0.08em' }}>Nom</div>
+            <input
+              value={sceneEditName}
+              onChange={e => setSceneEditName(e.target.value)}
+              style={{ width:'100%', boxSizing:'border-box', background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:4, padding:'4px 7px', color:C.text, fontSize:11, outline:'none' }}
+            />
+          </div>
+          {/* HP init per tokens PSD sense HP */}
+          {_scIsPsd && !(_scPov.hpMax > 0) && (
+            <div>
+              <div style={{ fontSize:9, color:C.dim, marginBottom:3, textTransform:'uppercase', letterSpacing:'0.08em' }}>HP màxims (0 = sense HP)</div>
+              <input type="number" min={0} max={9999} value={sceneEditHpMax}
+                onChange={e => setSceneEditHpMax(parseInt(e.target.value) || 0)}
+                style={{ width:'100%', boxSizing:'border-box', background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:4, padding:'4px 7px', color:C.text, fontSize:11, outline:'none' }}
+              />
+            </div>
+          )}
           <SceneImgPicker
-            defaultCanvas={rLayerImages.current[sceneConfigMenu.id] || null}
+            defaultCanvas={(_scIsPsd && rPsdEnemyImgCache.current[sceneConfigMenu.id]) || rLayerImages.current[sceneConfigMenu.id] || (_scIsLib && _scLibEn?.imageData ? getTokenImg(_scLibEn.imageData) : null) || null}
             onTrigger={(imgEl) => {
+              const finalName = sceneEditName.trim() || sceneConfigMenu.name;
               const tp = sceneConfigMenu.tokenPos;
-              triggerBossIntro({ tokenId:sceneConfigMenu.id, bossName:sceneConfigMenu.name, portrait:imgEl, tokenPos:tp });
+              // Save name + image persistently
+              if (_scIsPsd) {
+                const propsToSave = {};
+                if (finalName !== sceneConfigMenu.name) propsToSave.name = finalName;
+                if (sceneEditHpMax > 0 && !(_scPov.hpMax > 0)) { propsToSave.hpMax = sceneEditHpMax; propsToSave.hp = sceneEditHpMax; }
+                if (Object.keys(propsToSave).length > 0) setPsdEnemyProps(sceneConfigMenu.id, propsToSave);
+              } else if (_scIsLib && _scLibId !== null) {
+                if (finalName !== sceneConfigMenu.name) setLibEnemyProps(_scLibId, { name: finalName });
+              }
+              triggerBossIntro({ tokenId:sceneConfigMenu.id, bossName:finalName, portrait:imgEl, tokenPos:tp });
               // Encode portrait as JPEG data URL (max 600px) for player sync
               let portraitDataUrl = null;
               if (imgEl) {
@@ -4659,20 +4834,25 @@ function RPGMapViewer() {
                   const maxW = 600;
                   const srcW = imgEl.width || imgEl.naturalWidth || maxW;
                   const srcH = imgEl.height || imgEl.naturalHeight || maxW;
-                  const sc = Math.min(1, maxW / Math.max(srcW, 1));
-                  tmp.width = Math.round(srcW * sc); tmp.height = Math.round(srcH * sc);
+                  const sc2 = Math.min(1, maxW / Math.max(srcW, 1));
+                  tmp.width = Math.round(srcW * sc2); tmp.height = Math.round(srcH * sc2);
                   tmp.getContext('2d').drawImage(imgEl, 0, 0, tmp.width, tmp.height);
                   portraitDataUrl = tmp.toDataURL('image/jpeg', 0.88);
+                  // Save imageData for PSD enemy
+                  if (_scIsPsd) setPsdEnemyProps(sceneConfigMenu.id, { imageData: portraitDataUrl });
+                  // Save imageData for lib enemy
+                  if (_scIsLib && _scLibId !== null) setLibEnemyProps(_scLibId, { imageData: portraitDataUrl });
                 } catch(e) {}
               }
-              bcRef.current?.postMessage({ type:'BOSS_INTRO', tokenId:sceneConfigMenu.id, bossName:sceneConfigMenu.name, tokenPos:tp, portraitDataUrl });
+              bcRef.current?.postMessage({ type:'BOSS_INTRO', tokenId:sceneConfigMenu.id, bossName:finalName, tokenPos:tp, portraitDataUrl });
               setSceneConfigMenu(null);
             }}
             onCancel={() => setSceneConfigMenu(null)}
           />
         </div>
       </div>
-    )}
+      );
+    })()}
   </>
   );
 }

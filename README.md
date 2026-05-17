@@ -8,6 +8,15 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.24
+- Sistema HP complet per tokens enemics importats des de PSD: barra de vida al sidebar (compacta, inline), barra visual al canvas (DM), editor HP al menú contextual
+- Menú Escena (⚡) permet editar el nom del token (PSD i biblioteca); el canvi aplica de forma persistent
+- Menú Escena permet inicialitzar HP màxims per tokens PSD sense HP configurat
+- Canvis de nom i imatge des d'Escena s'apliquen persistentment a TOTS els tokens enemics (PSD i biblioteca)
+- Fix: snap de grid no s'aplica a les zones de visibilitat, només als tokens reals
+- Fix: ESC per skipear cinematica DM ara sincronitza la finestra del jugador
+- Fix: clic dret a token enemic PSD ja no peta la pàgina (TypeError `startsWith` en ID numèric)
+
 ### v2.23
 - Imatges reals als tokens de Goblin (4 variants, assignació aleatòria en afegir)
 - Token renderitzat com a imatge clipada al cercle; fallback a cercle de color si no hi ha imatge
