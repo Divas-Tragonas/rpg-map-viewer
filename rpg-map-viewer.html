@@ -1691,7 +1691,7 @@ function renderPlayerTokens(ctx, fc) {
 
 }
 function renderLibEnemyTokens(ctx, fc) {
-  const { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
+  const { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rLibDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
   rLibEnemies.current.forEach(en => {
     const rawEp = pp[`lib_${en.id}`] || { x: en.x || 0, y: en.y || 0 };
     let ep;
@@ -1733,22 +1733,22 @@ function renderLibEnemyTokens(ctx, fc) {
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ep.x+2/sc, ep.y+2/sc, R, 0, Math.PI*2); ctx.fill();
     if (isDefeated && colorProg > 0) {
-      const ow = Math.ceil(R*2+4), oh = Math.ceil(R*2+4);
-      if (!rDeathCanvas.current) rDeathCanvas.current = document.createElement('canvas');
-      if (rDeathCanvas.current.width !== ow) rDeathCanvas.current.width = ow;
-      if (rDeathCanvas.current.height !== oh) rDeathCanvas.current.height = oh;
-      const oCtx = rDeathCanvas.current.getContext('2d');
+      const pixR = Math.ceil(R * sc + 2);
+      const ow = pixR*2, oh = pixR*2;
+      if (!rLibDeathCanvas.current) rLibDeathCanvas.current = document.createElement('canvas');
+      rLibDeathCanvas.current.width = ow; rLibDeathCanvas.current.height = oh;
+      const oCtx = rLibDeathCanvas.current.getContext('2d');
       oCtx.clearRect(0, 0, ow, oh);
-      const cx2 = R+2, cy2 = R+2;
-      oCtx.beginPath(); oCtx.arc(cx2, cy2, R, 0, Math.PI*2);
+      const pR = R*sc, cx2 = pixR, cy2 = pixR;
+      oCtx.beginPath(); oCtx.arc(cx2, cy2, pR, 0, Math.PI*2);
       oCtx.fillStyle = en.color; oCtx.fill();
-      if (en.imageData) { const dtImg = getTokenImg(en.imageData); if (dtImg.complete && dtImg.naturalWidth > 0) { oCtx.save(); oCtx.beginPath(); oCtx.arc(cx2,cy2,R,0,Math.PI*2); oCtx.clip(); oCtx.drawImage(dtImg,cx2-R,cy2-R,R*2,R*2); oCtx.restore(); } }
+      if (en.imageData) { const dtImg = getTokenImg(en.imageData); if (dtImg.complete && dtImg.naturalWidth > 0) { oCtx.save(); oCtx.beginPath(); oCtx.arc(cx2,cy2,pR,0,Math.PI*2); oCtx.clip(); oCtx.drawImage(dtImg,cx2-pR,cy2-pR,pR*2,pR*2); oCtx.restore(); } }
       if (enTintCond) { oCtx.globalCompositeOperation='source-atop'; oCtx.globalAlpha=0.45; oCtx.fillStyle=enTintCond.tint; oCtx.fillRect(0,0,ow,oh); oCtx.globalCompositeOperation='source-over'; oCtx.globalAlpha=1; }
-      oCtx.strokeStyle='rgba(255,255,255,.85)'; oCtx.lineWidth=2; oCtx.beginPath(); oCtx.arc(cx2,cy2,R,0,Math.PI*2); oCtx.stroke();
+      oCtx.strokeStyle='rgba(255,255,255,.85)'; oCtx.lineWidth=2; oCtx.beginPath(); oCtx.arc(cx2,cy2,pR,0,Math.PI*2); oCtx.stroke();
       oCtx.globalCompositeOperation='source-atop'; oCtx.globalAlpha=colorProg*0.42; oCtx.fillStyle='#cc1111'; oCtx.fillRect(0,0,ow,oh);
       oCtx.globalCompositeOperation='source-over'; oCtx.globalAlpha=1;
       ctx.save(); ctx.filter=`grayscale(${Math.round(colorProg*100)}%)`; ctx.globalAlpha=enAlpha*(1-colorProg*0.35);
-      ctx.drawImage(rDeathCanvas.current, ep.x-R-2, ep.y-R-2); ctx.restore();
+      ctx.drawImage(rLibDeathCanvas.current, ep.x - pixR/sc, ep.y - pixR/sc, ow/sc, oh/sc); ctx.restore();
     } else {
       ctx.fillStyle = en.color;
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI*2); ctx.fill();
@@ -2081,6 +2081,7 @@ function RPGMapViewer() {
   const strokeQueueRef    = useRef([]); // player: pending stroke animations
   const activeStrokeAnim  = useRef(null); // player: { points, color, size, tool, idx, ptsPerFrame }
   const rDeathCanvas      = useRef(null); // canvas reutilizable para efecto de muerte
+  const rLibDeathCanvas   = useRef(null);
   const rConditions       = useRef({});
   const rPaintedZones     = useRef([]);
   const shapePointsRef    = useRef([]); // points being drawn for shape tool
@@ -2876,7 +2877,7 @@ function RPGMapViewer() {
         if (rPlayers.current.length > 0 || rLibEnemies.current.length > 0) {
           ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
           if (rPlayers.current.length > 0) renderPlayerTokens(ctx, { sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride });
-          if (rLibEnemies.current.length > 0) renderLibEnemyTokens(ctx, { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride });
+          if (rLibEnemies.current.length > 0) renderLibEnemyTokens(ctx, { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rLibDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride });
           ctx.restore();
         }
         return;
@@ -2890,7 +2891,7 @@ function RPGMapViewer() {
         isShapeDrawingRef, shapePointsRef,
         activeStrokeAnim, strokeQueueRef, drawCanvasRef,
         rActiveSpells, setActiveSpells,
-        rConditions, rDefeated, rDeathCanvas,
+        rConditions, rDefeated, rDeathCanvas, rLibDeathCanvas,
         defeatedAnimRef, invisAlphaRef,
         rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
         visualPosRef, rPlayers, rLibEnemies,
@@ -3701,8 +3702,19 @@ function RPGMapViewer() {
       en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)) } : en
     );
     rLibEnemies.current = updated; setLibEnemies(updated);
+    const changed = updated.find(en => en.id === id);
+    if (changed) {
+      const key = `lib_${id}`;
+      const isNowDefeated = changed.hp <= 0;
+      const wasDefeated = !!rDefeated.current[key];
+      if (isNowDefeated !== wasDefeated) {
+        const nd = { ...rDefeated.current };
+        if (isNowDefeated) nd[key] = true; else delete nd[key];
+        rDefeated.current = nd; setDefeated(nd);
+      }
+    }
     _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, setDefeated]);
 
   const removeLibEnemy = useCallback((id) => {
     const updated = rLibEnemies.current.filter(en => en.id !== id);
@@ -4107,7 +4119,10 @@ function RPGMapViewer() {
                           <button onClick={() => adjustPlayerHp(pl.id, -1)} onContextMenu={e=>{e.preventDefault();adjustPlayerHp(pl.id,-10);}}
                             title="-1 HP (clic dret -10)"
                             style={{ width:18, height:18, borderRadius:3, border:'1px solid rgba(248,81,73,0.4)', background:'rgba(248,81,73,0.1)', cursor:'pointer', color:'#f85149', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
-                          <span style={{ flex:1, textAlign:'center', fontSize:10, color:hpCol, fontWeight:700 }}>{hp}/{pl.hpMax}</span>
+                          <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:12, overflow:'hidden', position:'relative' }}>
+                            <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${ratio*100}%`, background:hpCol }}/>
+                            <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>{hp}/{pl.hpMax}</span>
+                          </div>
                           <button onClick={() => adjustPlayerHp(pl.id, 1)} onContextMenu={e=>{e.preventDefault();adjustPlayerHp(pl.id,10);}}
                             title="+1 HP (clic dret +10)"
                             style={{ width:18, height:18, borderRadius:3, border:'1px solid rgba(86,211,100,0.4)', background:'rgba(86,211,100,0.1)', cursor:'pointer', color:'#56d364', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>+</button>
@@ -4139,32 +4154,33 @@ function RPGMapViewer() {
               {libEnemies.length > 0 && (
                 <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
                   <div style={{ fontSize:10, color:C.dim, letterSpacing:'0.06em', textTransform:'uppercase', fontWeight:700, marginBottom:6 }}>A l'escena ({libEnemies.length})</div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
                     {libEnemies.map(en => {
                       const hp = en.hp ?? en.hpMax;
                       const hpRatio = en.hpMax > 0 ? Math.max(0, hp/en.hpMax) : 0;
-                      const hpCol = hpRatio > 0.5 ? C.ok : hpRatio > 0.25 ? C.warn : '#f85149';
+                      const hpCol = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+                      const isEnDefeated = !!defeated[`lib_${en.id}`];
                       return (
-                        <div key={en.id} style={{ background:C.dark, border:`1px solid ${C.border}`, borderRadius:6, padding:'5px 8px' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:4 }}>
-                            <div style={{ width:10, height:10, borderRadius:'50%', background:en.color, flexShrink:0 }}/>
-                            <span style={{ flex:1, fontSize:11, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{en.name}</span>
-                            <button onClick={() => toggleLibEnemyVisibility(en.id)} title={en.visible ? 'Ocultar al jugador' : 'Mostrar al jugador'}
-                              style={{ background:'none', border:'none', cursor:'pointer', color:en.visible ? C.dim : '#f85149', fontSize:12, padding:0, lineHeight:1, flexShrink:0 }}>
+                        <div key={en.id} style={{ background:'rgba(255,255,255,0.04)', borderRadius:5, padding:'5px 6px', border:`1px solid ${isEnDefeated ? 'rgba(248,81,73,0.35)' : 'rgba(255,255,255,0.07)'}` }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:3, marginBottom:3 }}>
+                            <div style={{ width:8, height:8, borderRadius:'50%', background:en.color, flexShrink:0 }}/>
+                            <span style={{ flex:1, fontSize:10, color: isEnDefeated ? '#f85149' : C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight:600 }}>{en.name}</span>
+                            <button onClick={() => toggleLibEnemyVisibility(en.id)} title={en.visible ? 'Ocultar' : 'Mostrar'}
+                              style={{ background:'none', border:'none', cursor:'pointer', color:en.visible ? C.dim : '#f85149', fontSize:10, padding:0, lineHeight:1, flexShrink:0 }}>
                               {en.visible ? '👁' : '🚫'}
                             </button>
-                            <button onClick={() => removeLibEnemy(en.id)} title="Eliminar"
-                              style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, fontSize:12, padding:0, lineHeight:1, flexShrink:0 }}>✕</button>
+                            <button onClick={() => removeLibEnemy(en.id)}
+                              style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, fontSize:10, padding:0, lineHeight:1, flexShrink:0 }}>✕</button>
                           </div>
-                          <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:2 }}>
                             <button onClick={() => adjustLibEnemyHp(en.id, -1)} onContextMenu={e=>{e.preventDefault();adjustLibEnemyHp(en.id,-10);}}
-                              style={{ background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', width:22, height:22, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
-                            <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:4, height:14, overflow:'hidden', position:'relative' }}>
+                              style={{ width:18, height:18, borderRadius:3, border:'1px solid rgba(248,81,73,0.4)', background:'rgba(248,81,73,0.1)', cursor:'pointer', color:'#f85149', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
+                            <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:12, overflow:'hidden', position:'relative' }}>
                               <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${hpRatio*100}%`, background:hpCol }}/>
-                              <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', fontWeight:700 }}>{hp}/{en.hpMax}</span>
+                              <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>{hp}/{en.hpMax}</span>
                             </div>
                             <button onClick={() => adjustLibEnemyHp(en.id, 1)} onContextMenu={e=>{e.preventDefault();adjustLibEnemyHp(en.id,10);}}
-                              style={{ background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', width:22, height:22, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>+</button>
+                              style={{ width:18, height:18, borderRadius:3, border:'1px solid rgba(86,211,100,0.4)', background:'rgba(86,211,100,0.1)', cursor:'pointer', color:'#56d364', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>+</button>
                           </div>
                         </div>
                       );
