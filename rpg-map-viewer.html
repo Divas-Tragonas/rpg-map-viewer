@@ -4578,7 +4578,7 @@ function RPGMapViewer() {
               </div>
             );
           })()}
-          {contextMenu.id?.startsWith('pl_') && (() => {
+          {typeof contextMenu.id === 'string' && contextMenu.id.startsWith('pl_') && (() => {
             const _pl = rPlayers.current.find(p => `pl_${p.id}` === contextMenu.id);
             if (!_pl || !_pl.hpMax) return null;
             const _php = _pl.hp ?? _pl.hpMax;
