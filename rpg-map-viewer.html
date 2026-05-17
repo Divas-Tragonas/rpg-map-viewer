@@ -1776,6 +1776,7 @@ function renderLibEnemyTokens(ctx, fc) {
     }
     ctx.textBaseline = 'alphabetic';
     if (showStates) {
+      ctx.font = `bold ${11/sc}px system-ui`; ctx.textAlign = 'center';
       const tw = ctx.measureText(en.name).width;
       ctx.fillStyle = 'rgba(8,12,18,.85)';
       ctx.fillRect(ep.x - tw/2 - 4/sc, ep.y + R + 2/sc, tw + 8/sc, 13/sc);
@@ -4115,11 +4116,11 @@ function RPGMapViewer() {
                           <span style={{ flex:1, fontSize:11, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight:600 }}>{pl.name}</span>
                           <button onClick={() => removePlayer(pl.id)} style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, padding:0, display:'flex', flexShrink:0 }}><X size={9}/></button>
                         </div>
-                        <div style={{ display:'flex', alignItems:'center', gap:2 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
                           <button onClick={() => adjustPlayerHp(pl.id, -1)} onContextMenu={e=>{e.preventDefault();adjustPlayerHp(pl.id,-10);}}
                             title="-1 HP (clic dret -10)"
                             style={{ width:18, height:18, borderRadius:3, border:'1px solid rgba(248,81,73,0.4)', background:'rgba(248,81,73,0.1)', cursor:'pointer', color:'#f85149', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
-                          <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:12, overflow:'hidden', position:'relative' }}>
+                          <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:10, overflow:'hidden', position:'relative' }}>
                             <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${ratio*100}%`, background:hpCol }}/>
                             <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>{hp}/{pl.hpMax}</span>
                           </div>
@@ -4172,10 +4173,10 @@ function RPGMapViewer() {
                             <button onClick={() => removeLibEnemy(en.id)}
                               style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, fontSize:10, padding:0, lineHeight:1, flexShrink:0 }}>✕</button>
                           </div>
-                          <div style={{ display:'flex', alignItems:'center', gap:2 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
                             <button onClick={() => adjustLibEnemyHp(en.id, -1)} onContextMenu={e=>{e.preventDefault();adjustLibEnemyHp(en.id,-10);}}
                               style={{ width:18, height:18, borderRadius:3, border:'1px solid rgba(248,81,73,0.4)', background:'rgba(248,81,73,0.1)', cursor:'pointer', color:'#f85149', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>−</button>
-                            <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:12, overflow:'hidden', position:'relative' }}>
+                            <div style={{ flex:1, background:'rgba(0,0,0,.4)', borderRadius:3, height:10, overflow:'hidden', position:'relative' }}>
                               <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${hpRatio*100}%`, background:hpCol }}/>
                               <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>{hp}/{en.hpMax}</span>
                             </div>
@@ -4580,8 +4581,43 @@ function RPGMapViewer() {
               </div>
             );
           })()}
+          {contextMenu.id?.startsWith('pl_') && (() => {
+            const _pl = rPlayers.current.find(p => `pl_${p.id}` === contextMenu.id);
+            if (!_pl || !_pl.hpMax) return null;
+            const _php = _pl.hp ?? _pl.hpMax;
+            const _phr = _pl.hpMax > 0 ? Math.max(0, _php/_pl.hpMax) : 0;
+            const _phc = _phr > 0.5 ? '#56d364' : _phr > 0.25 ? '#e3b341' : '#f85149';
+            return (
+              <div style={{ borderTop:`1px solid ${C.border}`, padding:'6px 8px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPlayerHp(_pl.id,-10);}} style={{ flex:1, padding:'3px 0', background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', fontSize:10, fontWeight:700 }}>-10</button>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPlayerHp(_pl.id,-1);}} style={{ flex:1, padding:'3px 0', background:'rgba(248,81,73,.12)', border:'1px solid rgba(248,81,73,.3)', borderRadius:4, cursor:'pointer', color:'#f85149', fontSize:10, fontWeight:700 }}>-1</button>
+                  <div style={{ flex:2, background:'rgba(0,0,0,.5)', borderRadius:4, height:20, position:'relative', overflow:'hidden' }}>
+                    <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${_phr*100}%`, background:_phc }}/>
+                    <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', fontWeight:700 }}>{_php}/{_pl.hpMax}</span>
+                  </div>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPlayerHp(_pl.id,1);}} style={{ flex:1, padding:'3px 0', background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', fontSize:10, fontWeight:700 }}>+1</button>
+                  <button onMouseDown={e=>{e.stopPropagation();adjustPlayerHp(_pl.id,10);}} style={{ flex:1, padding:'3px 0', background:'rgba(63,185,80,.12)', border:'1px solid rgba(63,185,80,.3)', borderRadius:4, cursor:'pointer', color:'#3fb950', fontSize:10, fontWeight:700 }}>+10</button>
+                </div>
+              </div>
+            );
+          })()}
           <div style={{ borderTop:`1px solid ${C.border}`, padding:'4px 6px' }}>
-            <button onMouseDown={e => { e.stopPropagation(); setSceneConfigMenu({id:contextMenu.id, name:contextMenu.name, tokenPos:rPos.current[contextMenu.id], menuX:contextMenu.x, menuY:contextMenu.y}); setContextMenu(null); }}
+            <button onMouseDown={e => {
+              e.stopPropagation();
+              if (contextMenu.isLibEnemy) {
+                const _le = rLibEnemies.current.find(en => en.id === contextMenu.libEnemyId);
+                if (_le?.imageData) {
+                  const tp = rPos.current[contextMenu.id] || { x:0, y:0 };
+                  const _img = getTokenImg(_le.imageData);
+                  triggerBossIntro({ tokenId:contextMenu.id, bossName:contextMenu.name, portrait:_img, tokenPos:tp });
+                  bcRef.current?.postMessage({ type:'BOSS_INTRO', tokenId:contextMenu.id, bossName:contextMenu.name, tokenPos:tp, portraitDataUrl:_le.imageData });
+                  setContextMenu(null); return;
+                }
+              }
+              setSceneConfigMenu({id:contextMenu.id, name:contextMenu.name, tokenPos:rPos.current[contextMenu.id], menuX:contextMenu.x, menuY:contextMenu.y});
+              setContextMenu(null);
+            }}
               style={{ width:'100%', padding:'6px', background:'rgba(168,85,247,.12)', border:'1px solid rgba(168,85,247,.35)', borderRadius:5, color:'#c084fc', cursor:'pointer', fontSize:11, fontWeight:600 }}>
               ⚡ Escena
             </button>
