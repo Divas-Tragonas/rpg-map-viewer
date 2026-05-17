@@ -1691,7 +1691,7 @@ function renderPlayerTokens(ctx, fc) {
 
 }
 function renderLibEnemyTokens(ctx, fc) {
-  const { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rLibDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
+  const { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
   rLibEnemies.current.forEach(en => {
     const rawEp = pp[`lib_${en.id}`] || { x: en.x || 0, y: en.y || 0 };
     let ep;
@@ -1733,22 +1733,20 @@ function renderLibEnemyTokens(ctx, fc) {
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ep.x+2/sc, ep.y+2/sc, R, 0, Math.PI*2); ctx.fill();
     if (isDefeated && colorProg > 0) {
-      const pixR = Math.ceil(R * sc + 2);
-      const ow = pixR*2, oh = pixR*2;
-      if (!rLibDeathCanvas.current) rLibDeathCanvas.current = document.createElement('canvas');
-      rLibDeathCanvas.current.width = ow; rLibDeathCanvas.current.height = oh;
-      const oCtx = rLibDeathCanvas.current.getContext('2d');
-      oCtx.clearRect(0, 0, ow, oh);
-      const pR = R*sc, cx2 = pixR, cy2 = pixR;
-      oCtx.beginPath(); oCtx.arc(cx2, cy2, pR, 0, Math.PI*2);
-      oCtx.fillStyle = en.color; oCtx.fill();
-      if (en.imageData) { const dtImg = getTokenImg(en.imageData); if (dtImg.complete && dtImg.naturalWidth > 0) { oCtx.save(); oCtx.beginPath(); oCtx.arc(cx2,cy2,pR,0,Math.PI*2); oCtx.clip(); oCtx.drawImage(dtImg,cx2-pR,cy2-pR,pR*2,pR*2); oCtx.restore(); } }
-      if (enTintCond) { oCtx.globalCompositeOperation='source-atop'; oCtx.globalAlpha=0.45; oCtx.fillStyle=enTintCond.tint; oCtx.fillRect(0,0,ow,oh); oCtx.globalCompositeOperation='source-over'; oCtx.globalAlpha=1; }
-      oCtx.strokeStyle='rgba(255,255,255,.85)'; oCtx.lineWidth=2; oCtx.beginPath(); oCtx.arc(cx2,cy2,pR,0,Math.PI*2); oCtx.stroke();
-      oCtx.globalCompositeOperation='source-atop'; oCtx.globalAlpha=colorProg*0.42; oCtx.fillStyle='#cc1111'; oCtx.fillRect(0,0,ow,oh);
-      oCtx.globalCompositeOperation='source-over'; oCtx.globalAlpha=1;
-      ctx.save(); ctx.filter=`grayscale(${Math.round(colorProg*100)}%)`; ctx.globalAlpha=enAlpha*(1-colorProg*0.35);
-      ctx.drawImage(rLibDeathCanvas.current, ep.x - pixR/sc, ep.y - pixR/sc, ow/sc, oh/sc); ctx.restore();
+      ctx.save();
+      ctx.filter = `grayscale(${Math.round(colorProg*100)}%)`;
+      ctx.globalAlpha = enAlpha * (1 - colorProg * 0.35);
+      ctx.fillStyle = en.color;
+      ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI*2); ctx.fill();
+      if (en.imageData) { const dtImg = getTokenImg(en.imageData); if (dtImg.complete && dtImg.naturalWidth > 0) { ctx.save(); ctx.beginPath(); ctx.arc(ep.x,ep.y,R,0,Math.PI*2); ctx.clip(); ctx.drawImage(dtImg,ep.x-R,ep.y-R,R*2,R*2); ctx.restore(); } }
+      if (enTintCond) { ctx.save(); ctx.beginPath(); ctx.arc(ep.x,ep.y,R,0,Math.PI*2); ctx.clip(); ctx.globalAlpha=enAlpha*(1-colorProg*0.35)*0.45; ctx.fillStyle=enTintCond.tint; ctx.fillRect(ep.x-R,ep.y-R,R*2,R*2); ctx.restore(); }
+      ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=2/sc;
+      ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha = enAlpha * colorProg * 0.42;
+      ctx.beginPath(); ctx.arc(ep.x,ep.y,R,0,Math.PI*2); ctx.clip();
+      ctx.fillStyle = '#cc1111'; ctx.fillRect(ep.x-R,ep.y-R,R*2,R*2);
+      ctx.restore();
     } else {
       ctx.fillStyle = en.color;
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI*2); ctx.fill();
@@ -2082,7 +2080,6 @@ function RPGMapViewer() {
   const strokeQueueRef    = useRef([]); // player: pending stroke animations
   const activeStrokeAnim  = useRef(null); // player: { points, color, size, tool, idx, ptsPerFrame }
   const rDeathCanvas      = useRef(null); // canvas reutilizable para efecto de muerte
-  const rLibDeathCanvas   = useRef(null);
   const rConditions       = useRef({});
   const rPaintedZones     = useRef([]);
   const shapePointsRef    = useRef([]); // points being drawn for shape tool
@@ -2463,7 +2460,7 @@ function RPGMapViewer() {
       st.textContent = `
         @keyframes cinFlick{0%,100%{opacity:1}12%{opacity:.5}14%{opacity:1}72%{opacity:.7}74%{opacity:1}}
         @keyframes cinGlitch{0%,94%,100%{transform:translateX(0) scale(1)}95%{transform:translateX(-3px) skewX(-1deg)}97%{transform:translateX(3px) skewX(1deg)}}
-        @keyframes cinGlow{0%,100%{text-shadow:0 0 35px #d4a017,0 0 70px rgba(212,160,23,.6),0 5px 12px rgba(0,0,0,.9)}50%{text-shadow:0 0 60px #d4a017,0 0 130px rgba(212,160,23,.8),0 0 220px rgba(212,160,23,.4),0 5px 12px rgba(0,0,0,.9)}}
+        @keyframes cinGlow{0%,100%{text-shadow:0 0 30px #d4a017,0 0 60px rgba(212,160,23,.5),0 4px 10px rgba(0,0,0,.9)}50%{text-shadow:0 0 50px #d4a017,0 0 100px rgba(212,160,23,.75),0 0 160px rgba(212,160,23,.3),0 4px 10px rgba(0,0,0,.9)}}
         @keyframes cinParallaxPrt{0%,100%{transform:translate(0,-50%) translateX(0px) scale(1)}50%{transform:translate(0,-50%) translateX(-32px) scale(1.018)}}
         @keyframes cinParallaxTxt{0%,100%{transform:translateX(0px)}50%{transform:translateX(18px)}}
       `;
@@ -2517,7 +2514,7 @@ function RPGMapViewer() {
     const prtH = Math.round(SH * 0.92);
     const prtW = Math.round(prtH * 0.72);
     const prtWrap = document.createElement('div');
-    prtWrap.style.cssText = `position:absolute;right:0;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(115%,-50%);transition:transform 0.6s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`;
+    prtWrap.style.cssText = `position:absolute;right:8%;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(115%,-50%);transition:transform 0.6s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`;
     const prtGlow = document.createElement('div');
     prtGlow.style.cssText = `position:absolute;inset:-50px;background:radial-gradient(ellipse at 40% 55%,${GLOW} 0%,transparent 65%);filter:blur(30px);opacity:0;transition:opacity 1s ease`;
     prtWrap.appendChild(prtGlow);
@@ -2548,11 +2545,11 @@ function RPGMapViewer() {
 
     // Text wrapper — LEFT SIDE, enters from off-screen left, carries parallax opposite to portrait
     const txtWrap = document.createElement('div');
-    txtWrap.style.cssText = `position:absolute;left:5%;bottom:${lbH + Math.round(SH*0.07)}px;transform:translateX(-55px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`;
+    txtWrap.style.cssText = `position:absolute;left:10%;bottom:${lbH + Math.round(SH*0.09)}px;transform:translateX(-55px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`;
     stage.appendChild(txtWrap);
 
     // Boss name — left-aligned inside txtWrap
-    const nmFS = Math.max(46, Math.min(110, Math.round(SW / 8)));
+    const nmFS = Math.max(58, Math.min(140, Math.round(SW / 6.5)));
     const nmEl = document.createElement('div');
     nmEl.style.cssText = `font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);line-height:1.05;max-width:${Math.round(SW*0.52)}px`;
     nmEl.textContent = bossName || 'BOSS';
@@ -2622,14 +2619,14 @@ function RPGMapViewer() {
         stage.appendChild(flash2);
         setTimeout(() => { flash2.style.opacity='0'; setTimeout(()=>flash2.remove(),520); }, 200);
         setTimeout(() => {
-          nmEl.style.animation = 'cinFlick 0.9s ease, cinGlitch 5s ease 2s infinite, cinGlow 2.5s ease 0.8s infinite';
+          nmEl.style.animation = 'cinGlow 2.8s ease-in-out 0.6s infinite';
         }, 500);
       })
       .add(4200, () => {
         // Exit: portrait to right, text to left
         prtWrap.style.animation = '';
         prtWrap.style.transition = 'transform 0.65s cubic-bezier(.4,0,1,1),opacity 0.65s ease';
-        prtWrap.style.transform = 'translate(115%,-50%)';
+        prtWrap.style.transform = 'translate(130%,-50%)';
         prtWrap.style.opacity = '0';
         txtWrap.style.animation = '';
         txtWrap.style.transition = 'transform 0.55s cubic-bezier(.4,0,1,1),opacity 0.55s ease';
@@ -2878,7 +2875,7 @@ function RPGMapViewer() {
         if (rPlayers.current.length > 0 || rLibEnemies.current.length > 0) {
           ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
           if (rPlayers.current.length > 0) renderPlayerTokens(ctx, { sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride });
-          if (rLibEnemies.current.length > 0) renderLibEnemyTokens(ctx, { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, rLibDeathCanvas, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride });
+          if (rLibEnemies.current.length > 0) renderLibEnemyTokens(ctx, { sc, pp, isDM, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef, visualPosRef, rSelectedToken, rTokenSizeOverride });
           ctx.restore();
         }
         return;
@@ -2892,7 +2889,7 @@ function RPGMapViewer() {
         isShapeDrawingRef, shapePointsRef,
         activeStrokeAnim, strokeQueueRef, drawCanvasRef,
         rActiveSpells, setActiveSpells,
-        rConditions, rDefeated, rDeathCanvas, rLibDeathCanvas,
+        rConditions, rDefeated, rDeathCanvas,
         defeatedAnimRef, invisAlphaRef,
         rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
         visualPosRef, rPlayers, rLibEnemies,
