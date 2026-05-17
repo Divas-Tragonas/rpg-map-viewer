@@ -8,6 +8,12 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.23
+- Imatges reals als tokens de Goblin (4 variants, assignació aleatòria en afegir)
+- Token renderitzat com a imatge clipada al cercle; fallback a cercle de color si no hi ha imatge
+- Animació de derrota (desaturació) també funciona amb imatges de token
+- Sistema `ENEMY_IMAGES` + `getTokenImg` preparat per afegir imatges a la resta d'enemics
+
 ### v2.22
 - Pestanya "Enemics" al sidebar (al costat de "Mapa" i "Eines")
 - Biblioteca d'11 tipus d'enemic: Goblin, Llop, Ós, Zombie, Esquelet, Orc, Troll, Rata, Bandid, Aranya, Drac
