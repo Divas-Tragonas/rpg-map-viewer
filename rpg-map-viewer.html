@@ -3545,8 +3545,15 @@ function RPGMapViewer() {
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
     const snapCC = (v, origin) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
+    // Only snap actual tokens — skip zone layers, extras, enemy-zone groups
+    const tokenIds = new Set();
+    rPlayers.current.forEach(pl => tokenIds.add(`pl_${pl.id}`));
+    rLibEnemies.current.forEach(en => tokenIds.add(`lib_${en.id}`));
+    const s2 = rStruct.current;
+    if (s2) s2.enemyZones.forEach(z => z.enemies.forEach(en => tokenIds.add(en.id)));
     const newPos = { ...rPos.current };
     for (const [id, p] of Object.entries(newPos)) {
+      if (!tokenIds.has(id) && !tokenIds.has(Number(id))) continue;
       if (String(id).startsWith('pl_')) {
         const R = rTokenSizeOverride.current[id] ?? 22;
         newPos[id] = { x: snapCC(p.x + R, gox) - R, y: snapCC(p.y + R, goy) - R };
