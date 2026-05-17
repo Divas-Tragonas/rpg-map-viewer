@@ -2678,6 +2678,7 @@ function RPGMapViewer() {
     }
     cinematicCamRef.current.active = false;
     cinematicActiveRef.current = false;
+    if (!isPlayerWindow) bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' });
   }, []);
 
   triggerBossIntroRef.current = triggerBossIntro;
