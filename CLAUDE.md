@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # RPG Map Viewer — CLAUDE.md
 
 > **INSTRUCCIÓ OBLIGATÒRIA:** Llegir aquest fitxer sencer abans de fer qualsevol canvi.
@@ -5,45 +7,27 @@
 
 ---
 
-## ⚡ SETUP OBLIGATORI AL INICI DE CADA SESSIÓ
-
-El proxy git de la sessió no té permisos d'escriptura a GitHub. **Fer això abans del primer push:**
-
-```bash
-git remote set-url origin https://Divas-Tragonas:TOKEN@github.com/Divas-Tragonas/rpg-map-viewer.git
-```
-
-**On trobar el TOKEN** (PAT de Divas-Tragonas, scope `repo`):
-```bash
-grep -o "github_pat_[A-Za-z0-9_]*" /root/.claude/projects/-home-user-rpg-map-viewer/*.jsonl | head -1
-```
-
-Si el push falla amb `Permission denied to devevalles` → és sempre aquest problema.
-
----
-
-## Versió actual: v2.16
-
-Cada vegada que facis un canvi al codi, actualitza **sempre**:
-1. `// Versió: vX.Y` (comentari dins `<script>`, prop del inici)
-2. `RPG Map Viewer vX.Y` (string visible dins l'app, a la secció "Sobre")
-3. La línia **"Versió actual"** d'aquest CLAUDE.md
-4. El `README.md` — afegir entrada al Changelog amb punts breus
-
-Si no actualitzes la versió, el canvi és invàlid.
-
----
-
 ## Git workflow
 
 - **Sempre push directe a `master`** — mai crear branches ni pull requests
-- El fitxer principal es diu `rpg-map-viewer.html`
-- Commit i push després de cada canvi:
+- Commit i push després de cada canvi rellevant:
   ```bash
-  git add rpg-map-viewer.html CLAUDE.md README.md
-  git commit -m "vX.Y — Títol del canvi"
+  git add -p
+  git commit -m "Títol del canvi"
   git push origin master
   ```
+
+### Versió i changelog — OBLIGATORI en cada push
+
+**Abans de cada commit**, actualitzar el `README.md`:
+1. Incrementar la versió (`vX.Y` → `vX.Y+1`) al títol de l'entrada més recent del Changelog
+2. Afegir un nou bloc al Changelog amb la versió nova i un resum dels canvis:
+   ```markdown
+   ### vX.Y+1
+   - Descripció breu del canvi 1
+   - Descripció breu del canvi 2
+   ```
+3. Incloure el `README.md` al commit
 
 ---
 
@@ -51,134 +35,177 @@ Si no actualitzes la versió, el canvi és invàlid.
 
 | Element | Detall |
 |---|---|
-| Format | Un únic fitxer `.html` autocontingut, sense build step |
-| UI | React 18 via CDN + Babel Standalone (compila JSX en runtime) |
-| Render | Canvas 2D API |
+| Framework | Next.js 16 (App Router) + React 19 + TypeScript |
+| Render | Canvas 2D API (`useRafLoop` → `tick()`) |
 | Fons | Element DOM `<img>` o `<video>` posicionat absolutament darrere del canvas |
-| Sync | `BroadcastChannel` — DM envia, Jugador rep |
-| PSD | Parser propi (binary, sense dependències) |
+| Sync | `BroadcastChannel` (`BC_CHANNEL = 'rpg_map_sync_v18'`) — DM envia, Jugador rep |
+| PSD | Parser binari propi a `src/lib/psd/` (sense dependències) |
+| Dev server | `npm run dev` → `http://localhost:3000` |
 
 ---
 
-## Arquitectura general
+## Rutes de l'app
+
+| URL | Component | Descripció |
+|---|---|---|
+| `/` | `DMView` | Vista del Dungeon Master (pantalla principal) |
+| `/player` | `PlayerView` | Vista del jugador (pantalla secundària) |
+| `/expositor` | `ExpositorPage` | Pantalla d'expositor de campanya (imatge/vídeo) |
+
+---
+
+## Estructura de fitxers
 
 ```
-RPGMapViewer (component React)
+src/
+├── app/
+│   ├── layout.tsx          # RootLayout
+│   ├── page.tsx            # → <DMView />
+│   ├── player/page.tsx     # → <PlayerView />
+│   └── expositor/page.tsx  # Expositor de campanya
+├── components/
+│   ├── DMView.tsx          # Component principal DM (estat + orquestració)
+│   ├── PlayerView.tsx      # Component jugador
+│   ├── icons.tsx           # Icones SVG inline
+│   ├── dm/                 # Panells i overlays del DM
+│   │   ├── ImportPanel, LayerTree, PlayersPanel
+│   │   ├── DrawToolsPanel, GridPanel, EnemyLibraryPanel
+│   │   ├── BottomControls, CanvasHUD
+│   │   └── ContextMenuOverlay, SceneConfigOverlay,
+│   │       SpellMenuOverlay, ShapeMenuOverlay
+│   └── ui/                 # Components UI genèrics
+│       ├── Chip, DropZone, LayerRow, TreeGroup, SceneImgPicker
+├── hooks/
+│   ├── useDMRefs.ts        # Tots els refs del DM (state mirrors + interaction)
+│   ├── useDMActions.ts     # Callbacks d'acció (PSD import, BC, drag...)
+│   ├── useCinematic.ts     # Lògica cinematica boss reveal
+│   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
+│   ├── useMouseHandlers.ts # Gestors de ratolí
+│   ├── useKeyboardHandlers.ts
+│   └── useWheelZoom.ts
+├── lib/
+│   ├── psd/
+│   │   ├── parser.ts       # parsePSDStructure(buffer) → ParsedPSD
+│   │   ├── extractor.ts    # extractLayerImages → Record<number, HTMLCanvasElement>
+│   │   └── tree.ts         # buildTree, validateStructure → MapStructure
+│   ├── render/
+│   │   ├── types.ts        # FrameContext interface
+│   │   ├── zones.ts        # renderZoneOverlays, renderExtras, renderPaintedZones, renderShapePreview
+│   │   ├── drawing.ts      # advanceStrokeAnim, replayStroke
+│   │   ├── spells.ts       # renderSpells (fireball, lightning, magic_beam)
+│   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
+│   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
+│   ├── cinematic/index.ts  # cpBurst, cpUpdate, cpDraw (partícules cinematica)
+│   ├── conditions/index.ts # Helpers de condicions D&D
+│   ├── geometry.ts         # getBBox i utilitats geomètriques
+│   ├── textures/           # Textures procedurals (noise, elements)
+│   └── enemy-images.ts     # ENEMY_IMAGES (imatges base64 enemics)
+├── constants/index.ts      # CONDITIONS, ELEMENTS, PALETTE, ENEMY_TEMPLATES, C, BC_CHANNEL...
+└── types/index.ts          # Tots els tipus TypeScript
+```
+
+---
+
+## Arquitectura del DM
+
+```
+DMView (component React)
 │
-├── State (useState) + Refs mirall (useRef)   →  veure "Patró state↔ref"
-├── BroadcastChannel setup (useEffect)        →  DM→Jugador sync
-├── RAF render loop (useEffect)               →  tick() + render phases
-└── Event handlers (useCallback)             →  zoom, pan, drag, draw...
-
-Fora del component (nivell de mòdul):
-├── Constants: CONDITIONS, ELEMENTS, PALETTE, SPELL_TYPES
-├── Lookup maps: CONDITIONS_BY_ID, ELEMENTS_BY_ID  (O(1), no Array.find)
-├── Token LERP: TOKEN_LERP = 0.07
-├── Helpers: drawFlatZone, drawPaintedZone, drawConditionBadges,
-│            drawSpellFireball, drawSpellLightning, drawSpellMagicBeam,
-│            replayStroke, txFBM, txNoise, txWorley... (textures)
-└── Render phases: renderZoneOverlays, renderExtras, renderPaintedZones,
-                   renderShapePreview, advanceStrokeAnim, renderSpells,
-                   renderEnemyTokens, renderPlayerTokens,
-                   renderGrid, renderGridCalib, renderDMPointer
+├── useState (UI state)             →  vis, pos, zoom, players, libEnemies...
+├── useDMRefs() → R                 →  tots els refs (mirrors + interaction)
+├── useDMActions(R, setters) → A    →  callbacks (importPSD, broadcastState...)
+├── useRafLoop(R, opts)             →  tick() + render phases (60fps)
+├── useMouseHandlers(R, A, ...)     →  drag, pan, draw, calibre grid
+├── useWheelZoom(R, A, ...)         →  zoom roda del ratolí
+├── useKeyboardHandlers(R, A, ...) →  ESC, Ctrl, Delete...
+└── useCinematic(R, A, ...)         →  boss intro cinematica
 ```
 
 ---
 
-## Render loop — tick()
+## Render loop — tick() (`src/hooks/useRafLoop.ts`)
 
-`tick()` és una funció minimalista que:
+`tick()` s'executa cada frame via `requestAnimationFrame`:
 
-1. Resize del canvas i obtenció del `ctx`
-2. Càlcul de `s, v, pp, isDM, media, mw, mh`
-3. Animació de retorn vista privada DM
-4. Càlcul de `z, pan, sc, ox, oy`
-5. Update posició DOM del fons (`prevBgStyle` per evitar thrashing)
-6. `if (!s) return` — res a renderitzar sense PSD
-7. **Construcció de `fc`** (frame context)
-8. `ctx.save() / translate(ox,oy) / scale(sc,sc)`
-9. Crida a les render phases (en ordre)
-10. `ctx.restore()`
-11. `renderGrid / renderGridCalib / renderDMPointer` (espai pantalla)
+1. Resize canvas si cal
+2. Obtenció del `ctx` (cached a `_ctx2dRef`)
+3. Càlcul de `mw, mh` (dimensions del mèdia de fons)
+4. Animació de retorn vista privada DM (`dmPrivateReturnAnim`)
+5. Càlcul de `z, pan` (cinematica cam o local+shared)
+6. Càlcul de `sc, ox, oy` (scale i offset)
+7. Sync posició DOM del fons (evita thrashing amb `prevBgStyle`)
+8. `if (!s) return` — res a renderitzar sense PSD
+9. **Construcció de `fc`** (`FrameContext`) — passat a totes les render phases
+10. `ctx.save() / translate(ox,oy) / scale(sc,sc)`
+11. Render phases (en ordre)
+12. `ctx.restore()`
+13. `renderGrid / renderGridCalib / renderDMPointer` (espai pantalla)
+14. Cinematic tick (partícules)
 
-### Frame Context (fc)
+### FrameContext (fc) — `src/lib/render/types.ts`
 
-Objecte construït una vegada per frame dins `tick()` i passat a totes les render phases:
-
-```js
-const fc = {
-  sc, ox, oy, mw, mh, isDM, s, v, pp,
-  rLayerImages, rHoveredZone, zoneAnimRef,
-  rPaintedZones, rContextMenu, zoneAppearRef, txCache,
-  isShapeDrawingRef, shapePointsRef,
-  activeStrokeAnim, strokeQueueRef, drawCanvasRef,
-  rActiveSpells, setActiveSpells,
-  rConditions, rDefeated, rDeathCanvas,
-  defeatedAnimRef, invisAlphaRef,
-  rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
-  visualPosRef, rPlayers, rTokenSizeOverride,
-  rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
-  rGridCalibrating, rGridDmAlpha,
-  gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
-  rPointerPos, rSelectedToken,
-};
-```
+Objecte tipat (`FrameContext`) construït una vegada per frame i passat a totes les render phases. Inclou: `sc, ox, oy, mw, mh, isDM, s, v, pp` + tots els refs necessaris.
 
 ---
 
 ## Render phases — com afegir-ne una de nova
 
-Les render phases viuen a **nivell de mòdul**, just abans de `function RPGMapViewer()`. Reben `ctx` i `fc`.
+Les render phases viuen a `src/lib/render/`. Reben `(ctx: CanvasRenderingContext2D, fc: FrameContext)`.
 
-```js
-function renderFog(ctx, fc) {
-  const { sc, ox, oy, isDM, rGridSize } = fc;
+```ts
+// src/lib/render/fog.ts
+import type { FrameContext } from './types';
+export function renderFog(ctx: CanvasRenderingContext2D, fc: FrameContext) {
+  const { sc, isDM, rGridSize } = fc;
   // ...
 }
-// Cridar-la dins tick(), entre ctx.save() i ctx.restore()
 ```
 
+Afegir la crida a `useRafLoop.ts` entre `ctx.save()` i `ctx.restore()`.
+
 **Regles crítiques:**
-- Mai definir funcions amb `function` dins un `useEffect` — Babel no les resol
-- Sempre destructurar tots els refs usats de `fc` — si no, silentfail sense render
-- Si el ref no és a `fc{}`, afegir-lo a l'objecte `fc` de `tick()` i destructurar
+- Sempre destructurar els refs de `fc` — si no, `undefined` silenciós
+- Si cal un ref nou, afegir-lo a `FrameContext` (types.ts) i a l'objecte `fc` de `useRafLoop.ts`
 
 ---
 
 ## Render phases existents
 
-| Funció | Descripció |
-|---|---|
-| `renderZoneOverlays` | Zones DM/jugador: visibilitat, fade, eye-icon, etiquetes |
-| `renderExtras` | Capa "extras" sempre visible sobre el mapa base |
-| `renderPaintedZones` | Zones màgiques: textures animades (jugador) / flat (DM) |
-| `renderShapePreview` | Preview del shape tool al DM |
-| `advanceStrokeAnim` | Reprodueix traços de dibuix al jugador frame a frame |
-| `renderSpells` | Animacions de spells: fireball, lightning, magic_beam |
-| `renderEnemyTokens` | Tokens enemics: drag, LERP, condicions, derrota, invisibilitat |
-| `renderPlayerTokens` | Tokens jugador: LERP, condicions |
-| `renderGrid` | Grid overlay (alpha fade al DM, sempre visible al jugador) |
-| `renderGridCalib` | Calibració visual del grid (DM) |
-| `renderDMPointer` | Cursor del DM visible al jugador |
+| Funció | Fitxer | Descripció |
+|---|---|---|
+| `renderZoneOverlays` | render/zones.ts | Zones: visibilitat, fade, eye-icon, etiquetes |
+| `renderExtras` | render/zones.ts | Capa "extras" sempre visible |
+| `renderPaintedZones` | render/zones.ts | Zones màgiques: textures animades (jugador) / flat (DM) |
+| `renderShapePreview` | render/zones.ts | Preview del shape tool al DM |
+| `advanceStrokeAnim` | render/drawing.ts | Reprodueix traços de dibuix frame a frame |
+| `renderSpells` | render/spells.ts | Animacions: fireball, lightning, magic_beam |
+| `renderEnemyTokens` | render/tokens.ts | Tokens enemics PSD: drag, LERP, condicions, derrota |
+| `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures |
+| `renderPlayerTokens` | render/tokens.ts | Tokens jugador: LERP, condicions |
+| `renderGrid` | render/grid.ts | Grid overlay |
+| `renderGridCalib` | render/grid.ts | Calibració visual del grid |
+| `renderDMPointer` | render/grid.ts | Cursor del DM visible al jugador |
 
 ---
 
 ## Patró state ↔ ref
 
-Cada valor d'estat té **dos** contenidors:
+Cada valor d'estat té **dos** contenidors (definits a `useDMRefs.ts`):
 
-```js
-const [vis, setVis] = useState({});   // ← React (triggers re-render, UI)
-const rVis = useRef({});              // ← ref mirall (lectura O(1) dins tick)
+```ts
+// DMView.tsx
+const [vis, setVis] = useState<VisMap>({});   // React (triggers re-render, UI)
+// useDMRefs.ts
+const rVis = useRef<VisMap>({});              // ref mirall (lectura O(1) dins tick)
 ```
 
-**Regla:** Quan modifiques un estat, actualitza sempre `setState` i el `ref` corresponent. Mai usar `useState` dins `tick()`.
-
-L'efecte de sincronització manté els refs al dia (un sol `useEffect` amb totes les deps).
+**Regla:** Quan modifiques un estat, actualitza sempre `setState` i el `ref` corresponent. `tick()` llegeix refs, mai state.
 
 ---
 
 ## BroadcastChannel — sincronització DM→Jugador
+
+Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 
 | Tipus missatge | Direcció | Contingut |
 |---|---|---|
@@ -191,71 +218,71 @@ L'efecte de sincronització manté els refs al dia (un sol `useEffect` amb totes
 | `POINTER` | DM→Jugador | Posició del cursor DM |
 | `SPELL` | DM→Jugador | Inici d'animació de spell |
 | `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal |
+| `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
 
-`_broadcastState(extra)` envia `STATE` amb tot l'estat rellevant. Cridar-la sempre que canviï alguna cosa que el jugador hagi de veure.
+Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 
-**Quan s'afegeix un nou estat sincronitzat**, cal actualitzar en 3 llocs:
-1. `_broadcastState` → afegir al missatge `STATE`
-2. `_sendFullState` → afegir al missatge `STRUCT`
-3. Handler del jugador → processar tant `STRUCT` com `STATE`
+**Quan s'afegeix un nou estat sincronitzat**, actualitzar en 3 llocs:
+1. `BCStateMessage` o `BCStructMessage` a `types/index.ts`
+2. `_broadcastState` a `useDMActions.ts` → missatge `STATE`
+3. `_sendFullState` → missatge `STRUCT` + handler al jugador
 
 ---
 
 ## Funcionalitats principals
 
+### PSD Import
+- Parser binari: `parsePSDStructure(buffer)` → `ParsedPSD`
+- Extracció imatges: `extractLayerImages` → `Record<number, HTMLCanvasElement>`
+- Arbre de capes: `buildTree` + `validateStructure` → `MapStructure`
+- Grups esperats al PSD: `zones`, `enemies`, `extras`
+
 ### Grid i tokens
-- Grid configurable: mida, origen, gruix de línia
-- **Snap**: `rGridSnap` — snapa tokens al centre de cel·la en moure i en activar
-- **Mida** (`gridAutoSize`): `rTokenSizeOverride` — map `{tokenId: R}` que escala tokens al 90% de la cel·la
-  - `sizeAllTokens()` recalcula tots els tokens actuals
-  - Nous jugadors hereden la mida si `rGridAutoSize.current` és true
-  - Override s'envia via `STATE` i `STRUCT`; render usa `rTokenSizeOverride.current[id] ?? defaultR`
+- Grid configurable: `gridSize`, `gridOriginX/Y`, `gridLineWidth`
+- **Snap**: `rGridSnap` — snapa tokens al centre de cel·la
+- **AutoSize** (`gridAutoSize`): `rTokenSizeOverride` — map `{tokenId: R}` escala tokens al 90% cel·la
 
 ### Tokens enemics
-- R calculat: `Math.max(Math.min(en.w, en.h) / 2, 22)` (o override)
-- Imatge escalada a `drawW × drawH` on `drawW = hasOverride ? R*2 : en.w`
-- Condicions, derrota (animació de desaturació), invisibilitat, highlight
-
-### Tokens jugador
-- R per defecte: 22 (o override)
-- Posició: `pos[pl_${id}]` — esquina superior-esquerra del quadrat R×R
+- **PSD enemies**: R = `Math.max(Math.min(en.w, en.h) / 2, 22)` (o override via `rTokenSizeOverride`)
+- **Lib enemies**: `LibEnemy[]` afegits manualment des del panell, amb imatge custom opcional
+- Overrides per PSD enemy: `PsdEnemyOverrides` (`hp`, `hpMax`, `name`, `imageData`)
 
 ### Cinematica boss reveal
-- `triggerBossIntroRef` → funció per llançar la cinematica
+- Llançada via `triggerBossIntroRef.current(data)`
 - `BOSS_INTRO` BC message inclou `portraitDataUrl` (JPEG base64, max 600px)
-- `SceneImgPicker` component per importar imatge custom al popup de context menu
-
-### PSD Import
-- Parser binari a `parsePSDStructure(buffer)`
-- Grups esperats: `zones`, `enemies`, `extras`
-- Imatges per capa a `rLayerImages.current` (canvas elements)
+- `SceneImgPicker` per importar imatge custom al context menu
 
 ### Zones màgiques (Painted Zones)
-- Polígons amb element: `ELEMENTS` (fire, ice, water, lightning, poison, magic)
-- Textures procedurals animades al jugador (`txFBM`, `txWorley`...)
-
-### Spells
-- `rActiveSpells.current`: `{id, type, points, startTime}`
-- Tipus: `fireball`, `lightning`, `magic_beam`
-
-### Dibuix
-- Canvas separat (`drawCanvasRef`), historial per undo
-- Traços enviats al jugador com a animació frame a frame
+- Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)
+- Textures procedurals animades al jugador (`src/lib/textures/`)
 
 ### Vista privada DM
-- `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats
-- `dmLocalPan`, `dmLocalZoom` (useRef, no state)
+- `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats al jugador
+- Refs: `dmLocalPan`, `dmLocalZoom` — animació de retorn suau (`dmPrivateReturnAnim`)
+
+---
+
+## Constants clau (`src/constants/index.ts`)
+
+| Constant | Valor | Ús |
+|---|---|---|
+| `BC_CHANNEL` | `'rpg_map_sync_v18'` | BroadcastChannel |
+| `TOKEN_LERP` | `0.07` | Suavitzat moviment tokens |
+| `TSCALE` | `90` | Escala base tokens |
+| `C` | objecte colors | Paleta UI (`bg`, `panel`, `accent`, `text`...) |
+| `CONDITIONS` | array | Condicions D&D (14 condicions) |
+| `ELEMENTS` | array | Elements màgics (fire, ice, water...) |
+| `ENEMY_TEMPLATES` | array | Plantilles enemics (goblin, troll, drac...) |
+| `DEFAULT_PARTY` | array | 5 jugadors per defecte |
 
 ---
 
 ## Errors comuns a evitar
 
-| Error | Símptoma | Causa | Fix |
-|---|---|---|---|
-| Ref no destructurada de `fc` | Render phase no dibuixa res | TypeError silenciós | Afegir al `const { ... } = fc` |
-| `function` dins `useEffect` | Tot el canvas en blanc | Babel Standalone no ho resol | Sempre a nivell de mòdul |
-| Ref nou no afegit a `fc{}` | `undefined` a la fase | Oblidat a l'objecte `fc` | Afegir a `fc{}` i destructurar |
-| `setState` sense ref mirall | UI actualitzada, render no | `tick()` llegeix refs, no state | Actualitzar sempre els dos |
-| Nou estat no afegit a STRUCT | Jugador no rep l'estat en connectar | Oblidat a `_sendFullState` | Afegir a STRUCT i al seu handler |
-| Versió no actualitzada | Confusió entre versions | — | Actualitzar comentari + app + CLAUDE.md |
+| Error | Símptoma | Fix |
+|---|---|---|
+| Ref no a `fc` | Render phase rep `undefined` | Afegir a `FrameContext` (types.ts) i a l'objecte `fc` de `useRafLoop.ts` |
+| `setState` sense ref mirall | UI actualitzada, render no | Actualitzar sempre `setState` + `rX.current` |
+| Nou estat no afegit a STRUCT | Jugador no rep l'estat en connectar | Afegir a `BCStructMessage`, `_sendFullState` i al seu handler |
+| `'use client'` oblidat | Error de hidratació | Tots els components amb hooks o events necessiten `'use client'` |
