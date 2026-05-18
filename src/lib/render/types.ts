@@ -93,4 +93,7 @@ export interface FrameContext {
   rLibEnemies:         MutableRefObject<import('@/types').LibEnemy[]>;
   rPsdEnemyOverrides:  MutableRefObject<import('@/types').PsdEnemyOverrides>;
   rPsdEnemyImgCache:   MutableRefObject<Record<number, HTMLCanvasElement>>;
+
+  zoneDragRef?: MutableRefObject<{ zoneId: string; startMx: number; startMy: number; origPoints: { x: number; y: number }[]; origBbox: { left: number; top: number; right: number; bottom: number; cx: number; cy: number; w: number; h: number } } | null>;
+  rHoveredPaintedZoneId?: MutableRefObject<string | null>;
 }

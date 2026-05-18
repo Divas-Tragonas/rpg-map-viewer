@@ -151,6 +151,17 @@ export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone
   ctx.closePath(); ctx.clip();
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
   ctx.drawImage(cachedCanvas, left, top, w, h);
+  // Inner edge feather - soft vignette at zone border
+  const fw = Math.min(zone.bbox.w, zone.bbox.h) * 0.09;
+  for (let fi = 0; fi < 4; fi++) {
+    const frac = (4 - fi) / 4;
+    ctx.lineWidth = fw * frac;
+    ctx.strokeStyle = `rgba(0,0,0,${frac * 0.5})`;
+    ctx.beginPath();
+    zone.points.forEach((p, pi) => pi === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.closePath();
+    ctx.stroke();
+  }
   const el = ELEMENTS_BY_ID.get(zone.element);
   ctx.strokeStyle = el ? el.color + 'aa' : '#ffffff88';
   ctx.lineWidth = 1.5; ctx.setLineDash([]); ctx.lineJoin = 'round';
@@ -166,26 +177,45 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
   for (const zone of rPaintedZones.current) {
     if (isDM) {
       drawFlatZone(ctx, zone);
+      const isDragged = fc.zoneDragRef?.current?.zoneId === zone.id;
+      const isHovered = fc.rHoveredPaintedZoneId?.current === zone.id;
+      if (isDragged || isHovered) {
+        const zEl = ELEMENTS_BY_ID.get(zone.element);
+        const glowColor = zEl ? zEl.color : '#ffffff';
+        ctx.save();
+        ctx.beginPath();
+        zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fillStyle = glowColor + (isDragged ? '44' : '28');
+        ctx.fill();
+        ctx.strokeStyle = glowColor + (isDragged ? 'ff' : 'bb');
+        ctx.lineWidth = isDragged ? 2.5 : 1.8;
+        ctx.setLineDash([]);
+        ctx.stroke();
+        ctx.restore();
+      }
     } else {
-      drawPaintedZone(ctx, zone, t, txCache);
       const appearT = zoneAppearRef.current[zone.id];
-      if (appearT) {
-        const elapsed = (performance.now() - appearT) / 1000;
-        if (elapsed < 1.2) {
-          const el = ELEMENTS_BY_ID.get(zone.element);
-          if (el) {
-            const alpha = Math.max(0, 1 - elapsed / 1.2) * 0.65;
-            ctx.save();
-            ctx.beginPath();
-            zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-            ctx.closePath();
-            ctx.strokeStyle = el.color; ctx.lineWidth = 3; ctx.globalAlpha = alpha; ctx.stroke();
-            ctx.restore();
-          }
-        } else {
-          delete zoneAppearRef.current[zone.id];
+      const elapsed = appearT ? (performance.now() - appearT) / 1000 : Infinity;
+      const FADE_IN = 0.75;
+      const fadeAlpha = elapsed < FADE_IN ? elapsed / FADE_IN : 1;
+      ctx.save();
+      if (fadeAlpha < 0.999) ctx.globalAlpha = fadeAlpha;
+      drawPaintedZone(ctx, zone, t, txCache);
+      ctx.restore();
+      if (appearT && elapsed < 1.2) {
+        const el = ELEMENTS_BY_ID.get(zone.element);
+        if (el) {
+          const alpha = Math.max(0, 1 - elapsed / 1.2) * 0.65;
+          ctx.save();
+          ctx.beginPath();
+          zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+          ctx.closePath();
+          ctx.strokeStyle = el.color; ctx.lineWidth = 3; ctx.globalAlpha = alpha; ctx.stroke();
+          ctx.restore();
         }
       }
+      if (appearT && elapsed > 1.5) delete zoneAppearRef.current[zone.id];
     }
   }
 }

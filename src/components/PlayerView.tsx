@@ -485,18 +485,19 @@ export function PlayerView() {
       if (media?.tagName === 'VIDEO' && media.videoWidth)    { mw = media.videoWidth;    mh = media.videoHeight; }
 
       const cinCam = cinematicCamRef.current;
-      const LERP = cinCam.active ? 0.032 : TOKEN_LERP;
       const _tgtZ   = cinCam.active ? cinCam.tgtZoom  : (rDMPreviewActive.current ? rDMPreviewZoom.current  : rZoom.current);
       const _tgtPan = cinCam.active ? cinCam.tgtPan   : (rDMPreviewActive.current ? rDMPreviewPan.current   : rPanOffset.current);
       const dzP = _tgtZ - visualZoomRef.current;
       const dxP = _tgtPan.x - visualPanRef.current.x;
       const dyP = _tgtPan.y - visualPanRef.current.y;
-      if (cinCam.active && Math.abs(dzP) < 0.0005 && Math.abs(dxP) < 0.3 && Math.abs(dyP) < 0.3) {
-        visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
+      if (cinCam.active) {
+        if (Math.abs(dzP) < 0.0005 && Math.abs(dxP) < 0.3 && Math.abs(dyP) < 0.3) {
+          visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
+        } else { visualZoomRef.current += dzP * 0.032; visualPanRef.current.x += dxP * 0.032; visualPanRef.current.y += dyP * 0.032; }
       } else {
-        visualZoomRef.current += dzP * LERP;
-        visualPanRef.current.x += dxP * LERP;
-        visualPanRef.current.y += dyP * LERP;
+        if (Math.abs(dzP) < 0.002 && Math.abs(dxP) < 0.5 && Math.abs(dyP) < 0.5) {
+          visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
+        } else { visualZoomRef.current += dzP * 0.35; visualPanRef.current.x += dxP * 0.35; visualPanRef.current.y += dyP * 0.35; }
       }
       const z = visualZoomRef.current, pan = visualPanRef.current;
       const sc = Math.min(W / mw, H / mh) * z;

@@ -70,6 +70,7 @@ export function DMView() {
   const [ctxEditHpMax, setCtxEditHpMax] = useState(0);
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
   const [dmPrivateActive, setDmPrivateActive] = useState(false);
+  const [canvasCursor, setCanvasCursor] = useState('default');
   const [enemyHighlight, setEnemyHighlight] = useState(false);
   const [highlightLocked, setHighlightLocked] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -178,6 +179,14 @@ export function DMView() {
     return () => clearTimeout(t);
   }, [enemyHighlight, highlightLocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Reset canvas cursor when leaving shape tool ───────────────────────────
+  useEffect(() => {
+    if (drawToolState !== 'shape') {
+      setCanvasCursor('default');
+      R.rHoveredPaintedZoneId.current = null;
+    }
+  }, [drawToolState]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── RAF loop ──────────────────────────────────────────────────────────────
   const broadcastDmPreview = useCallback(() => _broadcastState({}), [_broadcastState]);
   useRafLoop(R, { setActiveSpells, setDmPrivateActive, broadcastDmPreview });
@@ -189,6 +198,7 @@ export function DMView() {
   const mouseSetters = useMemo(() => ({
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
     setPaintedZones, setContextMenu, setZonesLocked, setCanUndo, setDmPrivateActive,
+    setCanvasCursor,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu } =
@@ -382,7 +392,7 @@ export function DMView() {
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : 'default' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : canvasCursor }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={handleMouseUp}

@@ -17,6 +17,7 @@ interface MouseHandlerSetters {
   setZonesLocked: (v: boolean) => void;
   setCanUndo: (v: boolean) => void;
   setDmPrivateActive: (v: boolean) => void;
+  setCanvasCursor: (c: string) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -41,12 +42,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1) {
       e.preventDefault();
-      if (e.ctrlKey) {
+      if (e.ctrlKey || R.rShiftHeld.current || e.shiftKey) {
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
       } else {
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
       }
       return;
+    }
+    // Shift + left click = private pan
+    if (e.button === 0 && (e.shiftKey || R.rShiftHeld.current)) {
+      R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
+      S.setDmPrivateActive(true);
+      e.preventDefault(); return;
     }
     if (e.button !== 0) return;
     const { mx, my } = mc(e);
@@ -134,6 +141,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   }, [mc, _broadcastState]);
 
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Update screen-space cursor even during pan
+    if (R.rDrawTool.current === 'pen' || R.rDrawTool.current === 'eraser') {
+      const rect0 = R.canvasRef.current!.getBoundingClientRect();
+      R.rCursorScreenPos.current = { x: e.clientX - rect0.left, y: e.clientY - rect0.top };
+    }
     if (R.panDragRef.current) {
       const { startX, startY, startPanX, startPanY, private: isPrivate } = R.panDragRef.current;
       const nx = startPanX + (e.clientX - startX), ny = startPanY + (e.clientY - startY);
@@ -204,6 +216,20 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const newBbox = { left: nb.left + dx, top: nb.top + dy, right: nb.right + dx, bottom: nb.bottom + dy, cx: nb.cx + dx, cy: nb.cy + dy, w: nb.w, h: nb.h };
       R.rPaintedZones.current = R.rPaintedZones.current.map(z => z.id === zoneId ? { ...z, points: newPoints, bbox: newBbox } : z);
       return;
+    }
+
+    // Track hovered painted zone for highlight when shape tool is active
+    if (tool === 'shape') {
+      let hovPZ: string | null = null;
+      for (let i = R.rPaintedZones.current.length - 1; i >= 0; i--) {
+        if (pointInPolygon(mx, my, R.rPaintedZones.current[i].points)) {
+          hovPZ = R.rPaintedZones.current[i].id;
+          break;
+        }
+      }
+      R.rHoveredPaintedZoneId.current = hovPZ;
+      const newCursor = R.zoneDragRef.current ? 'grabbing' : (hovPZ && e.ctrlKey) ? 'grab' : 'default';
+      S.setCanvasCursor(newCursor);
     }
 
     if (R.isShapeDrawingRef.current && tool === 'shape') {
@@ -337,6 +363,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
     R.dragRef.current = null; S.setActiveDrag(null);
     R.rHoveredZone.current = null;
+    R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;
     if (R.rDrawTool.current === 'pointer') {
       R.rPointerPos.current = null;

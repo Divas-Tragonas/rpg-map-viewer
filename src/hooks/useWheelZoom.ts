@@ -15,7 +15,7 @@ export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPriva
       if (m?.tagName === 'IMG' && (m as HTMLImageElement).naturalWidth) { mw = (m as HTMLImageElement).naturalWidth; mh = (m as HTMLImageElement).naturalHeight; }
       if (m?.tagName === 'VIDEO' && (m as HTMLVideoElement).videoWidth) { mw = (m as HTMLVideoElement).videoWidth; mh = (m as HTMLVideoElement).videoHeight; }
 
-      if (e.ctrlKey) {
+      if (e.ctrlKey || R.rShiftHeld.current) {
         const newPrivZoom = Math.min(4, Math.max(0.2, R.dmLocalZoom.current * factor));
         const scOld = Math.min(W / mw, H / mh) * R.rZoom.current * R.dmLocalZoom.current;
         const scNew = Math.min(W / mw, H / mh) * R.rZoom.current * newPrivZoom;
