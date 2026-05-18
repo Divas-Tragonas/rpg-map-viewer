@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RPG Map Viewer
 
-## Getting Started
+Eina per a Dungeon Masters per gestionar mapes, tokens i jugadors en temps real.
 
-First, run the development server:
+**Live:** [https://rpg-map-viewer.vercel.app/](https://rpg-map-viewer.vercel.app/)
+
+---
+
+## Pantalles
+
+| URL | Descripció |
+|---|---|
+| `/` | Vista del Dungeon Master |
+| `/player` | Vista del jugador (pantalla secundària) |
+| `/expositor` | Pantalla d'expositor de campanya |
+
+## Dev
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Changelog
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### v3.1
+- Afegit enllaç directe a la web al README
+- Regla de versionat automàtic al CLAUDE.md
 
-## Learn More
+### v3.0
+- Migració completa de single-HTML a Next.js 16 + React 19 + TypeScript
+- App Router, components separats, hooks, render loop via RAF
+- Desplegament a Vercel
 
-To learn more about Next.js, take a look at the following resources:
+### v2.25
+- Fix bordes negres en PSD
+- Mides per criatura
+- Edició nom/HP al click dret
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### v2.24
+- HP per tokens PSD
+- Edició nom/imatge des de l'escena
+- Fixes snap/ESC/crash
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### v2.23
+- Snap de grid no s'aplica a zones
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### v2.22 i anteriors
+- Vegeu historial de git

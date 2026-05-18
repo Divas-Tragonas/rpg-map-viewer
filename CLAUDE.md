@@ -17,6 +17,18 @@
   git push origin master
   ```
 
+### Versió i changelog — OBLIGATORI en cada push
+
+**Abans de cada commit**, actualitzar el `README.md`:
+1. Incrementar la versió (`vX.Y` → `vX.Y+1`) al títol de l'entrada més recent del Changelog
+2. Afegir un nou bloc al Changelog amb la versió nova i un resum dels canvis:
+   ```markdown
+   ### vX.Y+1
+   - Descripció breu del canvi 1
+   - Descripció breu del canvi 2
+   ```
+3. Incloure el `README.md` al commit
+
 ---
 
 ## Stack
