@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Shield, MapPin, Skull } from '@/components/i
 import { TreeGroup } from '@/components/ui/TreeGroup';
 import { LayerRow } from '@/components/ui/LayerRow';
 import { C } from '@/constants';
-import type { MapStructure, VisMap, PSDLayer, PsdEnemyOverrides } from '@/types';
+import type { MapStructure, VisMap, PSDLayer, PsdEnemyOverrides, DefeatedMap } from '@/types';
 
 interface Props {
   struct: MapStructure;
@@ -13,15 +13,17 @@ interface Props {
   activeDrag: string | number | null;
   selectedToken: string | number | null;
   psdEnemyOverrides: PsdEnemyOverrides;
+  defeated: DefeatedMap;
   setExpanded: (fn: (e: Record<number, boolean>) => Record<number, boolean>) => void;
   setSelectedToken: (id: string | number | null) => void;
   rSelectedToken: React.MutableRefObject<string | number | null>;
   onToggleVis: (id: number) => void;
   onDeleteLayer: (id: number, kind: string) => void;
   onResetToken: (en: PSDLayer) => void;
+  onAdjustPsdHp: (id: number, delta: number) => void;
 }
 
-export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, psdEnemyOverrides, setExpanded, setSelectedToken, rSelectedToken, onToggleVis, onDeleteLayer, onResetToken }: Props) {
+export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, psdEnemyOverrides, defeated, setExpanded, setSelectedToken, rSelectedToken, onToggleVis, onDeleteLayer, onResetToken, onAdjustPsdHp }: Props) {
   return (
     <>
       {struct.extras.children.length > 0 && (
@@ -52,16 +54,23 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, ps
               {(zone.directEnemies || zone.enemies).map(en => {
                 const ov = psdEnemyOverrides[en.id]; const hm = ov?.hpMax || 0; const hp = hm > 0 ? Math.max(0, ov?.hp ?? hm) : 0;
                 const hr = hm > 0 ? hp / hm : 0; const hc = hr > 0.5 ? '#56d364' : hr > 0.25 ? '#e3b341' : '#f85149';
+                const isDefeated = !!defeated[String(en.id)];
                 return (
                   <div key={en.id}>
                     <LayerRow layer={en} visible={!!vis[en.id]} onToggle={() => onToggleVis(en.id)}
                       color={C.enemy} indent draggable active={activeDrag === en.id}
                       onReset={() => onResetToken(en)} onDelete={() => onDeleteLayer(en.id, 'enemy')}
-                      selected={selectedToken === en.id}
+                      selected={selectedToken === en.id} defeated={isDefeated}
                       onSelect={() => { setSelectedToken(en.id); rSelectedToken.current = en.id; }} />
                     {hm > 0 && (
-                      <div style={{ marginLeft: 32, marginRight: 8, marginBottom: 2, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${hr * 100}%`, background: hc, transition: 'width 0.3s' }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 28, marginRight: 8, marginBottom: 3 }}>
+                        <button onClick={e => { e.stopPropagation(); onAdjustPsdHp(en.id, -1); }}
+                          style={{ background: 'rgba(248,81,73,.18)', border: 'none', borderRadius: 3, cursor: 'pointer', color: '#f85149', fontSize: 10, fontWeight: 700, lineHeight: 1, padding: '1px 4px', flexShrink: 0 }}>−</button>
+                        <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${hr * 100}%`, background: hc, transition: 'width 0.3s' }} />
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); onAdjustPsdHp(en.id, 1); }}
+                          style={{ background: 'rgba(63,185,80,.18)', border: 'none', borderRadius: 3, cursor: 'pointer', color: '#3fb950', fontSize: 10, fontWeight: 700, lineHeight: 1, padding: '1px 4px', flexShrink: 0 }}>+</button>
                       </div>
                     )}
                   </div>
@@ -78,16 +87,23 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, ps
                   {expanded[sg.id] && sg.enemies.map(en => {
                     const ov2 = psdEnemyOverrides[en.id]; const hm2 = ov2?.hpMax || 0; const hp2 = hm2 > 0 ? Math.max(0, ov2?.hp ?? hm2) : 0;
                     const hr2 = hm2 > 0 ? hp2 / hm2 : 0; const hc2 = hr2 > 0.5 ? '#56d364' : hr2 > 0.25 ? '#e3b341' : '#f85149';
+                    const isDefeated2 = !!defeated[String(en.id)];
                     return (
                       <div key={en.id}>
                         <LayerRow layer={en} visible={!!vis[en.id]} onToggle={() => onToggleVis(en.id)}
                           color={C.enemy} indent2 draggable active={activeDrag === en.id}
                           onReset={() => onResetToken(en)} onDelete={() => onDeleteLayer(en.id, 'enemy')}
-                          selected={selectedToken === en.id}
+                          selected={selectedToken === en.id} defeated={isDefeated2}
                           onSelect={() => { setSelectedToken(en.id); rSelectedToken.current = en.id; }} />
                         {hm2 > 0 && (
-                          <div style={{ marginLeft: 40, marginRight: 8, marginBottom: 2, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${hr2 * 100}%`, background: hc2, transition: 'width 0.3s' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 40, marginRight: 8, marginBottom: 3 }}>
+                            <button onClick={e => { e.stopPropagation(); onAdjustPsdHp(en.id, -1); }}
+                              style={{ background: 'rgba(248,81,73,.18)', border: 'none', borderRadius: 3, cursor: 'pointer', color: '#f85149', fontSize: 10, fontWeight: 700, lineHeight: 1, padding: '1px 4px', flexShrink: 0 }}>−</button>
+                            <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${hr2 * 100}%`, background: hc2, transition: 'width 0.3s' }} />
+                            </div>
+                            <button onClick={e => { e.stopPropagation(); onAdjustPsdHp(en.id, 1); }}
+                              style={{ background: 'rgba(63,185,80,.18)', border: 'none', borderRadius: 3, cursor: 'pointer', color: '#3fb950', fontSize: 10, fontWeight: 700, lineHeight: 1, padding: '1px 4px', flexShrink: 0 }}>+</button>
                           </div>
                         )}
                       </div>

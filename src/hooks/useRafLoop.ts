@@ -153,6 +153,31 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderGridCalib(ctx, fc);
       renderDMPointer(ctx, fc);
 
+      // Brush/eraser cursor preview
+      const tool = R.rDrawTool.current;
+      if ((tool === 'pen' || tool === 'eraser') && R.rCursorScreenPos.current) {
+        const { x: cx, y: cy } = R.rCursorScreenPos.current;
+        const ds = R.rDrawSize.current;
+        const radius = Math.max(1, (tool === 'eraser' ? ds * 4 : ds) * sc);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        if (tool === 'eraser') {
+          ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+          ctx.setLineDash([4, 3]);
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else {
+          ctx.fillStyle = R.rDrawColor.current + '44';
+          ctx.strokeStyle = R.rDrawColor.current + 'cc';
+          ctx.lineWidth = 1.5;
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
       // Cinematic tick
       if (R.cinematicActiveRef.current) {
         R.cinematicTimelineRef.current?.tick();

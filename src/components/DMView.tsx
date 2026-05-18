@@ -318,10 +318,11 @@ export function DMView() {
                 <LayerTree
                   struct={struct} vis={vis} expanded={expanded}
                   activeDrag={activeDrag} selectedToken={selectedToken}
-                  psdEnemyOverrides={psdEnemyOverrides}
+                  psdEnemyOverrides={psdEnemyOverrides} defeated={defeated}
                   setExpanded={setExpanded} setSelectedToken={setSelectedToken}
                   rSelectedToken={R.rSelectedToken}
                   onToggleVis={toggleVis} onDeleteLayer={deleteLayer} onResetToken={resetToken}
+                  onAdjustPsdHp={adjustPsdEnemyHp}
                 />
               )}
               <PlayersPanel
@@ -381,7 +382,7 @@ export function DMView() {
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: drawToolState === 'pen' ? 'crosshair' : drawToolState === 'eraser' ? 'cell' : drawToolState === 'pointer' ? 'none' : 'default' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : 'default' }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={handleMouseUp}

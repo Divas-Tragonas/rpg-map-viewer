@@ -26,14 +26,14 @@ npm run dev   # http://localhost:3000
 ## Changelog
 
 ### v3.2
-- **Fix càmera escena**: quan s'activava una escena (boss intro) sobre un token de biblioteca amb imatge, la càmera anava a la cantonada superior esquerra perquè la posició era sempre (0,0). Ara s'usa la posició real del token al mapa.
-- **Expositor integrat**: el botó "Expositor" ja no obre una finestra nova del navegador. Ara mostra un panell flotant dins la vista del DM on es pot carregar una imatge o vídeo i enviar-la als jugadors. La finestra del jugador rep el contingut via BroadcastChannel i el mostra amb transició fade IN/OUT suau, zoom amb roda del ratolí i pan amb drag.
-- **Línies guia de spells en groc**: les línies de previsualització dels spells (eina de Màgies) ara són grogues en lloc de liles/morades, per coherència amb la paleta de colors del HUD.
-- **Fix cursor Senyal permanent**: al desactivar l'eina "Senyal" des del panell, el cursor del DM es quedava visible indefinidament. Ara s'esborra correctament en canviar d'eina.
-- **HP tokens PSD a la barra lateral**: els tokens enemics importats del PSD ara mostren una barra de vida mini sota el seu nom al LayerTree del DM, quan se'ls ha assignat HP al menú contextual.
-- **Previsualització de llapis i goma**: el panell de dibuix mostra un cercle de previsualització del tamany actual del llapis o la goma, que s'actualitza en temps real en moure el slider.
-- **Versió actualitzada a v3.2** al fons de presentació de la pantalla de benvinguda (text més gran i en blanc).
-- **README millorat**: les descripcions del changelog ara expliquen el "perquè" del canvi, no només el "que".
+- **Fix càmera escena**: la boss intro sobre tokens de biblioteca ja no desplaça la càmera a (0,0); ara apunta a la posició real del token al mapa.
+- **Expositor integrat**: el botó "Expositor" obre un panell flotant al DM en lloc d'una finestra nova. El jugador rep el contingut via BroadcastChannel amb fade IN/OUT suau, zoom i pan.
+- **Línies guia de spells en groc**: les línies de previsualització de l'eina Màgies ara són grogues per coherència amb la paleta del HUD.
+- **Fix cursor Senyal permanent**: el cursor del DM ja s'esborra correctament en desactivar l'eina "Senyal".
+- **HP tokens PSD a la barra lateral**: els enemies PSD amb HP assignat mostren barra de vida i botons +/− al LayerTree; quan cauen derrotats el nom apareix ratllat.
+- **Cursor de llapis i goma al canvas**: el cercle de previsualització del tamany del pinzell/goma es dibuixa directament al canvas com a cursor, proporcional a la mida real.
+- **Versió v3.2 a la pantalla de benvinguda**: el número de versió és ara més gran i en blanc.
+- **README millorat**: descripcions del changelog més clares i concretes.
 
 ### v3.1
 - Afegit l'URL de desplegament al README per accés directe des de qualsevol dispositiu.

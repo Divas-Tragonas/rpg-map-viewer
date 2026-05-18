@@ -181,6 +181,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
     }
 
+    if (tool === 'pen' || tool === 'eraser') {
+      const rect2 = R.canvasRef.current!.getBoundingClientRect();
+      R.rCursorScreenPos.current = { x: e.clientX - rect2.left, y: e.clientY - rect2.top };
+    }
+
     if (tool === 'pointer') {
       R.rPointerPos.current = { x: mx, y: my };
       const now = performance.now();
@@ -332,6 +337,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
     R.dragRef.current = null; S.setActiveDrag(null);
     R.rHoveredZone.current = null;
+    R.rCursorScreenPos.current = null;
     if (R.rDrawTool.current === 'pointer') {
       R.rPointerPos.current = null;
       R.bcRef.current?.postMessage({ type: 'POINTER', pos: null });
