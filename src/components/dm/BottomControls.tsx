@@ -40,9 +40,9 @@ export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCoun
           style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer', color: C.dim, padding: '3px 6px', display: 'flex' }}>
           <ZoomOut size={11} />
         </button>
-        <input type="range" min={0.2} max={4} step={0.05} value={zoom} onChange={e => onZoomChange(parseFloat(e.target.value))}
+        <input type="range" min={0.2} max={5} step={0.05} value={zoom} onChange={e => onZoomChange(parseFloat(e.target.value))}
           style={{ flex: 1, accentColor: C.accent }} />
-        <button onClick={() => onZoomChange(Math.min(3, zoom + 0.1))}
+        <button onClick={() => onZoomChange(Math.min(5, zoom + 0.1))}
           style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer', color: C.dim, padding: '3px 6px', display: 'flex' }}>
           <ZoomIn size={11} />
         </button>

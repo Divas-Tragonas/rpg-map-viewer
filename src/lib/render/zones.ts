@@ -175,6 +175,7 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
       drawFlatZone(ctx, zone);
       const isDragged = fc.zoneDragRef?.current?.zoneId === zone.id;
       const isHovered = fc.rHoveredPaintedZoneId?.current === zone.id;
+      const isSelected = fc.rSelectedPaintedZoneId?.current === zone.id;
       if (isDragged || isHovered) {
         const zEl = ELEMENTS_BY_ID.get(zone.element);
         const glowColor = zEl ? zEl.color : '#ffffff';
@@ -188,6 +189,22 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
         ctx.lineWidth = isDragged ? 2.5 : 1.8;
         ctx.setLineDash([]);
         ctx.stroke();
+        ctx.restore();
+      }
+      if (isSelected) {
+        const fsc = fc.sc;
+        const t2 = performance.now() / 500;
+        const dash = 8 / fsc, gap = 5 / fsc;
+        ctx.save();
+        ctx.beginPath();
+        zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 2 / fsc;
+        ctx.setLineDash([dash, gap]);
+        ctx.lineDashOffset = -(t2 % (dash + gap)) * (dash + gap);
+        ctx.stroke();
+        ctx.setLineDash([]);
         ctx.restore();
       }
     } else {

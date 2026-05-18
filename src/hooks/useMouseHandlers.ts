@@ -1,7 +1,7 @@
 'use client';
 import { useCallback } from 'react';
 import { pointInPolygon, getBBox } from '@/lib/geometry';
-import { ELEMENTS_BY_ID } from '@/constants';
+import { ELEMENTS_BY_ID, WAND_CURSOR } from '@/constants';
 import type { PosMap, VisMap } from '@/types';
 import type { DMRefs } from './useDMRefs';
 
@@ -228,7 +228,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
       }
       R.rHoveredPaintedZoneId.current = hovPZ;
-      const newCursor = R.zoneDragRef.current ? 'grabbing' : (hovPZ && e.ctrlKey) ? 'grab' : 'crosshair';
+      const newCursor = R.zoneDragRef.current ? 'grabbing' : (hovPZ && e.ctrlKey) ? 'grab' : WAND_CURSOR;
       S.setCanvasCursor(newCursor);
     }
 
@@ -377,6 +377,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     for (const zone of R.rPaintedZones.current) {
       if (pointInPolygon(mx, my, zone.points)) {
         const el = ELEMENTS_BY_ID.get(zone.element);
+        R.rSelectedPaintedZoneId.current = zone.id;
         S.setContextMenu({ id: zone.id, name: `Zona: ${el?.label || zone.element}`, x: e.clientX, y: e.clientY, isPaintedZone: true });
         return;
       }
@@ -409,6 +410,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
       }
     }
+    R.rSelectedPaintedZoneId.current = null;
     S.setContextMenu(null);
   }, [mc]);
 

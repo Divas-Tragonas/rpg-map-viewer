@@ -167,6 +167,10 @@ export function useCinematic(R: DMRefs) {
         [dim, vig, tint].forEach(el => { el.style.transition = 'opacity 0.75s ease'; el.style.opacity = '0'; });
         lbTop.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbTop.style.transform = 'translateY(-100%)';
         lbBot.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbBot.style.transform = 'translateY(100%)';
+        // Sync shared zoom/pan to current cinematic camera position to prevent snap
+        const cc = cinematicCamRef.current;
+        rZoom.current = cc.curZoom / Math.max(0.01, dmLocalZoom.current);
+        rPanOffset.current = { x: cc.curPan.x - dmLocalPan.current.x, y: cc.curPan.y - dmLocalPan.current.y };
         cinematicCamRef.current.active = false;
       })
       .add(5100, () => {
@@ -197,6 +201,9 @@ export function useCinematic(R: DMRefs) {
         cpKill(); cinematicDataRef.current = null;
       }, 320);
     }
+    const cc = cinematicCamRef.current;
+    rZoom.current = cc.curZoom / Math.max(0.01, dmLocalZoom.current);
+    rPanOffset.current = { x: cc.curPan.x - dmLocalPan.current.x, y: cc.curPan.y - dmLocalPan.current.y };
     cinematicCamRef.current.active = false;
     cinematicActiveRef.current = false;
   }, []);

@@ -108,6 +108,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rPsdEnemyImgCache: R.rPsdEnemyImgCache,
         zoneDragRef: R.zoneDragRef,
         rHoveredPaintedZoneId: R.rHoveredPaintedZoneId,
+        rSelectedPaintedZoneId: R.rSelectedPaintedZoneId,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);

@@ -16,7 +16,7 @@ export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPriva
       if (m?.tagName === 'VIDEO' && (m as HTMLVideoElement).videoWidth) { mw = (m as HTMLVideoElement).videoWidth; mh = (m as HTMLVideoElement).videoHeight; }
 
       if (e.ctrlKey || R.rShiftHeld.current) {
-        const newPrivZoom = Math.min(4, Math.max(0.2, R.dmLocalZoom.current * factor));
+        const newPrivZoom = Math.min(5, Math.max(0.2, R.dmLocalZoom.current * factor));
         const scOld = Math.min(W / mw, H / mh) * R.rZoom.current * R.dmLocalZoom.current;
         const scNew = Math.min(W / mw, H / mh) * R.rZoom.current * newPrivZoom;
         const totalPanX = R.rPanOffset.current.x + R.dmLocalPan.current.x;
@@ -31,7 +31,7 @@ export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPriva
         setDmPrivateActive(true); _broadcastState({}); return;
       }
 
-      const newZoom = Math.min(4, Math.max(0.2, R.rZoom.current * factor));
+      const newZoom = Math.min(5, Math.max(0.2, R.rZoom.current * factor));
       if (newZoom === R.rZoom.current) return;
       const scOld = Math.min(W / mw, H / mh) * R.rZoom.current;
       const scNew = Math.min(W / mw, H / mh) * newZoom;

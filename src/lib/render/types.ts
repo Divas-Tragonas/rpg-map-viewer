@@ -96,4 +96,5 @@ export interface FrameContext {
 
   zoneDragRef?: MutableRefObject<{ zoneId: string; startMx: number; startMy: number; origPoints: { x: number; y: number }[]; origBbox: { left: number; top: number; right: number; bottom: number; cx: number; cy: number; w: number; h: number } } | null>;
   rHoveredPaintedZoneId?: MutableRefObject<string | null>;
+  rSelectedPaintedZoneId?: MutableRefObject<string | null>;
 }

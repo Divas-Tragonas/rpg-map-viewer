@@ -86,7 +86,8 @@ export function useDMRefs() {
   const strokeHistoryRef  = useRef<StrokeData[]>([]);
   const rPointerPos       = useRef<Point | null>(null);
   const rShiftHeld          = useRef(false);
-  const rHoveredPaintedZoneId = useRef<string | null>(null);
+  const rHoveredPaintedZoneId    = useRef<string | null>(null);
+  const rSelectedPaintedZoneId   = useRef<string | null>(null);
   const rCursorScreenPos  = useRef<{ x: number; y: number } | null>(null);
   const pointerThrottleRef = useRef(0);
   const bgTransitionRef   = useRef<HTMLDivElement | null>(null);
@@ -121,7 +122,7 @@ export function useDMRefs() {
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,
     zoneDragRef, defeatedAnimRef, ctrlHeldRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
-    rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
+    rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
     cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,
