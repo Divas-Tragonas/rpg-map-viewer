@@ -4,7 +4,7 @@ import { renderZoneOverlays, renderExtras, renderPaintedZones, renderShapePrevie
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
-import { renderGrid, renderGridCalib, renderDMPointer } from '@/lib/render/grid';
+import { renderGrid, renderGridCalib } from '@/lib/render/grid';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
@@ -84,48 +84,24 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         }
       }
 
-      // Brush/eraser cursor preview and DM pointer — shown even without PSD
-      {
-        const tool = R.rDrawTool.current;
-        if ((tool === 'pen' || tool === 'eraser') && R.rCursorScreenPos.current) {
+      if (!s) {
+        const oc2pre = R.drawCanvasRef.current;
+        if (oc2pre && oc2pre.width > 1) {
+          ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+          ctx.globalAlpha = 0.92; ctx.drawImage(oc2pre, 0, 0); ctx.globalAlpha = 1; ctx.restore();
+        }
+        const toolPre = R.rDrawTool.current;
+        if ((toolPre === 'pen' || toolPre === 'eraser') && R.rCursorScreenPos.current) {
           const { x: cx, y: cy } = R.rCursorScreenPos.current;
           const ds = R.rDrawSize.current;
-          const radius = Math.max(3, (tool === 'eraser' ? ds * 4 : ds / 2) * sc);
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-          if (tool === 'eraser') {
-            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-            ctx.setLineDash([4, 3]);
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            ctx.setLineDash([]);
-          } else {
-            ctx.fillStyle = R.rDrawColor.current + '55';
-            ctx.strokeStyle = R.rDrawColor.current + 'ee';
-            ctx.lineWidth = 1.5;
-            ctx.fill();
-            ctx.stroke();
-          }
+          const radius = Math.max(3, (toolPre === 'eraser' ? ds * 4 : ds / 2) * sc);
+          ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          if (toolPre === 'eraser') { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+          else { ctx.fillStyle = R.rDrawColor.current + '55'; ctx.strokeStyle = R.rDrawColor.current + 'ee'; ctx.lineWidth = 1.5; ctx.fill(); ctx.stroke(); }
           ctx.restore();
         }
-        if (tool === 'pointer' && R.rPointerPos.current) {
-          const ptr = R.rPointerPos.current, pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 5.5);
-          ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
-          ctx.strokeStyle = `rgba(255,210,0,${0.18 + 0.12 * pulse})`; ctx.lineWidth = 8 / sc;
-          ctx.beginPath(); ctx.arc(ptr.x, ptr.y, (28 + 6 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
-          ctx.strokeStyle = `rgba(255,210,0,${0.55 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc;
-          ctx.beginPath(); ctx.arc(ptr.x, ptr.y, (14 + 5 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
-          ctx.fillStyle = `rgba(255,230,80,${0.9 + 0.1 * pulse})`;
-          ctx.beginPath(); ctx.arc(ptr.x, ptr.y, 3.5 / sc, 0, Math.PI * 2); ctx.fill();
-          ctx.strokeStyle = `rgba(255,210,0,${0.5 + 0.3 * pulse})`; ctx.lineWidth = 1.5 / sc;
-          const ch = 8 / sc;
-          ctx.beginPath(); ctx.moveTo(ptr.x - ch, ptr.y); ctx.lineTo(ptr.x + ch, ptr.y); ctx.moveTo(ptr.x, ptr.y - ch); ctx.lineTo(ptr.x, ptr.y + ch); ctx.stroke();
-          ctx.restore();
-        }
+        return;
       }
-
-      if (!s) return;
 
       const fc = {
         sc, ox, oy, mw, mh, isDM: true, s, v, pp,
@@ -195,7 +171,39 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
 
       renderGrid(ctx, fc);
       renderGridCalib(ctx, fc);
-      renderDMPointer(ctx, fc);
+
+      // DM cursors — rendered last so they appear above everything
+      {
+        const tool = R.rDrawTool.current;
+        if ((tool === 'pen' || tool === 'eraser') && R.rCursorScreenPos.current) {
+          const { x: cx, y: cy } = R.rCursorScreenPos.current;
+          const ds = R.rDrawSize.current;
+          const radius = Math.max(3, (tool === 'eraser' ? ds * 4 : ds / 2) * sc);
+          ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          if (tool === 'eraser') { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+          else { ctx.fillStyle = R.rDrawColor.current + '55'; ctx.strokeStyle = R.rDrawColor.current + 'ee'; ctx.lineWidth = 1.5; ctx.fill(); ctx.stroke(); }
+          ctx.restore();
+        }
+        if (tool === 'pointer' && R.rPointerPos.current) {
+          const ptr = R.rPointerPos.current;
+          const sx = ox + ptr.x * sc, sy = oy + ptr.y * sc;
+          const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 5.5);
+          ctx.save();
+          ctx.strokeStyle = `rgba(255,60,80,${0.75 + 0.2 * pulse})`; ctx.lineWidth = 8;
+          ctx.beginPath(); ctx.arc(sx, sy, 22 + 5 * pulse, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = `rgba(255,80,100,${0.85 + 0.15 * pulse})`; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(sx, sy, 11 + 2 * pulse, 0, Math.PI * 2); ctx.stroke();
+          const ch = 13;
+          ctx.strokeStyle = `rgba(255,60,80,0.9)`; ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(sx - ch, sy); ctx.lineTo(sx - 5, sy); ctx.moveTo(sx + 5, sy); ctx.lineTo(sx + ch, sy);
+          ctx.moveTo(sx, sy - ch); ctx.lineTo(sx, sy - 5); ctx.moveTo(sx, sy + 5); ctx.lineTo(sx, sy + ch);
+          ctx.stroke();
+          ctx.fillStyle = `rgba(255,60,80,${0.9 + 0.1 * pulse})`;
+          ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+      }
 
       // Cinematic tick
       if (R.cinematicActiveRef.current) {

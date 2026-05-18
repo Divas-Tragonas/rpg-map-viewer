@@ -240,7 +240,7 @@ export function ContextMenuOverlay({
               onOpenSceneConfig();
             }}
               style={{ width: '100%', padding: '6px', background: 'rgba(168,85,247,.12)', border: '1px solid rgba(168,85,247,.35)', borderRadius: 5, color: '#c084fc', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
-              ⚡ Escena
+              ⚡ Cinematica
             </button>
           </div>
         </>

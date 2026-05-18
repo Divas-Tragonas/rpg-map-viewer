@@ -42,7 +42,7 @@ export function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }: SceneImgP
       <button
         onMouseDown={e => { e.stopPropagation(); onTrigger(imgEl, !!custom); }}
         style={{ width: '100%', padding: '8px', background: 'rgba(168,85,247,.18)', border: '1px solid rgba(168,85,247,.55)', borderRadius: 6, color: '#c084fc', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
-        ⚡ Llançar escena
+        ⚡ Llançar cinematica
       </button>
     </>
   );

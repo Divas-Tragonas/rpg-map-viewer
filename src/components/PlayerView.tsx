@@ -80,6 +80,8 @@ export function PlayerView() {
   const cinematicDataRef     = useRef<Record<string, HTMLElement | HTMLCanvasElement> | null>(null);
   const cinematicStartRef    = useRef(0);
   const cinematicCamRef      = useRef({ active: false, tgtZoom: 1, tgtPan: { x: 0, y: 0 }, curZoom: 1, curPan: { x: 0, y: 0 } });
+  const cinematicOrigZoomRef = useRef(1);
+  const cinematicOrigPanRef  = useRef({ x: 0, y: 0 });
   const cinematicTimelineRef = useRef<CinematicTimeline | null>(null);
   const triggerBossIntroRef  = useRef<((data: Record<string, unknown>) => void) | null>(null);
   const skipBossIntroRef     = useRef<(() => void) | null>(null);
@@ -137,6 +139,8 @@ export function PlayerView() {
     }
 
     const PRIMARY = '#d4a017', SECONDARY = '#ff9900', GLOW = 'rgba(212,160,23,0.6)', BGTINT = 'rgba(30,20,0,0.3)';
+    cinematicOrigZoomRef.current = rZoom.current;
+    cinematicOrigPanRef.current = { ...rPanOffset.current };
     cinematicActiveRef.current = true;
     cpKill();
 
@@ -164,61 +168,55 @@ export function PlayerView() {
     lbTop.style.cssText = `position:absolute;top:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(-100%);transition:transform 0.5s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
     const accTop = document.createElement('div');
     accTop.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.5s`;
-    lbTop.appendChild(accTop);
-    stage.appendChild(lbTop);
+    lbTop.appendChild(accTop); stage.appendChild(lbTop);
 
     const lbBot = document.createElement('div');
     lbBot.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(100%);transition:transform 0.5s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
     const accBot = document.createElement('div');
     accBot.style.cssText = `position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.5s`;
-    lbBot.appendChild(accBot);
-    stage.appendChild(lbBot);
+    lbBot.appendChild(accBot); stage.appendChild(lbBot);
 
-    const prtH = Math.round(SH * 0.92);
-    const prtW = Math.round(prtH * 0.72);
+    const prtH = Math.round(SH * 0.92), prtW = Math.round(prtH * 0.72);
     const prtWrap = document.createElement('div');
     prtWrap.style.cssText = `position:absolute;right:5%;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(120%,-50%);transition:transform 0.6s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`;
     const prtGlow = document.createElement('div');
     prtGlow.style.cssText = `position:absolute;inset:-50px;background:radial-gradient(ellipse at 40% 55%,${GLOW} 0%,transparent 65%);filter:blur(30px);opacity:0;transition:opacity 1s ease`;
     prtWrap.appendChild(prtGlow);
-    const MASK_STYLE = `-webkit-mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);-webkit-mask-composite:intersect;mask-composite:intersect`;
-    const IMG_BASE_CSS = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;${MASK_STYLE}`;
+    const MASK = `-webkit-mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);-webkit-mask-composite:intersect;mask-composite:intersect`;
+    const IMG_CSS = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;${MASK}`;
     const portraitEl = portrait as (HTMLCanvasElement | HTMLImageElement | null);
     if (portraitEl) {
       if (portraitEl instanceof HTMLCanvasElement) {
-        const prtCanvas = document.createElement('canvas');
-        prtCanvas.width = portraitEl.width; prtCanvas.height = portraitEl.height;
-        prtCanvas.getContext('2d')!.drawImage(portraitEl, 0, 0);
-        prtCanvas.style.cssText = IMG_BASE_CSS;
-        prtWrap.appendChild(prtCanvas);
+        const pc = document.createElement('canvas');
+        pc.width = portraitEl.width; pc.height = portraitEl.height;
+        pc.getContext('2d')!.drawImage(portraitEl, 0, 0);
+        pc.style.cssText = IMG_CSS; prtWrap.appendChild(pc);
       } else {
-        const prtImg = document.createElement('img') as HTMLImageElement;
-        prtImg.src = (portraitEl as HTMLImageElement).src;
-        prtImg.style.cssText = IMG_BASE_CSS;
-        prtWrap.appendChild(prtImg);
+        const pi = document.createElement('img') as HTMLImageElement;
+        pi.src = (portraitEl as HTMLImageElement).src;
+        pi.style.cssText = IMG_CSS; prtWrap.appendChild(pi);
       }
     } else {
       const ph = document.createElement('div');
-      const phFs = Math.round(prtH * 0.42);
-      ph.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:${phFs}px;font-weight:900;color:${PRIMARY};text-shadow:0 0 80px ${GLOW},0 0 160px ${GLOW};${MASK_STYLE}`;
+      ph.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:${Math.round(prtH*0.42)}px;font-weight:900;color:${PRIMARY};text-shadow:0 0 80px ${GLOW};${MASK}`;
       ph.textContent = ((bossName as string) || '?').slice(0, 1).toUpperCase();
       prtWrap.appendChild(ph);
     }
     stage.appendChild(prtWrap);
 
     const txtWrap = document.createElement('div');
-    txtWrap.style.cssText = `position:absolute;left:10%;bottom:${lbH + Math.round(SH * 0.07)}px;transform:translateX(-60px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`;
+    txtWrap.style.cssText = `position:absolute;left:10%;bottom:${lbH + Math.round(SH*0.07)}px;transform:translateX(-60px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`;
     stage.appendChild(txtWrap);
 
     const nmFS = Math.max(46, Math.min(110, Math.round(SW / 8)));
     const nmEl = document.createElement('div');
-    nmEl.style.cssText = `font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);line-height:1.05;max-width:${Math.round(SW * 0.52)}px`;
+    nmEl.style.cssText = `font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);line-height:1.05;max-width:${Math.round(SW*0.52)}px`;
     nmEl.textContent = (bossName as string) || 'BOSS';
     txtWrap.appendChild(nmEl);
 
     const barW = Math.min(Math.round(nmFS * ((bossName as string || 'BOSS').length) * 0.58), Math.round(SW * 0.5));
     const nmBar = document.createElement('div');
-    nmBar.style.cssText = `height:3px;width:${barW}px;margin-top:${Math.round(SH * 0.008)}px;background:linear-gradient(90deg,${PRIMARY},${SECONDARY},transparent);transform:scaleX(0);transform-origin:left;transition:transform 0.5s cubic-bezier(.16,1,.3,1) 0.1s`;
+    nmBar.style.cssText = `height:3px;width:${barW}px;margin-top:${Math.round(SH*0.008)}px;background:linear-gradient(90deg,${PRIMARY},${SECONDARY},transparent);transform:scaleX(0);transform-origin:left;transition:transform 0.5s cubic-bezier(.16,1,.3,1) 0.1s`;
     txtWrap.appendChild(nmBar);
 
     cinematicDataRef.current = { cinCanvas, dim, vig, tint, lbTop, lbBot, accTop, accBot, prtWrap, prtGlow, txtWrap, nmEl, nmBar } as unknown as Record<string, HTMLElement | HTMLCanvasElement>;
@@ -235,24 +233,43 @@ export function PlayerView() {
         let mw2 = 1920, mh2 = 1080;
         if (m2?.tagName === 'IMG'   && m2.naturalWidth)  { mw2 = m2.naturalWidth;  mh2 = m2.naturalHeight; }
         if (m2?.tagName === 'VIDEO' && m2.videoWidth)    { mw2 = m2.videoWidth;    mh2 = m2.videoHeight; }
-        const tgtZ = Math.min(3.5, Math.max(1.8, rZoom.current * 1.6));
-        const scNew = Math.min(W2 / mw2, H2 / mh2) * tgtZ;
-        const tgtPanX = W2 * 0.35 - tp.x * scNew - (W2 - mw2 * scNew) / 2;
-        const tgtPanY = H2 * 0.5  - tp.y * scNew - (H2 - mh2 * scNew) / 2;
-        cinCam.active   = true;
-        cinCam.tgtZoom  = tgtZ;
-        cinCam.tgtPan   = { x: tgtPanX, y: tgtPanY };
-        cinCam.curZoom  = rZoom.current;
-        cinCam.curPan   = { ...rPanOffset.current };
+        const tZ = Math.min(4, Math.max(rZoom.current * 2.0, 1.8));
+        const sc2 = Math.min(W2 / mw2, H2 / mh2) * tZ;
+        cinCam.active  = true;
+        cinCam.tgtZoom = tZ;
+        cinCam.tgtPan  = { x: W2*0.5 - tp.x*sc2 - (W2-mw2*sc2)/2, y: H2*0.5 - tp.y*sc2 - (H2-mh2*sc2)/2 };
+        cinCam.curZoom = rZoom.current;
+        cinCam.curPan  = { ...rPanOffset.current };
       }
     }
 
     const tl = new CinematicTimeline();
-    tl.add(50,  () => { dim.style.opacity = '0.72'; vig.style.opacity = '1'; tint.style.opacity = '1'; })
-      .add(80,  () => { lbTop.style.transform = 'translateY(0)'; lbBot.style.transform = 'translateY(0)'; })
-      .add(480, () => { accTop.style.opacity = '1'; accBot.style.opacity = '1'; prtWrap.style.transform = 'translate(0,-50%)'; prtGlow.style.opacity = '1'; prtWrap.style.transition = 'transform 0.6s cubic-bezier(.16,1,.3,1)'; })
-      .add(620, () => { txtWrap.style.transform = 'translateX(0)'; txtWrap.style.opacity = '1'; nmBar.style.transform = 'scaleX(1)'; })
-      .add(5500, () => {
+    tl
+      .add(60, () => {
+        dim.style.opacity = '0.52'; vig.style.opacity = '1'; tint.style.opacity = '1';
+        lbTop.style.transform = 'translateY(0)'; lbBot.style.transform = 'translateY(0)';
+        setTimeout(() => { accTop.style.opacity = '1'; accBot.style.opacity = '1'; }, 500);
+      })
+      .add(500, () => {
+        prtWrap.style.transform = 'translate(0,-50%)'; prtWrap.style.transition = 'transform 0.6s cubic-bezier(.16,1,.3,1)';
+        setTimeout(() => { prtGlow.style.opacity = '1'; }, 280);
+        setTimeout(() => { prtWrap.style.animation = 'cinParallaxPrt 9s ease-in-out infinite'; }, 700);
+      })
+      .add(1100, () => {
+        txtWrap.style.transform = 'translateX(0)'; txtWrap.style.opacity = '1';
+        setTimeout(() => { nmBar.style.transform = 'scaleX(1)'; }, 120);
+        setTimeout(() => { txtWrap.style.animation = 'cinParallaxTxt 9s ease-in-out infinite'; }, 650);
+        const flash = document.createElement('div');
+        flash.style.cssText = `position:absolute;inset:0;background:#fff;opacity:0.88;transition:opacity 0.12s linear;pointer-events:none;z-index:63`;
+        stage.appendChild(flash);
+        setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 180); }, 16);
+        const flash2 = document.createElement('div');
+        flash2.style.cssText = `position:absolute;inset:0;background:${PRIMARY};opacity:0.28;transition:opacity 0.5s ease;pointer-events:none;z-index:63`;
+        stage.appendChild(flash2);
+        setTimeout(() => { flash2.style.opacity = '0'; setTimeout(() => flash2.remove(), 520); }, 200);
+        setTimeout(() => { nmEl.style.animation = 'cinGlitch 5s ease 2s infinite, cinGlow 2.5s ease 0.8s infinite'; }, 500);
+      })
+      .add(4200, () => {
         prtWrap.style.animation = ''; prtWrap.style.transition = 'transform 0.65s cubic-bezier(.4,0,1,1),opacity 0.65s ease';
         prtWrap.style.transform = 'translate(120%,-50%)'; prtWrap.style.opacity = '0';
         txtWrap.style.animation = ''; txtWrap.style.transition = 'transform 0.55s cubic-bezier(.4,0,1,1),opacity 0.55s ease';
@@ -260,11 +277,11 @@ export function PlayerView() {
         [dim, vig, tint].forEach(el => { el.style.transition = 'opacity 0.75s ease'; el.style.opacity = '0'; });
         lbTop.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbTop.style.transform = 'translateY(-100%)';
         lbBot.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbBot.style.transform = 'translateY(100%)';
-        rZoom.current = cinCam.curZoom;
-        rPanOffset.current = { ...cinCam.curPan };
+        rZoom.current = cinematicOrigZoomRef.current;
+        rPanOffset.current = { ...cinematicOrigPanRef.current };
         cinCam.active = false;
       })
-      .add(6200, () => {
+      .add(5100, () => {
         [cinCanvas, dim, vig, tint, lbTop, lbBot, prtWrap, txtWrap].forEach(el => {
           if (el && el.parentNode) el.parentNode.removeChild(el);
         });
@@ -300,10 +317,9 @@ export function PlayerView() {
         cinematicDataRef.current = null;
       }, 320);
     }
-    const cc = cinematicCamRef.current;
-    rZoom.current = cc.curZoom;
-    rPanOffset.current = { ...cc.curPan };
-    cc.active = false;
+    rZoom.current = cinematicOrigZoomRef.current;
+    rPanOffset.current = { ...cinematicOrigPanRef.current };
+    cinematicCamRef.current.active = false;
     cinematicActiveRef.current = false;
   }, []);
 
@@ -342,7 +358,11 @@ export function PlayerView() {
         if (msg.gridOriginX   !== undefined) rGridOriginX.current   = msg.gridOriginX;
         if (msg.gridOriginY   !== undefined) rGridOriginY.current   = msg.gridOriginY;
         if (msg.gridLineWidth !== undefined) rGridLineWidth.current = msg.gridLineWidth;
-        if (msg.enemyHighlight  !== undefined) rEnemyHighlight.current  = msg.enemyHighlight;
+        if (msg.enemyHighlight !== undefined) {
+          rEnemyHighlight.current = msg.enemyHighlight;
+          if (msg.enemyHighlight) highlightStartRef.current = performance.now();
+          else highlightStartRef.current = null;
+        }
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.psdEnemyOverrides) {
@@ -420,7 +440,12 @@ export function PlayerView() {
         if (msg.gridOriginX   !== undefined) rGridOriginX.current   = msg.gridOriginX;
         if (msg.gridOriginY   !== undefined) rGridOriginY.current   = msg.gridOriginY;
         if (msg.gridLineWidth !== undefined) rGridLineWidth.current = msg.gridLineWidth;
-        if (msg.enemyHighlight  !== undefined) rEnemyHighlight.current  = msg.enemyHighlight;
+        if (msg.enemyHighlight !== undefined) {
+          const prev = rEnemyHighlight.current;
+          rEnemyHighlight.current = msg.enemyHighlight;
+          if (msg.enemyHighlight && !prev) highlightStartRef.current = performance.now();
+          else if (!msg.enemyHighlight) highlightStartRef.current = null;
+        }
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.dmPreviewActive !== undefined) {

@@ -103,6 +103,8 @@ export function useDMRefs() {
   const cinematicDataRef     = useRef<Record<string, Element | null> | null>(null);
   const cinematicStartRef    = useRef(0);
   const cinematicCamRef      = useRef({ active: false, tgtZoom: 1, tgtPan: { x: 0, y: 0 }, curZoom: 1, curPan: { x: 0, y: 0 } });
+  const cinematicOrigZoomRef = useRef(1);
+  const cinematicOrigPanRef  = useRef({ x: 0, y: 0 });
   const cinematicTimelineRef = useRef<CinematicTimeline | null>(null);
   const triggerBossIntroRef  = useRef<((data: Record<string, unknown>) => void) | null>(null);
   const skipBossIntroRef     = useRef<(() => void) | null>(null);
@@ -125,6 +127,7 @@ export function useDMRefs() {
     rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
+    cinematicOrigZoomRef, cinematicOrigPanRef,
     cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,
   };
 }

@@ -50,10 +50,11 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       if (hiddenByZone) return;
     }
 
-    const targetInvisAlpha = isInvis && !isDM ? 0.22 : 1;
+    const targetInvisAlpha = isInvis && !isDM ? 0 : 1;
     const prevInvis = invisAlphaRef.current[en.id] ?? 1;
     invisAlphaRef.current[en.id] = prevInvis + (targetInvisAlpha - prevInvis) * 0.08;
     const enAlpha = invisAlphaRef.current[en.id];
+    if (enAlpha < 0.02 && !isDM) return;
 
     if (isDefeated) {
       const key = String(en.id);
@@ -369,7 +370,8 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];
     const isInvis = plCondIds.includes('invisible');
-    ctx.globalAlpha = isInvis && !isDM ? 0.25 : 1;
+    if (isInvis && !isDM) return;
+    ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = pl.color;
@@ -381,7 +383,6 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    ctx.globalAlpha = isInvis && !isDM ? 0.25 : 1;
     ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
     if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
     ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
