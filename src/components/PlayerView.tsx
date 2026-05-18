@@ -12,7 +12,7 @@ import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverrides } from '@/types';
+import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides } from '@/types';
 
 export function PlayerView() {
   const [bgLoaded,   setBgLoaded]   = useState(false);
@@ -256,6 +256,8 @@ export function PlayerView() {
         [prtWrap, txtWrap].forEach(el => { el.style.animation = ''; el.style.transition = 'opacity 0.6s ease'; el.style.opacity = '0'; });
         [dim, vig, tint].forEach(el => { el.style.transition = 'opacity 0.7s ease'; el.style.opacity = '0'; });
         lbTop.style.transform = 'translateY(-100%)'; lbBot.style.transform = 'translateY(100%)';
+        rZoom.current = cinCam.curZoom;
+        rPanOffset.current = { ...cinCam.curPan };
         cinCam.active = false;
       })
       .add(6200, () => {
@@ -294,7 +296,10 @@ export function PlayerView() {
         cinematicDataRef.current = null;
       }, 320);
     }
-    cinematicCamRef.current.active = false;
+    const cc = cinematicCamRef.current;
+    rZoom.current = cc.curZoom;
+    rPanOffset.current = { ...cc.curPan };
+    cc.active = false;
     cinematicActiveRef.current = false;
   }, []);
 
@@ -336,6 +341,22 @@ export function PlayerView() {
         if (msg.enemyHighlight  !== undefined) rEnemyHighlight.current  = msg.enemyHighlight;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
+        if (msg.psdEnemyOverrides) {
+          rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
+          await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
+            if (!ov.imageData) { res(); return; }
+            const img = new Image();
+            img.onload = () => {
+              const oc = document.createElement('canvas');
+              oc.width = img.naturalWidth; oc.height = img.naturalHeight;
+              oc.getContext('2d')!.drawImage(img, 0, 0);
+              rPsdEnemyImgCache.current[Number(id)] = oc;
+              res();
+            };
+            img.onerror = () => res();
+            img.src = ov.imageData!;
+          })));
+        }
 
         const urls = msg.layerImageUrls || {};
         const imgs: Record<number, HTMLCanvasElement> = {};
@@ -402,6 +423,20 @@ export function PlayerView() {
           rDMPreviewActive.current = msg.dmPreviewActive;
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
           if (msg.dmPreviewPan  != null) rDMPreviewPan.current  = msg.dmPreviewPan;
+        }
+        if (msg.psdEnemyOverrides) {
+          rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
+          (Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).forEach(([id, ov]) => {
+            if (!ov.imageData) return;
+            const img = new Image();
+            img.onload = () => {
+              const oc = document.createElement('canvas');
+              oc.width = img.naturalWidth; oc.height = img.naturalHeight;
+              oc.getContext('2d')!.drawImage(img, 0, 0);
+              rPsdEnemyImgCache.current[Number(id)] = oc;
+            };
+            img.src = ov.imageData!;
+          });
         }
       } else if (msg.type === 'STROKE') {
         const pts = msg.points;
@@ -509,9 +544,10 @@ export function PlayerView() {
           visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
         } else { visualZoomRef.current += dzP * 0.032; visualPanRef.current.x += dxP * 0.032; visualPanRef.current.y += dyP * 0.032; }
       } else {
+        const lerpF = Math.min(0.35, 0.06 + 0.06 / (Math.abs(dzP) + 0.06));
         if (Math.abs(dzP) < 0.002 && Math.abs(dxP) < 0.5 && Math.abs(dyP) < 0.5) {
           visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
-        } else { visualZoomRef.current += dzP * 0.35; visualPanRef.current.x += dxP * 0.35; visualPanRef.current.y += dyP * 0.35; }
+        } else { visualZoomRef.current += dzP * lerpF; visualPanRef.current.x += dxP * lerpF; visualPanRef.current.y += dyP * lerpF; }
       }
       const z = visualZoomRef.current, pan = visualPanRef.current;
       const sc = Math.min(W / mw, H / mh) * z;

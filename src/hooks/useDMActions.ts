@@ -68,6 +68,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
+      psdEnemyOverrides: rPsdEnemyOverrides.current,
       dmPreviewActive: _isDMPrev,
       dmPreviewZoom: rZoom.current * dmLocalZoom.current,
       dmPreviewPan: { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y },
@@ -93,6 +94,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
+      psdEnemyOverrides: rPsdEnemyOverrides.current,
     });
   }, []);
 

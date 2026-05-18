@@ -41,6 +41,13 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
         vp.y += (rawPos.y - vp.y) * TOKEN_LERP;
         ep = vp;
       }
+      const hiddenByZone = s.zonasLayers.some(zl => {
+        if (v[zl.id]) return false;
+        const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
+        const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
+        return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
+      });
+      if (hiddenByZone) return;
     }
 
     const targetInvisAlpha = isInvis && !isDM ? 0.22 : 1;
@@ -173,7 +180,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 
 export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
-    sc, pp, isDM, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
+    sc, pp, isDM, s, v, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
     visualPosRef, rSelectedToken, rTokenSizeOverride,
   } = fc;
 
@@ -193,6 +200,16 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     const isInvis = enCondIds.includes('invisible');
     const isDefeated = !!rDefeated.current[`lib_${en.id}`];
     const isVis = en.visible !== false;
+
+    if (!isDM) {
+      const hiddenByZone = s.zonasLayers.some(zl => {
+        if (v[zl.id]) return false;
+        const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
+        const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
+        return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
+      });
+      if (hiddenByZone) return;
+    }
 
     let enAlpha: number;
     if (isDM) {
@@ -330,7 +347,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 }
 
 export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
+  const { sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
   rPlayers.current.forEach(pl => {
     const rawPos = pp[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     let ppos = rawPos;
@@ -339,6 +356,15 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       const vp = visualPosRef.current[key];
       if (!vp) { visualPosRef.current[key] = { ...rawPos }; ppos = rawPos; }
       else { vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp; }
+      const cx = ppos.x + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
+      const cy = ppos.y + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
+      const hiddenByZone = s.zonasLayers.some(zl => {
+        if (v[zl.id]) return false;
+        const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
+        const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
+        return cx >= zx && cx <= zx + zl.w && cy >= zy && cy <= zy + zl.h;
+      });
+      if (hiddenByZone) return;
     }
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];

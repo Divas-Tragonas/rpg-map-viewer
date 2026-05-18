@@ -143,21 +143,23 @@ export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone
       }
     }
     octx.putImageData(img, 0, 0);
-    // Soft alpha mask: blurred polygon fill → destination-in (no hard clip border)
-    const scaleX = tw / w, scaleY = th / h;
-    const blurPx = Math.max(2, Math.min(tw, th) * 0.13);
-    const mc = document.createElement('canvas'); mc.width = tw; mc.height = th;
+    // High-res alpha mask: draw polygon at 4× resolution to avoid geometric corner artifacts,
+    // then scale down for destination-in. Small blur (2%) = sharp but smooth edge.
+    const maskW = tw * 4, maskH = th * 4;
+    const mScaleX = maskW / w, mScaleY = maskH / h;
+    const blurPx = Math.max(3, Math.min(maskW, maskH) * 0.025);
+    const mc = document.createElement('canvas'); mc.width = maskW; mc.height = maskH;
     const mctx = mc.getContext('2d')!;
     mctx.filter = `blur(${blurPx}px)`;
     mctx.fillStyle = 'white';
     mctx.beginPath();
     zone.points.forEach((p, i) => {
-      const ppx = (p.x - left) * scaleX, ppy = (p.y - top) * scaleY;
+      const ppx = (p.x - left) * mScaleX, ppy = (p.y - top) * mScaleY;
       if (i === 0) mctx.moveTo(ppx, ppy); else mctx.lineTo(ppx, ppy);
     });
     mctx.closePath(); mctx.fill();
     octx.globalCompositeOperation = 'destination-in';
-    octx.drawImage(mc, 0, 0);
+    octx.drawImage(mc, 0, 0, tw, th);
     octx.globalCompositeOperation = 'source-over';
     cachedCanvas = txCache[cacheKey] = oc;
   }
@@ -219,7 +221,7 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
       if (appearT && elapsed < 1.2) {
         const el = ELEMENTS_BY_ID.get(zone.element);
         if (el) {
-          const alpha = Math.max(0, 1 - elapsed / 1.2) * 0.65;
+          const alpha = Math.max(0, 1 - elapsed / 1.2) * 0.65 * fadeAlpha;
           ctx.save();
           ctx.beginPath();
           zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));

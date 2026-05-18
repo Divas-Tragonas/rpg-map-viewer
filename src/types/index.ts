@@ -210,6 +210,7 @@ export interface BCStateMessage {
   dmPreviewZoom?: number;
   dmPreviewPan?: Point;
   libEnemies?: LibEnemy[];
+  psdEnemyOverrides?: PsdEnemyOverrides;
 }
 
 export interface BCStructMessage {
@@ -233,6 +234,7 @@ export interface BCStructMessage {
   enemyHighlight: boolean;
   tokenSizeOverride: TokenSizeMap;
   libEnemies: LibEnemy[];
+  psdEnemyOverrides?: PsdEnemyOverrides;
 }
 
 export type BCMessage =

@@ -60,7 +60,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoStroke(); return; }
-      if (e.key === 'Escape' && R.cinematicActiveRef.current) { skipBossIntro(); return; }
+      if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); skipBossIntro(); return; }
       if (e.ctrlKey) return;
       if (e.key === '1') setDrawTool(t => t === 'pen' ? 'none' : 'pen');
       else if (e.key === '2') setDrawTool(t => t === 'eraser' ? 'none' : 'eraser');

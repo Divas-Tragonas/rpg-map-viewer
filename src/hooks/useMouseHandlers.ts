@@ -93,7 +93,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
       if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
         R.dragRef.current = { id: `lib_${len.id}`, ox: mx - lep.x, oy: my - lep.y };
-        S.setActiveDrag(`lib_${len.id}`); S.setSelectedToken(`lib_${len.id}`); R.rSelectedToken.current = `lib_${len.id}`;
+        S.setActiveDrag(`lib_${len.id}`); S.setSelectedToken(`lib_${len.id}`); R.rSelectedToken.current = `lib_${len.id}`; S.setCanvasCursor('grabbing');
         e.preventDefault(); return;
       }
     }
@@ -103,7 +103,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
       if (Math.hypot(mx - (ppos.x + 22), my - (ppos.y + 22)) <= 26) {
         R.dragRef.current = { id: `pl_${pl.id}`, ox: mx - ppos.x, oy: my - ppos.y };
-        S.setActiveDrag(`pl_${pl.id}`); S.setSelectedToken(`pl_${pl.id}`); R.rSelectedToken.current = `pl_${pl.id}`;
+        S.setActiveDrag(`pl_${pl.id}`); S.setSelectedToken(`pl_${pl.id}`); R.rSelectedToken.current = `pl_${pl.id}`; S.setCanvasCursor('grabbing');
         e.preventDefault(); return;
       }
     }
@@ -117,7 +117,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
           const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
           if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
             R.dragRef.current = { id: en.id, ox: mx - ep.x, oy: my - ep.y };
-            S.setActiveDrag(en.id); S.setSelectedToken(en.id); R.rSelectedToken.current = en.id;
+            S.setActiveDrag(en.id); S.setSelectedToken(en.id); R.rSelectedToken.current = en.id; S.setCanvasCursor('grabbing');
             e.preventDefault(); return;
           }
         }
@@ -344,6 +344,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     if (R.dragRef.current) setPos({ ...R.rPos.current });
     R.dragRef.current = null; S.setActiveDrag(null);
+    S.setCanvasCursor(R.rDrawTool.current === 'shape' ? WAND_CURSOR : 'default');
 
     if (R.drawChangedRef.current) {
       R.drawChangedRef.current = false;
