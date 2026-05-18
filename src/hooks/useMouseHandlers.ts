@@ -354,7 +354,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
       const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
       if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
-        S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id });
+        S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id, tokenPos: lep });
         return;
       }
     }

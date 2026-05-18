@@ -79,6 +79,12 @@ export function DMView() {
   const [newPName, setNewPName] = useState('');
   const [newPColor, setNewPColor] = useState('#60a5fa');
   const [newPHpMax, setNewPHpMax] = useState(20);
+  const [expositorOpen, setExpositorOpen] = useState(false);
+  const [expositorLocalSrc, setExpositorLocalSrc] = useState<string | null>(null);
+  const [expositorLocalType, setExpositorLocalType] = useState<'image' | 'video' | null>(null);
+  const [expositorSending, setExpositorSending] = useState(false);
+  const expositorFileRef = React.useRef<File | null>(null);
+  const expositorInputRef = React.useRef<HTMLInputElement>(null);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const R = useDMRefs();
@@ -91,6 +97,9 @@ export function DMView() {
     setDrawToolState(prev => {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       R.rDrawTool.current = next;
+      if (prev === 'pointer' && next !== 'pointer') {
+        R.rPointerPos.current = null;
+      }
       return next;
     });
   }, [R]);
@@ -252,6 +261,27 @@ export function DMView() {
     R.rZoom.current = z; setZoom(z); _broadcastState({});
   }, [_broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const loadExpositorFile = useCallback((file: File) => {
+    if (expositorLocalSrc) URL.revokeObjectURL(expositorLocalSrc);
+    const url = URL.createObjectURL(file);
+    setExpositorLocalSrc(url);
+    setExpositorLocalType(file.type.startsWith('video/') ? 'video' : 'image');
+    expositorFileRef.current = file;
+  }, [expositorLocalSrc]);
+
+  const sendExpositorToPlayer = useCallback(async () => {
+    const file = expositorFileRef.current;
+    if (!file || !R.bcRef.current) return;
+    setExpositorSending(true);
+    const buf = await file.arrayBuffer();
+    R.bcRef.current.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
+    setExpositorSending(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hideExpositorOnPlayer = useCallback(() => {
+    R.bcRef.current?.postMessage({ type: 'EXPOSITOR_HIDE' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Computed ───────────────────────────────────────────────────────────────
   const activeCount = struct
     ? struct.enemyZones.reduce((n, z) => n + z.enemies.filter(e => vis[e.id]).length, 0)
@@ -288,6 +318,7 @@ export function DMView() {
                 <LayerTree
                   struct={struct} vis={vis} expanded={expanded}
                   activeDrag={activeDrag} selectedToken={selectedToken}
+                  psdEnemyOverrides={psdEnemyOverrides}
                   setExpanded={setExpanded} setSelectedToken={setSelectedToken}
                   rSelectedToken={R.rSelectedToken}
                   onToggleVis={toggleVis} onDeleteLayer={deleteLayer} onResetToken={resetToken}
@@ -367,18 +398,61 @@ export function DMView() {
           onToggleHighlightLocked={onToggleHighlightLocked}
         />
         <button
-          onClick={() => window.open('/expositor', '_blank')}
-          title="Expositor d'Imatges i Vídeo"
-          style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: C.dim, fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
+          onClick={() => setExpositorOpen(v => !v)}
+          title="Expositor d'Imatges i Vídeo per als jugadors"
+          style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: expositorOpen ? `${C.accent}22` : 'rgba(10,13,18,.92)', border: `1px solid ${expositorOpen ? C.accent : C.border}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: expositorOpen ? C.accent : C.dim, fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
           Expositor
         </button>
+
+        {/* Expositor floating panel */}
+        {expositorOpen && (
+          <div style={{ position: 'absolute', top: 42, left: 12, zIndex: 20, width: 320, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+            <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>Expositor de Campanya</span>
+              <button onClick={() => setExpositorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: 14, lineHeight: 1 }}>×</button>
+            </div>
+            <div
+              style={{ minHeight: 140, background: '#000', position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => expositorInputRef.current?.click()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadExpositorFile(f); }}
+              onDragOver={e => e.preventDefault()}
+            >
+              {expositorLocalSrc && expositorLocalType === 'image' && (
+                <img src={expositorLocalSrc} alt="" style={{ maxWidth: '100%', maxHeight: 180, objectFit: 'contain', display: 'block' }} />
+              )}
+              {expositorLocalSrc && expositorLocalType === 'video' && (
+                <video src={expositorLocalSrc} muted autoPlay loop playsInline style={{ maxWidth: '100%', maxHeight: 180, objectFit: 'contain', display: 'block' }} />
+              )}
+              {!expositorLocalSrc && (
+                <div style={{ textAlign: 'center', color: C.dim, padding: 20 }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>🖼</div>
+                  <div style={{ fontSize: 11 }}>Arrossega o clica per carregar imatge / vídeo</div>
+                </div>
+              )}
+            </div>
+            <input ref={expositorInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) loadExpositorFile(f); (e.target as HTMLInputElement).value = ''; }} />
+            <div style={{ padding: '8px 10px', display: 'flex', gap: 6 }}>
+              <button
+                onClick={sendExpositorToPlayer}
+                disabled={!expositorLocalSrc || expositorSending}
+                style={{ flex: 1, padding: '7px', borderRadius: 6, border: 'none', background: expositorLocalSrc ? C.accent : 'rgba(255,255,255,0.05)', cursor: expositorLocalSrc ? 'pointer' : 'default', color: expositorLocalSrc ? '#0d1117' : C.dim, fontWeight: 700, fontSize: 11 }}>
+                {expositorSending ? 'Enviant...' : '▶ Mostrar als jugadors'}
+              </button>
+              <button
+                onClick={hideExpositorOnPlayer}
+                style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 11 }}>
+                Ocultar
+              </button>
+            </div>
+          </div>
+        )}
         {!bgLoaded && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none' }}>
             <div style={{ textAlign: 'center', color: C.dim }}>
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 11, marginTop: 8, opacity: 0.4 }}>v3.00</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.2</div>
             </div>
           </div>
         )}

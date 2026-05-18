@@ -66,6 +66,22 @@ export function DrawToolsPanel({ drawTool, drawColor, setDrawColor, drawSize, se
           style={{ flex: 1, accentColor: drawColor, minWidth: 0 }} />
         <span style={{ color: C.dim, fontSize: 10, minWidth: 22, flexShrink: 0 }}>{drawSize}px</span>
       </div>
+      {(drawTool === 'pen' || drawTool === 'eraser') && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, padding: '4px 0' }}>
+          <div style={{
+            width: Math.max(8, Math.min(drawSize * 2, 60)),
+            height: Math.max(8, Math.min(drawSize * 2, 60)),
+            borderRadius: '50%',
+            background: drawTool === 'eraser' ? 'rgba(255,255,255,0.08)' : drawColor,
+            border: drawTool === 'eraser' ? '1.5px dashed rgba(255,255,255,0.4)' : 'none',
+            flexShrink: 0,
+            transition: 'width 0.1s, height 0.1s',
+          }} />
+          <span style={{ fontSize: 9, color: C.dim }}>
+            {drawTool === 'eraser' ? `Goma ×4 (${drawSize * 4}px)` : `Ploma (${drawSize}px)`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

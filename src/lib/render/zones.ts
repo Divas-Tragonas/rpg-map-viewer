@@ -196,11 +196,11 @@ export function renderShapePreview(ctx: CanvasRenderingContext2D, fc: FrameConte
   const pts = shapePointsRef.current;
   if (pts.length < 2) return;
   ctx.save();
-  ctx.strokeStyle = 'rgba(168,85,247,0.85)'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255,210,0,0.85)'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.setLineDash([8, 4]);
   ctx.beginPath(); pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
   ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(168,85,247,0.6)';
+  ctx.fillStyle = 'rgba(255,210,0,0.6)';
   ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, 5, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }

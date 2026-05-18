@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Shield, MapPin, Skull } from '@/components/i
 import { TreeGroup } from '@/components/ui/TreeGroup';
 import { LayerRow } from '@/components/ui/LayerRow';
 import { C } from '@/constants';
-import type { MapStructure, VisMap, PSDLayer } from '@/types';
+import type { MapStructure, VisMap, PSDLayer, PsdEnemyOverrides } from '@/types';
 
 interface Props {
   struct: MapStructure;
@@ -12,6 +12,7 @@ interface Props {
   expanded: Record<number, boolean>;
   activeDrag: string | number | null;
   selectedToken: string | number | null;
+  psdEnemyOverrides: PsdEnemyOverrides;
   setExpanded: (fn: (e: Record<number, boolean>) => Record<number, boolean>) => void;
   setSelectedToken: (id: string | number | null) => void;
   rSelectedToken: React.MutableRefObject<string | number | null>;
@@ -20,7 +21,7 @@ interface Props {
   onResetToken: (en: PSDLayer) => void;
 }
 
-export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, setExpanded, setSelectedToken, rSelectedToken, onToggleVis, onDeleteLayer, onResetToken }: Props) {
+export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, psdEnemyOverrides, setExpanded, setSelectedToken, rSelectedToken, onToggleVis, onDeleteLayer, onResetToken }: Props) {
   return (
     <>
       {struct.extras.children.length > 0 && (
@@ -48,13 +49,24 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, se
           </button>
           {expanded[zone.id] && (
             <>
-              {(zone.directEnemies || zone.enemies).map(en => (
-                <LayerRow key={en.id} layer={en} visible={!!vis[en.id]} onToggle={() => onToggleVis(en.id)}
-                  color={C.enemy} indent draggable active={activeDrag === en.id}
-                  onReset={() => onResetToken(en)} onDelete={() => onDeleteLayer(en.id, 'enemy')}
-                  selected={selectedToken === en.id}
-                  onSelect={() => { setSelectedToken(en.id); rSelectedToken.current = en.id; }} />
-              ))}
+              {(zone.directEnemies || zone.enemies).map(en => {
+                const ov = psdEnemyOverrides[en.id]; const hm = ov?.hpMax || 0; const hp = hm > 0 ? Math.max(0, ov?.hp ?? hm) : 0;
+                const hr = hm > 0 ? hp / hm : 0; const hc = hr > 0.5 ? '#56d364' : hr > 0.25 ? '#e3b341' : '#f85149';
+                return (
+                  <div key={en.id}>
+                    <LayerRow layer={en} visible={!!vis[en.id]} onToggle={() => onToggleVis(en.id)}
+                      color={C.enemy} indent draggable active={activeDrag === en.id}
+                      onReset={() => onResetToken(en)} onDelete={() => onDeleteLayer(en.id, 'enemy')}
+                      selected={selectedToken === en.id}
+                      onSelect={() => { setSelectedToken(en.id); rSelectedToken.current = en.id; }} />
+                    {hm > 0 && (
+                      <div style={{ marginLeft: 32, marginRight: 8, marginBottom: 2, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${hr * 100}%`, background: hc, transition: 'width 0.3s' }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {(zone.subGroups || []).map(sg => (
                 <div key={sg.id}>
                   <button onClick={() => setExpanded(ex => ({ ...ex, [sg.id]: !ex[sg.id] }))}
@@ -63,13 +75,24 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, se
                     <span style={{ fontSize: 11, color: C.dim, flex: 1, textAlign: 'left' }}>📁 {sg.name}</span>
                     <span style={{ fontSize: 10, color: C.dim }}>{sg.enemies.filter(en => vis[en.id]).length}/{sg.enemies.length}</span>
                   </button>
-                  {expanded[sg.id] && sg.enemies.map(en => (
-                    <LayerRow key={en.id} layer={en} visible={!!vis[en.id]} onToggle={() => onToggleVis(en.id)}
-                      color={C.enemy} indent2 draggable active={activeDrag === en.id}
-                      onReset={() => onResetToken(en)} onDelete={() => onDeleteLayer(en.id, 'enemy')}
-                      selected={selectedToken === en.id}
-                      onSelect={() => { setSelectedToken(en.id); rSelectedToken.current = en.id; }} />
-                  ))}
+                  {expanded[sg.id] && sg.enemies.map(en => {
+                    const ov2 = psdEnemyOverrides[en.id]; const hm2 = ov2?.hpMax || 0; const hp2 = hm2 > 0 ? Math.max(0, ov2?.hp ?? hm2) : 0;
+                    const hr2 = hm2 > 0 ? hp2 / hm2 : 0; const hc2 = hr2 > 0.5 ? '#56d364' : hr2 > 0.25 ? '#e3b341' : '#f85149';
+                    return (
+                      <div key={en.id}>
+                        <LayerRow layer={en} visible={!!vis[en.id]} onToggle={() => onToggleVis(en.id)}
+                          color={C.enemy} indent2 draggable active={activeDrag === en.id}
+                          onReset={() => onResetToken(en)} onDelete={() => onDeleteLayer(en.id, 'enemy')}
+                          selected={selectedToken === en.id}
+                          onSelect={() => { setSelectedToken(en.id); rSelectedToken.current = en.id; }} />
+                        {hm2 > 0 && (
+                          <div style={{ marginLeft: 40, marginRight: 8, marginBottom: 2, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${hr2 * 100}%`, background: hc2, transition: 'width 0.3s' }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </>

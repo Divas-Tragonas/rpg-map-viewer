@@ -137,6 +137,13 @@ export interface ContextMenuState {
   isPaintedZone?: boolean;
   isLibEnemy?: boolean;
   libEnemyId?: number;
+  tokenPos?: Point | null;
+}
+
+export interface ExpositorState {
+  visible: boolean;
+  src: string | null;
+  mediaType: 'image' | 'video' | null;
 }
 
 export interface SceneConfigMenuState {
@@ -239,4 +246,6 @@ export type BCMessage =
   | { type: 'SPELL'; spell: Omit<Spell, 'startTime'> & { startTime: number } }
   | { type: 'BOSS_INTRO'; tokenId: number | string; bossName: string; tokenPos: Point | null; portraitDataUrl: string | null }
   | { type: 'BOSS_INTRO_SKIP' }
-  | { type: 'PLAYER_READY' };
+  | { type: 'PLAYER_READY' }
+  | { type: 'EXPOSITOR_SHOW'; buffer: ArrayBuffer; mimeType: string }
+  | { type: 'EXPOSITOR_HIDE' };

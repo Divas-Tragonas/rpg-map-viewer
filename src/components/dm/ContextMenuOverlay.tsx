@@ -230,7 +230,7 @@ export function ContextMenuOverlay({
               if (contextMenu.isLibEnemy && contextMenu.libEnemyId !== undefined) {
                 const _le = rLibEnemies.current.find(en => en.id === contextMenu.libEnemyId);
                 if (_le?.imageData) {
-                  const tp = { x: 0, y: 0 };
+                  const tp = contextMenu.tokenPos ?? null;
                   const _img = new Image(); _img.src = _le.imageData;
                   onTriggerBossIntro({ tokenId: contextMenu.id, bossName: contextMenu.name, portrait: _img, tokenPos: tp });
                   bcRef.current?.postMessage({ type: 'BOSS_INTRO', tokenId: contextMenu.id, bossName: contextMenu.name, tokenPos: tp, portraitDataUrl: _le.imageData });
