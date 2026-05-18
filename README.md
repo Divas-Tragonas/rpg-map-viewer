@@ -8,6 +8,14 @@ App HTML autocontinguda per a sessions de rol de taula. Dues finestres: **DM** i
 
 ## Changelog
 
+### v2.25
+- Fix: bordes negres al token PSD en llançar escena (imageData només es guarda quan es puja imatge personalitzada)
+- Tamany dels tokens de biblioteca adaptat al grid: cada criatura té un multiplicador (Goblin 70%, Zombie 95%, Bandid 100%, Troll 150%, Drac 200%...)
+- `sizeAllTokens` (checkbox "Mida") ara inclou els tokens de biblioteca amb mida proporcional per criatura
+- Nou tokens de biblioteca creats amb `gridAutoSize` actiu hereten la mida proporcional correcta
+- Edició de nom i HP inicials moguts al menú contextual (click dret al token), disponible per PSD i biblioteca
+- Menú Escena (⚡) simplificat: ara serveix exclusivament per llançar la cinematica
+
 ### v2.24
 - Sistema HP complet per tokens enemics importats des de PSD: barra de vida al sidebar (compacta, inline), barra visual al canvas (DM), editor HP al menú contextual
 - Menú Escena (⚡) permet editar el nom del token (PSD i biblioteca); el canvi aplica de forma persistent

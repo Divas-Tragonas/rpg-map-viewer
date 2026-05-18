@@ -22,7 +22,7 @@ Si el push falla amb `Permission denied to devevalles` → és sempre aquest pro
 
 ---
 
-## Versió actual: v2.24
+## Versió actual: v2.25
 
 Cada vegada que facis un canvi al codi, actualitza **sempre**:
 1. `// Versió: vX.Y` (comentari dins `<script>`, prop del inici)

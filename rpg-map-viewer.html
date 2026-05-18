@@ -375,17 +375,17 @@ const DEFAULT_PARTY = [
 ];
 
 const ENEMY_TEMPLATES = [
-  { id: 'goblin',   name: 'Goblin',   color: '#3a8a3a', hpMax: 7,   R: 18 },
-  { id: 'wolf',     name: 'Llop',     color: '#8a7060', hpMax: 11,  R: 22 },
-  { id: 'bear',     name: 'Ós',       color: '#8B5E3C', hpMax: 34,  R: 28 },
-  { id: 'zombie',   name: 'Zombie',   color: '#4a7a4a', hpMax: 22,  R: 22 },
-  { id: 'skeleton', name: 'Esquelet', color: '#c8b87a', hpMax: 13,  R: 18 },
-  { id: 'orc',      name: 'Orc',      color: '#5a7a2a', hpMax: 15,  R: 24 },
-  { id: 'troll',    name: 'Troll',    color: '#3a6030', hpMax: 84,  R: 32 },
-  { id: 'rat',      name: 'Rata',     color: '#7a6060', hpMax: 2,   R: 12 },
-  { id: 'bandit',   name: 'Bandid',   color: '#6a5a4a', hpMax: 11,  R: 22 },
-  { id: 'spider',   name: 'Aranya',   color: '#3a3a5a', hpMax: 4,   R: 14 },
-  { id: 'dragon',   name: 'Drac',     color: '#c0392b', hpMax: 178, R: 45 },
+  { id: 'goblin',   name: 'Goblin',   color: '#3a8a3a', hpMax: 7,   R: 25, sm: 0.70 },
+  { id: 'wolf',     name: 'Llop',     color: '#8a7060', hpMax: 11,  R: 28, sm: 0.80 },
+  { id: 'bear',     name: 'Ós',       color: '#8B5E3C', hpMax: 34,  R: 39, sm: 1.10 },
+  { id: 'zombie',   name: 'Zombie',   color: '#4a7a4a', hpMax: 22,  R: 33, sm: 0.95 },
+  { id: 'skeleton', name: 'Esquelet', color: '#c8b87a', hpMax: 13,  R: 26, sm: 0.75 },
+  { id: 'orc',      name: 'Orc',      color: '#5a7a2a', hpMax: 15,  R: 35, sm: 1.00 },
+  { id: 'troll',    name: 'Troll',    color: '#3a6030', hpMax: 84,  R: 53, sm: 1.50 },
+  { id: 'rat',      name: 'Rata',     color: '#7a6060', hpMax: 2,   R: 14, sm: 0.40 },
+  { id: 'bandit',   name: 'Bandid',   color: '#6a5a4a', hpMax: 11,  R: 35, sm: 1.00 },
+  { id: 'spider',   name: 'Aranya',   color: '#3a3a5a', hpMax: 4,   R: 16, sm: 0.45 },
+  { id: 'dragon',   name: 'Drac',     color: '#c0392b', hpMax: 178, R: 70, sm: 2.00 },
 ];
 
 const ENEMY_IMAGES = {
@@ -1051,7 +1051,7 @@ const C = {
 
 const BC_CHANNEL = 'rpg_map_sync_v18';
 
-// Versió: v2.24
+// Versió: v2.25
 // ── Lookup maps — O(1) en el render loop ──────────────────────────────────
 const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 const ELEMENTS_BY_ID   = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -2045,6 +2045,8 @@ function RPGMapViewer() {
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState({}); // { [numericId]: { hp, hpMax, name, imageData } }
   const [sceneEditName, setSceneEditName] = useState('');
   const [sceneEditHpMax, setSceneEditHpMax] = useState(0);
+  const [ctxEditName, setCtxEditName] = useState('');
+  const [ctxEditHpMax, setCtxEditHpMax] = useState(0);
   const [appMode,     setAppMode]     = useState('map'); // 'map' | 'expositor'
   const [contextMenu, setContextMenu] = useState(null); // { id, name, x, y }
   const [sceneConfigMenu, setSceneConfigMenu] = useState(null); // { id, name, tokenPos, menuX, menuY }
@@ -2210,6 +2212,16 @@ function RPGMapViewer() {
       setSceneEditHpMax(_pov.hpMax || 0);
     }
   }, [sceneConfigMenu]);
+
+  // Init ctxEditName/ctxEditHpMax when context menu opens
+  useEffect(() => {
+    if (contextMenu && !contextMenu.isPaintedZone) {
+      const _isp = typeof contextMenu.id === 'number';
+      const _pov = _isp ? (psdEnemyOverrides[contextMenu.id] || {}) : {};
+      setCtxEditName(_pov.name || contextMenu.name || '');
+      setCtxEditHpMax(_pov.hpMax || 0);
+    }
+  }, [contextMenu]);
 
   // Init draw canvas
   useEffect(() => {
@@ -3614,6 +3626,11 @@ function RPGMapViewer() {
     if (s2) {
       s2.enemyZones.forEach(zone => zone.enemies.forEach(en => { overrides[en.id] = R; }));
     }
+    rLibEnemies.current.forEach(en => {
+      const _tmpl = ENEMY_TEMPLATES.find(t => t.id === en.templateId);
+      const _sm = _tmpl?.sm || 0.90;
+      overrides[`lib_${en.id}`] = Math.max(8, Math.round(gs * _sm / 2));
+    });
     rPlayers.current.forEach(pl => { overrides[`pl_${pl.id}`] = R; });
     rTokenSizeOverride.current = overrides;
     setTokenSizeOverride(overrides);
@@ -3734,7 +3751,9 @@ function RPGMapViewer() {
     }
     const _imgs = ENEMY_IMAGES[tmpl.id] || [];
     const imageData = _imgs.length > 0 ? _imgs[Math.floor(Math.random() * _imgs.length)] : null;
-    const newEn = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: tmpl.R, visible: true, imageData };
+    const _sm = tmpl.sm || 0.90;
+    const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : tmpl.R;
+    const newEn = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData };
     const ns = [...rLibEnemies.current, newEn];
     rLibEnemies.current = ns; setLibEnemies(ns);
     const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };
@@ -4543,7 +4562,7 @@ function RPGMapViewer() {
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
             <div style={{ textAlign:'center', color:C.dim, maxWidth:380, padding:20 }}>
               <div style={{ fontSize:44, marginBottom:14 }}>⚔️</div>
-              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.24</div>
+              <div style={{ fontSize:20, color:C.bright, fontWeight:600, marginBottom:8 }}>RPG Map Viewer v2.25</div>
               <div style={{ fontSize:13, lineHeight:1.8 }}>Importa una imagen o video como fondo del mapa, luego añade el archivo PSD para gestionar capas y tokens de enemigos.</div>
             </div>
           </div>
@@ -4650,6 +4669,29 @@ function RPGMapViewer() {
             <span style={{ color:C.dim, fontSize:10 }}>{contextMenu.isPaintedZone ? 'Zona mágica' : 'Estados'}</span>
           </div>
         </div>
+        {!contextMenu.isPaintedZone && (typeof contextMenu.id === 'number' || contextMenu.isLibEnemy) && (
+          <div style={{ padding:'6px 8px', borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:9, color:C.dim, marginBottom:3, textTransform:'uppercase', letterSpacing:'0.08em' }}>Nom</div>
+            <input
+              value={ctxEditName}
+              onChange={e => setCtxEditName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { if (typeof contextMenu.id === 'number') setPsdEnemyProps(contextMenu.id, { name: ctxEditName }); else if (contextMenu.isLibEnemy) setLibEnemyProps(contextMenu.libEnemyId, { name: ctxEditName }); } }}
+              onBlur={() => { if (typeof contextMenu.id === 'number') setPsdEnemyProps(contextMenu.id, { name: ctxEditName }); else if (contextMenu.isLibEnemy) setLibEnemyProps(contextMenu.libEnemyId, { name: ctxEditName }); }}
+              style={{ width:'100%', boxSizing:'border-box', background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:4, padding:'3px 6px', color:C.text, fontSize:11, outline:'none' }}
+            />
+            {typeof contextMenu.id === 'number' && !((rPsdEnemyOverrides.current[contextMenu.id]||{}).hpMax > 0) && (
+              <>
+                <div style={{ fontSize:9, color:C.dim, marginTop:5, marginBottom:3, textTransform:'uppercase', letterSpacing:'0.08em' }}>HP màxims (0 = cap)</div>
+                <input type="number" min={0} max={9999} value={ctxEditHpMax}
+                  onChange={e => setCtxEditHpMax(parseInt(e.target.value)||0)}
+                  onBlur={() => { if (ctxEditHpMax > 0) setPsdEnemyProps(contextMenu.id, { hpMax: ctxEditHpMax, hp: ctxEditHpMax }); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && ctxEditHpMax > 0) setPsdEnemyProps(contextMenu.id, { hpMax: ctxEditHpMax, hp: ctxEditHpMax }); }}
+                  style={{ width:'100%', boxSizing:'border-box', background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:4, padding:'3px 6px', color:C.text, fontSize:11, outline:'none' }}
+                />
+              </>
+            )}
+          </div>
+        )}
         {contextMenu.isPaintedZone ? (
           <div style={{ padding:8 }}>
             <button onMouseDown={e=>{e.stopPropagation(); deletePaintedZone(contextMenu.id); setContextMenu(null);}}
@@ -4776,57 +4818,28 @@ function RPGMapViewer() {
       const _scIsPsd = typeof sceneConfigMenu.id === 'number';
       const _scIsLib = typeof sceneConfigMenu.id === 'string' && sceneConfigMenu.id.startsWith('lib_');
       const _scLibId = _scIsLib ? parseInt(sceneConfigMenu.id.replace('lib_','')) : null;
-      const _scPov = _scIsPsd ? (psdEnemyOverrides[sceneConfigMenu.id] || {}) : {};
       const _scLibEn = _scIsLib ? libEnemies.find(e => e.id === _scLibId) : null;
+      const _scPov = _scIsPsd ? (psdEnemyOverrides[sceneConfigMenu.id] || {}) : {};
+      const _scName = _scPov.name || (_scLibEn?.name) || sceneConfigMenu.name;
       return (
       <div data-ctxmenu="1" style={{
-        position:'fixed', left:Math.min(sceneConfigMenu.menuX, window.innerWidth-260), top:Math.min(sceneConfigMenu.menuY, window.innerHeight-320),
+        position:'fixed', left:Math.min(sceneConfigMenu.menuX, window.innerWidth-250), top:Math.min(sceneConfigMenu.menuY, window.innerHeight-220),
         background:C.panel, border:`1px solid rgba(168,85,247,.45)`, borderRadius:10, zIndex:9999,
-        boxShadow:'0 8px 32px rgba(0,0,0,0.7)', width:254, overflow:'hidden',
+        boxShadow:'0 8px 32px rgba(0,0,0,0.7)', width:240, overflow:'hidden',
       }}>
         <div style={{ padding:'8px 12px 6px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ color:'#c084fc', fontWeight:700, fontSize:12 }}>⚡ Escena</span>
+          <span style={{ color:'#c084fc', fontWeight:700, fontSize:12 }}>⚡ {_scName}</span>
           <button onMouseDown={e=>{e.stopPropagation(); setSceneConfigMenu(null);}}
             style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, padding:'2px', display:'flex', alignItems:'center' }}>
             <X size={12}/>
           </button>
         </div>
-        <div style={{ padding:10, display:'flex', flexDirection:'column', gap:7 }}>
-          {/* Nom editable */}
-          <div>
-            <div style={{ fontSize:9, color:C.dim, marginBottom:3, textTransform:'uppercase', letterSpacing:'0.08em' }}>Nom</div>
-            <input
-              value={sceneEditName}
-              onChange={e => setSceneEditName(e.target.value)}
-              style={{ width:'100%', boxSizing:'border-box', background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:4, padding:'4px 7px', color:C.text, fontSize:11, outline:'none' }}
-            />
-          </div>
-          {/* HP init per tokens PSD sense HP */}
-          {_scIsPsd && !(_scPov.hpMax > 0) && (
-            <div>
-              <div style={{ fontSize:9, color:C.dim, marginBottom:3, textTransform:'uppercase', letterSpacing:'0.08em' }}>HP màxims (0 = sense HP)</div>
-              <input type="number" min={0} max={9999} value={sceneEditHpMax}
-                onChange={e => setSceneEditHpMax(parseInt(e.target.value) || 0)}
-                style={{ width:'100%', boxSizing:'border-box', background:'#0d1117', border:`1px solid ${C.border}`, borderRadius:4, padding:'4px 7px', color:C.text, fontSize:11, outline:'none' }}
-              />
-            </div>
-          )}
+        <div style={{ padding:10, display:'flex', flexDirection:'column', gap:8 }}>
           <SceneImgPicker
             defaultCanvas={(_scIsPsd && rPsdEnemyImgCache.current[sceneConfigMenu.id]) || rLayerImages.current[sceneConfigMenu.id] || (_scIsLib && _scLibEn?.imageData ? getTokenImg(_scLibEn.imageData) : null) || null}
-            onTrigger={(imgEl) => {
-              const finalName = sceneEditName.trim() || sceneConfigMenu.name;
+            onTrigger={(imgEl, isCustom) => {
               const tp = sceneConfigMenu.tokenPos;
-              // Save name + image persistently
-              if (_scIsPsd) {
-                const propsToSave = {};
-                if (finalName !== sceneConfigMenu.name) propsToSave.name = finalName;
-                if (sceneEditHpMax > 0 && !(_scPov.hpMax > 0)) { propsToSave.hpMax = sceneEditHpMax; propsToSave.hp = sceneEditHpMax; }
-                if (Object.keys(propsToSave).length > 0) setPsdEnemyProps(sceneConfigMenu.id, propsToSave);
-              } else if (_scIsLib && _scLibId !== null) {
-                if (finalName !== sceneConfigMenu.name) setLibEnemyProps(_scLibId, { name: finalName });
-              }
-              triggerBossIntro({ tokenId:sceneConfigMenu.id, bossName:finalName, portrait:imgEl, tokenPos:tp });
-              // Encode portrait as JPEG data URL (max 600px) for player sync
+              triggerBossIntro({ tokenId:sceneConfigMenu.id, bossName:_scName, portrait:imgEl, tokenPos:tp });
               let portraitDataUrl = null;
               if (imgEl) {
                 try {
@@ -4838,13 +4851,13 @@ function RPGMapViewer() {
                   tmp.width = Math.round(srcW * sc2); tmp.height = Math.round(srcH * sc2);
                   tmp.getContext('2d').drawImage(imgEl, 0, 0, tmp.width, tmp.height);
                   portraitDataUrl = tmp.toDataURL('image/jpeg', 0.88);
-                  // Save imageData for PSD enemy
-                  if (_scIsPsd) setPsdEnemyProps(sceneConfigMenu.id, { imageData: portraitDataUrl });
-                  // Save imageData for lib enemy
-                  if (_scIsLib && _scLibId !== null) setLibEnemyProps(_scLibId, { imageData: portraitDataUrl });
+                  if (isCustom) {
+                    if (_scIsPsd) setPsdEnemyProps(sceneConfigMenu.id, { imageData: portraitDataUrl });
+                    if (_scIsLib && _scLibId !== null) setLibEnemyProps(_scLibId, { imageData: portraitDataUrl });
+                  }
                 } catch(e) {}
               }
-              bcRef.current?.postMessage({ type:'BOSS_INTRO', tokenId:sceneConfigMenu.id, bossName:finalName, tokenPos:tp, portraitDataUrl });
+              bcRef.current?.postMessage({ type:'BOSS_INTRO', tokenId:sceneConfigMenu.id, bossName:_scName, tokenPos:tp, portraitDataUrl });
               setSceneConfigMenu(null);
             }}
             onCancel={() => setSceneConfigMenu(null)}
@@ -4888,7 +4901,7 @@ function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }) {
           {custom ? 'Canviar imatge' : defaultCanvas ? 'Imatge del token\n(clic per canviar)' : 'Importar imatge'}
         </span>
       </label>
-      <button onMouseDown={e => { e.stopPropagation(); onTrigger(imgEl); }}
+      <button onMouseDown={e => { e.stopPropagation(); onTrigger(imgEl, !!custom); }}
         style={{ width:'100%', padding:'8px', background:'rgba(168,85,247,.18)', border:'1px solid rgba(168,85,247,.55)', borderRadius:6, color:'#c084fc', cursor:'pointer', fontSize:12, fontWeight:700 }}>
         ⚡ Llançar escena
       </button>
