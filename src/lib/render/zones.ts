@@ -143,31 +143,27 @@ export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone
       }
     }
     octx.putImageData(img, 0, 0);
+    // Soft alpha mask: blurred polygon fill → destination-in (no hard clip border)
+    const scaleX = tw / w, scaleY = th / h;
+    const blurPx = Math.max(2, Math.min(tw, th) * 0.13);
+    const mc = document.createElement('canvas'); mc.width = tw; mc.height = th;
+    const mctx = mc.getContext('2d')!;
+    mctx.filter = `blur(${blurPx}px)`;
+    mctx.fillStyle = 'white';
+    mctx.beginPath();
+    zone.points.forEach((p, i) => {
+      const ppx = (p.x - left) * scaleX, ppy = (p.y - top) * scaleY;
+      if (i === 0) mctx.moveTo(ppx, ppy); else mctx.lineTo(ppx, ppy);
+    });
+    mctx.closePath(); mctx.fill();
+    octx.globalCompositeOperation = 'destination-in';
+    octx.drawImage(mc, 0, 0);
+    octx.globalCompositeOperation = 'source-over';
     cachedCanvas = txCache[cacheKey] = oc;
   }
   ctx.save();
-  ctx.beginPath();
-  zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.closePath(); ctx.clip();
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
   ctx.drawImage(cachedCanvas, left, top, w, h);
-  // Inner edge feather - soft vignette at zone border
-  const fw = Math.min(zone.bbox.w, zone.bbox.h) * 0.09;
-  for (let fi = 0; fi < 4; fi++) {
-    const frac = (4 - fi) / 4;
-    ctx.lineWidth = fw * frac;
-    ctx.strokeStyle = `rgba(0,0,0,${frac * 0.5})`;
-    ctx.beginPath();
-    zone.points.forEach((p, pi) => pi === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-    ctx.closePath();
-    ctx.stroke();
-  }
-  const el = ELEMENTS_BY_ID.get(zone.element);
-  ctx.strokeStyle = el ? el.color + 'aa' : '#ffffff88';
-  ctx.lineWidth = 1.5; ctx.setLineDash([]); ctx.lineJoin = 'round';
-  ctx.beginPath();
-  zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.closePath(); ctx.stroke();
   ctx.restore();
 }
 

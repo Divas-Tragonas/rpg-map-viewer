@@ -228,7 +228,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
       }
       R.rHoveredPaintedZoneId.current = hovPZ;
-      const newCursor = R.zoneDragRef.current ? 'grabbing' : (hovPZ && e.ctrlKey) ? 'grab' : 'default';
+      const newCursor = R.zoneDragRef.current ? 'grabbing' : (hovPZ && e.ctrlKey) ? 'grab' : 'crosshair';
       S.setCanvasCursor(newCursor);
     }
 

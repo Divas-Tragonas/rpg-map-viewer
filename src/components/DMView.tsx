@@ -83,9 +83,21 @@ export function DMView() {
   const [expositorOpen, setExpositorOpen] = useState(false);
   const [expositorLocalSrc, setExpositorLocalSrc] = useState<string | null>(null);
   const [expositorLocalType, setExpositorLocalType] = useState<'image' | 'video' | null>(null);
-  const [expositorSending, setExpositorSending] = useState(false);
+  const [expositorActive, setExpositorActive] = useState(false);
   const expositorFileRef = React.useRef<File | null>(null);
   const expositorInputRef = React.useRef<HTMLInputElement>(null);
+  const expositorActiveRef = React.useRef(false);
+  const expositorZoom = React.useRef(1);
+  const expositorPan = React.useRef({ x: 0, y: 0 });
+  const expositorDragRef = React.useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
+  const expositorKbStartTime = React.useRef<number | null>(null);
+  const expositorKbVariant = React.useRef(0);
+  const expositorKbPhase = React.useRef(0);
+  const expositorKbPaused = React.useRef(false);
+  const expositorRafRef = React.useRef<number | null>(null);
+  const expositorLastSync = React.useRef(0);
+  const expositorInnerRef = React.useRef<HTMLDivElement | null>(null);
+  const expositorPreviewRef = React.useRef<HTMLDivElement | null>(null);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const R = useDMRefs();
@@ -277,20 +289,105 @@ export function DMView() {
     setExpositorLocalSrc(url);
     setExpositorLocalType(file.type.startsWith('video/') ? 'video' : 'image');
     expositorFileRef.current = file;
-  }, [expositorLocalSrc]);
+    expositorKbStartTime.current = null;
+    expositorKbVariant.current = Math.floor(Math.random() * 4);
+    expositorKbPhase.current = 0;
+    // Auto-send if already active on player
+    if (expositorActiveRef.current && R.bcRef.current) {
+      file.arrayBuffer().then(buf => {
+        R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
+      });
+    }
+  }, [expositorLocalSrc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendExpositorToPlayer = useCallback(async () => {
     const file = expositorFileRef.current;
     if (!file || !R.bcRef.current) return;
-    setExpositorSending(true);
     const buf = await file.arrayBuffer();
     R.bcRef.current.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
-    setExpositorSending(false);
+    expositorActiveRef.current = true;
+    setExpositorActive(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hideExpositorOnPlayer = useCallback(() => {
     R.bcRef.current?.postMessage({ type: 'EXPOSITOR_HIDE' });
+    expositorActiveRef.current = false;
+    setExpositorActive(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Expositor RAF loop: KB animation + EXPOSITOR_SYNC broadcast ───────────
+  useEffect(() => {
+    if (!expositorLocalSrc) return;
+    if (expositorKbStartTime.current === null) {
+      expositorKbStartTime.current = performance.now();
+    }
+
+    const KB_HALF = 38000;
+    const KB_VARIANTS = [
+      (p: number) => ({ scale: 1 + p * 0.12, tx: 0, ty: 0 }),       // zoom
+      (p: number) => ({ scale: 1.07, tx: p * 6, ty: 0 }),             // pan-right
+      (p: number) => ({ scale: 1.07, tx: -p * 6, ty: 0 }),            // pan-left
+      (p: number) => ({ scale: 1.07, tx: 0, ty: -p * 6 }),            // pan-up
+    ];
+
+    const tick = () => {
+      expositorRafRef.current = requestAnimationFrame(tick);
+
+      if (!expositorKbPaused.current) {
+        const elapsed = performance.now() - (expositorKbStartTime.current ?? performance.now());
+        const cycle = elapsed % (KB_HALF * 2);
+        const raw = cycle < KB_HALF ? cycle / KB_HALF : 2 - cycle / KB_HALF;
+        expositorKbPhase.current = (1 - Math.cos(raw * Math.PI)) / 2;
+      }
+
+      const kb = KB_VARIANTS[expositorKbVariant.current]?.(expositorKbPhase.current) ?? { scale: 1, tx: 0, ty: 0 };
+      const userZ = expositorZoom.current;
+      const userPx = expositorPan.current.x;
+      const userPy = expositorPan.current.y;
+
+      if (expositorInnerRef.current) {
+        expositorInnerRef.current.style.transform =
+          `translate(calc(-50% + ${userPx}px), calc(-50% + ${userPy}px)) scale(${userZ * kb.scale}) translate(${kb.tx}%, ${kb.ty}%)`;
+      }
+
+      if (expositorActiveRef.current) {
+        const now = performance.now();
+        if (now - expositorLastSync.current >= 33) {
+          expositorLastSync.current = now;
+          const pw = expositorPreviewRef.current?.clientWidth || 320;
+          const ph = expositorPreviewRef.current?.clientHeight || 260;
+          R.bcRef.current?.postMessage({
+            type: 'EXPOSITOR_SYNC',
+            zoom: userZ * kb.scale,
+            panXNorm: userPx / pw,
+            panYNorm: userPy / ph,
+            kbTxPct: kb.tx,
+            kbTyPct: kb.ty,
+          });
+        }
+      }
+    };
+
+    expositorRafRef.current = requestAnimationFrame(tick);
+    return () => { if (expositorRafRef.current) cancelAnimationFrame(expositorRafRef.current); };
+  }, [expositorLocalSrc]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Spacebar handler for expositor ───────────────────────────────────────
+  useEffect(() => {
+    if (!expositorOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.target || (e.target as HTMLElement)?.tagName !== 'INPUT') {
+        e.preventDefault();
+        expositorKbPaused.current = !expositorKbPaused.current;
+        expositorZoom.current = 1;
+        expositorPan.current = { x: 0, y: 0 };
+        expositorKbStartTime.current = performance.now();
+        expositorKbPhase.current = 0;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expositorOpen]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const activeCount = struct
@@ -411,32 +508,71 @@ export function DMView() {
         <button
           onClick={() => setExpositorOpen(v => !v)}
           title="Expositor d'Imatges i Vídeo per als jugadors"
-          style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: expositorOpen ? `${C.accent}22` : 'rgba(10,13,18,.92)', border: `1px solid ${expositorOpen ? C.accent : C.border}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: expositorOpen ? C.accent : C.dim, fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
-          Expositor
+          style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: expositorOpen ? `${C.accent}22` : 'rgba(10,13,18,.92)', border: `1px solid ${expositorOpen ? C.accent : (expositorActive ? C.accent + '88' : C.border)}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: expositorOpen ? C.accent : (expositorActive ? C.accent + 'cc' : C.dim), fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
+          {expositorActive ? '◉ Expositor' : 'Expositor'}
         </button>
 
         {/* Expositor floating panel */}
         {expositorOpen && (
-          <div style={{ position: 'absolute', top: 42, left: 12, zIndex: 20, width: 320, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 42, left: 12, zIndex: 20, width: 480, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>Expositor de Campanya</span>
-              <button onClick={() => setExpositorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: 14, lineHeight: 1 }}>×</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: C.dim, fontSize: 10 }}>Espai: reset/pausa KB</span>
+                <button onClick={() => setExpositorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: 14, lineHeight: 1 }}>×</button>
+              </div>
             </div>
+            {/* Preview area with KB animation and pan/zoom */}
             <div
-              style={{ minHeight: 140, background: '#000', position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              onClick={() => expositorInputRef.current?.click()}
+              ref={expositorPreviewRef}
+              style={{ height: 260, background: '#000', position: 'relative', overflow: 'hidden', cursor: expositorLocalSrc ? (expositorDragRef.current ? 'grabbing' : 'grab') : 'pointer' }}
+              onClick={e => { if (!expositorLocalSrc) expositorInputRef.current?.click(); e.stopPropagation(); }}
               onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadExpositorFile(f); }}
               onDragOver={e => e.preventDefault()}
+              onMouseDown={e => {
+                if (e.button !== 0 || !expositorLocalSrc) return;
+                e.preventDefault();
+                expositorDragRef.current = { sx: e.clientX, sy: e.clientY, px: expositorPan.current.x, py: expositorPan.current.y };
+              }}
+              onMouseMove={e => {
+                if (!expositorDragRef.current) return;
+                expositorPan.current = {
+                  x: expositorDragRef.current.px + (e.clientX - expositorDragRef.current.sx),
+                  y: expositorDragRef.current.py + (e.clientY - expositorDragRef.current.sy),
+                };
+              }}
+              onMouseUp={() => { expositorDragRef.current = null; }}
+              onMouseLeave={() => { expositorDragRef.current = null; }}
+              onWheel={e => {
+                if (!expositorLocalSrc) return;
+                e.preventDefault();
+                expositorZoom.current = Math.max(0.3, Math.min(6, expositorZoom.current * (e.deltaY < 0 ? 1.1 : 0.9)));
+              }}
             >
-              {expositorLocalSrc && expositorLocalType === 'image' && (
-                <img src={expositorLocalSrc} alt="" style={{ maxWidth: '100%', maxHeight: 180, objectFit: 'contain', display: 'block' }} />
-              )}
-              {expositorLocalSrc && expositorLocalType === 'video' && (
-                <video src={expositorLocalSrc} muted autoPlay loop playsInline style={{ maxWidth: '100%', maxHeight: 180, objectFit: 'contain', display: 'block' }} />
+              {expositorLocalSrc && (
+                <>
+                  {expositorLocalType === 'image' && (
+                    <div style={{ position: 'absolute', inset: -40, backgroundImage: `url(${expositorLocalSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(28px) brightness(0.22) saturate(0.45)', transform: 'scale(1.1)', pointerEvents: 'none' }} />
+                  )}
+                  <div
+                    ref={expositorInnerRef}
+                    style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center', userSelect: 'none', pointerEvents: 'none' }}
+                  >
+                    {expositorLocalType === 'image' && (
+                      <img src={expositorLocalSrc} alt="" draggable={false} style={{ maxWidth: 480, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
+                    )}
+                    {expositorLocalType === 'video' && (
+                      <video src={expositorLocalSrc} muted autoPlay loop playsInline draggable={false} style={{ maxWidth: 480, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
+                    )}
+                  </div>
+                  <div style={{ position: 'absolute', bottom: 6, right: 8, color: 'rgba(255,255,255,0.3)', fontSize: 9, pointerEvents: 'none', letterSpacing: '0.08em' }}>
+                    scroll zoom · drag pan · espai reset
+                  </div>
+                </>
               )}
               {!expositorLocalSrc && (
-                <div style={{ textAlign: 'center', color: C.dim, padding: 20 }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>🖼</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8, color: C.dim }}>
+                  <div style={{ fontSize: 28 }}>🖼</div>
                   <div style={{ fontSize: 11 }}>Arrossega o clica per carregar imatge / vídeo</div>
                 </div>
               )}
@@ -445,13 +581,19 @@ export function DMView() {
             <div style={{ padding: '8px 10px', display: 'flex', gap: 6 }}>
               <button
                 onClick={sendExpositorToPlayer}
-                disabled={!expositorLocalSrc || expositorSending}
+                disabled={!expositorLocalSrc}
                 style={{ flex: 1, padding: '7px', borderRadius: 6, border: 'none', background: expositorLocalSrc ? C.accent : 'rgba(255,255,255,0.05)', cursor: expositorLocalSrc ? 'pointer' : 'default', color: expositorLocalSrc ? '#0d1117' : C.dim, fontWeight: 700, fontSize: 11 }}>
-                {expositorSending ? 'Enviant...' : '▶ Mostrar als jugadors'}
+                {expositorActive ? '✓ Mostrant als jugadors' : '▶ Mostrar als jugadors'}
+              </button>
+              <button
+                onClick={() => expositorInputRef.current?.click()}
+                style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 11 }}>
+                Fitxer
               </button>
               <button
                 onClick={hideExpositorOnPlayer}
-                style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 11 }}>
+                disabled={!expositorActive}
+                style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: expositorActive ? 'pointer' : 'default', color: expositorActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: 11 }}>
                 Ocultar
               </button>
             </div>

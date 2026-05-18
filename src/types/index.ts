@@ -248,4 +248,5 @@ export type BCMessage =
   | { type: 'BOSS_INTRO_SKIP' }
   | { type: 'PLAYER_READY' }
   | { type: 'EXPOSITOR_SHOW'; buffer: ArrayBuffer; mimeType: string }
-  | { type: 'EXPOSITOR_HIDE' };
+  | { type: 'EXPOSITOR_HIDE' }
+  | { type: 'EXPOSITOR_SYNC'; zoom: number; panXNorm: number; panYNorm: number; kbTxPct: number; kbTyPct: number };

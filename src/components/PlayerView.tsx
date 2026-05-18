@@ -93,12 +93,11 @@ export function PlayerView() {
   const [activeSpells, setActiveSpells] = useState<Spell[]>([]);
 
   const [expositorVisible, setExpositorVisible] = useState(false);
+  const [expositorFading, setExpositorFading] = useState(false);
   const [expositorSrc, setExpositorSrc] = useState<string | null>(null);
   const [expositorType, setExpositorType] = useState<'image' | 'video' | null>(null);
-  const expositorZoom = useRef(1);
-  const expositorPan  = useRef({ x: 0, y: 0 });
-  const expositorDrag = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
   const expositorObjectUrl = useRef<string | null>(null);
+  const expositorInnerRef = useRef<HTMLDivElement | null>(null);
 
   const _loadBgFromUrl = useCallback((url: string, mimeType: string, withFade: boolean) => {
     const stage = stageRef.current; if (!stage) return;
@@ -444,17 +443,32 @@ export function PlayerView() {
       } else if (msg.type === 'BOSS_INTRO_SKIP') {
         if (skipBossIntroRef.current) skipBossIntroRef.current();
       } else if (msg.type === 'EXPOSITOR_SHOW') {
-        if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
         const blob = new Blob([msg.buffer], { type: msg.mimeType });
         const url = URL.createObjectURL(blob);
-        expositorObjectUrl.current = url;
-        expositorZoom.current = 1;
-        expositorPan.current = { x: 0, y: 0 };
-        setExpositorSrc(url);
-        setExpositorType(msg.mimeType.startsWith('video/') ? 'video' : 'image');
-        setExpositorVisible(true);
+        const newType = msg.mimeType.startsWith('video/') ? 'video' : 'image';
+        const doShow = (u: string) => {
+          if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
+          expositorObjectUrl.current = u;
+          setExpositorSrc(u);
+          setExpositorType(newType);
+          setExpositorFading(false);
+          setExpositorVisible(true);
+        };
+        if (expositorVisible) {
+          setExpositorFading(true);
+          setTimeout(() => doShow(url), 350);
+        } else {
+          doShow(url);
+        }
       } else if (msg.type === 'EXPOSITOR_HIDE') {
         setExpositorVisible(false);
+      } else if (msg.type === 'EXPOSITOR_SYNC') {
+        if (expositorInnerRef.current) {
+          const panX = msg.panXNorm * window.innerWidth;
+          const panY = msg.panYNorm * window.innerHeight;
+          expositorInnerRef.current.style.transform =
+            `translate(calc(-50% + ${panX}px), calc(-50% + ${panY}px)) scale(${msg.zoom}) translate(${msg.kbTxPct}%, ${msg.kbTyPct}%)`;
+        }
       }
     };
 
@@ -626,48 +640,24 @@ export function PlayerView() {
         style={{
           position: 'absolute', inset: 0, zIndex: 50,
           background: '#080604',
-          opacity: expositorVisible ? 1 : 0,
+          opacity: (expositorVisible && !expositorFading) ? 1 : 0,
           pointerEvents: expositorVisible ? 'auto' : 'none',
-          transition: 'opacity 1.6s ease-in-out',
+          transition: expositorFading ? 'opacity 0.3s ease-in-out' : 'opacity 1.4s ease-in-out',
           overflow: 'hidden',
-          cursor: 'grab',
-        }}
-        onMouseDown={e => {
-          if (e.button !== 0) return;
-          expositorDrag.current = { sx: e.clientX, sy: e.clientY, px: expositorPan.current.x, py: expositorPan.current.y };
-        }}
-        onMouseMove={e => {
-          if (!expositorDrag.current) return;
-          const dx = e.clientX - expositorDrag.current.sx, dy = e.clientY - expositorDrag.current.sy;
-          expositorPan.current = { x: expositorDrag.current.px + dx, y: expositorDrag.current.py + dy };
-          const el = (e.currentTarget as HTMLDivElement).querySelector('[data-expositor-inner]') as HTMLElement;
-          if (el) el.style.transform = `translate(calc(-50% + ${expositorPan.current.x}px), calc(-50% + ${expositorPan.current.y}px)) scale(${expositorZoom.current})`;
-        }}
-        onMouseUp={() => { expositorDrag.current = null; }}
-        onMouseLeave={() => { expositorDrag.current = null; }}
-        onWheel={e => {
-          e.preventDefault();
-          expositorZoom.current = Math.max(0.2, Math.min(8, expositorZoom.current * (e.deltaY < 0 ? 1.1 : 0.9)));
-          const el = (e.currentTarget as HTMLDivElement).querySelector('[data-expositor-inner]') as HTMLElement;
-          if (el) el.style.transform = `translate(calc(-50% + ${expositorPan.current.x}px), calc(-50% + ${expositorPan.current.y}px)) scale(${expositorZoom.current})`;
         }}
       >
         {/* blurred background */}
         {expositorSrc && expositorType === 'image' && (
-          <div style={{ position: 'absolute', inset: -60, backgroundImage: `url(${expositorSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(36px) brightness(0.22) saturate(0.45)', transform: 'scale(1.12)' }} />
+          <div style={{ position: 'absolute', inset: -60, backgroundImage: `url(${expositorSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(36px) brightness(0.22) saturate(0.45)', transform: 'scale(1.12)', pointerEvents: 'none' }} />
         )}
-        {/* main media */}
-        <div data-expositor-inner="" style={{ position: 'absolute', top: '50%', left: '50%', transform: `translate(-50%, -50%) scale(1)`, transformOrigin: 'center center', maxWidth: '100vw', maxHeight: '100vh', userSelect: 'none' }}>
+        {/* main media — transform driven by EXPOSITOR_SYNC */}
+        <div ref={expositorInnerRef} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center', userSelect: 'none', pointerEvents: 'none' }}>
           {expositorSrc && expositorType === 'image' && (
             <img src={expositorSrc} alt="" draggable={false} style={{ maxWidth: '100vw', maxHeight: '100vh', objectFit: 'contain', display: 'block', userSelect: 'none' }} />
           )}
           {expositorSrc && expositorType === 'video' && (
             <video src={expositorSrc} autoPlay loop muted playsInline draggable={false} style={{ maxWidth: '100vw', maxHeight: '100vh', objectFit: 'contain', display: 'block' }} />
           )}
-        </div>
-        {/* double-click to reset zoom/pan */}
-        <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', color: 'rgba(184,134,11,0.45)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', pointerEvents: 'none', fontFamily: 'system-ui' }}>
-          Arrastra · Scroll per fer zoom
         </div>
       </div>
     </div>
