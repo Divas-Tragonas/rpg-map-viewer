@@ -42,7 +42,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
         ep = vp;
       }
       const hiddenByZone = s.zonasLayers.some(zl => {
-        if (v[zl.id]) return false;
+        if (!v[zl.id]) return false;
         const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
         const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
         return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
@@ -203,7 +203,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     if (!isDM) {
       const hiddenByZone = s.zonasLayers.some(zl => {
-        if (v[zl.id]) return false;
+        if (!v[zl.id]) return false;
         const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
         const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
         return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
@@ -359,7 +359,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       const cx = ppos.x + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
       const cy = ppos.y + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
       const hiddenByZone = s.zonasLayers.some(zl => {
-        if (v[zl.id]) return false;
+        if (!v[zl.id]) return false;
         const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
         const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
         return cx >= zx && cx <= zx + zl.w && cy >= zy && cy <= zy + zl.h;

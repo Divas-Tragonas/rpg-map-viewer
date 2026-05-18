@@ -70,7 +70,7 @@ export function useCinematic(R: DMRefs) {
 
     const prtH = Math.round(SH * 0.92), prtW = Math.round(prtH * 0.72);
     const prtWrap = document.createElement('div');
-    prtWrap.style.cssText = `position:absolute;right:0;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(115%,-50%);transition:transform 0.6s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`;
+    prtWrap.style.cssText = `position:absolute;right:5%;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(120%,-50%);transition:transform 0.6s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`;
     const prtGlow = document.createElement('div');
     prtGlow.style.cssText = `position:absolute;inset:-50px;background:radial-gradient(ellipse at 40% 55%,${GLOW} 0%,transparent 65%);filter:blur(30px);opacity:0;transition:opacity 1s ease`;
     prtWrap.appendChild(prtGlow);
@@ -96,7 +96,7 @@ export function useCinematic(R: DMRefs) {
     stage.appendChild(prtWrap);
 
     const txtWrap = document.createElement('div');
-    txtWrap.style.cssText = `position:absolute;left:5%;bottom:${lbH + Math.round(SH*0.07)}px;transform:translateX(-55px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`;
+    txtWrap.style.cssText = `position:absolute;left:10%;bottom:${lbH + Math.round(SH*0.07)}px;transform:translateX(-60px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`;
     stage.appendChild(txtWrap);
 
     const nmFS = Math.max(46, Math.min(110, Math.round(SW / 8)));
@@ -141,7 +141,7 @@ export function useCinematic(R: DMRefs) {
         _cinCam();
       })
       .add(500, () => {
-        prtWrap.style.transform = 'translate(0,-50%)';
+        prtWrap.style.transform = 'translate(0,-50%)'; prtWrap.style.transition = 'transform 0.6s cubic-bezier(.16,1,.3,1)';
         setTimeout(() => { prtGlow.style.opacity = '1'; }, 280);
         setTimeout(() => { prtWrap.style.animation = 'cinParallaxPrt 9s ease-in-out infinite'; }, 700);
       })
@@ -161,9 +161,9 @@ export function useCinematic(R: DMRefs) {
       })
       .add(4200, () => {
         prtWrap.style.animation = ''; prtWrap.style.transition = 'transform 0.65s cubic-bezier(.4,0,1,1),opacity 0.65s ease';
-        prtWrap.style.transform = 'translate(115%,-50%)'; prtWrap.style.opacity = '0';
+        prtWrap.style.transform = 'translate(120%,-50%)'; prtWrap.style.opacity = '0';
         txtWrap.style.animation = ''; txtWrap.style.transition = 'transform 0.55s cubic-bezier(.4,0,1,1),opacity 0.55s ease';
-        txtWrap.style.transform = 'translateX(-55px)'; txtWrap.style.opacity = '0';
+        txtWrap.style.transform = 'translateX(-60px)'; txtWrap.style.opacity = '0';
         [dim, vig, tint].forEach(el => { el.style.transition = 'opacity 0.75s ease'; el.style.opacity = '0'; });
         lbTop.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbTop.style.transform = 'translateY(-100%)';
         lbBot.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbBot.style.transform = 'translateY(100%)';
@@ -188,8 +188,8 @@ export function useCinematic(R: DMRefs) {
     const cd = cinematicDataRef.current as Record<string, HTMLElement> | null;
     if (cd) {
       const { cinCanvas, dim, vig, tint, lbTop, lbBot, prtWrap, txtWrap } = cd;
-      if (prtWrap) { prtWrap.style.animation = ''; prtWrap.style.transition = 'opacity 0.22s ease'; prtWrap.style.opacity = '0'; }
-      if (txtWrap) { txtWrap.style.animation = ''; txtWrap.style.transition = 'opacity 0.22s ease'; txtWrap.style.opacity = '0'; }
+      if (prtWrap) { prtWrap.style.animation = ''; prtWrap.style.transition = 'transform 0.28s cubic-bezier(.4,0,1,1),opacity 0.25s ease'; prtWrap.style.transform = 'translate(120%,-50%)'; prtWrap.style.opacity = '0'; }
+      if (txtWrap) { txtWrap.style.animation = ''; txtWrap.style.transition = 'transform 0.25s cubic-bezier(.4,0,1,1),opacity 0.22s ease'; txtWrap.style.transform = 'translateX(-60px)'; txtWrap.style.opacity = '0'; }
       [dim, vig, tint].forEach(el => { if (el) { el.style.transition = 'opacity 0.22s ease'; el.style.opacity = '0'; } });
       [lbTop, lbBot].forEach((el, i) => {
         if (!el) return;

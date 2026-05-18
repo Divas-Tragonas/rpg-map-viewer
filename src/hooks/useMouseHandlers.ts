@@ -76,7 +76,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
           const zone = R.rPaintedZones.current[i];
           if (pointInPolygon(mx, my, zone.points)) {
             R.zoneDragRef.current = { zoneId: zone.id, startMx: mx, startMy: my, origPoints: zone.points.map(p => ({ ...p })), origBbox: { ...zone.bbox } };
-            e.preventDefault(); return;
+            S.setCanvasCursor('grabbing'); e.preventDefault(); return;
           }
         }
       }

@@ -84,6 +84,47 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         }
       }
 
+      // Brush/eraser cursor preview and DM pointer — shown even without PSD
+      {
+        const tool = R.rDrawTool.current;
+        if ((tool === 'pen' || tool === 'eraser') && R.rCursorScreenPos.current) {
+          const { x: cx, y: cy } = R.rCursorScreenPos.current;
+          const ds = R.rDrawSize.current;
+          const radius = Math.max(3, (tool === 'eraser' ? ds * 4 : ds / 2) * sc);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          if (tool === 'eraser') {
+            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+            ctx.setLineDash([4, 3]);
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.setLineDash([]);
+          } else {
+            ctx.fillStyle = R.rDrawColor.current + '55';
+            ctx.strokeStyle = R.rDrawColor.current + 'ee';
+            ctx.lineWidth = 1.5;
+            ctx.fill();
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+        if (tool === 'pointer' && R.rPointerPos.current) {
+          const ptr = R.rPointerPos.current, pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 5.5);
+          ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+          ctx.strokeStyle = `rgba(255,210,0,${0.18 + 0.12 * pulse})`; ctx.lineWidth = 8 / sc;
+          ctx.beginPath(); ctx.arc(ptr.x, ptr.y, (28 + 6 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = `rgba(255,210,0,${0.55 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc;
+          ctx.beginPath(); ctx.arc(ptr.x, ptr.y, (14 + 5 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = `rgba(255,230,80,${0.9 + 0.1 * pulse})`;
+          ctx.beginPath(); ctx.arc(ptr.x, ptr.y, 3.5 / sc, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = `rgba(255,210,0,${0.5 + 0.3 * pulse})`; ctx.lineWidth = 1.5 / sc;
+          const ch = 8 / sc;
+          ctx.beginPath(); ctx.moveTo(ptr.x - ch, ptr.y); ctx.lineTo(ptr.x + ch, ptr.y); ctx.moveTo(ptr.x, ptr.y - ch); ctx.lineTo(ptr.x, ptr.y + ch); ctx.stroke();
+          ctx.restore();
+        }
+      }
+
       if (!s) return;
 
       const fc = {
@@ -155,31 +196,6 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderGrid(ctx, fc);
       renderGridCalib(ctx, fc);
       renderDMPointer(ctx, fc);
-
-      // Brush/eraser cursor preview
-      const tool = R.rDrawTool.current;
-      if ((tool === 'pen' || tool === 'eraser') && R.rCursorScreenPos.current) {
-        const { x: cx, y: cy } = R.rCursorScreenPos.current;
-        const ds = R.rDrawSize.current;
-        const radius = Math.max(1, (tool === 'eraser' ? ds * 4 : ds) * sc);
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        if (tool === 'eraser') {
-          ctx.strokeStyle = 'rgba(255,255,255,0.75)';
-          ctx.setLineDash([4, 3]);
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.setLineDash([]);
-        } else {
-          ctx.fillStyle = R.rDrawColor.current + '44';
-          ctx.strokeStyle = R.rDrawColor.current + 'cc';
-          ctx.lineWidth = 1.5;
-          ctx.fill();
-          ctx.stroke();
-        }
-        ctx.restore();
-      }
 
       // Cinematic tick
       if (R.cinematicActiveRef.current) {

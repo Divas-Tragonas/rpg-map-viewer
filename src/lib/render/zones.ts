@@ -123,49 +123,53 @@ export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone
   const { left, top, w, h, cx, cy } = zone.bbox;
   const tQ = Math.floor(t * 20) / 20;
   const cacheKey = zone.id + ':' + tQ;
+  // Shared geometry constants (must match what's used to build the cached canvas)
+  const RS = Math.max(4, Math.ceil(Math.max(w, h) / 120));
+  const PAD = 12; // texture-pixel padding per side so blur never cuts at canvas edge
+  const padLeft = left - PAD * RS, padTop = top - PAD * RS;
+  const tw = Math.ceil(w / RS), th = Math.ceil(h / RS);
+  const ptw = tw + 2 * PAD, pth = th + 2 * PAD;
+
   let cachedCanvas = txCache[cacheKey];
   if (!cachedCanvas) {
     for (const k of Object.keys(txCache)) { if (k.startsWith(zone.id + ':')) delete txCache[k]; }
     const pixelFn = TX_FN[zone.element] || TX_FN.fire;
-    const RS = Math.max(4, Math.ceil(Math.max(w, h) / 120));
-    const tw = Math.ceil(w / RS), th = Math.ceil(h / RS);
-    const oc = document.createElement('canvas'); oc.width = tw; oc.height = th;
+    const oc = document.createElement('canvas'); oc.width = ptw; oc.height = pth;
     const octx = oc.getContext('2d')!;
-    const img = octx.createImageData(tw, th);
+    const img = octx.createImageData(ptw, pth);
     const data = img.data;
     const tcx = cx / TSCALE, tcy = cy / TSCALE;
-    for (let py = 0; py < th; py++) {
-      for (let px = 0; px < tw; px++) {
-        const wx = (left + px * RS) / TSCALE, wy = (top + py * RS) / TSCALE;
+    for (let py = 0; py < pth; py++) {
+      for (let px = 0; px < ptw; px++) {
+        const wx = (padLeft + px * RS) / TSCALE, wy = (padTop + py * RS) / TSCALE;
         const [r, g, b, a = 255] = pixelFn(wx, wy, tQ, tcx, tcy);
-        const idx = (py * tw + px) * 4;
+        const idx = (py * ptw + px) * 4;
         data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = a;
       }
     }
     octx.putImageData(img, 0, 0);
-    // High-res alpha mask: draw polygon at 4× resolution to avoid geometric corner artifacts,
-    // then scale down for destination-in. Small blur (2%) = sharp but smooth edge.
-    const maskW = tw * 4, maskH = th * 4;
-    const mScaleX = maskW / w, mScaleY = maskH / h;
-    const blurPx = Math.max(3, Math.min(maskW, maskH) * 0.025);
+    // High-res alpha mask at 4× resolution; PAD ensures blur fades inside canvas bounds
+    const maskW = ptw * 4, maskH = pth * 4;
+    const mScale = 4 / RS;
+    const blurPx = Math.max(4, Math.min(maskW, maskH) * 0.028);
     const mc = document.createElement('canvas'); mc.width = maskW; mc.height = maskH;
     const mctx = mc.getContext('2d')!;
     mctx.filter = `blur(${blurPx}px)`;
     mctx.fillStyle = 'white';
     mctx.beginPath();
     zone.points.forEach((p, i) => {
-      const ppx = (p.x - left) * mScaleX, ppy = (p.y - top) * mScaleY;
+      const ppx = (p.x - padLeft) * mScale, ppy = (p.y - padTop) * mScale;
       if (i === 0) mctx.moveTo(ppx, ppy); else mctx.lineTo(ppx, ppy);
     });
     mctx.closePath(); mctx.fill();
     octx.globalCompositeOperation = 'destination-in';
-    octx.drawImage(mc, 0, 0, tw, th);
+    octx.drawImage(mc, 0, 0, ptw, pth);
     octx.globalCompositeOperation = 'source-over';
     cachedCanvas = txCache[cacheKey] = oc;
   }
   ctx.save();
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
-  ctx.drawImage(cachedCanvas, left, top, w, h);
+  ctx.drawImage(cachedCanvas, padLeft, padTop, ptw * RS, pth * RS);
   ctx.restore();
 }
 
@@ -218,18 +222,6 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
       if (fadeAlpha < 0.999) ctx.globalAlpha = fadeAlpha;
       drawPaintedZone(ctx, zone, t, txCache);
       ctx.restore();
-      if (appearT && elapsed < 1.2) {
-        const el = ELEMENTS_BY_ID.get(zone.element);
-        if (el) {
-          const alpha = Math.max(0, 1 - elapsed / 1.2) * 0.65 * fadeAlpha;
-          ctx.save();
-          ctx.beginPath();
-          zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-          ctx.closePath();
-          ctx.strokeStyle = el.color; ctx.lineWidth = 3; ctx.globalAlpha = alpha; ctx.stroke();
-          ctx.restore();
-        }
-      }
       if (appearT && elapsed > 1.5) delete zoneAppearRef.current[zone.id];
     }
   }
