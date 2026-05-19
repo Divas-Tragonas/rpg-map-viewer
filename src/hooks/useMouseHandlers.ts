@@ -43,9 +43,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1) {
       e.preventDefault();
-      if (e.ctrlKey || R.rShiftHeld.current || e.shiftKey) {
+      if (R.rShiftHeld.current || e.shiftKey) {
+        // SHIFT = private DM-only pan
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
       } else {
+        // CTRL or no modifier = shared pan (DM + player)
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
       }
       return;

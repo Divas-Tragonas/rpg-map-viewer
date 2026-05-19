@@ -576,7 +576,8 @@ export function PlayerView() {
           visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
         } else { visualZoomRef.current += dzP * 0.032; visualPanRef.current.x += dxP * 0.032; visualPanRef.current.y += dyP * 0.032; }
       } else {
-        const lerpF = Math.min(0.35, 0.06 + 0.06 / (Math.abs(dzP) + 0.06));
+        const totalDist = Math.abs(dzP) * 40 + Math.sqrt(dxP * dxP + dyP * dyP) / 35;
+        const lerpF = Math.min(0.13, 0.05 + 0.045 / (totalDist + 0.05));
         if (Math.abs(dzP) < 0.002 && Math.abs(dxP) < 0.5 && Math.abs(dyP) < 0.5) {
           visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
         } else { visualZoomRef.current += dzP * lerpF; visualPanRef.current.x += dxP * lerpF; visualPanRef.current.y += dyP * lerpF; }
