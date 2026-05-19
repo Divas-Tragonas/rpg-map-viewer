@@ -181,7 +181,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
-    visualPosRef, rSelectedToken, rTokenSizeOverride,
+    visualPosRef, rSelectedToken, rTokenSizeOverride, rHighlightAlpha,
   } = fc;
 
   rLibEnemies.current.forEach(en => {
@@ -303,6 +303,18 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     }
     ctx.globalAlpha = 1;
     if (showStates) drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc);
+
+    const _ha = rHighlightAlpha.current;
+    if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
+      const pT = performance.now() / 1000;
+      const pulse = 0.5 + 0.5 * Math.sin(pT * 3.2 + en.id * 0.43);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,210,0,${(0.10 + 0.08 * pulse) * _ha})`; ctx.lineWidth = 10 / sc;
+      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + (11 + 4 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,220,50,${(0.60 + 0.35 * pulse) * _ha})`; ctx.lineWidth = 2.5 / sc;
+      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + (4 + 2 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
 
     if (isDM && en.hpMax > 0) {
       const hp = Math.max(0, en.hp ?? en.hpMax);
