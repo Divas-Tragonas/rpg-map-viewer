@@ -7,15 +7,23 @@
 
 ---
 
-## Git workflow
+## ⚠️ REGLA ABSOLUTA — Git
 
-- **Sempre push directe a `master`** — mai crear branches ni pull requests
-- Commit i push després de cada canvi rellevant:
-  ```bash
-  git add -p
-  git commit -m "Títol del canvi"
-  git push origin master
-  ```
+> **MAI crear branches. MAI fer pull requests. SEMPRE push directe a `master`.**
+> Incomplir aquesta regla és un error crític. No hi ha excepcions.
+
+Workflow obligatori després de cada canvi:
+```bash
+git add -p
+git commit -m "Títol del canvi"
+git push origin master
+```
+
+**Versió a la pantalla de benvinguda** (`src/components/DMView.tsx`): actualitzar-la sempre que pugi la versió al README.
+
+---
+
+## Git workflow
 
 ### Autenticació GitHub — OBLIGATORI
 
