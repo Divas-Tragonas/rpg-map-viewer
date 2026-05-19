@@ -126,6 +126,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         zoneDragRef: R.zoneDragRef,
         rHoveredPaintedZoneId: R.rHoveredPaintedZoneId,
         rSelectedPaintedZoneId: R.rSelectedPaintedZoneId,
+        rSpellPreview: R.rSpellPreview,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);

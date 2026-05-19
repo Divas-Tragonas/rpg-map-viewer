@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react';
 import type {
-  MapStructure, VisMap, PosMap, Player, PaintedZone, Spell,
+  MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, SpellPreview,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
 } from '@/types';
 
@@ -59,6 +59,7 @@ export interface FrameContext {
 
   rActiveSpells:    MutableRefObject<Spell[]>;
   setActiveSpells:  (spells: Spell[]) => void;
+  rSpellPreview?:   MutableRefObject<SpellPreview | null>;
 
   rConditions:      MutableRefObject<ConditionsMap>;
   rDefeated:        MutableRefObject<DefeatedMap>;

@@ -87,12 +87,18 @@ export interface PaintedZone {
   bbox: BBox;
 }
 
+export type SpellType = 'fireball' | 'lightning' | 'magic_beam' | 'magic_missile' | 'hideous_laughter' | 'burning_hands' | 'sleep' | 'grease';
+
 export interface Spell {
   id: string;
-  type: 'fireball' | 'lightning' | 'magic_beam';
+  type: SpellType;
   points: Point[];
   startTime: number;
 }
+
+export type SpellPreview =
+  | { mode: 'line'; start: Point; end: Point }
+  | { mode: 'area'; center: Point };
 
 export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer';
 
@@ -165,6 +171,7 @@ export interface SpellMenuState {
   points: Point[];
   cx: number;
   cy: number;
+  mode?: 'path' | 'line' | 'area';
 }
 
 export interface Condition {

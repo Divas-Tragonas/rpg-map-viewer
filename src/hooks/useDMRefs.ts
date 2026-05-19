@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import type {
   MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
-  Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides,
+  Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview,
 } from '@/types';
 import type { CinematicTimeline } from '@/lib/cinematic';
 
@@ -98,6 +98,11 @@ export function useDMRefs() {
   const dmPreviewBcastRef = useRef(0);
   const zoneAppearRef     = useRef<Record<string, number>>({});
 
+  // Spell drawing refs
+  const isSpellLineDrawingRef = useRef(false);
+  const spellLineStartRef     = useRef<Point | null>(null);
+  const rSpellPreview         = useRef<SpellPreview | null>(null);
+
   // Cinematic refs
   const cinematicActiveRef   = useRef(false);
   const cinematicDataRef     = useRef<Record<string, Element | null> | null>(null);
@@ -126,6 +131,7 @@ export function useDMRefs() {
     zoneDragRef, defeatedAnimRef, ctrlHeldRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
     rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
+    isSpellLineDrawingRef, spellLineStartRef, rSpellPreview,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
     cinematicOrigZoomRef, cinematicOrigPanRef,
     cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,

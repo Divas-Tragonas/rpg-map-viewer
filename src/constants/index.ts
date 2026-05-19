@@ -62,9 +62,14 @@ export type EnemyTemplateId = typeof ENEMY_TEMPLATES[number]['id'];
 export { ENEMY_IMAGES } from '@/lib/enemy-images';
 
 export const SPELL_TYPES = [
-  { type: 'fireball',   emoji: '🔥', color: '#ff8800', title: 'Bola de fuego'  },
-  { type: 'lightning',  emoji: '⚡', color: '#ffd200', title: 'Rayo eléctrico' },
-  { type: 'magic_beam', emoji: '✨', color: '#9988ff', title: 'Rayo mágico'    },
+  { type: 'fireball',          emoji: '🔥', color: '#ff8800', title: 'Bola de fuego',    mode: 'path' },
+  { type: 'lightning',         emoji: '⚡', color: '#ffd200', title: 'Rayo eléctrico',   mode: 'path' },
+  { type: 'magic_beam',        emoji: '✨', color: '#9988ff', title: 'Rayo mágico',      mode: 'path' },
+  { type: 'magic_missile',     emoji: '🔮', color: '#c084fc', title: 'Proyectil mágico', mode: 'line' },
+  { type: 'hideous_laughter',  emoji: '😂', color: '#facc15', title: 'Risa horrible',    mode: 'line' },
+  { type: 'burning_hands',     emoji: '🤲', color: '#f97316', title: 'Manos ardientes',  mode: 'line' },
+  { type: 'sleep',             emoji: '💤', color: '#818cf8', title: 'Dormir',           mode: 'area' },
+  { type: 'grease',            emoji: '🫙', color: '#a3e635', title: 'Grasa',            mode: 'area' },
 ] as const;
 
 export const C = {

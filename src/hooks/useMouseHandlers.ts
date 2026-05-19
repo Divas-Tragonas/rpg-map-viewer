@@ -11,7 +11,7 @@ interface MouseHandlerSetters {
   setActiveDrag: (v: string | number | null) => void;
   setSelectedToken: (v: string | number | null) => void;
   setShapeMenu: (v: { points: { x: number; y: number }[]; bbox: import('@/types').BBox; cx: number; cy: number } | null) => void;
-  setSpellMenu: (v: { points: { x: number; y: number }[]; cx: number; cy: number } | null) => void;
+  setSpellMenu: (v: import('@/types').SpellMenuState | null) => void;
   setPaintedZones: (v: import('@/types').PaintedZone[]) => void;
   setContextMenu: (v: import('@/types').ContextMenuState | null) => void;
   setZonesLocked: (v: boolean) => void;
@@ -49,10 +49,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
       return;
     }
-    // Shift + left click = private pan
+    // Shift + left click = private pan (or straight-line spell when shape tool active)
     if (e.button === 0 && (e.shiftKey || R.rShiftHeld.current)) {
+      if (R.rDrawTool.current === 'shape') {
+        const { mx: smx, my: smy } = mc(e);
+        R.isSpellLineDrawingRef.current = true;
+        R.spellLineStartRef.current = { x: smx, y: smy };
+        R.rSpellPreview.current = { mode: 'line', start: { x: smx, y: smy }, end: { x: smx, y: smy } };
+        e.preventDefault(); return;
+      }
       R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
       S.setDmPrivateActive(true);
+      e.preventDefault(); return;
+    }
+    // Alt + left click = area spell placement when shape tool active
+    if (e.button === 0 && e.altKey && R.rDrawTool.current === 'shape') {
+      const { mx: amx, my: amy } = mc(e);
+      S.setSpellMenu({ points: [{ x: amx, y: amy }], cx: e.clientX, cy: e.clientY, mode: 'area' });
       e.preventDefault(); return;
     }
     if (e.button !== 0) return;
@@ -219,6 +232,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       return;
     }
 
+    // Update spell line preview end point
+    if (R.isSpellLineDrawingRef.current && R.spellLineStartRef.current) {
+      R.rSpellPreview.current = { mode: 'line', start: R.spellLineStartRef.current, end: { x: mx, y: my } };
+      return;
+    }
+
     // Track hovered painted zone for highlight when shape tool is active
     if (tool === 'shape') {
       let hovPZ: string | null = null;
@@ -288,6 +307,33 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     setGridCalibrating: (v: boolean) => void,
   ) => {
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
+
+    // Finalize straight-line spell
+    if (R.isSpellLineDrawingRef.current) {
+      R.isSpellLineDrawingRef.current = false;
+      const preview = R.rSpellPreview.current;
+      R.rSpellPreview.current = null;
+      if (preview && preview.mode === 'line') {
+        const { start, end } = preview;
+        const dist = Math.hypot(end.x - start.x, end.y - start.y);
+        if (dist > 5) {
+          const canvas3 = R.canvasRef.current!;
+          const r4 = canvas3.getBoundingClientRect();
+          const media3 = R.mediaRef.current;
+          let mw3 = 1920, mh3 = 1080;
+          if (media3?.tagName === 'IMG' && (media3 as HTMLImageElement).naturalWidth) { mw3 = (media3 as HTMLImageElement).naturalWidth; mh3 = (media3 as HTMLImageElement).naturalHeight; }
+          if (media3?.tagName === 'VIDEO' && (media3 as HTMLVideoElement).videoWidth) { mw3 = (media3 as HTMLVideoElement).videoWidth; mh3 = (media3 as HTMLVideoElement).videoHeight; }
+          const sc4 = Math.min(r4.width / mw3, r4.height / mh3) * R.rZoom.current;
+          const pan4 = R.rPanOffset.current;
+          const ox4 = (r4.width - mw3 * sc4) / 2 + pan4.x, oy4 = (r4.height - mh3 * sc4) / 2 + pan4.y;
+          const midX = (start.x + end.x) / 2, midY = (start.y + end.y) / 2;
+          const cxScreen = r4.left + ox4 + midX * sc4, cyScreen = r4.top + oy4 + midY * sc4;
+          S.setSpellMenu({ points: [start, end], cx: cxScreen, cy: cyScreen, mode: 'line' });
+        }
+      }
+      R.spellLineStartRef.current = null;
+      return;
+    }
 
     if (R.rGridCalibrating.current && R.gridCalibRef.current && R.gridCalibCurrRef.current) {
       const { sx, sy } = R.gridCalibRef.current;
