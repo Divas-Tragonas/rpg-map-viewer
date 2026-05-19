@@ -71,8 +71,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setDmPrivateActive(true);
       e.preventDefault(); return;
     }
-    // Ctrl + left click = shared pan (DM + Player), only in pointer mode and NOT over a zone
-    if (e.button === 0 && e.ctrlKey && !e.shiftKey && !R.rShiftHeld.current && !R.rHoveredZone.current) {
+    // Ctrl + left click = shared pan (DM + Player), only in pointer mode
+    if (e.button === 0 && e.ctrlKey && !e.shiftKey && !R.rShiftHeld.current) {
       const t = R.rDrawTool.current;
       if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
@@ -179,14 +179,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     const hovZ = R.rHoveredZone.current;
-    if (hovZ) {
+    if (hovZ && e.altKey) {
       const { id, lx, ly, lw, lh } = hovZ;
       if (mx >= lx && mx <= lx + lw && my >= ly && my <= ly + lh) {
         const currentlyVisible = !!R.rVis.current[id];
         if (R.rZonesLocked.current && !currentlyVisible) { e.preventDefault(); return; }
         const nv = { ...R.rVis.current, [id]: !R.rVis.current[id] };
         R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-        if (!currentlyVisible && !R.rZonesLocked.current && !R.ctrlHeldRef.current) {
+        if (!currentlyVisible && !R.rZonesLocked.current) {
           S.setZonesLocked(true); R.rZonesLocked.current = true;
         }
         e.preventDefault();
