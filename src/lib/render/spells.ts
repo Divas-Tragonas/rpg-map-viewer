@@ -287,79 +287,59 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
 
   if (preview.mode === 'line') {
     const { start, end } = preview;
-    ctx.setLineDash([6 / sc, 4 / sc]);
-    ctx.globalAlpha = 0.55; ctx.strokeStyle = '#c084fc'; ctx.lineWidth = 1.5 / sc; ctx.lineCap = 'round';
+    // Yellow thick dashed line (same style as existing spells)
+    ctx.setLineDash([8 / sc, 5 / sc]);
+    ctx.globalAlpha = 0.75; ctx.strokeStyle = '#ffd200'; ctx.lineWidth = 2.5 / sc; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.globalAlpha = 0.8; ctx.fillStyle = '#c084fc';
-    ctx.beginPath(); ctx.arc(end.x, end.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(start.x, start.y, 3 / sc, 0, Math.PI * 2); ctx.fill();
+    // End dot
+    ctx.globalAlpha = 0.9; ctx.fillStyle = '#ffd200';
+    ctx.beginPath(); ctx.arc(end.x, end.y, 5 / sc, 0, Math.PI * 2); ctx.fill();
+    // Start dot
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.arc(start.x, start.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
 
-  } else if (preview.mode === 'area') {
-    const { origin, center } = preview;
-    const castDist = Math.hypot(center.x - origin.x, center.y - origin.y);
+  } else if (preview.mode === 'area_place') {
+    const { origin, center, spellType } = preview;
+    const data = AREA_SPELL_DATA[spellType];
+    if (!data) { ctx.restore(); return; }
 
-    // Origin marker
-    ctx.globalAlpha = 0.85; ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(origin.x, origin.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.4; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
-    ctx.beginPath(); ctx.arc(origin.x, origin.y, 7 / sc, 0, Math.PI * 2); ctx.stroke();
+    const rangeWorld = ftToWorld(data.rangeFt, gridSize);
+    const aoeWorld   = ftToWorld(data.aoeRadiusFt, gridSize);
+    const isOval     = data.aoeRadiusFt === 10; // Grease
 
-    // Cast line from origin to center
-    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
-    ctx.setLineDash([5 / sc, 4 / sc]);
-    ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(center.x, center.y); ctx.stroke();
+    // Range limit: full white dashed circumference from origin
+    ctx.globalAlpha = 0.70; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 / sc;
+    ctx.setLineDash([8 / sc, 6 / sc]);
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, rangeWorld, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
 
-    // Range rings + AoE circles for each area spell
-    const spellEntries = Object.entries(AREA_SPELL_DATA);
-    spellEntries.forEach(([, data]) => {
-      const rangeWorld = ftToWorld(data.rangeFt, gridSize);
-      const aoeWorld   = data.aoeRadiusFt === 20
-        ? ftToWorld(data.aoeRadiusFt, gridSize)   // circle (Sleep)
-        : ftToWorld(data.aoeRadiusFt, gridSize);   // same for oval (Grease, uses as rx)
+    // Origin crosshair marker
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
+    const cs = 5 / sc;
+    ctx.beginPath(); ctx.moveTo(origin.x - cs, origin.y); ctx.lineTo(origin.x + cs, origin.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(origin.x, origin.y - cs); ctx.lineTo(origin.x, origin.y + cs); ctx.stroke();
 
-      const inRange = castDist <= rangeWorld;
-      const ringColor = inRange ? data.color : '#ff6644';
+    // AoE shape at cursor: fill + colored dashed stroke
+    ctx.globalAlpha = 0.15; ctx.fillStyle = data.color;
+    if (isOval) {
+      ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 0.80; ctx.strokeStyle = data.color; ctx.lineWidth = 2 / sc;
+    ctx.setLineDash([6 / sc, 4 / sc]);
+    if (isOval) {
+      ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
 
-      // Range ring from origin
-      ctx.globalAlpha = 0.22;
-      ctx.strokeStyle = ringColor; ctx.lineWidth = 1 / sc;
-      ctx.setLineDash([8 / sc, 6 / sc]);
-      ctx.beginPath(); ctx.arc(origin.x, origin.y, rangeWorld, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-
-      // AoE preview at center
-      ctx.globalAlpha = inRange ? 0.12 : 0.06;
-      ctx.fillStyle = data.color;
-      if (data.aoeRadiusFt === 10) {
-        // Grease oval
-        ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = inRange ? 0.50 : 0.25;
-        ctx.strokeStyle = ringColor; ctx.lineWidth = 1.5 / sc;
-        ctx.setLineDash([5 / sc, 3 / sc]);
-        ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
-      } else {
-        ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = inRange ? 0.50 : 0.25;
-        ctx.strokeStyle = ringColor; ctx.lineWidth = 1.5 / sc;
-        ctx.setLineDash([5 / sc, 3 / sc]);
-        ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.stroke();
-      }
-      ctx.setLineDash([]);
-
-      // Range label on the ring (right side)
-      ctx.globalAlpha = inRange ? 0.75 : 0.45;
-      ctx.font = `${10 / sc}px sans-serif`; ctx.fillStyle = ringColor; ctx.textAlign = 'left';
-      ctx.fillText(`${data.emoji} ${data.rangeFt}ft`, origin.x + rangeWorld + 4 / sc, origin.y);
-    });
-
-    // Cast distance label
-    const castFt = Math.round((castDist / gridSize) * 5);
-    ctx.globalAlpha = 0.7; ctx.fillStyle = '#ffffff';
-    ctx.font = `${10 / sc}px sans-serif`; ctx.textAlign = 'center';
-    const midX = (origin.x + center.x) / 2, midY = (origin.y + center.y) / 2;
-    ctx.fillText(`${castFt}ft`, midX, midY - 5 / sc);
+    // ft label above AoE
+    ctx.globalAlpha = 0.85; ctx.fillStyle = data.color;
+    ctx.font = `bold ${11 / sc}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillText(`${data.emoji} ${data.aoeRadiusFt}ft`, center.x, center.y - aoeWorld - 7 / sc);
   }
 
   ctx.globalAlpha = 1; ctx.restore();

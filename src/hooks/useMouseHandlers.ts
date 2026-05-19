@@ -12,6 +12,7 @@ interface MouseHandlerSetters {
   setSelectedToken: (v: string | number | null) => void;
   setShapeMenu: (v: { points: { x: number; y: number }[]; bbox: import('@/types').BBox; cx: number; cy: number } | null) => void;
   setSpellMenu: (v: import('@/types').SpellMenuState | null) => void;
+  setActiveSpells: (v: import('@/types').Spell[]) => void;
   setPaintedZones: (v: import('@/types').PaintedZone[]) => void;
   setContextMenu: (v: import('@/types').ContextMenuState | null) => void;
   setZonesLocked: (v: boolean) => void;
@@ -62,12 +63,21 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setDmPrivateActive(true);
       e.preventDefault(); return;
     }
-    // Alt + drag = area spell placement (origin → AoE center) when shape tool active
+    // Alt + click = pick origin + open area spell menu
     if (e.button === 0 && e.altKey && R.rDrawTool.current === 'shape') {
       const { mx: amx, my: amy } = mc(e);
-      R.isSpellAreaDrawingRef.current = true;
-      R.spellAreaOriginRef.current = { x: amx, y: amy };
-      R.rSpellPreview.current = { mode: 'area', origin: { x: amx, y: amy }, center: { x: amx, y: amy } };
+      S.setSpellMenu({ points: [{ x: amx, y: amy }], cx: e.clientX, cy: e.clientY, mode: 'area' });
+      e.preventDefault(); return;
+    }
+    // Click to confirm pending area spell placement
+    if (e.button === 0 && R.rAreaPlacementPending.current && R.rDrawTool.current === 'shape' && !e.shiftKey && !e.altKey && !e.ctrlKey) {
+      const { mx: pmx, my: pmy } = mc(e);
+      const { type, origin } = R.rAreaPlacementPending.current;
+      const sp = { id: Date.now().toString(), type, points: [origin, { x: pmx, y: pmy }], startTime: performance.now() };
+      const ns = [...R.rActiveSpells.current, sp];
+      R.rActiveSpells.current = ns; S.setActiveSpells(ns);
+      R.bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
+      R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
       e.preventDefault(); return;
     }
     if (e.button !== 0) return;
@@ -239,9 +249,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.rSpellPreview.current = { mode: 'line', start: R.spellLineStartRef.current, end: { x: mx, y: my } };
       return;
     }
-    // Update spell area preview center
-    if (R.isSpellAreaDrawingRef.current && R.spellAreaOriginRef.current) {
-      R.rSpellPreview.current = { mode: 'area', origin: R.spellAreaOriginRef.current, center: { x: mx, y: my } };
+    // Update area placement preview center
+    if (R.rAreaPlacementPending.current) {
+      const pend = R.rAreaPlacementPending.current;
+      R.rSpellPreview.current = { mode: 'area_place', origin: pend.origin, center: { x: mx, y: my }, spellType: pend.type };
       return;
     }
 
@@ -314,28 +325,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     setGridCalibrating: (v: boolean) => void,
   ) => {
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
-
-    // Finalize area spell drag
-    if (R.isSpellAreaDrawingRef.current) {
-      R.isSpellAreaDrawingRef.current = false;
-      const preview = R.rSpellPreview.current;
-      R.rSpellPreview.current = null;
-      R.spellAreaOriginRef.current = null;
-      if (preview && preview.mode === 'area') {
-        const canvas5 = R.canvasRef.current!;
-        const r5 = canvas5.getBoundingClientRect();
-        const media5 = R.mediaRef.current;
-        let mw5 = 1920, mh5 = 1080;
-        if (media5?.tagName === 'IMG' && (media5 as HTMLImageElement).naturalWidth) { mw5 = (media5 as HTMLImageElement).naturalWidth; mh5 = (media5 as HTMLImageElement).naturalHeight; }
-        if (media5?.tagName === 'VIDEO' && (media5 as HTMLVideoElement).videoWidth) { mw5 = (media5 as HTMLVideoElement).videoWidth; mh5 = (media5 as HTMLVideoElement).videoHeight; }
-        const sc5 = Math.min(r5.width / mw5, r5.height / mh5) * R.rZoom.current;
-        const pan5 = R.rPanOffset.current;
-        const ox5 = (r5.width - mw5 * sc5) / 2 + pan5.x, oy5 = (r5.height - mh5 * sc5) / 2 + pan5.y;
-        const cxS = r5.left + ox5 + preview.center.x * sc5, cyS = r5.top + oy5 + preview.center.y * sc5;
-        S.setSpellMenu({ points: [preview.origin, preview.center], cx: cxS, cy: cyS, mode: 'area' });
-      }
-      return;
-    }
 
     // Finalize straight-line spell
     if (R.isSpellLineDrawingRef.current) {

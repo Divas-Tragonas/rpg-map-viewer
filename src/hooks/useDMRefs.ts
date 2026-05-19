@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import type {
   MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
-  Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview,
+  Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
 } from '@/types';
 import type { CinematicTimeline } from '@/lib/cinematic';
 
@@ -101,9 +101,8 @@ export function useDMRefs() {
   // Spell drawing refs
   const isSpellLineDrawingRef  = useRef(false);
   const spellLineStartRef      = useRef<Point | null>(null);
-  const isSpellAreaDrawingRef  = useRef(false);
-  const spellAreaOriginRef     = useRef<Point | null>(null);
   const rSpellPreview          = useRef<SpellPreview | null>(null);
+  const rAreaPlacementPending  = useRef<AreaSpellPending | null>(null);
 
   // Cinematic refs
   const cinematicActiveRef   = useRef(false);
@@ -133,7 +132,7 @@ export function useDMRefs() {
     zoneDragRef, defeatedAnimRef, ctrlHeldRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
     rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
-    isSpellLineDrawingRef, spellLineStartRef, isSpellAreaDrawingRef, spellAreaOriginRef, rSpellPreview,
+    isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
     cinematicOrigZoomRef, cinematicOrigPanRef,
     cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,

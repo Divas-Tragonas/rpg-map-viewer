@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, BC_CHANNEL, WAND_CURSOR } from '@/constants';
+import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -209,8 +209,8 @@ export function DMView() {
   // ── Mouse handlers ────────────────────────────────────────────────────────
   const mouseSetters = useMemo(() => ({
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
-    setPaintedZones, setContextMenu, setZonesLocked, setCanUndo, setDmPrivateActive,
-    setCanvasCursor,
+    setActiveSpells, setPaintedZones, setContextMenu, setZonesLocked, setCanUndo,
+    setDmPrivateActive, setCanvasCursor,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu } =
@@ -605,7 +605,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.12</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.13</div>
             </div>
           </div>
         )}
@@ -614,7 +614,16 @@ export function DMView() {
       {/* ── Overlays ──────────────────────────────────────────────────────── */}
       <SpellMenuOverlay
         spellMenu={spellMenu} onClose={() => setSpellMenu(null)}
-        onAddSpell={(type) => addSpell(type, spellMenu?.points ?? [], setSpellMenu)}
+        onAddSpell={(type) => {
+          if (AREA_SPELL_DATA[type] && spellMenu?.points?.[0]) {
+            const origin = spellMenu.points[0];
+            R.rAreaPlacementPending.current = { type: type as import('@/types').SpellType, origin };
+            R.rSpellPreview.current = { mode: 'area_place', origin, center: origin, spellType: type };
+            setSpellMenu(null);
+          } else {
+            addSpell(type, spellMenu?.points ?? [], setSpellMenu);
+          }
+        }}
       />
       <ShapeMenuOverlay
         shapeMenu={shapeMenu} onClose={() => setShapeMenu(null)}

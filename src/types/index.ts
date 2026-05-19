@@ -98,7 +98,12 @@ export interface Spell {
 
 export type SpellPreview =
   | { mode: 'line'; start: Point; end: Point }
-  | { mode: 'area'; origin: Point; center: Point };
+  | { mode: 'area_place'; origin: Point; center: Point; spellType: string };
+
+export interface AreaSpellPending {
+  type: SpellType;
+  origin: Point;
+}
 
 export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer';
 
