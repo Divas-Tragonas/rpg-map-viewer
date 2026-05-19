@@ -101,7 +101,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
       const pl = R.rPlayers.current[i];
       const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
-      if (Math.hypot(mx - (ppos.x + 22), my - (ppos.y + 22)) <= 26) {
+      const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
+      if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
         R.dragRef.current = { id: `pl_${pl.id}`, ox: mx - ppos.x, oy: my - ppos.y };
         S.setActiveDrag(`pl_${pl.id}`); S.setSelectedToken(`pl_${pl.id}`); R.rSelectedToken.current = `pl_${pl.id}`; S.setCanvasCursor('grabbing');
         e.preventDefault(); return;
@@ -396,7 +397,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
       const pl = R.rPlayers.current[i];
       const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
-      if (Math.hypot(mx - (ppos.x + 22), my - (ppos.y + 22)) <= 26) {
+      const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
+      if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
         S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY }); return;
       }
     }

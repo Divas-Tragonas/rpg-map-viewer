@@ -100,6 +100,8 @@ export function PlayerView() {
   const [expositorType, setExpositorType] = useState<'image' | 'video' | null>(null);
   const expositorObjectUrl = useRef<string | null>(null);
   const expositorInnerRef = useRef<HTMLDivElement | null>(null);
+  const expTgt = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
+  const expCur = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
 
   const _loadBgFromUrl = useCallback((url: string, mimeType: string, withFade: boolean) => {
     const stage = stageRef.current; if (!stage) return;
@@ -527,12 +529,13 @@ export function PlayerView() {
       } else if (msg.type === 'EXPOSITOR_HIDE') {
         setExpositorVisible(false);
       } else if (msg.type === 'EXPOSITOR_SYNC') {
-        if (expositorInnerRef.current) {
-          const panX = msg.panXNorm * window.innerWidth;
-          const panY = msg.panYNorm * window.innerHeight;
-          expositorInnerRef.current.style.transform =
-            `translate(calc(-50% + ${panX}px), calc(-50% + ${panY}px)) scale(${msg.zoom}) translate(${msg.kbTxPct}%, ${msg.kbTyPct}%)`;
-        }
+        expTgt.current = {
+          zoom: msg.zoom,
+          panX: msg.panXNorm * window.innerWidth,
+          panY: msg.panYNorm * window.innerHeight,
+          kbTx: msg.kbTxPct,
+          kbTy: msg.kbTyPct,
+        };
       }
     };
 
@@ -664,6 +667,19 @@ export function PlayerView() {
             cpDraw(pCtx);
           }
         }
+      }
+
+      // Expositor smooth LERP
+      if (expositorInnerRef.current) {
+        const tgt = expTgt.current, cur = expCur.current;
+        const EL = 0.1;
+        cur.zoom += (tgt.zoom - cur.zoom) * EL;
+        cur.panX += (tgt.panX - cur.panX) * EL;
+        cur.panY += (tgt.panY - cur.panY) * EL;
+        cur.kbTx += (tgt.kbTx - cur.kbTx) * EL;
+        cur.kbTy += (tgt.kbTy - cur.kbTy) * EL;
+        expositorInnerRef.current.style.transform =
+          `translate(calc(-50% + ${cur.panX}px), calc(-50% + ${cur.panY}px)) scale(${cur.zoom}) translate(${cur.kbTx}%, ${cur.kbTy}%)`;
       }
     };
 

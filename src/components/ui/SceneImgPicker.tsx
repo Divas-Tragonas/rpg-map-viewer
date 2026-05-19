@@ -23,6 +23,11 @@ export function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }: SceneImgP
     const img = new Image();
     img.onload = () => setCustom({ url, imgEl: img });
     img.src = url;
+    if (file.type === 'image/gif') {
+      const reader = new FileReader();
+      reader.onload = ev => { (img as HTMLImageElement & { _rawDataUrl?: string })._rawDataUrl = ev.target?.result as string; };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
