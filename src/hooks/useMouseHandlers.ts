@@ -71,8 +71,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setDmPrivateActive(true);
       e.preventDefault(); return;
     }
-    // Ctrl + left click = shared pan (DM + Player), only in pointer mode
-    if (e.button === 0 && e.ctrlKey && !e.shiftKey && !R.rShiftHeld.current) {
+    // Ctrl + left click = shared pan (DM + Player), only in pointer mode and NOT over a zone
+    if (e.button === 0 && e.ctrlKey && !e.shiftKey && !R.rShiftHeld.current && !R.rHoveredZone.current) {
       const t = R.rDrawTool.current;
       if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };

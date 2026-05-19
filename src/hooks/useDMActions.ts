@@ -113,6 +113,15 @@ export function useDMActions(R: DMRefs, S: Setters) {
     (el as HTMLImageElement).src = url;
     stage.appendChild(el);
     (mediaRef as React.MutableRefObject<HTMLImageElement | HTMLVideoElement | null>).current = el;
+    // Resize draw canvas to match BG dimensions
+    const resizeDrawCanvas = () => {
+      const oc = drawCanvasRef.current; if (!oc) return;
+      const w = isVid ? (el as HTMLVideoElement).videoWidth : (el as HTMLImageElement).naturalWidth;
+      const h = isVid ? (el as HTMLVideoElement).videoHeight : (el as HTMLImageElement).naturalHeight;
+      if (w > 1 && h > 1 && (oc.width !== w || oc.height !== h)) { oc.width = w; oc.height = h; }
+    };
+    if (isVid) { (el as HTMLVideoElement).addEventListener('loadedmetadata', resizeDrawCanvas, { once: true }); }
+    else { (el as HTMLImageElement).addEventListener('load', resizeDrawCanvas, { once: true }); }
     S.setBgLoaded(true); S.setBgName(file.name);
     _broadcastState({});
     bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: file.type, withFade: true });
