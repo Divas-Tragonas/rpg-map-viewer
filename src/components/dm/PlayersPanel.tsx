@@ -31,7 +31,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
           style={{ flex: 1, minWidth: 0, background: '#0d1117', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 6px', color: C.text, fontSize: 11, outline: 'none' }} />
         <input type="number" min={1} max={999} value={newPHpMax} onChange={e => setNewPHpMax(parseInt(e.target.value) || 20)}
           title="HP màxims"
-          style={{ width: 36, background: '#0d1117', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 3px', color: '#56d364', fontSize: 11, outline: 'none', textAlign: 'center' }} />
+          style={{ width: 36, background: '#0d1117', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 3px', color: C.hpHigh, fontSize: 11, outline: 'none', textAlign: 'center' }} />
         <button onClick={onAdd}
           style={{ padding: '3px 5px', borderRadius: 4, border: 'none', background: C.accent, cursor: 'pointer', color: '#0d1117', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <UserPlus size={10} />
@@ -47,7 +47,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
         {players.map(pl => {
           const hp = pl.hp ?? pl.hpMax;
           const ratio = pl.hpMax > 0 ? Math.max(0, hp / pl.hpMax) : 1;
-          const hpCol = ratio > 0.5 ? '#56d364' : ratio > 0.25 ? '#e3b341' : '#f85149';
+          const hpCol = ratio > 0.5 ? C.hpHigh : ratio > 0.25 ? C.hpMid : C.enemy;
           return (
             <div key={pl.id} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: '5px 6px', border: '1px solid rgba(255,255,255,0.07)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
@@ -62,7 +62,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
                 <span style={{ flex: 1, textAlign: 'center', fontSize: 10, color: hpCol, fontWeight: 700 }}>{hp}/{pl.hpMax}</span>
                 <button onClick={() => onAdjustHp(pl.id, 1)} onContextMenu={e => { e.preventDefault(); onAdjustHp(pl.id, 10); }}
                   title="+1 HP (clic dret +10)"
-                  style={{ width: 18, height: 18, borderRadius: 3, border: '1px solid rgba(86,211,100,0.4)', background: 'rgba(86,211,100,0.1)', cursor: 'pointer', color: '#56d364', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+</button>
+                  style={{ width: 18, height: 18, borderRadius: 3, border: `1px solid ${C.hpHigh}66`, background: `${C.hpHigh}1a`, cursor: 'pointer', color: C.hpHigh, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+</button>
               </div>
             </div>
           );

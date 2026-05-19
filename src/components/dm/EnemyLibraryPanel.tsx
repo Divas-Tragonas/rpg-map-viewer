@@ -46,7 +46,7 @@ export function EnemyLibraryPanel({ libEnemies, defeated, onAddEnemy, onRemove, 
             {libEnemies.map(en => {
               const hp = en.hp ?? en.hpMax;
               const hpRatio = en.hpMax > 0 ? Math.max(0, hp / en.hpMax) : 0;
-              const hpColor = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+              const hpColor = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
               const isDefeated = !!defeated[`lib_${en.id}`];
               return (
                 <div key={en.id} style={{

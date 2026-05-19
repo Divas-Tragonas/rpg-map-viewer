@@ -1,6 +1,5 @@
 import type { FrameContext } from './types';
-import { TOKEN_LERP } from '@/constants';
-import { CONDITIONS_BY_ID } from '@/constants';
+import { TOKEN_LERP, CONDITIONS_BY_ID, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
 
 const _tokenImgCache = new Map<string, HTMLImageElement>();
@@ -128,7 +127,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       const barX = ep.x - R, barY = ep.y + R + 16 / sc;
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+      ctx.fillStyle = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
       ctx.fillRect(barX, barY, barW * hpRatio, barH);
       const barFontSize = Math.max(9 / sc, barH * 0.62);
       ctx.font = `bold ${barFontSize}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -154,7 +153,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 
     if (isDefeated && showStates && (isDM || crossProg > 0)) {
       const cr = R * 0.82;
-      ctx.save(); ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
+      ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
       if (isDM) {
         ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke();
@@ -311,7 +310,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       const barW = R * 2, barH = Math.max(13 / sc, R * 0.35);
       const barX = ep.x - R, barY = ep.y + R + 16 / sc;
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+      ctx.fillStyle = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
       ctx.fillRect(barX, barY, barW * hpRatio, barH);
       const barFontSize = Math.max(9 / sc, barH * 0.62);
       ctx.font = `bold ${barFontSize}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -322,7 +321,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     if (isDefeated && showStates && (isDM || crossProg > 0)) {
       const cr = R * 0.82;
-      ctx.save(); ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
+      ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
       if (isDM) {
         ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke();
@@ -401,7 +400,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       const hp = pl.hp ?? pl.hpMax, hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
       const barW = R * 2, barH = 5 / sc, barX = ppos.x, barY = ppos.y + R * 2 + 18 / sc;
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = hpRatio > 0.5 ? '#56d364' : hpRatio > 0.25 ? '#e3b341' : '#f85149';
+      ctx.fillStyle = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
       ctx.fillRect(barX, barY, barW * hpRatio, barH);
       ctx.font = `bold ${9 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#e6edf3';
       ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH + 9 / sc); ctx.textAlign = 'left';

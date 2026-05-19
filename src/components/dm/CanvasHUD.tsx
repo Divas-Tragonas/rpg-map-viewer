@@ -49,13 +49,13 @@ export function CanvasHUD({ dmPrivateActive, struct, vis, zonesLocked, enemyHigh
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <button onClick={onToggleEnemyHighlight}
               title={`Resaltar enemigos${highlightLocked ? ' (bloqueado ∞)' : ' (3.5s)'}`}
-              style={{ background: enemyHighlight ? 'rgba(255,210,0,.18)' : 'rgba(10,13,18,.92)', border: enemyHighlight ? '1px solid #ffd200' : `1px solid ${C.border}`, borderRadius: '6px 0 0 6px', padding: '5px 8px', cursor: 'pointer', color: enemyHighlight ? '#ffd200' : C.dim, display: 'flex', alignItems: 'center', gap: 4, boxShadow: enemyHighlight ? '0 0 10px rgba(255,210,0,.25)' : 'none', transition: 'all 0.2s' }}>
+              style={{ background: enemyHighlight ? `${C.enemyHL}2e` : 'rgba(10,13,18,.92)', border: enemyHighlight ? `1px solid ${C.enemyHL}` : `1px solid ${C.border}`, borderRadius: '6px 0 0 6px', padding: '5px 8px', cursor: 'pointer', color: enemyHighlight ? C.enemyHL : C.dim, display: 'flex', alignItems: 'center', gap: 4, boxShadow: enemyHighlight ? `0 0 10px ${C.enemyHL}40` : 'none', transition: 'all 0.2s' }}>
               <TargetIcon size={11} />
               <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>Resaltar</span>
             </button>
             <button onClick={onToggleHighlightLocked}
               title={highlightLocked ? 'Bloqueado permanente' : 'Timer 3.5s'}
-              style={{ background: highlightLocked ? 'rgba(255,210,0,.18)' : 'rgba(10,13,18,.92)', border: highlightLocked ? '1px solid #ffd200' : `1px solid ${C.border}`, borderLeft: 'none', borderRadius: '0 6px 6px 0', padding: '5px 6px', cursor: 'pointer', color: highlightLocked ? '#ffd200' : C.dim, display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
+              style={{ background: highlightLocked ? `${C.enemyHL}2e` : 'rgba(10,13,18,.92)', border: highlightLocked ? `1px solid ${C.enemyHL}` : `1px solid ${C.border}`, borderLeft: 'none', borderRadius: '0 6px 6px 0', padding: '5px 6px', cursor: 'pointer', color: highlightLocked ? C.enemyHL : C.dim, display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
               {highlightLocked ? <LockIcon size={10} /> : <UnlockIcon size={10} />}
             </button>
           </div>

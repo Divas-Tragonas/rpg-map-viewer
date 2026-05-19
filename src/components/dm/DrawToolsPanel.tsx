@@ -52,7 +52,7 @@ export function DrawToolsPanel({ drawTool, drawColor, setDrawColor, drawSize, se
         </button>
         {paintedZones.length > 0 && (
           <button onClick={onClearPaintedZones} title="Esborrar zones màgiques"
-            style={{ padding: '5px 5px', borderRadius: 5, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.08)', cursor: 'pointer', color: '#a855f7', fontSize: 9, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            style={{ padding: '5px 5px', borderRadius: 5, border: `1px solid ${C.magic}66`, background: `${C.magic}14`, cursor: 'pointer', color: C.magic, fontSize: 9, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             ✨{paintedZones.length}
           </button>
         )}

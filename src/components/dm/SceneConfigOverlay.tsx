@@ -43,9 +43,9 @@ export function SceneConfigOverlay({
   }
 
   return (
-    <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(sceneConfigMenu.menuX, window.innerWidth - 250), top: Math.min(sceneConfigMenu.menuY, window.innerHeight - 220), background: C.panel, border: '1px solid rgba(168,85,247,.45)', borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: 240, overflow: 'hidden' }}>
+    <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(sceneConfigMenu.menuX, window.innerWidth - 250), top: Math.min(sceneConfigMenu.menuY, window.innerHeight - 220), background: C.panel, border: `1px solid ${C.magic}72`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: 240, overflow: 'hidden' }}>
       <div style={{ padding: '8px 12px 6px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ color: '#c084fc', fontWeight: 700, fontSize: 12 }}>⚡ {_scName}</span>
+        <span style={{ color: C.magicBright, fontWeight: 700, fontSize: 12 }}>⚡ {_scName}</span>
         <button onMouseDown={e => { e.stopPropagation(); onClose(); }}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: '2px', display: 'flex', alignItems: 'center' }}>
           <X size={12} />

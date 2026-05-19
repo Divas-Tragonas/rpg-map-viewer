@@ -53,7 +53,7 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, ps
             <>
               {(zone.directEnemies || zone.enemies).map(en => {
                 const ov = psdEnemyOverrides[en.id]; const hm = ov?.hpMax || 0; const hp = hm > 0 ? Math.max(0, ov?.hp ?? hm) : 0;
-                const hr = hm > 0 ? hp / hm : 0; const hc = hr > 0.5 ? '#56d364' : hr > 0.25 ? '#e3b341' : '#f85149';
+                const hr = hm > 0 ? hp / hm : 0; const hc = hr > 0.5 ? C.hpHigh : hr > 0.25 ? C.hpMid : C.enemy;
                 const isDefeated = !!defeated[String(en.id)];
                 return (
                   <div key={en.id}>
@@ -86,7 +86,7 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, ps
                   </button>
                   {expanded[sg.id] && sg.enemies.map(en => {
                     const ov2 = psdEnemyOverrides[en.id]; const hm2 = ov2?.hpMax || 0; const hp2 = hm2 > 0 ? Math.max(0, ov2?.hp ?? hm2) : 0;
-                    const hr2 = hm2 > 0 ? hp2 / hm2 : 0; const hc2 = hr2 > 0.5 ? '#56d364' : hr2 > 0.25 ? '#e3b341' : '#f85149';
+                    const hr2 = hm2 > 0 ? hp2 / hm2 : 0; const hc2 = hr2 > 0.5 ? C.hpHigh : hr2 > 0.25 ? C.hpMid : C.enemy;
                     const isDefeated2 = !!defeated[String(en.id)];
                     return (
                       <div key={en.id}>

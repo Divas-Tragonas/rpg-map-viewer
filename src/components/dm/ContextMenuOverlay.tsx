@@ -71,7 +71,7 @@ export function ContextMenuOverlay({
                 if (!nd[id]) delete defeatedAnimRef.current[id];
                 rDefeated.current = nd; setDefeated({ ...nd }); onBroadcast();
               }}
-              style={{ background: defeated[id] ? 'rgba(239,68,68,.25)' : 'rgba(239,68,68,.08)', border: `1px solid ${defeated[id] ? '#ef4444' : 'rgba(239,68,68,.3)'}`, borderRadius: 4, padding: '2px 7px', cursor: 'pointer', color: defeated[id] ? '#ef4444' : '#f87171', fontSize: 10, fontWeight: 700 }}>
+              style={{ background: defeated[id] ? `${C.enemy}40` : `${C.enemy}14`, border: `1px solid ${defeated[id] ? C.enemy : `${C.enemy}4d`}`, borderRadius: 4, padding: '2px 7px', cursor: 'pointer', color: C.enemy, fontSize: 10, fontWeight: 700 }}>
               {defeated[id] ? '✕ Derrotado' : '✕'}
             </button>
           )}
@@ -154,7 +154,7 @@ export function ContextMenuOverlay({
             if (!_le) return null;
             const _lhp = _le.hp ?? _le.hpMax;
             const _lhr = _le.hpMax > 0 ? Math.max(0, _lhp / _le.hpMax) : 0;
-            const _lhc = _lhr > 0.5 ? '#56d364' : _lhr > 0.25 ? '#e3b341' : '#f85149';
+            const _lhc = _lhr > 0.5 ? C.hpHigh : _lhr > 0.25 ? C.hpMid : C.enemy;
             return (
               <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 5 }}>
@@ -182,7 +182,7 @@ export function ContextMenuOverlay({
             if (_hm <= 0) return null;
             const _hp = Math.max(0, _pov.hp ?? _hm);
             const _hr = _hm > 0 ? _hp / _hm : 0;
-            const _hc = _hr > 0.5 ? '#56d364' : _hr > 0.25 ? '#e3b341' : '#f85149';
+            const _hc = _hr > 0.5 ? C.hpHigh : _hr > 0.25 ? C.hpMid : C.enemy;
             return (
               <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -206,7 +206,7 @@ export function ContextMenuOverlay({
             if (!_pl || !_pl.hpMax) return null;
             const _php = _pl.hp ?? _pl.hpMax;
             const _phr = _pl.hpMax > 0 ? Math.max(0, _php / _pl.hpMax) : 0;
-            const _phc = _phr > 0.5 ? '#56d364' : _phr > 0.25 ? '#e3b341' : '#f85149';
+            const _phc = _phr > 0.5 ? C.hpHigh : _phr > 0.25 ? C.hpMid : C.enemy;
             return (
               <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -239,7 +239,7 @@ export function ContextMenuOverlay({
               }
               onOpenSceneConfig();
             }}
-              style={{ width: '100%', padding: '6px', background: 'rgba(168,85,247,.12)', border: '1px solid rgba(168,85,247,.35)', borderRadius: 5, color: '#c084fc', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+              style={{ width: '100%', padding: '6px', background: `${C.magic}1e`, border: `1px solid ${C.magic}59`, borderRadius: 5, color: C.magicBright, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
               ⚡ Cinematica
             </button>
           </div>
