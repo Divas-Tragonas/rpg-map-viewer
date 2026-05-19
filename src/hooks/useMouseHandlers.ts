@@ -65,6 +65,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setDmPrivateActive(true);
       e.preventDefault(); return;
     }
+    // Ctrl + left click = shared pan (DM + Player), only in pointer mode
+    if (e.button === 0 && e.ctrlKey && !e.shiftKey && !R.rShiftHeld.current) {
+      const t = R.rDrawTool.current;
+      if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
+        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
+        e.preventDefault(); return;
+      }
+    }
     // Alt + click = pick origin + open area spell menu
     if (e.button === 0 && e.altKey && R.rDrawTool.current === 'shape') {
       const { mx: amx, my: amy } = mc(e);
@@ -170,7 +178,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     // Update screen-space cursor even during pan
-    if (R.rDrawTool.current === 'pen' || R.rDrawTool.current === 'eraser') {
+    if (R.rDrawTool.current === 'pen' || R.rDrawTool.current === 'eraser' || R.rDrawTool.current === 'shape') {
       const rect0 = R.canvasRef.current!.getBoundingClientRect();
       R.rCursorScreenPos.current = { x: e.clientX - rect0.left, y: e.clientY - rect0.top };
     }
@@ -221,7 +229,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
     }
 
-    if (tool === 'pen' || tool === 'eraser') {
+    if (tool === 'pen' || tool === 'eraser' || tool === 'shape') {
       const rect2 = R.canvasRef.current!.getBoundingClientRect();
       R.rCursorScreenPos.current = { x: e.clientX - rect2.left, y: e.clientY - rect2.top };
     }

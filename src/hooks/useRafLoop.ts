@@ -204,6 +204,24 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
           ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
+        if (tool === 'shape' && R.rCursorScreenPos.current) {
+          const { x: cx, y: cy } = R.rCursorScreenPos.current;
+          const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
+          ctx.save();
+          ctx.strokeStyle = `rgba(168,85,247,${0.12 + 0.08 * pulse})`; ctx.lineWidth = 12;
+          ctx.beginPath(); ctx.arc(cx, cy, 26 + 6 * pulse, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = `rgba(168,85,247,${0.60 + 0.30 * pulse})`; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(cx, cy, 13 + 3 * pulse, 0, Math.PI * 2); ctx.stroke();
+          const ch = 13;
+          ctx.strokeStyle = `rgba(192,132,252,0.85)`; ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(cx - ch, cy); ctx.lineTo(cx - 5, cy); ctx.moveTo(cx + 5, cy); ctx.lineTo(cx + ch, cy);
+          ctx.moveTo(cx, cy - ch); ctx.lineTo(cx, cy - 5); ctx.moveTo(cx, cy + 5); ctx.lineTo(cx, cy + ch);
+          ctx.stroke();
+          ctx.fillStyle = `rgba(192,132,252,${0.9 + 0.1 * pulse})`;
+          ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
       }
 
       // Cinematic tick

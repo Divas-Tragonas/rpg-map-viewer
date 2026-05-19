@@ -673,7 +673,7 @@ export function PlayerView() {
       // Expositor smooth LERP
       if (expositorInnerRef.current) {
         const tgt = expTgt.current, cur = expCur.current;
-        const EL = 0.1;
+        const EL = 0.028;
         cur.zoom += (tgt.zoom - cur.zoom) * EL;
         cur.panX += (tgt.panX - cur.panX) * EL;
         cur.panY += (tgt.panY - cur.panY) * EL;
