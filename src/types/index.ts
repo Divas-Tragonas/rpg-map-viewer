@@ -98,7 +98,7 @@ export interface Spell {
 
 export type SpellPreview =
   | { mode: 'line'; start: Point; end: Point }
-  | { mode: 'area'; center: Point };
+  | { mode: 'area'; origin: Point; center: Point };
 
 export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer';
 

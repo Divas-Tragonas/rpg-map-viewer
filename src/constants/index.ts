@@ -72,6 +72,12 @@ export const SPELL_TYPES = [
   { type: 'grease',            emoji: '🫙', color: '#a3e635', title: 'Grasa',            mode: 'area' },
 ] as const;
 
+// Area spell rules: AoE radius and max cast range in feet (1 square = 5ft)
+export const AREA_SPELL_DATA: Record<string, { aoeRadiusFt: number; rangeFt: number; color: string; emoji: string }> = {
+  sleep:  { aoeRadiusFt: 20, rangeFt: 90,  color: '#818cf8', emoji: '💤' },
+  grease: { aoeRadiusFt: 10, rangeFt: 60,  color: '#a3e635', emoji: '🫙' },
+};
+
 export const C = {
   bg:     '#0d1117',
   panel:  '#161b22',

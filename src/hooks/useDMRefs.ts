@@ -99,9 +99,11 @@ export function useDMRefs() {
   const zoneAppearRef     = useRef<Record<string, number>>({});
 
   // Spell drawing refs
-  const isSpellLineDrawingRef = useRef(false);
-  const spellLineStartRef     = useRef<Point | null>(null);
-  const rSpellPreview         = useRef<SpellPreview | null>(null);
+  const isSpellLineDrawingRef  = useRef(false);
+  const spellLineStartRef      = useRef<Point | null>(null);
+  const isSpellAreaDrawingRef  = useRef(false);
+  const spellAreaOriginRef     = useRef<Point | null>(null);
+  const rSpellPreview          = useRef<SpellPreview | null>(null);
 
   // Cinematic refs
   const cinematicActiveRef   = useRef(false);
@@ -131,7 +133,7 @@ export function useDMRefs() {
     zoneDragRef, defeatedAnimRef, ctrlHeldRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
     rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
-    isSpellLineDrawingRef, spellLineStartRef, rSpellPreview,
+    isSpellLineDrawingRef, spellLineStartRef, isSpellAreaDrawingRef, spellAreaOriginRef, rSpellPreview,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
     cinematicOrigZoomRef, cinematicOrigPanRef,
     cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,

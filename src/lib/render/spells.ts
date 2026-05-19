@@ -1,6 +1,7 @@
 import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
 import { pathAt } from '@/lib/geometry';
+import { AREA_SPELL_DATA, SPELL_TYPES } from '@/constants';
 
 const SPELL_DURATIONS: Record<string, number> = {
   fireball:         2.8,
@@ -12,6 +13,11 @@ const SPELL_DURATIONS: Record<string, number> = {
   sleep:            3.0,
   grease:           3.5,
 };
+
+// Convert feet to world units: N ft → N/5 squares × gridSize px
+function ftToWorld(ft: number, gridSize: number): number {
+  return (ft / 5) * gridSize;
+}
 
 export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number): void {
   ctx.save();
@@ -95,18 +101,14 @@ export function drawSpellMagicBeam(ctx: CanvasRenderingContext2D, pts: Point[], 
   ctx.globalAlpha = 1; ctx.restore();
 }
 
-// --- NEW SPELLS ---
-
 export function drawSpellMagicMissile(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number): void {
   if (pts.length < 2) return;
   ctx.save();
   const [A, B] = [pts[0], pts[1]];
   const TRAVEL = dur * 0.65, IMPACT = dur - TRAVEL;
-
   if (elapsed <= TRAVEL) {
     const t = elapsed / TRAVEL;
     const pos = { x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t };
-    // Trail
     for (let i = 5; i >= 1; i--) {
       const tt = Math.max(0, t - 0.06 * i);
       const tp = { x: A.x + (B.x - A.x) * tt, y: A.y + (B.y - A.y) * tt };
@@ -114,15 +116,13 @@ export function drawSpellMagicMissile(ctx: CanvasRenderingContext2D, pts: Point[
       ctx.fillStyle = '#c084fc';
       ctx.beginPath(); ctx.arc(tp.x, tp.y, (2 + 4 * (1 - i / 6)) / sc, 0, Math.PI * 2); ctx.fill();
     }
-    // Core
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 10 / sc; ctx.shadowColor = '#c084fc';
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(pos.x, pos.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
   } else {
-    const imp = (elapsed - TRAVEL) / IMPACT;
-    const fade = Math.max(0, 1 - imp);
+    const imp = (elapsed - TRAVEL) / IMPACT, fade = Math.max(0, 1 - imp);
     const armLen = (20 * Math.min(1, imp * 3)) / sc;
     ctx.globalAlpha = fade; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 / sc; ctx.lineCap = 'round';
     for (let a = 0; a < 4; a++) {
@@ -144,31 +144,24 @@ export function drawSpellHideousLaughter(ctx: CanvasRenderingContext2D, pts: Poi
   const tN = performance.now();
   const dx = B.x - A.x, dy = B.y - A.y;
   const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len, ny = dx / len; // normal perpendicular
-
+  const nx = -dy / len, ny = dx / len;
   if (elapsed <= TRAVEL) {
     const t = elapsed / TRAVEL;
     const pos = { x: A.x + dx * t, y: A.y + dy * t };
-    // Zigzag beam up to current pos
     const steps = Math.max(2, Math.floor(t * 12));
     ctx.globalAlpha = 0.8; ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2.5 / sc; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(A.x, A.y);
+    ctx.beginPath(); ctx.moveTo(A.x, A.y);
     for (let i = 1; i <= steps; i++) {
       const st = i / steps * t;
       const px = A.x + dx * st, py = A.y + dy * st;
       const wobble = Math.sin(i * 2.7 + tN * 0.005) * 6 / sc;
       ctx.lineTo(px + nx * wobble, py + ny * wobble);
     }
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    // Head
+    ctx.lineTo(pos.x, pos.y); ctx.stroke();
     ctx.globalAlpha = 1; ctx.fillStyle = '#facc15';
     ctx.beginPath(); ctx.arc(pos.x, pos.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
   } else {
-    const imp = (elapsed - TRAVEL) / IMPACT;
-    const fade = Math.max(0, 1 - imp);
-    // 3 expanding rings
+    const imp = (elapsed - TRAVEL) / IMPACT, fade = Math.max(0, 1 - imp);
     for (let r = 0; r < 3; r++) {
       const rProgress = Math.min(1, (imp * 3 - r * 0.4));
       if (rProgress <= 0) continue;
@@ -187,84 +180,57 @@ export function drawSpellBurningHands(ctx: CanvasRenderingContext2D, pts: Point[
   const dx = B.x - A.x, dy = B.y - A.y;
   const range = Math.hypot(dx, dy);
   const angle = Math.atan2(dy, dx);
-  const HALF_ANGLE = Math.PI / 6; // 30° half-angle (60° total cone)
+  const HALF_ANGLE = Math.PI / 6;
   const tN = performance.now() / 1000;
-
   const APPEAR = dur * 0.20, FADE_START = dur * 0.70;
   const phase = elapsed < APPEAR ? elapsed / APPEAR : elapsed > FADE_START ? Math.max(0, 1 - (elapsed - FADE_START) / (dur - FADE_START)) : 1;
   if (phase < 0.01) { ctx.restore(); return; }
-
   const effectRange = range * phase;
-
-  // Cone fill
-  ctx.globalAlpha = 0.22 * phase;
-  ctx.fillStyle = '#ff6600';
-  ctx.beginPath();
-  ctx.moveTo(A.x, A.y);
+  ctx.globalAlpha = 0.22 * phase; ctx.fillStyle = '#ff6600';
+  ctx.beginPath(); ctx.moveTo(A.x, A.y);
   ctx.arc(A.x, A.y, effectRange, angle - HALF_ANGLE, angle + HALF_ANGLE);
-  ctx.closePath();
-  ctx.fill();
-
-  // Cone stroke
-  ctx.globalAlpha = 0.7 * phase;
-  ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 1.5 / sc;
-  ctx.beginPath();
-  ctx.moveTo(A.x, A.y);
+  ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.7 * phase; ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 1.5 / sc;
+  ctx.beginPath(); ctx.moveTo(A.x, A.y);
   ctx.arc(A.x, A.y, effectRange, angle - HALF_ANGLE, angle + HALF_ANGLE);
-  ctx.closePath();
-  ctx.stroke();
-
-  // 3 flame lines inside cone
+  ctx.closePath(); ctx.stroke();
   for (let f = 0; f < 3; f++) {
     const flameAngle = angle + (f - 1) * HALF_ANGLE * 0.6;
     const flicker = 0.7 + 0.3 * Math.sin(tN * 8 + f * 2.1);
-    const flameLen = effectRange * flicker;
-    ctx.globalAlpha = 0.55 * phase;
-    ctx.strokeStyle = f === 1 ? '#ffcc00' : '#ff6600';
-    ctx.lineWidth = (3 - f * 0.5) / sc;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(A.x, A.y);
-    ctx.lineTo(A.x + Math.cos(flameAngle) * flameLen, A.y + Math.sin(flameAngle) * flameLen);
+    ctx.globalAlpha = 0.55 * phase; ctx.strokeStyle = f === 1 ? '#ffcc00' : '#ff6600';
+    ctx.lineWidth = (3 - f * 0.5) / sc; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(A.x, A.y);
+    ctx.lineTo(A.x + Math.cos(flameAngle) * effectRange * flicker, A.y + Math.sin(flameAngle) * effectRange * flicker);
     ctx.stroke();
   }
   ctx.globalAlpha = 1; ctx.restore();
 }
 
 export function drawSpellSleep(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number): void {
-  if (pts.length < 1) return;
+  const center = pts[pts.length - 1]; if (!center) return;
   ctx.save();
-  const center = pts[0];
-  const areaRadius = Math.max(60, gridSize * 4) / sc;
+  const data = AREA_SPELL_DATA['sleep'];
+  const aoeRadius = ftToWorld(data.aoeRadiusFt, gridSize); // world units — scales with zoom
   const tN = performance.now() / 1000;
-
   const APPEAR = dur * 0.25, FADE_START = dur * 0.75;
   const alpha = elapsed < APPEAR ? elapsed / APPEAR : elapsed > FADE_START ? Math.max(0, 1 - (elapsed - FADE_START) / (dur - FADE_START)) : 1;
 
-  // Area fill
-  ctx.globalAlpha = 0.12 * alpha;
-  ctx.fillStyle = '#818cf8';
-  ctx.beginPath(); ctx.arc(center.x, center.y, areaRadius, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.12 * alpha; ctx.fillStyle = '#818cf8';
+  ctx.beginPath(); ctx.arc(center.x, center.y, aoeRadius, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.65 * alpha; ctx.strokeStyle = '#818cf8'; ctx.lineWidth = 1.5 / sc;
+  ctx.beginPath(); ctx.arc(center.x, center.y, aoeRadius, 0, Math.PI * 2); ctx.stroke();
 
-  // Area stroke
-  ctx.globalAlpha = 0.65 * alpha;
-  ctx.strokeStyle = '#818cf8'; ctx.lineWidth = 1.5 / sc;
-  ctx.beginPath(); ctx.arc(center.x, center.y, areaRadius, 0, Math.PI * 2); ctx.stroke();
-
-  // Inner pulse ring
   const pulse = 0.5 + 0.5 * Math.sin(tN * 2.5);
-  ctx.globalAlpha = 0.3 * alpha * pulse;
-  ctx.strokeStyle = '#c7d2fe'; ctx.lineWidth = 1 / sc;
-  ctx.beginPath(); ctx.arc(center.x, center.y, areaRadius * 0.6, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 0.3 * alpha * pulse; ctx.strokeStyle = '#c7d2fe'; ctx.lineWidth = 1 / sc;
+  ctx.beginPath(); ctx.arc(center.x, center.y, aoeRadius * 0.6, 0, Math.PI * 2); ctx.stroke();
 
-  // Zzz geometric: 3 small 'Z' rising, spaced by time offset
-  ctx.globalAlpha = 0.8 * alpha;
+  // Zzz rising glyphs
   ctx.strokeStyle = '#e0e7ff'; ctx.lineWidth = 1.2 / sc; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   for (let z = 0; z < 3; z++) {
     const zPhase = ((tN * 0.5 + z * 0.33) % 1);
     const zAlpha = zPhase < 0.7 ? zPhase / 0.7 : Math.max(0, 1 - (zPhase - 0.7) / 0.3);
     const zX = center.x + (z - 1) * 14 / sc;
-    const zY = center.y - (areaRadius * 0.3 + zPhase * areaRadius * 0.5);
+    const zY = center.y - (aoeRadius * 0.3 + zPhase * aoeRadius * 0.5);
     const zS = (4 + z * 1.5) / sc;
     ctx.globalAlpha = zAlpha * 0.75 * alpha;
     ctx.beginPath();
@@ -272,44 +238,45 @@ export function drawSpellSleep(ctx: CanvasRenderingContext2D, pts: Point[], elap
     ctx.lineTo(zX - zS, zY + zS); ctx.lineTo(zX + zS, zY + zS);
     ctx.stroke();
   }
+
+  // Ft label (first 1.5s)
+  if (elapsed < 1.5) {
+    const labelAlpha = Math.min(1, elapsed / 0.3) * Math.max(0, 1 - (elapsed - 1.0) / 0.5);
+    ctx.globalAlpha = labelAlpha * 0.9;
+    ctx.font = `bold ${12 / sc}px sans-serif`; ctx.fillStyle = '#c7d2fe'; ctx.textAlign = 'center';
+    ctx.fillText(`${data.aoeRadiusFt}ft`, center.x, center.y - aoeRadius - 6 / sc);
+  }
   ctx.globalAlpha = 1; ctx.restore();
 }
 
 export function drawSpellGrease(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number): void {
-  if (pts.length < 1) return;
+  const center = pts[pts.length - 1]; if (!center) return;
   ctx.save();
-  const center = pts[0];
-  const rx = Math.max(48, gridSize * 3) / sc;
-  const ry = rx * 0.55; // flattened oval
+  const data = AREA_SPELL_DATA['grease'];
+  const rx = ftToWorld(data.aoeRadiusFt, gridSize); // world units
+  const ry = rx * 0.55;
   const tN = performance.now() / 1000;
-
   const APPEAR = dur * 0.20, FADE_START = dur * 0.80;
   const alpha = elapsed < APPEAR ? elapsed / APPEAR : elapsed > FADE_START ? Math.max(0, 1 - (elapsed - FADE_START) / (dur - FADE_START)) : 1;
   const shimmer = 0.6 + 0.4 * Math.sin(tN * 3.7);
 
-  // Grease fill
-  ctx.globalAlpha = (0.18 + 0.10 * shimmer) * alpha;
-  ctx.fillStyle = '#d9f99d';
-  ctx.beginPath();
-  ctx.ellipse(center.x, center.y, rx, ry, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.globalAlpha = (0.18 + 0.10 * shimmer) * alpha; ctx.fillStyle = '#d9f99d';
+  ctx.beginPath(); ctx.ellipse(center.x, center.y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
 
-  // Dashed border
-  ctx.globalAlpha = 0.70 * alpha;
-  ctx.strokeStyle = '#a3e635'; ctx.lineWidth = 1.5 / sc;
+  ctx.globalAlpha = 0.70 * alpha; ctx.strokeStyle = '#a3e635'; ctx.lineWidth = 1.5 / sc;
   ctx.setLineDash([6 / sc, 4 / sc]);
-  ctx.beginPath();
-  ctx.ellipse(center.x, center.y, rx, ry, 0, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(center.x, center.y, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]);
 
-  // Inner highlight line (gloss effect)
-  ctx.globalAlpha = 0.35 * alpha * shimmer;
-  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
-  ctx.beginPath();
-  ctx.ellipse(center.x, center.y - ry * 0.25, rx * 0.55, ry * 0.2, 0, Math.PI, Math.PI * 2);
-  ctx.stroke();
+  ctx.globalAlpha = 0.35 * alpha * shimmer; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
+  ctx.beginPath(); ctx.ellipse(center.x, center.y - ry * 0.25, rx * 0.55, ry * 0.2, 0, Math.PI, Math.PI * 2); ctx.stroke();
 
+  if (elapsed < 1.5) {
+    const labelAlpha = Math.min(1, elapsed / 0.3) * Math.max(0, 1 - (elapsed - 1.0) / 0.5);
+    ctx.globalAlpha = labelAlpha * 0.9;
+    ctx.font = `bold ${12 / sc}px sans-serif`; ctx.fillStyle = '#d9f99d'; ctx.textAlign = 'center';
+    ctx.fillText(`${data.aoeRadiusFt}ft`, center.x, center.y - ry - 6 / sc);
+  }
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -317,24 +284,84 @@ export function drawSpellGrease(ctx: CanvasRenderingContext2D, pts: Point[], ela
 
 export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: SpellPreview, sc: number, gridSize: number): void {
   ctx.save();
-  ctx.setLineDash([6 / sc, 4 / sc]);
+
   if (preview.mode === 'line') {
     const { start, end } = preview;
+    ctx.setLineDash([6 / sc, 4 / sc]);
     ctx.globalAlpha = 0.55; ctx.strokeStyle = '#c084fc'; ctx.lineWidth = 1.5 / sc; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
     ctx.setLineDash([]);
     ctx.globalAlpha = 0.8; ctx.fillStyle = '#c084fc';
     ctx.beginPath(); ctx.arc(end.x, end.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(start.x, start.y, 3 / sc, 0, Math.PI * 2); ctx.fill();
+
   } else if (preview.mode === 'area') {
-    const { center } = preview;
-    const r = Math.max(60, gridSize * 4) / sc;
-    ctx.globalAlpha = 0.08; ctx.fillStyle = '#818cf8';
-    ctx.beginPath(); ctx.arc(center.x, center.y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.5; ctx.strokeStyle = '#818cf8'; ctx.lineWidth = 1.5 / sc;
-    ctx.beginPath(); ctx.arc(center.x, center.y, r, 0, Math.PI * 2); ctx.stroke();
+    const { origin, center } = preview;
+    const castDist = Math.hypot(center.x - origin.x, center.y - origin.y);
+
+    // Origin marker
+    ctx.globalAlpha = 0.85; ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.4; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 7 / sc, 0, Math.PI * 2); ctx.stroke();
+
+    // Cast line from origin to center
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
+    ctx.setLineDash([5 / sc, 4 / sc]);
+    ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(center.x, center.y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Range rings + AoE circles for each area spell
+    const spellEntries = Object.entries(AREA_SPELL_DATA);
+    spellEntries.forEach(([, data]) => {
+      const rangeWorld = ftToWorld(data.rangeFt, gridSize);
+      const aoeWorld   = data.aoeRadiusFt === 20
+        ? ftToWorld(data.aoeRadiusFt, gridSize)   // circle (Sleep)
+        : ftToWorld(data.aoeRadiusFt, gridSize);   // same for oval (Grease, uses as rx)
+
+      const inRange = castDist <= rangeWorld;
+      const ringColor = inRange ? data.color : '#ff6644';
+
+      // Range ring from origin
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = ringColor; ctx.lineWidth = 1 / sc;
+      ctx.setLineDash([8 / sc, 6 / sc]);
+      ctx.beginPath(); ctx.arc(origin.x, origin.y, rangeWorld, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // AoE preview at center
+      ctx.globalAlpha = inRange ? 0.12 : 0.06;
+      ctx.fillStyle = data.color;
+      if (data.aoeRadiusFt === 10) {
+        // Grease oval
+        ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = inRange ? 0.50 : 0.25;
+        ctx.strokeStyle = ringColor; ctx.lineWidth = 1.5 / sc;
+        ctx.setLineDash([5 / sc, 3 / sc]);
+        ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = inRange ? 0.50 : 0.25;
+        ctx.strokeStyle = ringColor; ctx.lineWidth = 1.5 / sc;
+        ctx.setLineDash([5 / sc, 3 / sc]);
+        ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      // Range label on the ring (right side)
+      ctx.globalAlpha = inRange ? 0.75 : 0.45;
+      ctx.font = `${10 / sc}px sans-serif`; ctx.fillStyle = ringColor; ctx.textAlign = 'left';
+      ctx.fillText(`${data.emoji} ${data.rangeFt}ft`, origin.x + rangeWorld + 4 / sc, origin.y);
+    });
+
+    // Cast distance label
+    const castFt = Math.round((castDist / gridSize) * 5);
+    ctx.globalAlpha = 0.7; ctx.fillStyle = '#ffffff';
+    ctx.font = `${10 / sc}px sans-serif`; ctx.textAlign = 'center';
+    const midX = (origin.x + center.x) / 2, midY = (origin.y + center.y) / 2;
+    ctx.fillText(`${castFt}ft`, midX, midY - 5 / sc);
   }
-  ctx.setLineDash([]);
+
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -348,9 +375,9 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): v
     const dur = SPELL_DURATIONS[sp.type] ?? 2.5;
     if (elapsed > dur) continue;
     alive.push(sp);
-    if (sp.type === 'fireball')          drawSpellFireball(ctx, sp.points, elapsed, dur, sc);
-    else if (sp.type === 'lightning')    drawSpellLightning(ctx, sp.points, elapsed, dur, sc);
-    else if (sp.type === 'magic_beam')   drawSpellMagicBeam(ctx, sp.points, elapsed, dur, sc);
+    if (sp.type === 'fireball')              drawSpellFireball(ctx, sp.points, elapsed, dur, sc);
+    else if (sp.type === 'lightning')        drawSpellLightning(ctx, sp.points, elapsed, dur, sc);
+    else if (sp.type === 'magic_beam')       drawSpellMagicBeam(ctx, sp.points, elapsed, dur, sc);
     else if (sp.type === 'magic_missile')    drawSpellMagicMissile(ctx, sp.points, elapsed, dur, sc);
     else if (sp.type === 'hideous_laughter') drawSpellHideousLaughter(ctx, sp.points, elapsed, dur, sc);
     else if (sp.type === 'burning_hands')    drawSpellBurningHands(ctx, sp.points, elapsed, dur, sc);
@@ -361,7 +388,6 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): v
     rActiveSpells.current = alive;
     setActiveSpells(alive);
   }
-  // Draw preview during line/area drawing
   if (rSpellPreview?.current) {
     renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize);
   }

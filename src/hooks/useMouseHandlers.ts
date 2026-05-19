@@ -62,10 +62,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setDmPrivateActive(true);
       e.preventDefault(); return;
     }
-    // Alt + left click = area spell placement when shape tool active
+    // Alt + drag = area spell placement (origin → AoE center) when shape tool active
     if (e.button === 0 && e.altKey && R.rDrawTool.current === 'shape') {
       const { mx: amx, my: amy } = mc(e);
-      S.setSpellMenu({ points: [{ x: amx, y: amy }], cx: e.clientX, cy: e.clientY, mode: 'area' });
+      R.isSpellAreaDrawingRef.current = true;
+      R.spellAreaOriginRef.current = { x: amx, y: amy };
+      R.rSpellPreview.current = { mode: 'area', origin: { x: amx, y: amy }, center: { x: amx, y: amy } };
       e.preventDefault(); return;
     }
     if (e.button !== 0) return;
@@ -237,6 +239,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.rSpellPreview.current = { mode: 'line', start: R.spellLineStartRef.current, end: { x: mx, y: my } };
       return;
     }
+    // Update spell area preview center
+    if (R.isSpellAreaDrawingRef.current && R.spellAreaOriginRef.current) {
+      R.rSpellPreview.current = { mode: 'area', origin: R.spellAreaOriginRef.current, center: { x: mx, y: my } };
+      return;
+    }
 
     // Track hovered painted zone for highlight when shape tool is active
     if (tool === 'shape') {
@@ -307,6 +314,28 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     setGridCalibrating: (v: boolean) => void,
   ) => {
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
+
+    // Finalize area spell drag
+    if (R.isSpellAreaDrawingRef.current) {
+      R.isSpellAreaDrawingRef.current = false;
+      const preview = R.rSpellPreview.current;
+      R.rSpellPreview.current = null;
+      R.spellAreaOriginRef.current = null;
+      if (preview && preview.mode === 'area') {
+        const canvas5 = R.canvasRef.current!;
+        const r5 = canvas5.getBoundingClientRect();
+        const media5 = R.mediaRef.current;
+        let mw5 = 1920, mh5 = 1080;
+        if (media5?.tagName === 'IMG' && (media5 as HTMLImageElement).naturalWidth) { mw5 = (media5 as HTMLImageElement).naturalWidth; mh5 = (media5 as HTMLImageElement).naturalHeight; }
+        if (media5?.tagName === 'VIDEO' && (media5 as HTMLVideoElement).videoWidth) { mw5 = (media5 as HTMLVideoElement).videoWidth; mh5 = (media5 as HTMLVideoElement).videoHeight; }
+        const sc5 = Math.min(r5.width / mw5, r5.height / mh5) * R.rZoom.current;
+        const pan5 = R.rPanOffset.current;
+        const ox5 = (r5.width - mw5 * sc5) / 2 + pan5.x, oy5 = (r5.height - mh5 * sc5) / 2 + pan5.y;
+        const cxS = r5.left + ox5 + preview.center.x * sc5, cyS = r5.top + oy5 + preview.center.y * sc5;
+        S.setSpellMenu({ points: [preview.origin, preview.center], cx: cxS, cy: cyS, mode: 'area' });
+      }
+      return;
+    }
 
     // Finalize straight-line spell
     if (R.isSpellLineDrawingRef.current) {
