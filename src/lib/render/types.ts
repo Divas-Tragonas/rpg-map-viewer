@@ -46,6 +46,8 @@ export interface FrameContext {
   rHoveredZone:     MutableRefObject<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>;
   zoneAnimRef:      MutableRefObject<ZoneAnimMap>;
   rPaintedZones:    MutableRefObject<PaintedZone[]>;
+  setPaintedZones?: (zones: PaintedZone[]) => void;
+  broadcastState?:  () => void;
   rContextMenu:     MutableRefObject<unknown>;
   zoneAppearRef:    MutableRefObject<Record<string, number>>;
   txCache:          Record<string, HTMLCanvasElement>;

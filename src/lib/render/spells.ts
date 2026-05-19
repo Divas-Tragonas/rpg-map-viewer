@@ -1,7 +1,10 @@
-import type { Spell, SpellPreview, Point } from '@/types';
+import type { Spell, SpellPreview, Point, PaintedZone } from '@/types';
 import type { FrameContext } from './types';
-import { pathAt } from '@/lib/geometry';
+import { pathAt, getBBox } from '@/lib/geometry';
 import { AREA_SPELL_DATA, SPELL_TYPES } from '@/constants';
+
+const AREA_SPELL_TYPES = new Set(['sleep', 'grease']);
+const AREA_ELEMENT: Record<string, string> = { sleep: 'magic', grease: 'poison' };
 
 const SPELL_DURATIONS: Record<string, number> = {
   fireball:         2.8,
@@ -140,8 +143,6 @@ export function drawSpellMagicMissile(ctx: CanvasRenderingContext2D, pts: Point[
   if (pts.length < 2) return;
   ctx.save();
   const [A, B] = [pts[0], pts[1]];
-  const dist = Math.hypot(B.x - A.x, B.y - A.y);
-  const distFt = Math.round((dist / gridSize) * 5);
   const TRAVEL = dur * 0.65, IMPACT = dur - TRAVEL;
 
   if (elapsed <= TRAVEL) {
@@ -166,9 +167,6 @@ export function drawSpellMagicMissile(ctx: CanvasRenderingContext2D, pts: Point[
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(pos.x, pos.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
-    // Ft label
-    const midX = (A.x + pos.x) / 2, midY = (A.y + pos.y) / 2;
-    drawFtLabel(ctx, midX, midY - 10 / sc, distFt, '🔮', '#c084fc', sc, elapsed);
   } else {
     const imp = (elapsed - TRAVEL) / IMPACT;
     drawImpact(ctx, B.x, B.y, 38, '#c084fc', sc, imp);
@@ -180,8 +178,6 @@ export function drawSpellHideousLaughter(ctx: CanvasRenderingContext2D, pts: Poi
   if (pts.length < 2) return;
   ctx.save();
   const [A, B] = [pts[0], pts[1]];
-  const dist = Math.hypot(B.x - A.x, B.y - A.y);
-  const distFt = Math.round((dist / gridSize) * 5);
   const TRAVEL = dur * 0.60, IMPACT = dur - TRAVEL;
   const tN = performance.now();
   const dx = B.x - A.x, dy = B.y - A.y;
@@ -211,9 +207,6 @@ export function drawSpellHideousLaughter(ctx: CanvasRenderingContext2D, pts: Poi
     // Head
     ctx.globalAlpha = 1; ctx.fillStyle = '#facc15';
     ctx.beginPath(); ctx.arc(pos.x, pos.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
-    // Ft label
-    const midX = (A.x + pos.x) / 2, midY = (A.y + pos.y) / 2;
-    drawFtLabel(ctx, midX, midY - 10 / sc, distFt, '😂', '#facc15', sc, elapsed);
   } else {
     const imp = (elapsed - TRAVEL) / IMPACT;
     drawImpact(ctx, B.x, B.y, 42, '#facc15', sc, imp);
@@ -226,7 +219,6 @@ export function drawSpellBurningHands(ctx: CanvasRenderingContext2D, pts: Point[
   ctx.save();
   const [A, B] = [pts[0], pts[1]];
   const dist = Math.hypot(B.x - A.x, B.y - A.y);
-  const distFt = Math.round((dist / gridSize) * 5);
   const dx = B.x - A.x, dy = B.y - A.y;
   const angle = Math.atan2(dy, dx);
   const HALF_ANGLE = Math.PI / 6;
@@ -262,12 +254,6 @@ export function drawSpellBurningHands(ctx: CanvasRenderingContext2D, pts: Point[
     ctx.lineWidth = (3 - f * 0.5) / sc;
     ctx.beginPath(); ctx.moveTo(A.x, A.y);
     ctx.lineTo(A.x + Math.cos(fa) * effectRange * flicker, A.y + Math.sin(fa) * effectRange * flicker); ctx.stroke();
-  }
-  // Ft label at cone tip
-  if (phase > 0.5) {
-    const tipX = A.x + Math.cos(angle) * effectRange;
-    const tipY = A.y + Math.sin(angle) * effectRange;
-    drawFtLabel(ctx, tipX, tipY - 10 / sc, distFt, '🤲', '#ffcc00', sc, elapsed * (1 / phase));
   }
   ctx.globalAlpha = 1; ctx.restore();
 }
@@ -432,14 +418,34 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
 // ── Main render ──────────────────────────────────────────────────────────────
 
 export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { rActiveSpells, setActiveSpells, sc, rGridSize, rSpellPreview } = fc;
+  const { rActiveSpells, setActiveSpells, sc, rGridSize, rSpellPreview, isDM, rPaintedZones, setPaintedZones, broadcastState } = fc;
   const now = performance.now();
   const alive: Spell[] = [];
   const gridSize = rGridSize.current;
+  let newZoneAdded = false;
   for (const sp of rActiveSpells.current) {
     const elapsed = (now - sp.startTime) / 1000;
     const dur = SPELL_DURATIONS[sp.type] ?? 2.5;
-    if (elapsed > dur) continue;
+    if (elapsed > dur) {
+      if (isDM && setPaintedZones && AREA_SPELL_TYPES.has(sp.type)) {
+        const center = sp.points[sp.points.length - 1];
+        const data = AREA_SPELL_DATA[sp.type];
+        if (center && data) {
+          const radius = ftToWorld(data.aoeRadiusFt, gridSize);
+          const N = 48;
+          const circlePts = Array.from({ length: N }, (_, i) => {
+            const a = (i / N) * Math.PI * 2;
+            return { x: center.x + Math.cos(a) * radius, y: center.y + Math.sin(a) * radius };
+          });
+          const zone: PaintedZone = { id: sp.id, element: AREA_ELEMENT[sp.type] || 'magic', points: circlePts, bbox: getBBox(circlePts) };
+          const nz = [...rPaintedZones.current, zone];
+          rPaintedZones.current = nz;
+          setPaintedZones(nz);
+          newZoneAdded = true;
+        }
+      }
+      continue;
+    }
     alive.push(sp);
     if      (sp.type === 'fireball')          drawSpellFireball(ctx, sp.points, elapsed, dur, sc);
     else if (sp.type === 'lightning')         drawSpellLightning(ctx, sp.points, elapsed, dur, sc);
@@ -453,5 +459,6 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): v
   if (alive.length !== rActiveSpells.current.length) {
     rActiveSpells.current = alive; setActiveSpells(alive);
   }
+  if (newZoneAdded) broadcastState?.();
   if (rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize);
 }
