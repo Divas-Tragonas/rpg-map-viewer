@@ -22,6 +22,7 @@ interface Props {
   onClose: () => void;
   onToggleCondition: (tokenId: string, condId: string) => void;
   onDeletePaintedZone: (id: string) => void;
+  onDeleteAreaSpell: (id: string) => void;
   onOpenSceneConfig: () => void;
   onBroadcast: () => void;
   setDefeated: (v: DefeatedMap) => void;
@@ -40,7 +41,7 @@ export function ContextMenuOverlay({
   contextMenu, conditions, defeated, rDefeated, defeatedAnimRef, rConditions,
   rLibEnemies, rPsdEnemyOverrides, rPlayers,
   ctxEditName, setCtxEditName, ctxEditHpMax, setCtxEditHpMax,
-  onClose, onToggleCondition, onDeletePaintedZone, onOpenSceneConfig, onBroadcast,
+  onClose, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
   setDefeated, setConditions,
   adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
@@ -62,7 +63,7 @@ export function ContextMenuOverlay({
       <div style={{ padding: '8px 12px 6px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>{contextMenu.name}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {!contextMenu.isPaintedZone && (
+          {!contextMenu.isPaintedZone && !contextMenu.isAreaSpell && (
             <button
               onMouseDown={e => {
                 e.stopPropagation();
@@ -75,7 +76,7 @@ export function ContextMenuOverlay({
               {defeated[id] ? '✕ Derrotado' : '✕'}
             </button>
           )}
-          <span style={{ color: C.dim, fontSize: 10 }}>{contextMenu.isPaintedZone ? 'Zona mágica' : 'Estados'}</span>
+          <span style={{ color: C.dim, fontSize: 10 }}>{contextMenu.isPaintedZone ? 'Zona mágica' : contextMenu.isAreaSpell ? 'Spell d\'àrea' : 'Estados'}</span>
         </div>
       </div>
 
@@ -113,11 +114,11 @@ export function ContextMenuOverlay({
         </div>
       )}
 
-      {contextMenu.isPaintedZone ? (
+      {(contextMenu.isPaintedZone || contextMenu.isAreaSpell) ? (
         <div style={{ padding: 8 }}>
-          <button onMouseDown={e => { e.stopPropagation(); onDeletePaintedZone(id); onClose(); }}
+          <button onMouseDown={e => { e.stopPropagation(); contextMenu.isPaintedZone ? onDeletePaintedZone(id as string) : onDeleteAreaSpell(id as string); onClose(); }}
             style={{ width: '100%', padding: '7px', background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', borderRadius: 6, color: '#f85149', cursor: 'pointer', fontSize: 12 }}>
-            🗑 Eliminar zona
+            🗑 Eliminar {contextMenu.isPaintedZone ? 'zona' : 'spell'}
           </button>
         </div>
       ) : (

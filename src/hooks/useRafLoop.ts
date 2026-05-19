@@ -7,18 +7,16 @@ import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/l
 import { renderGrid, renderGridCalib } from '@/lib/render/grid';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
 import type { DMRefs } from './useDMRefs';
-import type { Spell, PaintedZone } from '@/types';
+import type { Spell } from '@/types';
 
 interface RafLoopOpts {
   setActiveSpells: (s: Spell[]) => void;
-  setPaintedZones: (v: PaintedZone[]) => void;
-  broadcastState: () => void;
   setDmPrivateActive: (v: boolean) => void;
   broadcastDmPreview: () => void;
 }
 
 export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
-  const { setActiveSpells, setPaintedZones, broadcastState, setDmPrivateActive, broadcastDmPreview } = opts;
+  const { setActiveSpells, setDmPrivateActive, broadcastDmPreview } = opts;
 
   useEffect(() => {
     const canvas = R.canvasRef.current; if (!canvas) return;
@@ -108,7 +106,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       const fc = {
         sc, ox, oy, mw, mh, isDM: true, s, v, pp,
         rLayerImages: R.rLayerImages, rHoveredZone: R.rHoveredZone, zoneAnimRef: R.zoneAnimRef,
-        rPaintedZones: R.rPaintedZones, setPaintedZones, broadcastState, rContextMenu: R.rContextMenu, zoneAppearRef: R.zoneAppearRef, txCache,
+        rPaintedZones: R.rPaintedZones, rContextMenu: R.rContextMenu, zoneAppearRef: R.zoneAppearRef, txCache,
         isShapeDrawingRef: R.isShapeDrawingRef, shapePointsRef: R.shapePointsRef,
         activeStrokeAnim: R.activeStrokeAnim, strokeQueueRef: R.strokeQueueRef, drawCanvasRef: R.drawCanvasRef,
         rActiveSpells: R.rActiveSpells, setActiveSpells,

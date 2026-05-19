@@ -146,6 +146,7 @@ export interface ContextMenuState {
   x: number;
   y: number;
   isPaintedZone?: boolean;
+  isAreaSpell?: boolean;
   isLibEnemy?: boolean;
   libEnemyId?: number;
   tokenPos?: Point | null;

@@ -79,6 +79,7 @@ export function useDMRefs() {
   const visualZoomRef     = useRef(1);
   const visualPanRef      = useRef<Point>({ x: 0, y: 0 });
   const zoneDragRef       = useRef<{ zoneId: string; startMx: number; startMy: number; origPoints: Point[]; origBbox: BBox } | null>(null);
+  const areaSpellDragRef  = useRef<{ spellId: string; startMx: number; startMy: number; origCx: number; origCy: number } | null>(null);
   const defeatedAnimRef   = useRef<Record<string, number>>({});
   const ctrlHeldRef       = useRef(false);
   const _ctx2dRef         = useRef<CanvasRenderingContext2D | null>(null);
@@ -129,7 +130,7 @@ export function useDMRefs() {
     activeStrokeAnim, rDeathCanvas, shapePointsRef, isShapeDrawingRef, bgBufferRef,
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,
-    zoneDragRef, defeatedAnimRef, ctrlHeldRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
+    zoneDragRef, areaSpellDragRef, defeatedAnimRef, ctrlHeldRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
     rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,

@@ -1,7 +1,13 @@
 'use client';
 import { useCallback } from 'react';
 import { pointInPolygon, getBBox } from '@/lib/geometry';
-import { ELEMENTS_BY_ID, WAND_CURSOR } from '@/constants';
+import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
+
+const AREA_TYPES = new Set(['sleep', 'grease']);
+const AREA_SETTLED = (sp: import('@/types').Spell) => {
+  const DUR: Record<string, number> = { sleep: 3.0, grease: 3.5 };
+  return (performance.now() - sp.startTime) / 1000 > (DUR[sp.type] ?? 2.5);
+};
 import type { PosMap, VisMap } from '@/types';
 import type { DMRefs } from './useDMRefs';
 
@@ -114,6 +120,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
             S.setCanvasCursor('grabbing'); e.preventDefault(); return;
           }
         }
+        for (let i = R.rActiveSpells.current.length - 1; i >= 0; i--) {
+          const sp = R.rActiveSpells.current[i];
+          if (!AREA_TYPES.has(sp.type) || !AREA_SETTLED(sp)) continue;
+          const center = sp.points[sp.points.length - 1];
+          const data = AREA_SPELL_DATA[sp.type as string];
+          if (!center || !data) continue;
+          const radius = (data.aoeRadiusFt / 5) * R.rGridSize.current;
+          if (Math.hypot(mx - center.x, my - center.y) <= radius) {
+            R.areaSpellDragRef.current = { spellId: sp.id, startMx: mx, startMy: my, origCx: center.x, origCy: center.y };
+            S.setCanvasCursor('grabbing'); e.preventDefault(); return;
+          }
+        }
       }
       R.isShapeDrawingRef.current = true; R.shapePointsRef.current = [{ x: mx, y: my }];
       e.preventDefault(); return;
@@ -198,6 +216,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.rGridCalibrating.current) {
       R.gridCalibHoverRef.current = { hx: mx, hy: my };
       if (R.gridCalibRef.current) { R.gridCalibCurrRef.current = { cx: mx, cy: my }; return; }
+    }
+
+    if (R.areaSpellDragRef.current) {
+      const { spellId, startMx, startMy, origCx, origCy } = R.areaSpellDragRef.current;
+      const dx = mx - startMx, dy = my - startMy;
+      const sp = R.rActiveSpells.current.find(s => s.id === spellId);
+      if (sp) {
+        sp.points = sp.points.map((p, i) => i === sp.points.length - 1 ? { x: origCx + dx, y: origCy + dy } : p);
+        const now2 = Date.now();
+        if (now2 - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now2; _broadcastState({}); }
+      }
+      return;
     }
 
     const tool = R.rDrawTool.current;
@@ -387,6 +417,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       _broadcastState({}); return;
     }
 
+    if (R.areaSpellDragRef.current) { R.areaSpellDragRef.current = null; _broadcastState({}); return; }
+
     if (R.isShapeDrawingRef.current) {
       R.isShapeDrawingRef.current = false;
       const pts = R.shapePointsRef.current;
@@ -450,6 +482,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const { mx, my } = mc(e);
+    for (let i = R.rActiveSpells.current.length - 1; i >= 0; i--) {
+      const sp = R.rActiveSpells.current[i];
+      if (!AREA_TYPES.has(sp.type) || !AREA_SETTLED(sp)) continue;
+      const center = sp.points[sp.points.length - 1];
+      const data = AREA_SPELL_DATA[sp.type as string];
+      if (!center || !data) continue;
+      const radius = (data.aoeRadiusFt / 5) * R.rGridSize.current;
+      if (Math.hypot(mx - center.x, my - center.y) <= radius) {
+        S.setContextMenu({ id: sp.id, name: `${data.emoji} ${sp.type}`, x: e.clientX, y: e.clientY, isAreaSpell: true });
+        return;
+      }
+    }
     for (const zone of R.rPaintedZones.current) {
       if (pointInPolygon(mx, my, zone.points)) {
         const el = ELEMENTS_BY_ID.get(zone.element);

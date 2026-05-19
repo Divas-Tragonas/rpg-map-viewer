@@ -1,10 +1,9 @@
-import type { Spell, SpellPreview, Point, PaintedZone } from '@/types';
+import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
-import { pathAt, getBBox } from '@/lib/geometry';
+import { pathAt } from '@/lib/geometry';
 import { AREA_SPELL_DATA, SPELL_TYPES } from '@/constants';
 
 const AREA_SPELL_TYPES = new Set(['sleep', 'grease']);
-const AREA_ELEMENT: Record<string, string> = { sleep: 'magic', grease: 'poison' };
 
 const SPELL_DURATIONS: Record<string, number> = {
   fireball:         2.8,
@@ -418,47 +417,28 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
 // ── Main render ──────────────────────────────────────────────────────────────
 
 export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { rActiveSpells, setActiveSpells, sc, rGridSize, rSpellPreview, isDM, rPaintedZones, setPaintedZones, broadcastState } = fc;
+  const { rActiveSpells, setActiveSpells, sc, rGridSize, rSpellPreview } = fc;
   const now = performance.now();
   const alive: Spell[] = [];
   const gridSize = rGridSize.current;
-  let newZoneAdded = false;
   for (const sp of rActiveSpells.current) {
     const elapsed = (now - sp.startTime) / 1000;
     const dur = SPELL_DURATIONS[sp.type] ?? 2.5;
-    if (elapsed > dur) {
-      if (isDM && setPaintedZones && AREA_SPELL_TYPES.has(sp.type)) {
-        const center = sp.points[sp.points.length - 1];
-        const data = AREA_SPELL_DATA[sp.type];
-        if (center && data) {
-          const radius = ftToWorld(data.aoeRadiusFt, gridSize);
-          const N = 48;
-          const circlePts = Array.from({ length: N }, (_, i) => {
-            const a = (i / N) * Math.PI * 2;
-            return { x: center.x + Math.cos(a) * radius, y: center.y + Math.sin(a) * radius };
-          });
-          const zone: PaintedZone = { id: sp.id, element: AREA_ELEMENT[sp.type] || 'magic', points: circlePts, bbox: getBBox(circlePts) };
-          const nz = [...rPaintedZones.current, zone];
-          rPaintedZones.current = nz;
-          setPaintedZones(nz);
-          newZoneAdded = true;
-        }
-      }
-      continue;
-    }
+    const isArea = AREA_SPELL_TYPES.has(sp.type);
+    if (elapsed > dur && !isArea) continue;  // non-area spells expire
     alive.push(sp);
-    if      (sp.type === 'fireball')          drawSpellFireball(ctx, sp.points, elapsed, dur, sc);
-    else if (sp.type === 'lightning')         drawSpellLightning(ctx, sp.points, elapsed, dur, sc);
-    else if (sp.type === 'magic_beam')        drawSpellMagicBeam(ctx, sp.points, elapsed, dur, sc);
-    else if (sp.type === 'magic_missile')     drawSpellMagicMissile(ctx, sp.points, elapsed, dur, sc, gridSize);
-    else if (sp.type === 'hideous_laughter')  drawSpellHideousLaughter(ctx, sp.points, elapsed, dur, sc, gridSize);
-    else if (sp.type === 'burning_hands')     drawSpellBurningHands(ctx, sp.points, elapsed, dur, sc, gridSize);
-    else if (sp.type === 'sleep')             drawSpellSleep(ctx, sp.points, elapsed, dur, sc, gridSize);
-    else if (sp.type === 'grease')            drawSpellGrease(ctx, sp.points, elapsed, dur, sc, gridSize);
+    const renderElapsed = isArea ? Math.min(elapsed, dur * 0.5) : elapsed;  // area spells: clamp to full-alpha state
+    if      (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc);
+    else if (sp.type === 'lightning')        drawSpellLightning(ctx, sp.points, renderElapsed, dur, sc);
+    else if (sp.type === 'magic_beam')       drawSpellMagicBeam(ctx, sp.points, renderElapsed, dur, sc);
+    else if (sp.type === 'magic_missile')    drawSpellMagicMissile(ctx, sp.points, renderElapsed, dur, sc, gridSize);
+    else if (sp.type === 'hideous_laughter') drawSpellHideousLaughter(ctx, sp.points, renderElapsed, dur, sc, gridSize);
+    else if (sp.type === 'burning_hands')    drawSpellBurningHands(ctx, sp.points, renderElapsed, dur, sc, gridSize);
+    else if (sp.type === 'sleep')            drawSpellSleep(ctx, sp.points, renderElapsed, dur, sc, gridSize);
+    else if (sp.type === 'grease')           drawSpellGrease(ctx, sp.points, renderElapsed, dur, sc, gridSize);
   }
   if (alive.length !== rActiveSpells.current.length) {
     rActiveSpells.current = alive; setActiveSpells(alive);
   }
-  if (newZoneAdded) broadcastState?.();
   if (rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize);
 }

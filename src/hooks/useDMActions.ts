@@ -427,6 +427,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPaintedZones.current = nz; S.setPaintedZones(nz); _broadcastState({});
   }, [_broadcastState]);
 
+  const deleteAreaSpell = useCallback((id: string) => {
+    const ns = rActiveSpells.current.filter(s => s.id !== id);
+    rActiveSpells.current = ns; S.setActiveSpells(ns); _broadcastState({});
+  }, [_broadcastState]);
+
   const clearPaintedZones = useCallback(() => {
     rPaintedZones.current = []; S.setPaintedZones([]); _broadcastState({});
   }, [_broadcastState]);
@@ -544,7 +549,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
-    addPaintedZone, deletePaintedZone, clearPaintedZones, toggleCondition, openPlayerWindow,
+    addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility,
   };

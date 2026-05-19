@@ -132,7 +132,7 @@ export function DMView() {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
-    addPaintedZone, deletePaintedZone, clearPaintedZones, toggleCondition, openPlayerWindow,
+    addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility,
   } = useDMActions(R, S);
@@ -201,8 +201,7 @@ export function DMView() {
 
   // ── RAF loop ──────────────────────────────────────────────────────────────
   const broadcastDmPreview = useCallback(() => _broadcastState({}), [_broadcastState]);
-  const broadcastStateCb = useCallback(() => _broadcastState({}), [_broadcastState]);
-  useRafLoop(R, { setActiveSpells, setPaintedZones, broadcastState: broadcastStateCb, setDmPrivateActive, broadcastDmPreview });
+  useRafLoop(R, { setActiveSpells, setDmPrivateActive, broadcastDmPreview });
 
   // ── Wheel zoom ────────────────────────────────────────────────────────────
   useWheelZoom(R, setZoom, setDmPrivateActive, _broadcastState);
@@ -606,7 +605,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.20</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.21</div>
             </div>
           </div>
         )}
@@ -640,7 +639,7 @@ export function DMView() {
         ctxEditName={ctxEditName} setCtxEditName={setCtxEditName}
         ctxEditHpMax={ctxEditHpMax} setCtxEditHpMax={setCtxEditHpMax}
         onClose={() => setContextMenu(null)}
-        onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone}
+        onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone} onDeleteAreaSpell={deleteAreaSpell}
         onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}
         setDefeated={setDefeated} setConditions={setConditions}
         adjustLibEnemyHp={adjustLibEnemyHp}
