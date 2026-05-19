@@ -17,6 +17,22 @@
   git push origin master
   ```
 
+### Autenticació GitHub — OBLIGATORI
+
+El remote `origin` ha d'apuntar a la URL amb el PAT inclòs. El token es guarda a `.git/config` (no commitejat).
+
+**Al inici de cada sessió nova**, verificar i configurar si cal:
+
+```bash
+# Verificar si el remote ja té el token:
+git remote get-url origin   # ha de contenir "oauth2:github_pat_..."
+
+# Si NO el té, configurar-lo (substituir TOKEN pel PAT real):
+git remote set-url origin https://oauth2:TOKEN@github.com/Divas-Tragonas/rpg-map-viewer.git
+```
+
+> **Nota:** El PAT real no es desa al repositori per seguretat (GitHub push protection el bloqueja). El propietari del repo el té guardat fora del codi.
+
 ### Versió i changelog — OBLIGATORI en cada push
 
 **Abans de cada commit**, actualitzar el `README.md`:
