@@ -50,10 +50,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (e.button === 1) {
       e.preventDefault();
       if (R.rShiftHeld.current || e.shiftKey) {
-        // SHIFT = private DM-only pan
+        // SHIFT + middle = private DM-only pan
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
       } else {
-        // CTRL or no modifier = shared pan (DM + player)
+        // CTRL + middle (or bare middle) = shared pan (DM + player)
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
       }
       return;
@@ -70,14 +70,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
       S.setDmPrivateActive(true);
       e.preventDefault(); return;
-    }
-    // Ctrl + left click = shared pan (DM + Player), only in pointer mode
-    if (e.button === 0 && e.ctrlKey && !e.shiftKey && !R.rShiftHeld.current) {
-      const t = R.rDrawTool.current;
-      if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
-        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
-        e.preventDefault(); return;
-      }
     }
     // Alt + click = pick origin + open area spell menu
     if (e.button === 0 && e.altKey && R.rDrawTool.current === 'shape') {
@@ -113,6 +105,43 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
     if (tool === 'shape') {
       if (e.ctrlKey) {
+        // Tokens have highest priority for CTRL+drag in shape tool
+        for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
+          const len = R.rLibEnemies.current[i];
+          const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
+          const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
+          if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
+            R.dragRef.current = { id: `lib_${len.id}`, ox: mx - lep.x, oy: my - lep.y };
+            S.setActiveDrag(`lib_${len.id}`); S.setSelectedToken(`lib_${len.id}`); R.rSelectedToken.current = `lib_${len.id}`; S.setCanvasCursor('grabbing');
+            e.preventDefault(); return;
+          }
+        }
+        for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
+          const pl = R.rPlayers.current[i];
+          const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
+          const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
+          if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
+            R.dragRef.current = { id: `pl_${pl.id}`, ox: mx - ppos.x, oy: my - ppos.y };
+            S.setActiveDrag(`pl_${pl.id}`); S.setSelectedToken(`pl_${pl.id}`); R.rSelectedToken.current = `pl_${pl.id}`; S.setCanvasCursor('grabbing');
+            e.preventDefault(); return;
+          }
+        }
+        const sShape = R.rStruct.current;
+        if (sShape) {
+          for (const zone of sShape.enemyZones) {
+            for (let i = zone.enemies.length - 1; i >= 0; i--) {
+              const en = zone.enemies[i];
+              const ep = R.rPos.current[en.id]; if (!ep) continue;
+              const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
+              if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
+                R.dragRef.current = { id: en.id, ox: mx - ep.x, oy: my - ep.y };
+                S.setActiveDrag(en.id); S.setSelectedToken(en.id); R.rSelectedToken.current = en.id; S.setCanvasCursor('grabbing');
+                e.preventDefault(); return;
+              }
+            }
+          }
+        }
+        // Painted zones
         for (let i = R.rPaintedZones.current.length - 1; i >= 0; i--) {
           const zone = R.rPaintedZones.current[i];
           if (pointInPolygon(mx, my, zone.points)) {
@@ -120,6 +149,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
             S.setCanvasCursor('grabbing'); e.preventDefault(); return;
           }
         }
+        // Area spells (lowest priority)
         for (let i = R.rActiveSpells.current.length - 1; i >= 0; i--) {
           const sp = R.rActiveSpells.current[i];
           if (!AREA_TYPES.has(sp.type) || !AREA_SETTLED(sp)) continue;
@@ -179,17 +209,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     const hovZ = R.rHoveredZone.current;
-    if (hovZ && e.altKey) {
+    if (hovZ) {
       const { id, lx, ly, lw, lh } = hovZ;
       if (mx >= lx && mx <= lx + lw && my >= ly && my <= ly + lh) {
         const currentlyVisible = !!R.rVis.current[id];
-        if (R.rZonesLocked.current && !currentlyVisible) { e.preventDefault(); return; }
-        const nv = { ...R.rVis.current, [id]: !R.rVis.current[id] };
-        R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-        if (!currentlyVisible && !R.rZonesLocked.current) {
+        if (!currentlyVisible && !e.ctrlKey) {
+          // Plain click on dark zone → show it
+          if (R.rZonesLocked.current) { e.preventDefault(); return; }
+          const nv = { ...R.rVis.current, [id]: true };
+          R.rVis.current = nv; S.setVis(nv); _broadcastState({});
           S.setZonesLocked(true); R.rZonesLocked.current = true;
+          e.preventDefault();
+        } else if (currentlyVisible && e.ctrlKey) {
+          // CTRL + click on visible zone → hide it
+          const nv = { ...R.rVis.current, [id]: false };
+          R.rVis.current = nv; S.setVis(nv); _broadcastState({});
+          e.preventDefault();
         }
-        e.preventDefault();
       }
     }
   }, [mc, _broadcastState]);
