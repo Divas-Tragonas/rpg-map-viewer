@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { renderZoneOverlays, renderExtras, renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
+import { renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
@@ -105,7 +105,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
 
       const fc = {
         sc, ox, oy, mw, mh, isDM: true, s, v, pp,
-        rLayerImages: R.rLayerImages, rHoveredZone: R.rHoveredZone, zoneAnimRef: R.zoneAnimRef,
+        rLayerImages: R.rLayerImages, rHoveredRoom: R.rHoveredRoom, roomAnimRef: R.roomAnimRef,
         rPaintedZones: R.rPaintedZones, rContextMenu: R.rContextMenu, zoneAppearRef: R.zoneAppearRef, txCache,
         isShapeDrawingRef: R.isShapeDrawingRef, shapePointsRef: R.shapePointsRef,
         activeStrokeAnim: R.activeStrokeAnim, strokeQueueRef: R.strokeQueueRef, drawCanvasRef: R.drawCanvasRef,
@@ -130,7 +130,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
-      renderZoneOverlays(ctx, fc);
+      renderRoomOverlays(ctx, fc);
       renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);

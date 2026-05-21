@@ -88,7 +88,7 @@ export const C = {
   bright:      '#e6edf3',
   dim:         '#8b949e',
   extras:      '#39d353',
-  zone:        '#58a6ff',
+  room:        '#58a6ff',
   enemy:       '#f85149',
   ok:          '#3fb950',
   warn:        '#d29922',

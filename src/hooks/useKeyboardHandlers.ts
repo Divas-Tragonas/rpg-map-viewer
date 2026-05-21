@@ -6,28 +6,28 @@ import type { DMRefs } from './useDMRefs';
 interface KBOpts {
   setDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
   setCtrlHeld: (v: boolean) => void;
-  setZonesLocked: (v: boolean) => void;
+  setRoomsLocked: (v: boolean) => void;
   undoStroke: () => void;
   skipBossIntro: () => void;
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, setCtrlHeld, setZonesLocked, undoStroke, skipBossIntro } = opts;
+  const { setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro } = opts;
 
-  // Ctrl key: unlock zones + DM private view
+  // Ctrl key: unlock rooms + DM private view
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       if (e.key !== 'Control') return;
       setCtrlHeld(true); R.ctrlHeldRef.current = true;
       const s = R.rStruct.current;
-      if (s && s.zonasLayers.some(l => !R.rVis.current[l.id])) {
-        setZonesLocked(false); R.rZonesLocked.current = false;
+      if (s && s.roomLayers.some(l => !R.rVis.current[l.id])) {
+        setRoomsLocked(false); R.rRoomsLocked.current = false;
       }
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.key !== 'Control') return;
       setCtrlHeld(false); R.ctrlHeldRef.current = false;
-      setZonesLocked(true); R.rZonesLocked.current = true;
+      setRoomsLocked(true); R.rRoomsLocked.current = true;
       if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
         R.dmPrivateReturnAnim.current = true;
       }

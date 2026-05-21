@@ -58,7 +58,7 @@ export function DMView() {
   const [gridOriginX, setGridOriginX] = useState(0);
   const [gridOriginY, setGridOriginY] = useState(0);
   const [gridCalibrating, setGridCalibrating] = useState(false);
-  const [zonesLocked, setZonesLocked] = useState(true);
+  const [roomsLocked, setRoomsLocked] = useState(true);
   const [drawToolState, setDrawToolState] = useState<DrawTool>('none');
   const [drawColor, setDrawColor] = useState('#f85149');
   const [drawSize, setDrawSize] = useState(6);
@@ -162,7 +162,7 @@ export function DMView() {
     R.rPlayers.current = players; R.rLibEnemies.current = libEnemies;
     R.rDrawColor.current = drawColor; R.rDrawSize.current = drawSize;
     R.rConditions.current = conditions; R.rPaintedZones.current = paintedZones;
-    R.rZonesLocked.current = zonesLocked; R.rDefeated.current = defeated;
+    R.rRoomsLocked.current = roomsLocked; R.rDefeated.current = defeated;
     R.rGridVisible.current = gridVisible; R.rGridSize.current = gridSize;
     R.rGridSnap.current = gridSnap; R.rGridAutoSize.current = gridAutoSize;
     R.rTokenSizeOverride.current = tokenSizeOverride; R.rGridLineWidth.current = gridLineWidth;
@@ -174,7 +174,7 @@ export function DMView() {
     R.rPsdEnemyOverrides.current = psdEnemyOverrides;
   }, [
     struct, vis, pos, zoom, players, libEnemies, drawColor, drawSize, conditions, paintedZones,
-    zonesLocked, defeated, gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride,
+    roomsLocked, defeated, gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride,
     gridLineWidth, gridOriginX, gridOriginY, gridCalibrating, enemyHighlight, highlightLocked,
     selectedToken, layerImages, contextMenu, activeSpells, psdEnemyOverrides,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -209,7 +209,7 @@ export function DMView() {
   // ── Mouse handlers ────────────────────────────────────────────────────────
   const mouseSetters = useMemo(() => ({
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
-    setActiveSpells, setPaintedZones, setContextMenu, setZonesLocked, setCanUndo,
+    setActiveSpells, setPaintedZones, setContextMenu, setRoomsLocked, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -222,7 +222,7 @@ export function DMView() {
 
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
-    setDrawTool, setCtrlHeld, setZonesLocked, undoStroke, skipBossIntro,
+    setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro,
   });
 
   // ── Canvas-level callbacks ────────────────────────────────────────────────
@@ -234,9 +234,9 @@ export function DMView() {
 
   const onResetPrivate = useCallback(() => { R.dmPrivateReturnAnim.current = true; }, [R]);
 
-  const onToggleZonesLocked = useCallback(() => {
-    const next = !R.rZonesLocked.current;
-    R.rZonesLocked.current = next; setZonesLocked(next);
+  const onToggleRoomsLocked = useCallback(() => {
+    const next = !R.rRoomsLocked.current;
+    R.rRoomsLocked.current = next; setRoomsLocked(next);
   }, [R]);
 
   const onToggleEnemyHighlight = useCallback(() => {
@@ -391,7 +391,7 @@ export function DMView() {
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const activeCount = struct
-    ? struct.enemyZones.reduce((n, z) => n + z.enemies.filter(e => vis[e.id]).length, 0)
+    ? struct.enemyRooms.reduce((n, z) => n + z.enemies.filter(e => vis[e.id]).length, 0)
     : 0;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
@@ -498,10 +498,10 @@ export function DMView() {
         />
         <CanvasHUD
           dmPrivateActive={dmPrivateActive} struct={struct} vis={vis}
-          zonesLocked={zonesLocked} enemyHighlight={enemyHighlight}
+          roomsLocked={roomsLocked} enemyHighlight={enemyHighlight}
           highlightLocked={highlightLocked} gridCalibrating={gridCalibrating}
           onResetView={onResetView} onResetPrivate={onResetPrivate}
-          onToggleZonesLocked={onToggleZonesLocked}
+          onToggleRoomsLocked={onToggleRoomsLocked}
           onToggleEnemyHighlight={onToggleEnemyHighlight}
           onToggleHighlightLocked={onToggleHighlightLocked}
         />

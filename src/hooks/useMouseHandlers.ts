@@ -21,7 +21,7 @@ interface MouseHandlerSetters {
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setPaintedZones: (v: import('@/types').PaintedZone[]) => void;
   setContextMenu: (v: import('@/types').ContextMenuState | null) => void;
-  setZonesLocked: (v: boolean) => void;
+  setRoomsLocked: (v: boolean) => void;
   setCanUndo: (v: boolean) => void;
   setDmPrivateActive: (v: boolean) => void;
   setCanvasCursor: (c: string) => void;
@@ -194,9 +194,9 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     const s = R.rStruct.current;
     if (s) {
-      for (const zone of s.enemyZones) {
-        for (let i = zone.enemies.length - 1; i >= 0; i--) {
-          const en = zone.enemies[i];
+      for (const room of s.enemyRooms) {
+        for (let i = room.enemies.length - 1; i >= 0; i--) {
+          const en = room.enemies[i];
           const ep = R.rPos.current[en.id]; if (!ep) continue;
           const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
           if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
@@ -208,20 +208,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
     }
 
-    const hovZ = R.rHoveredZone.current;
+    const hovZ = R.rHoveredRoom.current;
     if (hovZ) {
       const { id, lx, ly, lw, lh } = hovZ;
       if (mx >= lx && mx <= lx + lw && my >= ly && my <= ly + lh) {
         const currentlyVisible = !!R.rVis.current[id];
         if (!currentlyVisible && !e.ctrlKey) {
-          // Plain click on dark zone → show it
-          if (R.rZonesLocked.current) { e.preventDefault(); return; }
+          if (R.rRoomsLocked.current) { e.preventDefault(); return; }
           const nv = { ...R.rVis.current, [id]: true };
           R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-          S.setZonesLocked(true); R.rZonesLocked.current = true;
+          S.setRoomsLocked(true); R.rRoomsLocked.current = true;
           e.preventDefault();
         } else if (currentlyVisible && e.ctrlKey) {
-          // CTRL + click on visible zone → hide it
           const nv = { ...R.rVis.current, [id]: false };
           R.rVis.current = nv; S.setVis(nv); _broadcastState({});
           e.preventDefault();
@@ -272,8 +270,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const s2 = R.rStruct.current;
       if (s2) {
         let overEnemy = false;
-        for (const zone of (s2.enemyZones || [])) {
-          for (const en of zone.enemies) {
+        for (const room of (s2.enemyRooms || [])) {
+          for (const en of room.enemies) {
             const ep = R.rPos.current[en.id]; if (!ep) continue;
             const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
             if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) { overEnemy = true; break; }
@@ -282,16 +280,16 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
         let found = null;
         if (!overEnemy) {
-          for (const l of (s2.zonasLayers || [])) {
+          for (const l of (s2.roomLayers || [])) {
             const lp = R.rPos.current[l.id] || { x: l.left + l.w / 2, y: l.top + l.h / 2 };
             const lx = lp.x - l.w / 2, ly = lp.y - l.h / 2;
             if (mx >= lx && mx <= lx + l.w && my >= ly && my <= ly + l.h) {
-              if (R.rZonesLocked.current && !R.rVis.current[l.id]) continue;
+              if (R.rRoomsLocked.current && !R.rVis.current[l.id]) continue;
               found = { id: l.id, lx, ly, lw: l.w, lh: l.h }; break;
             }
           }
         }
-        R.rHoveredZone.current = found;
+        R.rHoveredRoom.current = found;
       }
     }
 
@@ -506,7 +504,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     R.panDragRef.current = null;
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
     R.dragRef.current = null; S.setActiveDrag(null);
-    R.rHoveredZone.current = null;
+    R.rHoveredRoom.current = null;
     R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;
     if (R.rDrawTool.current === 'pointer') {
@@ -557,9 +555,9 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
     }
     const s2 = R.rStruct.current; if (!s2) return;
-    for (const zone of s2.enemyZones) {
-      for (let i = zone.enemies.length - 1; i >= 0; i--) {
-        const en = zone.enemies[i];
+    for (const room of s2.enemyRooms) {
+      for (let i = room.enemies.length - 1; i >= 0; i--) {
+        const en = room.enemies[i];
         const ep = R.rPos.current[en.id]; if (!ep) continue;
         const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
         if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {

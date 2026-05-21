@@ -25,7 +25,7 @@ export interface EnemySubGroup {
   enemies: PSDLayer[];
 }
 
-export interface EnemyZone {
+export interface EnemyRoom {
   id: number;
   name: string;
   enemies: PSDLayer[];
@@ -35,8 +35,8 @@ export interface EnemyZone {
 
 export interface MapStructure {
   extras: PSDLayer & { children: PSDLayer[]; isGroup: true };
-  zonasLayers: PSDLayer[];
-  enemyZones: EnemyZone[];
+  roomLayers: PSDLayer[];
+  enemyRooms: EnemyRoom[];
 }
 
 export interface PSDInfo {

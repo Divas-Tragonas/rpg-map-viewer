@@ -3,10 +3,10 @@ import type { PaintedZone } from '@/types';
 import { ELEMENTS_BY_ID, TSCALE } from '@/constants';
 import { TX_FN } from '@/lib/textures/elements';
 
-export function renderZoneOverlays(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { sc, ox, oy, s, v, pp, isDM, rLayerImages, rHoveredZone, zoneAnimRef } = fc;
-  const hovZ = rHoveredZone.current;
-  s.zonasLayers.forEach(l => {
+export function renderRoomOverlays(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+  const { sc, ox, oy, s, v, pp, isDM, rLayerImages, rHoveredRoom, roomAnimRef } = fc;
+  const hovZ = rHoveredRoom.current;
+  s.roomLayers.forEach(l => {
     const lp = pp[l.id] || { x: l.left + l.w / 2, y: l.top + l.h / 2 };
     const lx = lp.x - l.w / 2, ly = lp.y - l.h / 2;
     const isVis = !!v[l.id];
@@ -64,12 +64,12 @@ export function renderZoneOverlays(ctx: CanvasRenderingContext2D, fc: FrameConte
         ctx.textAlign = 'left';
       }
     } else {
-      const ZONE_LERP = 0.07;
-      const prev = zoneAnimRef.current[l.id] ?? (isVis ? 1 : 0);
+      const ROOM_LERP = 0.07;
+      const prev = roomAnimRef.current[l.id] ?? (isVis ? 1 : 0);
       const tgt  = isVis ? 1 : 0;
-      const next = prev + (tgt - prev) * ZONE_LERP;
-      zoneAnimRef.current[l.id] = Math.abs(next - tgt) < 0.004 ? tgt : next;
-      const animAlpha = zoneAnimRef.current[l.id];
+      const next = prev + (tgt - prev) * ROOM_LERP;
+      roomAnimRef.current[l.id] = Math.abs(next - tgt) < 0.004 ? tgt : next;
+      const animAlpha = roomAnimRef.current[l.id];
       if (animAlpha > 0.004) {
         if (layerImg) {
           ctx.globalAlpha = animAlpha * (l.opacity / 255);

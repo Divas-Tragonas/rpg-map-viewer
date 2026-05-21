@@ -1,4 +1,4 @@
-import type { PSDLayer, MapStructure, EnemyZone } from '@/types';
+import type { PSDLayer, MapStructure, EnemyRoom } from '@/types';
 
 export function buildTree(flat: PSDLayer[]): PSDLayer[] {
   const stack: (PSDLayer & { children: PSDLayer[]; isGroup: boolean })[] = [];
@@ -36,12 +36,12 @@ export function validateStructure(tree: PSDLayer[]): { warnings: string[]; struc
   if (!findBG(tree)) warnings.push('Sin capa BG de referencia');
 
   const extrasNode = (extras || { id: -1, name: 'EXTRAS', children: [], isGroup: true }) as PSDLayer & { children: PSDLayer[]; isGroup: true };
-  const zonasLayers = zonas ? (zonas.children || []).filter(n => !n.isGroup) : [];
+  const roomLayers = zonas ? (zonas.children || []).filter(n => !n.isGroup) : [];
   const RESERVED = new Set(['EXTRAS', 'ZONAS', 'BG']);
   const ezFromZonas = zonas ? (zonas.children || []).filter(n => n.isGroup) : [];
   const ezFromRoot  = tree.filter(n => n.isGroup && !RESERVED.has(n.name.trim().toUpperCase()));
   const seen = new Set<number>();
-  const enemyZones: EnemyZone[] = [...ezFromZonas, ...ezFromRoot]
+  const enemyRooms: EnemyRoom[] = [...ezFromZonas, ...ezFromRoot]
     .filter(z => { if (seen.has(z.id)) return false; seen.add(z.id); return true; })
     .map(z => {
       const directEnemies = z.children ? z.children.filter(n => !n.isGroup) : [];
@@ -53,5 +53,5 @@ export function validateStructure(tree: PSDLayer[]): { warnings: string[]; struc
       return { id: z.id, name: z.name, enemies: allEnemies, directEnemies, subGroups };
     });
 
-  return { warnings, structure: { extras: extrasNode, zonasLayers, enemyZones } };
+  return { warnings, structure: { extras: extrasNode, roomLayers, enemyRooms } };
 }

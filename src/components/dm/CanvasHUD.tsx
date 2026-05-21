@@ -7,16 +7,16 @@ import type { MapStructure, VisMap } from '@/types';
 interface Props {
   dmPrivateActive: boolean;
   struct: MapStructure | null; vis: VisMap;
-  zonesLocked: boolean; enemyHighlight: boolean; highlightLocked: boolean;
+  roomsLocked: boolean; enemyHighlight: boolean; highlightLocked: boolean;
   gridCalibrating: boolean;
   onResetView: () => void;
   onResetPrivate: () => void;
-  onToggleZonesLocked: () => void;
+  onToggleRoomsLocked: () => void;
   onToggleEnemyHighlight: () => void;
   onToggleHighlightLocked: () => void;
 }
 
-export function CanvasHUD({ dmPrivateActive, struct, vis, zonesLocked, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleZonesLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
+export function CanvasHUD({ dmPrivateActive, struct, vis, roomsLocked, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleRoomsLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
   return (
     <>
       {gridCalibrating && (
@@ -31,11 +31,11 @@ export function CanvasHUD({ dmPrivateActive, struct, vis, zonesLocked, enemyHigh
             <Eye size={11} /> Vista DM
           </button>
         )}
-        {struct && struct.zonasLayers.some(l => !vis[l.id]) && (
-          <button onClick={onToggleZonesLocked} title={zonesLocked ? 'Zonas bloqueadas' : 'Modo desbloqueado'}
-            style={{ background: zonesLocked ? 'rgba(10,13,18,.92)' : `rgba(212,160,23,.18)`, border: `1px solid ${zonesLocked ? C.border : C.accent}`, borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: zonesLocked ? C.dim : C.accent, display: 'flex', alignItems: 'center', gap: 5, boxShadow: zonesLocked ? 'none' : `0 0 8px ${C.accent}55`, transition: 'all 0.2s' }}>
-            {zonesLocked ? <LockIcon size={11} /> : <UnlockIcon size={11} />}
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.05em' }}>{zonesLocked ? 'Zonas' : 'Desbloqueo'}</span>
+        {struct && struct.roomLayers.some(l => !vis[l.id]) && (
+          <button onClick={onToggleRoomsLocked} title={roomsLocked ? 'Zonas bloqueadas' : 'Modo desbloqueado'}
+            style={{ background: roomsLocked ? 'rgba(10,13,18,.92)' : `rgba(212,160,23,.18)`, border: `1px solid ${roomsLocked ? C.border : C.accent}`, borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: roomsLocked ? C.dim : C.accent, display: 'flex', alignItems: 'center', gap: 5, boxShadow: roomsLocked ? 'none' : `0 0 8px ${C.accent}55`, transition: 'all 0.2s' }}>
+            {roomsLocked ? <LockIcon size={11} /> : <UnlockIcon size={11} />}
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.05em' }}>{roomsLocked ? 'Zonas' : 'Desbloqueo'}</span>
           </button>
         )}
         <div style={{ background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 11px', fontSize: 11, color: C.dim }}>

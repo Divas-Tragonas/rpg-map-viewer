@@ -27,7 +27,7 @@ export interface CinematicCamera {
   curPan: { x: number; y: number };
 }
 
-export interface ZoneAnimMap {
+export interface RoomAnimMap {
   [id: string]: number;
 }
 
@@ -43,8 +43,8 @@ export interface FrameContext {
   pp: PosMap;
 
   rLayerImages:     MutableRefObject<Record<number, HTMLCanvasElement>>;
-  rHoveredZone:     MutableRefObject<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>;
-  zoneAnimRef:      MutableRefObject<ZoneAnimMap>;
+  rHoveredRoom:     MutableRefObject<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>;
+  roomAnimRef:      MutableRefObject<RoomAnimMap>;
   rPaintedZones:    MutableRefObject<PaintedZone[]>;
   rContextMenu:     MutableRefObject<unknown>;
   zoneAppearRef:    MutableRefObject<Record<string, number>>;

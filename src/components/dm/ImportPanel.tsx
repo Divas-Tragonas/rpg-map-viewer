@@ -37,7 +37,7 @@ export function ImportPanel({ bgLoaded, bgName, parsing, struct, psdInfo, parseE
           <DropZone accept=".psd"
             label={parsing ? 'Procesando...' : struct ? 'PSD ✓' : 'PSD'}
             sub={psdInfo ? `${psdInfo.width}×${psdInfo.height}` : parseError ? 'Error' : 'Clic o arrastre'}
-            active={!!struct} color={struct ? C.ok : parseError ? C.enemy : C.zone}
+            active={!!struct} color={struct ? C.ok : parseError ? C.enemy : C.room}
             onFile={onLoadPSD} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onLoadPSD(f); }} disabled={parsing} />
         </div>
       </div>

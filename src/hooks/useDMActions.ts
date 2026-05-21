@@ -49,9 +49,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rGridLineWidth, rGridOriginX, rGridOriginY, rEnemyHighlight, rHighlightLocked, rHighlightAlpha,
     rActiveSpells, rStruct, rStruct2, dmLocalPan, dmLocalZoom, dmPreviewBcastRef,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan, rLayerImages, rLayerUrls,
-    rZonesLocked, rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
+    rRoomsLocked, rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
-    gridCalibRef, gridCalibCurrRef, zoneAnimRef, visualPosRef, strokeQueueRef,
+    gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
   } = R;
 
@@ -140,19 +140,19 @@ export function useDMActions(R: DMRefs, S: Setters) {
       S.setWarnings(w); S.setPsdInfo({ width, height }); S.setStruct(s);
       rPsdInfo.current = { width, height };
       const initVis: VisMap = {}, initPos: Record<number | string, { x: number; y: number }> = {};
-      [...s.extras.children, ...s.zonasLayers, ...s.enemyZones.flatMap(z => z.enemies)].forEach(l => {
+      [...s.extras.children, ...s.roomLayers, ...s.enemyRooms.flatMap(z => z.enemies)].forEach(l => {
         initVis[l.id] = l.visible;
         initPos[l.id] = { x: l.left + l.w / 2, y: l.top + l.h / 2 };
       });
       rVis.current = initVis; rPos.current = initPos;
       S.setVis(initVis); S.setPos(initPos);
       const ez: Record<number, boolean> = {};
-      s.enemyZones.forEach(z => { ez[z.id] = true; (z.subGroups || []).forEach(sg => { ez[sg.id] = true; }); });
+      s.enemyRooms.forEach(z => { ez[z.id] = true; (z.subGroups || []).forEach(sg => { ez[sg.id] = true; }); });
       S.setExpanded(ez);
       const targetIds = [
         ...s.extras.children.map(l => l.id),
-        ...s.zonasLayers.map(l => l.id),
-        ...s.enemyZones.flatMap(z => z.enemies.map(e => e.id)),
+        ...s.roomLayers.map(l => l.id),
+        ...s.enemyRooms.flatMap(z => z.enemies.map(e => e.id)),
       ];
       if (targetIds.length > 0 && parsed.channelDataOffset > 0) {
         const imgs = await extractLayerImages(buf, parsed, targetIds);
@@ -183,7 +183,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
     const snapCC = (v: number, origin: number) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
-    const zoneIds = new Set((rStruct.current?.zonasLayers || []).map(l => String(l.id)));
+    const zoneIds = new Set((rStruct.current?.roomLayers || []).map(l => String(l.id)));
     const newPos = { ...rPos.current };
     for (const [id, p] of Object.entries(newPos)) {
       if (zoneIds.has(id)) continue;
@@ -207,7 +207,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const gs = rGridSize.current; if (gs <= 0) return;
     const Rv = Math.round(gs * 0.45);
     const overrides: Record<string, number> = {};
-    if (rStruct.current) rStruct.current.enemyZones.forEach(zone => zone.enemies.forEach(en => { overrides[en.id] = Rv; }));
+    if (rStruct.current) rStruct.current.enemyRooms.forEach(room => room.enemies.forEach(en => { overrides[en.id] = Rv; }));
     rPlayers.current.forEach(pl => { overrides[`pl_${pl.id}`] = Rv; });
     rLibEnemies.current.forEach(en => {
       const tmpl = ENEMY_TEMPLATES.find(t => t.id === en.templateId);
@@ -402,8 +402,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     S.setStruct(s => {
       if (!s) return s;
       let ns: MapStructure;
-      if (kind === 'zone')  ns = { ...s, zonasLayers: s.zonasLayers.filter(l => l.id !== id) };
-      else if (kind === 'enemy') ns = { ...s, enemyZones: s.enemyZones.map(z => ({ ...z, enemies: z.enemies.filter(e => e.id !== id) })) };
+      if (kind === 'room')  ns = { ...s, roomLayers: s.roomLayers.filter(l => l.id !== id) };
+      else if (kind === 'enemy') ns = { ...s, enemyRooms: s.enemyRooms.map(z => ({ ...z, enemies: z.enemies.filter(e => e.id !== id) })) };
       else if (kind === 'extra') ns = { ...s, extras: { ...s.extras, children: s.extras.children.filter(l => l.id !== id) } };
       else return s;
       rStruct.current = ns; rStruct2.current = ns; return ns;

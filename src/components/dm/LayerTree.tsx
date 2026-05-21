@@ -33,25 +33,25 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, ps
           ))}
         </TreeGroup>
       )}
-      {struct.zonasLayers.length > 0 && (
-        <TreeGroup label="ZONAS" color={C.zone} icon={<MapPin size={11} />} note="Overlays" defaultOpen={false}>
-          {struct.zonasLayers.map(l => (
-            <LayerRow key={l.id} layer={l} visible={!!vis[l.id]} onToggle={() => onToggleVis(l.id)} color={C.zone} onDelete={() => onDeleteLayer(l.id, 'zone')} />
+      {struct.roomLayers.length > 0 && (
+        <TreeGroup label="ZONAS" color={C.room} icon={<MapPin size={11} />} note="Overlays" defaultOpen={false}>
+          {struct.roomLayers.map(l => (
+            <LayerRow key={l.id} layer={l} visible={!!vis[l.id]} onToggle={() => onToggleVis(l.id)} color={C.room} onDelete={() => onDeleteLayer(l.id, 'room')} />
           ))}
         </TreeGroup>
       )}
-      {struct.enemyZones.map(zone => (
-        <div key={zone.id}>
-          <button onClick={() => setExpanded(e => ({ ...e, [zone.id]: !e[zone.id] }))}
+      {struct.enemyRooms.map(room => (
+        <div key={room.id}>
+          <button onClick={() => setExpanded(e => ({ ...e, [room.id]: !e[room.id] }))}
             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'rgba(248,81,73,.06)', border: 'none', cursor: 'pointer', color: C.text }}>
-            {expanded[zone.id] ? <ChevronDown size={12} color={C.dim} /> : <ChevronRight size={12} color={C.dim} />}
+            {expanded[room.id] ? <ChevronDown size={12} color={C.dim} /> : <ChevronRight size={12} color={C.dim} />}
             <Skull size={11} color={C.enemy} />
-            <span style={{ flex: 1, fontWeight: 600, color: C.enemy, fontSize: 13, textAlign: 'left' }}>{zone.name}</span>
-            <span style={{ fontSize: 11, color: C.dim }}>{zone.enemies.filter(en => vis[en.id]).length}/{zone.enemies.length}</span>
+            <span style={{ flex: 1, fontWeight: 600, color: C.enemy, fontSize: 13, textAlign: 'left' }}>{room.name}</span>
+            <span style={{ fontSize: 11, color: C.dim }}>{room.enemies.filter(en => vis[en.id]).length}/{room.enemies.length}</span>
           </button>
-          {expanded[zone.id] && (
+          {expanded[room.id] && (
             <>
-              {(zone.directEnemies || zone.enemies).map(en => {
+              {(room.directEnemies || room.enemies).map(en => {
                 const ov = psdEnemyOverrides[en.id]; const hm = ov?.hpMax || 0; const hp = hm > 0 ? Math.max(0, ov?.hp ?? hm) : 0;
                 const hr = hm > 0 ? hp / hm : 0; const hc = hr > 0.5 ? C.hpHigh : hr > 0.25 ? C.hpMid : C.enemy;
                 const isDefeated = !!defeated[String(en.id)];
@@ -76,7 +76,7 @@ export function LayerTree({ struct, vis, expanded, activeDrag, selectedToken, ps
                   </div>
                 );
               })}
-              {(zone.subGroups || []).map(sg => (
+              {(room.subGroups || []).map(sg => (
                 <div key={sg.id}>
                   <button onClick={() => setExpanded(ex => ({ ...ex, [sg.id]: !ex[sg.id] }))}
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 5, padding: '5px 14px 5px 28px', background: 'rgba(248,81,73,.03)', border: 'none', cursor: 'pointer', color: C.dim }}>

@@ -5,7 +5,7 @@ import {
   BC_CHANNEL, TOKEN_LERP,
 } from '@/constants';
 import {
-  renderZoneOverlays, renderExtras, renderPaintedZones, renderShapePreview,
+  renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
@@ -42,14 +42,14 @@ export function PlayerView() {
   const rEnemyHighlight = useRef(false);
   const rTokenSizeOverride = useRef<TokenSizeMap>({});
   const rPointerPos   = useRef<{ x: number; y: number } | null>(null);
-  const rHoveredZone  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
+  const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
   const visualZoomRef = useRef(1);
   const visualPanRef  = useRef({ x: 0, y: 0 });
   const visualPosRef  = useRef<PosMap>({});
-  const zoneAnimRef   = useRef<Record<string, number>>({});
+  const roomAnimRef   = useRef<Record<string, number>>({});
   const zoneAppearRef = useRef<Record<string, number>>({});
 
   const drawCanvasRef    = useRef<HTMLCanvasElement | null>(null);
@@ -400,12 +400,12 @@ export function PlayerView() {
         })));
         rLayerImages.current = imgs;
 
-        zoneAnimRef.current  = {};
+        roomAnimRef.current  = {};
         visualPosRef.current = {};
         strokeQueueRef.current  = [];
         activeStrokeAnim.current = null;
         Object.entries(msg.vis || {}).forEach(([id, active]) => {
-          zoneAnimRef.current[id] = active ? 1 : 0;
+          roomAnimRef.current[id] = active ? 1 : 0;
         });
         Object.entries(msg.pos || {}).forEach(([id, p]) => {
           visualPosRef.current[id] = { ...(p as { x: number; y: number }) };
@@ -603,7 +603,7 @@ export function PlayerView() {
 
       const fc = {
         sc, ox, oy, mw, mh, isDM: false, s, v, pp,
-        rLayerImages, rHoveredZone, zoneAnimRef,
+        rLayerImages, rHoveredRoom, roomAnimRef,
         rPaintedZones, rContextMenu, zoneAppearRef, txCache: txCache.current,
         isShapeDrawingRef, shapePointsRef,
         activeStrokeAnim, strokeQueueRef, drawCanvasRef,
@@ -621,7 +621,7 @@ export function PlayerView() {
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 
-      renderZoneOverlays(ctx, fc);
+      renderRoomOverlays(ctx, fc);
       renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);

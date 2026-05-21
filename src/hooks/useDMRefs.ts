@@ -27,7 +27,7 @@ export function useDMRefs() {
   const rLayerUrls    = useRef<Record<string, string>>({});
   const rConditions   = useRef<ConditionsMap>({});
   const rPaintedZones = useRef<PaintedZone[]>([]);
-  const rZonesLocked  = useRef(true);
+  const rRoomsLocked  = useRef(true);
   const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
   const rPsdEnemyImgCache  = useRef<Record<number, HTMLCanvasElement>>({});
   const rContextMenu  = useRef<unknown>(null);
@@ -58,11 +58,11 @@ export function useDMRefs() {
   const drawCanvasRef   = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef    = useRef(false);
   const lastDrawRef     = useRef<{ mx: number; my: number } | null>(null);
-  const rHoveredZone    = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
+  const rHoveredRoom    = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const bcRef           = useRef<BroadcastChannel | null>(null);
   const panDragRef      = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number; private?: boolean } | null>(null);
   const rPanOffset      = useRef<Point>({ x: 0, y: 0 });
-  const zoneAnimRef     = useRef<Record<string, number>>({});
+  const roomAnimRef     = useRef<Record<string, number>>({});
   const visualPosRef    = useRef<PosMap>({});
   const currentStrokeRef  = useRef<Point[]>([]);
   const strokeQueueRef    = useRef<StrokeAnimState[]>([]);
@@ -119,14 +119,14 @@ export function useDMRefs() {
   return {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
-    rLayerImages, rLayerUrls, rConditions, rPaintedZones, rZonesLocked, rContextMenu, rDefeated,
+    rLayerImages, rLayerUrls, rConditions, rPaintedZones, rRoomsLocked, rContextMenu, rDefeated,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
-    dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredZone, bcRef,
-    panDragRef, rPanOffset, zoneAnimRef, visualPosRef, currentStrokeRef, strokeQueueRef,
+    dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef,
+    panDragRef, rPanOffset, roomAnimRef, visualPosRef, currentStrokeRef, strokeQueueRef,
     activeStrokeAnim, rDeathCanvas, shapePointsRef, isShapeDrawingRef, bgBufferRef,
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,

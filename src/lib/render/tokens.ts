@@ -21,7 +21,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     rPsdEnemyOverrides, rPsdEnemyImgCache,
   } = fc;
 
-  s.enemyZones.forEach(zone => zone.enemies.forEach(en => {
+  s.enemyRooms.forEach(room => room.enemies.forEach(en => {
     const rawPos = pp[en.id];
     if (!rawPos) return;
     const isVis    = !!v[en.id];
@@ -40,13 +40,13 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
         vp.y += (rawPos.y - vp.y) * TOKEN_LERP;
         ep = vp;
       }
-      const hiddenByZone = s.zonasLayers.some(zl => {
+      const hiddenByRoom = s.roomLayers.some(zl => {
         if (!v[zl.id]) return false;
         const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
         const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
         return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
       });
-      if (hiddenByZone) return;
+      if (hiddenByRoom) return;
     }
 
     const targetInvisAlpha = isInvis && !isDM ? 0 : 1;
@@ -202,13 +202,13 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     const isVis = en.visible !== false;
 
     if (!isDM) {
-      const hiddenByZone = s.zonasLayers.some(zl => {
+      const hiddenByRoom = s.roomLayers.some(zl => {
         if (!v[zl.id]) return false;
         const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
         const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
         return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
       });
-      if (hiddenByZone) return;
+      if (hiddenByRoom) return;
     }
 
     let enAlpha: number;
@@ -370,13 +370,13 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       else { vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp; }
       const cx = ppos.x + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
       const cy = ppos.y + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
-      const hiddenByZone = s.zonasLayers.some(zl => {
+      const hiddenByRoom = s.roomLayers.some(zl => {
         if (!v[zl.id]) return false;
         const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
         const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
         return cx >= zx && cx <= zx + zl.w && cy >= zy && cy <= zy + zl.h;
       });
-      if (hiddenByZone) return;
+      if (hiddenByRoom) return;
     }
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];
