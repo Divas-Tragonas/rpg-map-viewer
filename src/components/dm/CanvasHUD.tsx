@@ -1,11 +1,10 @@
 'use client';
 import React from 'react';
-import { Eye, RotateCcw, LockIcon, UnlockIcon, TargetIcon } from '@/components/icons';
+import { RotateCcw, LockIcon, UnlockIcon, TargetIcon } from '@/components/icons';
 import { C } from '@/constants';
 import type { MapStructure, VisMap } from '@/types';
 
 interface Props {
-  dmPrivateActive: boolean;
   ctrlPanActive: boolean;
   shiftPanActive: boolean;
   struct: MapStructure | null; vis: VisMap;
@@ -18,7 +17,7 @@ interface Props {
   onToggleHighlightLocked: () => void;
 }
 
-export function CanvasHUD({ dmPrivateActive, ctrlPanActive, shiftPanActive, struct, vis, roomsLocked, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleRoomsLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
+export function CanvasHUD({ ctrlPanActive, shiftPanActive, struct, vis, roomsLocked, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleRoomsLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
   return (
     <>
       {gridCalibrating && (
@@ -38,12 +37,6 @@ export function CanvasHUD({ dmPrivateActive, ctrlPanActive, shiftPanActive, stru
             style={{ background: 'rgba(88,166,255,.15)', border: '1px solid #58a6ff', borderRadius: 6, padding: '5px 9px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, animation: 'pulse 1.5s infinite', pointerEvents: 'none', letterSpacing: '0.05em' }}>
             SHIFT
           </div>
-        )}
-        {dmPrivateActive && !shiftPanActive && (
-          <button onClick={onResetPrivate} title="Vista privada DM activa — pulsa para volver a la vista compartida"
-            style={{ background: 'rgba(88,166,255,.18)', border: '1px solid #58a6ff', borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, animation: 'pulse 1.5s infinite' }}>
-            <Eye size={11} /> Vista DM
-          </button>
         )}
         {struct && struct.roomLayers.some(l => !vis[l.id]) && (
           <button onClick={onToggleRoomsLocked} title={roomsLocked ? 'Zonas bloqueadas' : 'Modo desbloqueado'}

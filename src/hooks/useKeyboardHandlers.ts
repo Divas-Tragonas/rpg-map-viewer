@@ -58,25 +58,22 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
   }, [broadcastState]);
 
-  // SHIFT key: toggle DM-only private pan mode. Tap once to activate, tap again to deactivate + return camera.
-  // In shape mode, SHIFT still works for spell line drawing (rShiftHeld physical hold).
+  // SHIFT key: toggle DM-only private pan mode. Mirrors CTRL but for private camera.
+  // In shape mode, SHIFT is used for spell line drawing (rShiftHeld physical hold) — no toggle.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       if (e.key !== 'Shift' || e.repeat) return;
       R.rShiftHeld.current = true;
-      // Toggle DM pan mode only when not in shape tool (shape uses SHIFT for spell lines)
-      if (R.rDrawTool.current !== 'shape') {
-        if (!R.rShiftPanToggle.current) {
-          R.rShiftPanToggle.current = true;
-          setShiftPanActive(true);
-        } else {
-          // Deactivate: trigger smooth return to origin
-          R.rShiftPanToggle.current = false;
-          R.rShiftHeld.current = false;
-          setShiftPanActive(false);
-          if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
-            R.dmPrivateReturnAnim.current = true;
-          }
+      if (R.rDrawTool.current === 'shape') return;
+      if (!R.rShiftPanToggle.current) {
+        R.rShiftPanToggle.current = true;
+        setShiftPanActive(true);
+      } else {
+        R.rShiftPanToggle.current = false;
+        R.rShiftHeld.current = false;
+        setShiftPanActive(false);
+        if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
+          R.dmPrivateReturnAnim.current = true;
         }
       }
     };
@@ -87,7 +84,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
-  }, []);
+  }, [setShiftPanActive]);
 
   // Tool shortcuts (1-4) + Ctrl+Z + Escape
   useEffect(() => {

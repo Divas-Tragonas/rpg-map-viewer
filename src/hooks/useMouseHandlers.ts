@@ -49,31 +49,24 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     // Pan toggle modes: left click pans while toggle is active
     if (e.button === 0) {
-      if (R.rCtrlPanToggle.current && !e.shiftKey && !R.rShiftHeld.current) {
+      if (R.rCtrlPanToggle.current) {
         const t = R.rDrawTool.current;
         if (t !== 'pen' && t !== 'eraser') {
           R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
           e.preventDefault(); return;
         }
       }
-      if (R.rShiftPanToggle.current && !R.rCtrlPanToggle.current) {
+      if (R.rShiftPanToggle.current) {
         const t = R.rDrawTool.current;
         if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
           R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
-          S.setDmPrivateActive(true);
           e.preventDefault(); return;
         }
       }
     }
     if (e.button === 1) {
       e.preventDefault();
-      if (R.rShiftHeld.current || e.shiftKey) {
-        // SHIFT + middle = private DM-only pan
-        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
-      } else {
-        // CTRL + middle (or bare middle) = shared pan (DM + player)
-        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
-      }
+      R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
       return;
     }
     // Shift + left click in shape tool = straight-line spell drawing
