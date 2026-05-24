@@ -146,7 +146,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
         const sShape = R.rStruct.current;
         if (sShape) {
-          for (const zone of sShape.enemyZones) {
+          for (const zone of sShape.enemyRooms) {
             for (let i = zone.enemies.length - 1; i >= 0; i--) {
               const en = zone.enemies[i];
               const ep = R.rPos.current[en.id]; if (!ep) continue;
