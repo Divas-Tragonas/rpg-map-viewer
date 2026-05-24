@@ -217,6 +217,7 @@ export interface BCStateMessage {
   gridOriginY?: number;
   gridLineWidth?: number;
   enemyHighlight?: boolean;
+  highlightLocked?: boolean;
   tokenSizeOverride?: TokenSizeMap;
   appMode?: string;
   dmPreviewActive?: boolean;
@@ -245,6 +246,7 @@ export interface BCStructMessage {
   gridOriginY: number;
   gridLineWidth: number;
   enemyHighlight: boolean;
+  highlightLocked: boolean;
   tokenSizeOverride: TokenSizeMap;
   libEnemies: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;

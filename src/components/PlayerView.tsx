@@ -365,6 +365,7 @@ export function PlayerView() {
           if (msg.enemyHighlight) highlightStartRef.current = performance.now();
           else highlightStartRef.current = null;
         }
+        if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.psdEnemyOverrides) {
@@ -448,6 +449,7 @@ export function PlayerView() {
           if (msg.enemyHighlight && !prev) highlightStartRef.current = performance.now();
           else if (!msg.enemyHighlight) highlightStartRef.current = null;
         }
+        if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.dmPreviewActive !== undefined) {

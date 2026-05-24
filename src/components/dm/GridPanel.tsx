@@ -69,7 +69,7 @@ export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridL
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {[
-              { label: 'Cel·la', value: gridSize, min: 1, max: 400, step: 1, set: (v: number) => { setGridSize(v); rGridSize.current = v; onBroadcast(); } },
+              { label: 'Cel·la', value: gridSize, min: 1, max: 400, step: 1, set: (v: number) => { setGridSize(v); rGridSize.current = v; if (rGridSnap.current) onSnapAll(); onBroadcast(); } },
               { label: 'Línia', value: gridLineWidth, min: 0.5, max: 10, step: 0.1, set: (v: number) => { setGridLineWidth(v); rGridLineWidth.current = v; onBroadcast(); } },
             ].map(({ label, value, min, max, step, set }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1 }}>
