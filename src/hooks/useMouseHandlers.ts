@@ -76,17 +76,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
       return;
     }
-    // Shift + left click = private pan (or straight-line spell when shape tool active)
-    if (e.button === 0 && (e.shiftKey || R.rShiftHeld.current)) {
-      if (R.rDrawTool.current === 'shape') {
-        const { mx: smx, my: smy } = mc(e);
-        R.isSpellLineDrawingRef.current = true;
-        R.spellLineStartRef.current = { x: smx, y: smy };
-        R.rSpellPreview.current = { mode: 'line', start: { x: smx, y: smy }, end: { x: smx, y: smy } };
-        e.preventDefault(); return;
-      }
-      R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
-      S.setDmPrivateActive(true);
+    // Shift + left click in shape tool = straight-line spell drawing
+    if (e.button === 0 && (e.shiftKey || R.rShiftHeld.current) && R.rDrawTool.current === 'shape') {
+      const { mx: smx, my: smy } = mc(e);
+      R.isSpellLineDrawingRef.current = true;
+      R.spellLineStartRef.current = { x: smx, y: smy };
+      R.rSpellPreview.current = { mode: 'line', start: { x: smx, y: smy }, end: { x: smx, y: smy } };
       e.preventDefault(); return;
     }
     // Alt + click = pick origin + open area spell menu
