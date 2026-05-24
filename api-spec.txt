@@ -1,0 +1,38 @@
+API SPEC — RPG Map Viewer
+========================
+
+BASE URL: configurat via NEXT_PUBLIC_API_URL (sense barra final)
+
+
+## TIPUS Enemy
+
+{
+  id: string          // generat per la API
+  name: string        // ex: "Goblin"
+  color: string       // hex, ex: "#3a8a3a"
+  hpMax: number       // enter >= 1
+  R: number           // radi token en px, enter 8–200
+  sm: number          // multiplicador escala, decimal 0.1–5.0
+  imageData?: string  // opcional, base64 "data:image/png;base64,..."
+}
+
+
+## ENDPOINTS
+
+GET    /enemies          -> Enemy[]  (200)
+POST   /enemies          -> Enemy    (201)  body: Enemy sense id
+PUT    /enemies/:id      -> Enemy    (200)  body: camps parcials sense id
+DELETE /enemies/:id      -> 204
+
+
+## ERRORS
+
+400  { "error": "..." }   validació fallida
+404  { "error": "..." }   recurs no trobat
+
+
+## CORS
+
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
