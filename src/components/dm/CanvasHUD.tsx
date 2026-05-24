@@ -7,6 +7,7 @@ import type { MapStructure, VisMap } from '@/types';
 interface Props {
   dmPrivateActive: boolean;
   ctrlPanActive: boolean;
+  shiftPanActive: boolean;
   struct: MapStructure | null; vis: VisMap;
   roomsLocked: boolean; enemyHighlight: boolean; highlightLocked: boolean;
   gridCalibrating: boolean;
@@ -17,7 +18,7 @@ interface Props {
   onToggleHighlightLocked: () => void;
 }
 
-export function CanvasHUD({ dmPrivateActive, ctrlPanActive, struct, vis, roomsLocked, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleRoomsLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
+export function CanvasHUD({ dmPrivateActive, ctrlPanActive, shiftPanActive, struct, vis, roomsLocked, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleRoomsLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
   return (
     <>
       {gridCalibrating && (
@@ -28,8 +29,14 @@ export function CanvasHUD({ dmPrivateActive, ctrlPanActive, struct, vis, roomsLo
       <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, alignItems: 'center', pointerEvents: 'auto', zIndex: 10 }}>
         {ctrlPanActive && (
           <div title="Mode pan compartit actiu — prem CTRL per desactivar"
-            style={{ background: 'rgba(74,222,128,.15)', border: '1px solid #4ade80', borderRadius: 6, padding: '5px 9px', color: '#4ade80', display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, animation: 'pulse 1.5s infinite', pointerEvents: 'none' }}>
-            ⇔ Pan DM+J
+            style={{ background: 'rgba(74,222,128,.15)', border: '1px solid #4ade80', borderRadius: 6, padding: '5px 9px', color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, animation: 'pulse 1.5s infinite', pointerEvents: 'none', letterSpacing: '0.05em' }}>
+            CTRL
+          </div>
+        )}
+        {shiftPanActive && (
+          <div title="Mode pan DM actiu — prem SHIFT per desactivar"
+            style={{ background: 'rgba(88,166,255,.15)', border: '1px solid #58a6ff', borderRadius: 6, padding: '5px 9px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, animation: 'pulse 1.5s infinite', pointerEvents: 'none', letterSpacing: '0.05em' }}>
+            SHIFT
           </div>
         )}
         {dmPrivateActive && (

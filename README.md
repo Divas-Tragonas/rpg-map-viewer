@@ -25,6 +25,10 @@ npm run dev   # http://localhost:3000
 
 ## Changelog
 
+### v3.29
+- **Badge SHIFT**: quan el mode SHIFT (pan privat DM) s'activa amb un tap, apareix badge blau "SHIFT" a la barra superior.
+- **Badge CTRL simplificat**: ara mostra només "CTRL" sense text addicional.
+
 ### v3.28
 - **Indicador visual mode CTRL**: quan el mode pan compartit (CTRL) està actiu, apareix un badge verd "⇔ Pan DM+J" a la barra superior, igual que el badge blau del mode SHIFT.
 

@@ -71,6 +71,7 @@ export function DMView() {
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
   const [dmPrivateActive, setDmPrivateActive] = useState(false);
   const [ctrlPanActive, setCtrlPanActive] = useState(false);
+  const [shiftPanActive, setShiftPanActive] = useState(false);
   const [canvasCursor, setCanvasCursor] = useState('default');
   const [enemyHighlight, setEnemyHighlight] = useState(false);
   const [highlightLocked, setHighlightLocked] = useState(false);
@@ -225,7 +226,7 @@ export function DMView() {
   useKeyboardHandlers(R, {
     setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro,
     broadcastState: () => _broadcastState({}),
-    setCtrlPanActive,
+    setCtrlPanActive, setShiftPanActive,
   });
 
   // ── Canvas-level callbacks ────────────────────────────────────────────────
@@ -500,7 +501,7 @@ export function DMView() {
           onContextMenu={onContextMenu}
         />
         <CanvasHUD
-          dmPrivateActive={dmPrivateActive} ctrlPanActive={ctrlPanActive} struct={struct} vis={vis}
+          dmPrivateActive={dmPrivateActive} ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} struct={struct} vis={vis}
           roomsLocked={roomsLocked} enemyHighlight={enemyHighlight}
           highlightLocked={highlightLocked} gridCalibrating={gridCalibrating}
           onResetView={onResetView} onResetPrivate={onResetPrivate}
@@ -608,7 +609,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.28</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.29</div>
             </div>
           </div>
         )}

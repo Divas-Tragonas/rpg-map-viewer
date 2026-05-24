@@ -11,10 +11,11 @@ interface KBOpts {
   skipBossIntro: () => void;
   broadcastState: () => void;
   setCtrlPanActive: (v: boolean) => void;
+  setShiftPanActive: (v: boolean) => void;
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive } = opts;
+  const { setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive } = opts;
 
   // CTRL key: toggle shared pan mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
@@ -67,10 +68,12 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       if (R.rDrawTool.current !== 'shape') {
         if (!R.rShiftPanToggle.current) {
           R.rShiftPanToggle.current = true;
+          setShiftPanActive(true);
         } else {
           // Deactivate: trigger smooth return to origin
           R.rShiftPanToggle.current = false;
           R.rShiftHeld.current = false;
+          setShiftPanActive(false);
           if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
             R.dmPrivateReturnAnim.current = true;
           }
