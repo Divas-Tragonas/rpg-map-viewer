@@ -13,6 +13,7 @@ Eina per a Dungeon Masters per gestionar mapes, tokens i jugadors en temps real.
 | `/` | Vista del Dungeon Master |
 | `/player` | Vista del jugador (pantalla secundària) |
 | `/expositor` | Pantalla d'expositor de campanya |
+| `/admin` | Back office (gestió d'enemics, mapes, zones) |
 
 ## Dev
 
@@ -24,6 +25,12 @@ npm run dev   # http://localhost:3000
 ---
 
 ## Changelog
+
+### v3.37
+- **Back office** a `/admin`: gestió d'enemics via API externa amb CRUD complet.
+- **Auth middleware**: protecció per contrasenya simple (`ADMIN_PASSWORD` env var, per defecte `admin`).
+- **API client** (`src/lib/api.ts`): connector a `NEXT_PUBLIC_API_URL` per operacions CRUD.
+- **Fitxer `.env.local.example`** amb totes les variables d'entorn necessàries.
 
 ### v3.36
 - **Nova lògica de zones**: clic en zona visible = sempre l'amaga; SHIFT mode actiu + clic en zona oculta = la revela. Sense SHIFT actiu no es poden revelar zones des del canvas.
