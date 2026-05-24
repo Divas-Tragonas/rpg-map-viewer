@@ -58,10 +58,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
       if (R.rShiftPanToggle.current) {
         const t = R.rDrawTool.current;
+        console.log('[SHIFT-PAN] mousedown: toggle=true, tool=', t, 'dmLocalPan=', JSON.stringify(R.dmLocalPan.current));
         if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
           R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
+          console.log('[SHIFT-PAN] panDragRef set:', JSON.stringify(R.panDragRef.current));
           e.preventDefault(); return;
         }
+        console.log('[SHIFT-PAN] tool excluded, falling through');
       }
     }
     if (e.button === 1) {
@@ -244,6 +247,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const { startX, startY, startPanX, startPanY, private: isPrivate } = R.panDragRef.current;
       const nx = startPanX + (e.clientX - startX), ny = startPanY + (e.clientY - startY);
       if (isPrivate) {
+        console.log('[SHIFT-PAN] mousemove private: dmLocalPan ->', nx, ny);
         R.dmLocalPan.current = { x: nx, y: ny }; S.setDmPrivateActive(true);
         const now = Date.now();
         if (now - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now; _broadcastState({}); }
