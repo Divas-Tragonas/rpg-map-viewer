@@ -47,29 +47,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   }, []);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Pan toggle modes: left click pans while toggle is active
-    if (e.button === 0) {
-      if (R.rCtrlPanToggle.current) {
-        const t = R.rDrawTool.current;
-        if (t !== 'pen' && t !== 'eraser') {
-          R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
-          e.preventDefault(); return;
-        }
-      }
-      if (R.rShiftPanToggle.current) {
-        const t = R.rDrawTool.current;
-        console.log('[SHIFT-PAN] mousedown: toggle=true, tool=', t, 'dmLocalPan=', JSON.stringify(R.dmLocalPan.current));
-        if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
-          R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
-          console.log('[SHIFT-PAN] panDragRef set:', JSON.stringify(R.panDragRef.current));
-          e.preventDefault(); return;
-        }
-        console.log('[SHIFT-PAN] tool excluded, falling through');
-      }
-    }
     if (e.button === 1) {
       e.preventDefault();
-      R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
+      if (R.rShiftPanToggle.current) {
+        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
+      } else {
+        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
+      }
       return;
     }
     // Shift + left click in shape tool = straight-line spell drawing
@@ -247,7 +231,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const { startX, startY, startPanX, startPanY, private: isPrivate } = R.panDragRef.current;
       const nx = startPanX + (e.clientX - startX), ny = startPanY + (e.clientY - startY);
       if (isPrivate) {
-        console.log('[SHIFT-PAN] mousemove private: dmLocalPan ->', nx, ny);
         R.dmLocalPan.current = { x: nx, y: ny }; S.setDmPrivateActive(true);
         const now = Date.now();
         if (now - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now; _broadcastState({}); }
