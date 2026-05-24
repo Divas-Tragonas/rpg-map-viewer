@@ -9,45 +9,79 @@ interface KBOpts {
   setRoomsLocked: (v: boolean) => void;
   undoStroke: () => void;
   skipBossIntro: () => void;
+  broadcastState: () => void;
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro } = opts;
+  const { setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro, broadcastState } = opts;
 
-  // Ctrl key: unlock rooms + DM private view
+  // CTRL key: toggle shared pan mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Control') return;
-      setCtrlHeld(true); R.ctrlHeldRef.current = true;
-      const s = R.rStruct.current;
-      if (s && s.roomLayers.some(l => !R.rVis.current[l.id])) {
-        setRoomsLocked(false); R.rRoomsLocked.current = false;
+      if (e.key !== 'Control' || e.repeat) return;
+      if (!R.rCtrlPanToggle.current) {
+        // Activate: save current shared pan position
+        R.rCtrlPanToggle.current = true;
+        R.rCtrlPanSnapshot.current = { ...R.rPanOffset.current };
+        setCtrlHeld(true); R.ctrlHeldRef.current = true;
+        // Unlock rooms if any are hidden
+        const s = R.rStruct.current;
+        if (s && s.roomLayers.some((l: { id: number }) => !R.rVis.current[l.id])) {
+          setRoomsLocked(false); R.rRoomsLocked.current = false;
+        }
+      } else {
+        // Deactivate: restore saved pan position and broadcast to player
+        R.rCtrlPanToggle.current = false;
+        if (R.rCtrlPanSnapshot.current) {
+          R.rPanOffset.current = { ...R.rCtrlPanSnapshot.current };
+          broadcastState();
+        }
+        R.rCtrlPanSnapshot.current = null;
+        setCtrlHeld(false); R.ctrlHeldRef.current = false;
+        setRoomsLocked(true); R.rRoomsLocked.current = true;
       }
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.key !== 'Control') return;
-      setCtrlHeld(false); R.ctrlHeldRef.current = false;
-      setRoomsLocked(true); R.rRoomsLocked.current = true;
-      if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
-        R.dmPrivateReturnAnim.current = true;
+      // Only update ctrlHeld if not in toggle mode (toggle manages its own state)
+      if (!R.rCtrlPanToggle.current) {
+        setCtrlHeld(false); R.ctrlHeldRef.current = false;
+        setRoomsLocked(true); R.rRoomsLocked.current = true;
       }
     };
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
-  }, []);
+  }, [broadcastState]);
 
-  // Shift key: DM private view only (no zone unlock)
+  // SHIFT key: toggle DM-only private pan mode. Tap once to activate, tap again to deactivate + return camera.
+  // In shape mode, SHIFT still works for spell line drawing (rShiftHeld physical hold).
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Shift') return;
+      if (e.key !== 'Shift' || e.repeat) return;
       R.rShiftHeld.current = true;
+      // Toggle DM pan mode only when not in shape tool (shape uses SHIFT for spell lines)
+      if (R.rDrawTool.current !== 'shape') {
+        if (!R.rShiftPanToggle.current) {
+          R.rShiftPanToggle.current = true;
+        } else {
+          // Deactivate: trigger smooth return to origin
+          R.rShiftPanToggle.current = false;
+          R.rShiftHeld.current = false;
+          if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
+            R.dmPrivateReturnAnim.current = true;
+          }
+        }
+      }
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.key !== 'Shift') return;
       R.rShiftHeld.current = false;
-      if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
-        R.dmPrivateReturnAnim.current = true;
+      // If not in toggle mode, trigger return anim on key release (old behavior)
+      if (!R.rShiftPanToggle.current) {
+        if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
+          R.dmPrivateReturnAnim.current = true;
+        }
       }
     };
     window.addEventListener('keydown', onDown);

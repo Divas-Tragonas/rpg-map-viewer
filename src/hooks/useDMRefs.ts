@@ -98,6 +98,10 @@ export function useDMRefs() {
   const highlightStartRef = useRef<number | null>(null);
   const dmPreviewBcastRef = useRef(0);
   const zoneAppearRef     = useRef<Record<string, number>>({});
+  // Pan toggle modes (tap key once to activate, tap again to deactivate + restore)
+  const rCtrlPanToggle   = useRef(false);
+  const rCtrlPanSnapshot = useRef<Point | null>(null);
+  const rShiftPanToggle  = useRef(false);
 
   // Spell drawing refs
   const isSpellLineDrawingRef  = useRef(false);
@@ -137,6 +141,7 @@ export function useDMRefs() {
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
     cinematicOrigZoomRef, cinematicOrigPanRef,
     cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,
+    rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle,
   };
 }
 

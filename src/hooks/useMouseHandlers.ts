@@ -47,6 +47,24 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   }, []);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Pan toggle modes: left click pans while toggle is active
+    if (e.button === 0) {
+      if (R.rCtrlPanToggle.current && !e.shiftKey && !R.rShiftHeld.current) {
+        const t = R.rDrawTool.current;
+        if (t !== 'pen' && t !== 'eraser') {
+          R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
+          e.preventDefault(); return;
+        }
+      }
+      if (R.rShiftPanToggle.current && !R.rCtrlPanToggle.current) {
+        const t = R.rDrawTool.current;
+        if (t !== 'pen' && t !== 'eraser' && t !== 'shape') {
+          R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
+          S.setDmPrivateActive(true);
+          e.preventDefault(); return;
+        }
+      }
+    }
     if (e.button === 1) {
       e.preventDefault();
       if (R.rShiftHeld.current || e.shiftKey) {
