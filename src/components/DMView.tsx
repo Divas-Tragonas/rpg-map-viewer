@@ -131,7 +131,7 @@ export function DMView() {
   const {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, loadParty, clearDrawing, undoStroke,
-    saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
+    addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility,
@@ -477,7 +477,7 @@ export function DMView() {
         <BottomControls
           zoom={zoom} onZoomChange={onZoomChange} psdInfo={psdInfo} struct={struct}
           activeCount={activeCount} layerImagesCount={Object.keys(layerImages).length}
-          onSave={saveSession} onLoad={loadSession} onOpenPlayer={openPlayerWindow}
+          onOpenPlayer={openPlayerWindow}
         />
       </div>
 
