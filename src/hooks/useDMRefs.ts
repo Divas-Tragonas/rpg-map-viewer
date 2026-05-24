@@ -100,7 +100,7 @@ export function useDMRefs() {
   const zoneAppearRef     = useRef<Record<string, number>>({});
   // Pan toggle modes (tap key once to activate, tap again to deactivate + restore)
   const rCtrlPanToggle   = useRef(false);
-  const rCtrlPanSnapshot = useRef<Point | null>(null);
+  const rCtrlPanSnapshot = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const rShiftPanToggle  = useRef(false);
 
   // Spell drawing refs

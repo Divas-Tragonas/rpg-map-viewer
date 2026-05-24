@@ -25,6 +25,9 @@ npm run dev   # http://localhost:3000
 
 ## Changelog
 
+### v3.35
+- **CTRL mode restaura zoom**: en desactivar el mode CTRL, ara es restaura tant la posició com el zoom a l'estat anterior a l'activació.
+
 ### v3.34
 - **Zoom respecta modes CTRL/SHIFT**: scroll del middle button fa zoom compartit per defecte (o amb CTRL actiu); amb SHIFT actiu fa zoom privat DM (jugador no veu el canvi).
 
