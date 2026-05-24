@@ -27,7 +27,6 @@ export function useDMRefs() {
   const rLayerUrls    = useRef<Record<string, string>>({});
   const rConditions   = useRef<ConditionsMap>({});
   const rPaintedZones = useRef<PaintedZone[]>([]);
-  const rRoomsLocked  = useRef(true);
   const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
   const rPsdEnemyImgCache  = useRef<Record<number, HTMLCanvasElement>>({});
   const rContextMenu  = useRef<unknown>(null);
@@ -81,7 +80,6 @@ export function useDMRefs() {
   const zoneDragRef       = useRef<{ zoneId: string; startMx: number; startMy: number; origPoints: Point[]; origBbox: BBox } | null>(null);
   const areaSpellDragRef  = useRef<{ spellId: string; startMx: number; startMy: number; origCx: number; origCy: number } | null>(null);
   const defeatedAnimRef   = useRef<Record<string, number>>({});
-  const ctrlHeldRef       = useRef(false);
   const _ctx2dRef         = useRef<CanvasRenderingContext2D | null>(null);
   const invisAlphaRef     = useRef<Record<string, number>>({});
   const strokeHistoryRef  = useRef<StrokeData[]>([]);
@@ -123,7 +121,7 @@ export function useDMRefs() {
   return {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
-    rLayerImages, rLayerUrls, rConditions, rPaintedZones, rRoomsLocked, rContextMenu, rDefeated,
+    rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
@@ -134,7 +132,7 @@ export function useDMRefs() {
     activeStrokeAnim, rDeathCanvas, shapePointsRef, isShapeDrawingRef, bgBufferRef,
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,
-    zoneDragRef, areaSpellDragRef, defeatedAnimRef, ctrlHeldRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
+    zoneDragRef, areaSpellDragRef, defeatedAnimRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
     rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,

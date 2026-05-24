@@ -58,11 +58,9 @@ export function DMView() {
   const [gridOriginX, setGridOriginX] = useState(0);
   const [gridOriginY, setGridOriginY] = useState(0);
   const [gridCalibrating, setGridCalibrating] = useState(false);
-  const [roomsLocked, setRoomsLocked] = useState(true);
   const [drawToolState, setDrawToolState] = useState<DrawTool>('none');
   const [drawColor, setDrawColor] = useState('#f85149');
   const [drawSize, setDrawSize] = useState(6);
-  const [ctrlHeld, setCtrlHeld] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'mapa' | 'eines' | 'enemics'>('mapa');
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
@@ -164,7 +162,7 @@ export function DMView() {
     R.rPlayers.current = players; R.rLibEnemies.current = libEnemies;
     R.rDrawColor.current = drawColor; R.rDrawSize.current = drawSize;
     R.rConditions.current = conditions; R.rPaintedZones.current = paintedZones;
-    R.rRoomsLocked.current = roomsLocked; R.rDefeated.current = defeated;
+    R.rDefeated.current = defeated;
     R.rGridVisible.current = gridVisible; R.rGridSize.current = gridSize;
     R.rGridSnap.current = gridSnap; R.rGridAutoSize.current = gridAutoSize;
     R.rTokenSizeOverride.current = tokenSizeOverride; R.rGridLineWidth.current = gridLineWidth;
@@ -176,7 +174,7 @@ export function DMView() {
     R.rPsdEnemyOverrides.current = psdEnemyOverrides;
   }, [
     struct, vis, pos, zoom, players, libEnemies, drawColor, drawSize, conditions, paintedZones,
-    roomsLocked, defeated, gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride,
+    defeated, gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride,
     gridLineWidth, gridOriginX, gridOriginY, gridCalibrating, enemyHighlight, highlightLocked,
     selectedToken, layerImages, contextMenu, activeSpells, psdEnemyOverrides,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -211,7 +209,7 @@ export function DMView() {
   // ── Mouse handlers ────────────────────────────────────────────────────────
   const mouseSetters = useMemo(() => ({
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
-    setActiveSpells, setPaintedZones, setContextMenu, setRoomsLocked, setCanUndo,
+    setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -224,7 +222,7 @@ export function DMView() {
 
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
-    setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro,
+    setDrawTool, undoStroke, skipBossIntro,
     broadcastState: () => _broadcastState({}),
     setCtrlPanActive, setShiftPanActive, setZoom,
   });
@@ -237,11 +235,6 @@ export function DMView() {
   }, [_broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onResetPrivate = useCallback(() => { R.dmPrivateReturnAnim.current = true; }, [R]);
-
-  const onToggleRoomsLocked = useCallback(() => {
-    const next = !R.rRoomsLocked.current;
-    R.rRoomsLocked.current = next; setRoomsLocked(next);
-  }, [R]);
 
   const onToggleEnemyHighlight = useCallback(() => {
     const next = !R.rEnemyHighlight.current;
@@ -502,10 +495,9 @@ export function DMView() {
         />
         <CanvasHUD
           ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} struct={struct} vis={vis}
-          roomsLocked={roomsLocked} enemyHighlight={enemyHighlight}
+          enemyHighlight={enemyHighlight}
           highlightLocked={highlightLocked} gridCalibrating={gridCalibrating}
           onResetView={onResetView} onResetPrivate={onResetPrivate}
-          onToggleRoomsLocked={onToggleRoomsLocked}
           onToggleEnemyHighlight={onToggleEnemyHighlight}
           onToggleHighlightLocked={onToggleHighlightLocked}
         />
@@ -609,7 +601,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.35</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.36</div>
             </div>
           </div>
         )}

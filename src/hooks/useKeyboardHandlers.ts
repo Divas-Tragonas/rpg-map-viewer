@@ -5,8 +5,6 @@ import type { DMRefs } from './useDMRefs';
 
 interface KBOpts {
   setDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
-  setCtrlHeld: (v: boolean) => void;
-  setRoomsLocked: (v: boolean) => void;
   undoStroke: () => void;
   skipBossIntro: () => void;
   broadcastState: () => void;
@@ -16,25 +14,17 @@ interface KBOpts {
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, setCtrlHeld, setRoomsLocked, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom } = opts;
+  const { setDrawTool, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom } = opts;
 
-  // CTRL key: toggle shared pan mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
+  // CTRL key: toggle shared pan/zoom mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       if (e.key !== 'Control' || e.repeat) return;
       if (!R.rCtrlPanToggle.current) {
-        // Activate: save current shared pan + zoom
         R.rCtrlPanToggle.current = true;
         R.rCtrlPanSnapshot.current = { ...R.rPanOffset.current, zoom: R.rZoom.current };
         setCtrlPanActive(true);
-        setCtrlHeld(true); R.ctrlHeldRef.current = true;
-        // Unlock rooms if any are hidden
-        const s = R.rStruct.current;
-        if (s && s.roomLayers.some((l: { id: number }) => !R.rVis.current[l.id])) {
-          setRoomsLocked(false); R.rRoomsLocked.current = false;
-        }
       } else {
-        // Deactivate: restore saved pan + zoom and broadcast to player
         R.rCtrlPanToggle.current = false;
         if (R.rCtrlPanSnapshot.current) {
           const { x, y, zoom } = R.rCtrlPanSnapshot.current;
@@ -44,24 +34,13 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         }
         R.rCtrlPanSnapshot.current = null;
         setCtrlPanActive(false);
-        setCtrlHeld(false); R.ctrlHeldRef.current = false;
-        setRoomsLocked(true); R.rRoomsLocked.current = true;
-      }
-    };
-    const onUp = (e: KeyboardEvent) => {
-      if (e.key !== 'Control') return;
-      // Only update ctrlHeld if not in toggle mode (toggle manages its own state)
-      if (!R.rCtrlPanToggle.current) {
-        setCtrlHeld(false); R.ctrlHeldRef.current = false;
-        setRoomsLocked(true); R.rRoomsLocked.current = true;
       }
     };
     window.addEventListener('keydown', onDown);
-    window.addEventListener('keyup', onUp);
-    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
-  }, [broadcastState]);
+    return () => window.removeEventListener('keydown', onDown);
+  }, [broadcastState, setZoom, setCtrlPanActive]);
 
-  // SHIFT key: toggle DM-only private pan mode. Mirrors CTRL but for private camera.
+  // SHIFT key: toggle DM-only private pan/zoom mode. Tap once to activate, tap again to deactivate + return camera.
   // In shape mode, SHIFT is used for spell line drawing (rShiftHeld physical hold) — no toggle.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {

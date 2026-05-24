@@ -49,7 +49,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rGridLineWidth, rGridOriginX, rGridOriginY, rEnemyHighlight, rHighlightLocked, rHighlightAlpha,
     rActiveSpells, rStruct, rStruct2, dmLocalPan, dmLocalZoom, dmPreviewBcastRef,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan, rLayerImages, rLayerUrls,
-    rRoomsLocked, rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
+    rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,

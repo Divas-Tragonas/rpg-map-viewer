@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { RotateCcw, LockIcon, UnlockIcon, TargetIcon } from '@/components/icons';
+import { RotateCcw, TargetIcon, LockIcon, UnlockIcon } from '@/components/icons';
 import { C } from '@/constants';
 import type { MapStructure, VisMap } from '@/types';
 
@@ -8,16 +8,15 @@ interface Props {
   ctrlPanActive: boolean;
   shiftPanActive: boolean;
   struct: MapStructure | null; vis: VisMap;
-  roomsLocked: boolean; enemyHighlight: boolean; highlightLocked: boolean;
+  enemyHighlight: boolean; highlightLocked: boolean;
   gridCalibrating: boolean;
   onResetView: () => void;
   onResetPrivate: () => void;
-  onToggleRoomsLocked: () => void;
   onToggleEnemyHighlight: () => void;
   onToggleHighlightLocked: () => void;
 }
 
-export function CanvasHUD({ ctrlPanActive, shiftPanActive, struct, vis, roomsLocked, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleRoomsLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
+export function CanvasHUD({ ctrlPanActive, shiftPanActive, struct, vis, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
   return (
     <>
       {gridCalibrating && (
@@ -37,13 +36,6 @@ export function CanvasHUD({ ctrlPanActive, shiftPanActive, struct, vis, roomsLoc
             style={{ background: 'rgba(88,166,255,.15)', border: '1px solid #58a6ff', borderRadius: 6, padding: '5px 9px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, animation: 'pulse 1.5s infinite', pointerEvents: 'none', letterSpacing: '0.05em' }}>
             SHIFT
           </div>
-        )}
-        {struct && struct.roomLayers.some(l => !vis[l.id]) && (
-          <button onClick={onToggleRoomsLocked} title={roomsLocked ? 'Zonas bloqueadas' : 'Modo desbloqueado'}
-            style={{ background: roomsLocked ? 'rgba(10,13,18,.92)' : `rgba(212,160,23,.18)`, border: `1px solid ${roomsLocked ? C.border : C.accent}`, borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: roomsLocked ? C.dim : C.accent, display: 'flex', alignItems: 'center', gap: 5, boxShadow: roomsLocked ? 'none' : `0 0 8px ${C.accent}55`, transition: 'all 0.2s' }}>
-            {roomsLocked ? <LockIcon size={11} /> : <UnlockIcon size={11} />}
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.05em' }}>{roomsLocked ? 'Zonas' : 'Desbloqueo'}</span>
-          </button>
         )}
         <div style={{ background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 11px', fontSize: 11, color: C.dim }}>
           <span style={{ color: C.accent, fontWeight: 700 }}>DM</span>

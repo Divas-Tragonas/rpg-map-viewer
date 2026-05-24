@@ -21,7 +21,6 @@ interface MouseHandlerSetters {
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setPaintedZones: (v: import('@/types').PaintedZone[]) => void;
   setContextMenu: (v: import('@/types').ContextMenuState | null) => void;
-  setRoomsLocked: (v: boolean) => void;
   setCanUndo: (v: boolean) => void;
   setDmPrivateActive: (v: boolean) => void;
   setCanvasCursor: (c: string) => void;
@@ -206,14 +205,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const { id, lx, ly, lw, lh } = hovZ;
       if (mx >= lx && mx <= lx + lw && my >= ly && my <= ly + lh) {
         const currentlyVisible = !!R.rVis.current[id];
-        if (!currentlyVisible && !e.ctrlKey) {
-          if (R.rRoomsLocked.current) { e.preventDefault(); return; }
-          const nv = { ...R.rVis.current, [id]: true };
-          R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-          S.setRoomsLocked(true); R.rRoomsLocked.current = true;
-          e.preventDefault();
-        } else if (currentlyVisible && e.ctrlKey) {
+        if (currentlyVisible) {
+          // Always hide a visible room
           const nv = { ...R.rVis.current, [id]: false };
+          R.rVis.current = nv; S.setVis(nv); _broadcastState({});
+          e.preventDefault();
+        } else if (R.rShiftPanToggle.current) {
+          // Only reveal a hidden room when SHIFT mode is active
+          const nv = { ...R.rVis.current, [id]: true };
           R.rVis.current = nv; S.setVis(nv); _broadcastState({});
           e.preventDefault();
         }
@@ -277,7 +276,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
             const lp = R.rPos.current[l.id] || { x: l.left + l.w / 2, y: l.top + l.h / 2 };
             const lx = lp.x - l.w / 2, ly = lp.y - l.h / 2;
             if (mx >= lx && mx <= lx + l.w && my >= ly && my <= ly + l.h) {
-              if (R.rRoomsLocked.current && !R.rVis.current[l.id]) continue;
+              if (!R.rShiftPanToggle.current && !R.rVis.current[l.id]) continue;
               found = { id: l.id, lx, ly, lw: l.w, lh: l.h }; break;
             }
           }
