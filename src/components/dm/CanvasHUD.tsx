@@ -39,7 +39,7 @@ export function CanvasHUD({ dmPrivateActive, ctrlPanActive, shiftPanActive, stru
             SHIFT
           </div>
         )}
-        {dmPrivateActive && (
+        {dmPrivateActive && !shiftPanActive && (
           <button onClick={onResetPrivate} title="Vista privada DM activa — pulsa para volver a la vista compartida"
             style={{ background: 'rgba(88,166,255,.18)', border: '1px solid #58a6ff', borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, animation: 'pulse 1.5s infinite' }}>
             <Eye size={11} /> Vista DM

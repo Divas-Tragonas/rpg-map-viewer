@@ -83,12 +83,6 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     const onUp = (e: KeyboardEvent) => {
       if (e.key !== 'Shift') return;
       R.rShiftHeld.current = false;
-      // If not in toggle mode, trigger return anim on key release (old behavior)
-      if (!R.rShiftPanToggle.current) {
-        if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
-          R.dmPrivateReturnAnim.current = true;
-        }
-      }
     };
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
