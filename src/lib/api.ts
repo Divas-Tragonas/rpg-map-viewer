@@ -14,11 +14,22 @@ export function isApiConfigured(): boolean {
   return BASE.length > 0;
 }
 
+function getAuthToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)admin_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (!BASE) throw new Error('NEXT_PUBLIC_API_URL no configurat');
+  const token = getAuthToken();
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers ?? {}),
+    },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
