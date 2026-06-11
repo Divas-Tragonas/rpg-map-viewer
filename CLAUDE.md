@@ -55,6 +55,75 @@ git remote set-url origin https://oauth2:TOKEN@github.com/Divas-Tragonas/rpg-map
 
 ---
 
+## ⚠️ REGLA ABSOLUTA — Canvis que requereixen modificar la API
+
+> **MAI implementar codi frontend que depengui d'un endpoint o camp que encara no existeix a la API.**
+> Incomplir aquesta regla causa errors silenciosos en producció que són difícils de diagnosticar.
+
+Quan un canvi al frontend requereix modificar o ampliar la API (`divas_tragonas_api`), el flux **obligatori** és:
+
+### Pas 1 — Detectar la dependència
+
+Abans de tocar cap fitxer frontend, identificar si el canvi necessita:
+- Un endpoint nou
+- Un camp nou en un model existent
+- Un canvi en la resposta d'un endpoint existent
+- Un canvi d'autenticació o permisos
+
+Si la resposta és sí a qualsevol dels anteriors → **ATURAR** i anar al Pas 2.
+
+### Pas 2 — Generar el prompt per a la sessió de la API
+
+Generar un bloc de text complet i autònom per enganxar a la sessió de `divas_tragonas_api`. El prompt ha d'incloure:
+
+1. **Què cal canviar** — endpoint, mètode HTTP, ruta exacta
+2. **Esquema de la petició** — body JSON amb tots els camps i tipus
+3. **Esquema de la resposta** — camps retornats i codi HTTP esperat
+4. **Canvis al model** — si cal afegir camps al mongoose schema
+5. **Context mínim** — per què és necessari (una frase)
+
+Exemple de format:
+
+```
+Modifica la API (divas_tragonas_api) per afegir suport per a [X].
+
+CANVI 1 — Model Enemy (app/src/modules/enemies/enemy.model.ts)
+Afegir camp: `tags: [String]` (opcional, per defecte [])
+
+CANVI 2 — Endpoint existent PUT /enemies/:id
+Ha de acceptar i retornar el nou camp `tags` a la resposta.
+
+CANVI 3 — Validació (enemy.schema.ts)
+Afegir `tags: z.array(z.string()).optional().default([])`
+
+Motiu: el frontend necessita etiquetar enemics per filtrar-los al panell del DM.
+```
+
+### Pas 3 — Presentar el prompt a l'usuari i ATURAR
+
+Mostrar el prompt generat i escriure **exactament**:
+
+> "He detectat que aquest canvi requereix modificacions a la API. Aquí tens el prompt per enganxar a la sessió de `divas_tragonas_api`. Quan hagis aplicat i desplegat els canvis, torna aquí i continua."
+
+**No escriure cap codi frontend fins que l'usuari confirmi que la API està actualitzada i desplegada.**
+
+### Pas 4 — Verificació abans de continuar
+
+Quan l'usuari torni i digui que la API ja té els canvis, **verificar activament**:
+
+```bash
+curl http://[NEXT_PUBLIC_API_URL]/[endpoint] ...
+```
+
+Si la resposta conté els camps esperats → continuar amb el frontend.
+Si no → informar l'usuari i no avançar.
+
+### Actualitzar `api-spec.txt`
+
+Sempre que es detecti o implementi un canvi a la API, actualitzar `api-spec.txt` per reflectir l'estat actual del contracte. Aquest fitxer és la font de veritat compartida entre els dos repositoris.
+
+---
+
 ## Stack
 
 | Element | Detall |
