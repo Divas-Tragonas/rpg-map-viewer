@@ -150,7 +150,7 @@ export default function EnemicsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {['Color', 'Nom', 'HP màx', 'Radi (R)', 'Escala (sm)', 'Accions'].map(h => (
+                {['', 'Color', 'Nom', 'HP màx', 'Radi (R)', 'Escala (sm)', 'Accions'].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
@@ -160,13 +160,19 @@ export default function EnemicsPage() {
             <tbody>
               {enemies.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: '32px 14px', textAlign: 'center', color: C.dim, fontSize: 13 }}>
+                  <td colSpan={7} style={{ padding: '32px 14px', textAlign: 'center', color: C.dim, fontSize: 13 }}>
                     {apiOk ? 'Sense enemics. Crea el primer!' : '—'}
                   </td>
                 </tr>
               )}
               {enemies.map((enemy, i) => (
                 <tr key={enemy.id} style={{ borderTop: i === 0 ? 'none' : `1px solid ${C.border}` }}>
+                  <td style={{ padding: '10px 14px', width: 48 }}>
+                    {enemy.imageData
+                      ? <img src={enemy.imageData} alt="" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 5, background: '#080c12', border: `1px solid ${C.border}` }} />
+                      : <div style={{ width: 36, height: 36, borderRadius: 5, background: C.dark, border: `1px dashed ${C.border}` }} />
+                    }
+                  </td>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ width: 22, height: 22, borderRadius: '50%', background: enemy.color, border: `1px solid ${C.border}`, flexShrink: 0 }} />
                   </td>
@@ -300,13 +306,10 @@ export default function EnemicsPage() {
                 </Field>
               </div>
 
-              <Field label="Imatge (base64, opcional)">
-                <textarea
+              <Field label="Imatge (opcional)">
+                <ImageUpload
                   value={modal.data.imageData ?? ''}
-                  onChange={e => updateField('imageData', e.target.value)}
-                  placeholder="data:image/png;base64,..."
-                  rows={3}
-                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: 10 }}
+                  onChange={v => updateField('imageData', v)}
                 />
               </Field>
             </div>
@@ -350,6 +353,64 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
   boxSizing: 'border-box',
 };
+
+function ImageUpload({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => onChange((ev.target?.result as string) ?? '');
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+      {value ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src={value} alt="" style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 6, border: `1px solid #21262d`, background: '#080c12' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              style={{ padding: '5px 12px', border: `1px solid #21262d`, borderRadius: 5, background: 'transparent', color: '#c9d1d9', fontSize: 11, cursor: 'pointer' }}
+            >
+              Canviar
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              style={{ padding: '5px 12px', border: '1px solid #f8514940', borderRadius: 5, background: 'transparent', color: '#f85149', fontSize: 11, cursor: 'pointer' }}
+            >
+              Treure
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          style={{
+            width: '100%',
+            padding: '10px',
+            border: `1px dashed #21262d`,
+            borderRadius: 6,
+            background: 'transparent',
+            color: '#8b949e',
+            fontSize: 12,
+            cursor: 'pointer',
+            textAlign: 'center',
+          }}
+        >
+          Seleccionar imatge…
+        </button>
+      )}
+    </div>
+  );
+}
 
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {
   return (

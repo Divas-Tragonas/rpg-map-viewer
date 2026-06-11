@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.42
+- Back office: pujada d'imatge per a enemics amb prévia i botó per treure-la (substitueix el camp base64).
+
 ### v3.41
 - Vista DM: secció «Base de dades» al panell d'enemics mostra els enemics de la BD i permet afegir-los a l'escena.
 
