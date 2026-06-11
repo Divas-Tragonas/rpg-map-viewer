@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.44
+- Fix: eliminar un spell d'àrea (sleep/grease) ara desapareix també a la vista del jugador (nou missatge BC `DELETE_SPELL`).
+
 ### v3.43
 - CLAUDE.md: workflow obligatori per canvis cross-repo (frontend + API).
 

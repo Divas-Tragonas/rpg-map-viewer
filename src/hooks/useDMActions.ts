@@ -441,7 +441,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   const deleteAreaSpell = useCallback((id: string) => {
     const ns = rActiveSpells.current.filter(s => s.id !== id);
-    rActiveSpells.current = ns; S.setActiveSpells(ns); _broadcastState({});
+    rActiveSpells.current = ns; S.setActiveSpells(ns);
+    bcRef.current?.postMessage({ type: 'DELETE_SPELL', id });
+    _broadcastState({});
   }, [_broadcastState]);
 
   const clearPaintedZones = useCallback(() => {
