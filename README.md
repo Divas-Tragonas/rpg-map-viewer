@@ -19,12 +19,15 @@ Eina per a Dungeon Masters per gestionar mapes, tokens i jugadors en temps real.
 
 ```bash
 npm install
-npm run dev   # http://localhost:3000
+npm run dev   # http://localhost:3001
 ```
 
 ---
 
 ## Changelog
+
+### v3.38
+- Dev server canviat al port 3001.
 
 ### v3.37
 - **Back office** a `/admin`: gestió d'enemics via API externa amb CRUD complet.

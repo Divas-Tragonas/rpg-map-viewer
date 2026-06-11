@@ -64,7 +64,7 @@ git remote set-url origin https://oauth2:TOKEN@github.com/Divas-Tragonas/rpg-map
 | Fons | Element DOM `<img>` o `<video>` posicionat absolutament darrere del canvas |
 | Sync | `BroadcastChannel` (`BC_CHANNEL = 'rpg_map_sync_v18'`) — DM envia, Jugador rep |
 | PSD | Parser binari propi a `src/lib/psd/` (sense dependències) |
-| Dev server | `npm run dev` → `http://localhost:3000` |
+| Dev server | `npm run dev` → `http://localhost:3001` |
 
 ---
 
