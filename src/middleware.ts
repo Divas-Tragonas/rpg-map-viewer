@@ -41,7 +41,7 @@ async function verifyJWT(token: string): Promise<boolean> {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/admin/login' || pathname.startsWith('/api/admin/')) {
+  if (pathname === '/admin/login') {
     return NextResponse.next();
   }
 

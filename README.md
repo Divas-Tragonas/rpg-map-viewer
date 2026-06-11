@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.39
+- Auth crida l'API directament des del navegador (elimina proxy Next.js `/api/admin/auth`).
+
 ### v3.38
 - Dev server canviat al port 3001.
 

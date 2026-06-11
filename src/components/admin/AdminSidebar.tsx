@@ -14,8 +14,8 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  async function handleLogout() {
-    await fetch('/api/admin/auth', { method: 'DELETE' });
+  function handleLogout() {
+    document.cookie = 'admin_token=; path=/; max-age=0; samesite=strict';
     router.push('/admin/login');
   }
 

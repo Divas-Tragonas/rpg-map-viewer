@@ -13,16 +13,24 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl) {
+      setError('API no configurada');
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch('/api/admin/auth', {
+      const res = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? 'Error desconegut');
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Contrasenya incorrecta');
       } else {
+        const { token } = await res.json();
+        document.cookie = `admin_token=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=strict`;
         router.push('/admin/enemics');
       }
     } catch {
