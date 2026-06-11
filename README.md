@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.40
+- Fix: login ara redirigeix correctament al back office sense recarregar (window.location en lloc de router.push).
+
 ### v3.39
 - Auth crida l'API directament des del navegador (elimina proxy Next.js `/api/admin/auth`).
 

@@ -1,14 +1,11 @@
 'use client';
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { C } from '@/constants';
 
 export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -31,7 +28,7 @@ export default function LoginPage() {
       } else {
         const { token } = await res.json();
         document.cookie = `admin_token=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=strict`;
-        router.push('/admin/enemics');
+        window.location.href = '/admin/enemics';
       }
     } catch {
       setError('Error de connexió');
