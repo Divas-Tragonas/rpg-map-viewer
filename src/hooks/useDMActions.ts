@@ -7,6 +7,7 @@ import { replayStroke } from '@/lib/render/drawing';
 import { getBBox } from '@/lib/geometry';
 import { BC_CHANNEL, DEFAULT_PARTY, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride } from '@/types';
+import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 
 interface Setters {
@@ -480,6 +481,27 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState]);
 
+  const addDbEnemy = useCallback((enemy: ApiEnemy) => {
+    const canvas = R.canvasRef.current;
+    let cx = 480, cy = 360;
+    if (canvas) {
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      const mw = rPsdInfo.current?.width || 960; const mh = rPsdInfo.current?.height || 720;
+      const sc2 = Math.min(W / mw, H / mh) * rZoom.current;
+      const pan = rPanOffset.current;
+      const ox2 = (W - mw * sc2) / 2 + pan.x; const oy2 = (H - mh * sc2) / 2 + pan.y;
+      cx = (W / 2 - ox2) / sc2; cy = (H / 2 - oy2) / sc2;
+    }
+    const _sm = enemy.sm || 0.90;
+    const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : enemy.R;
+    const newEn: LibEnemy = { id: Date.now(), templateId: enemy.id, name: enemy.name, color: enemy.color, hpMax: enemy.hpMax, hp: enemy.hpMax, R: _libR, visible: true, imageData: enemy.imageData ?? null };
+    const ns = [...rLibEnemies.current, newEn];
+    rLibEnemies.current = ns; S.setLibEnemies(ns);
+    const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };
+    rPos.current = np; S.setPos(np);
+    _broadcastState({});
+  }, [_broadcastState]);
+
   const adjustLibEnemyHp = useCallback((id: number, delta: number) => {
     const updated = rLibEnemies.current.map(en =>
       en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)) } : en
@@ -561,7 +583,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     addPlayer, removePlayer, adjustPlayerHp, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
-    addLibEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
+    addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility,
   };
 }

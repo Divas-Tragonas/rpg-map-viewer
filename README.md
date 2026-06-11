@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.41
+- Vista DM: secció «Base de dades» al panell d'enemics mostra els enemics de la BD i permet afegir-los a l'escena.
+
 ### v3.40
 - Fix: login ara redirigeix correctament al back office sense recarregar (window.location en lloc de router.push).
 

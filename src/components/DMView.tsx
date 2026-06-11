@@ -133,7 +133,7 @@ export function DMView() {
     addPlayer, removePlayer, adjustPlayerHp, loadParty, clearDrawing, undoStroke,
     addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
-    addLibEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
+    addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility,
   } = useDMActions(R, S);
 
@@ -467,6 +467,7 @@ export function DMView() {
               libEnemies={libEnemies}
               defeated={defeated}
               onAddEnemy={addLibEnemy}
+              onAddDbEnemy={addDbEnemy}
               onRemove={removeLibEnemy}
               onToggleVisibility={toggleLibEnemyVisibility}
               onAdjustHp={adjustLibEnemyHp}
