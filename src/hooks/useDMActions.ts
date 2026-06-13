@@ -344,8 +344,15 @@ export function useDMActions(R: DMRefs, S: Setters) {
       }
       // Restore PSD struct and layer images
       if (state.psdStruct) {
-        rStruct.current = state.psdStruct; rStruct2.current = state.psdStruct;
-        S.setStruct(state.psdStruct);
+        // Migrate sessions saved before the zone→room rename (zonasLayers/enemyZones → roomLayers/enemyRooms)
+        const rawStruct = state.psdStruct;
+        const psdStruct: MapStructure = {
+          extras: rawStruct.extras,
+          roomLayers: rawStruct.roomLayers ?? rawStruct.zonasLayers ?? [],
+          enemyRooms: rawStruct.enemyRooms ?? rawStruct.enemyZones ?? [],
+        };
+        rStruct.current = psdStruct; rStruct2.current = psdStruct;
+        S.setStruct(psdStruct);
         if (state.psdInfo) { rPsdInfo.current = state.psdInfo; S.setPsdInfo(state.psdInfo); }
         const urls: Record<string, string> = state.layerImageUrls || {};
         const imgs: Record<number, HTMLCanvasElement> = {};
