@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import Link from 'next/link';
-import { Maximize2, ZoomIn, ZoomOut } from '@/components/icons';
+import { Maximize2, ZoomIn, ZoomOut, SaveIcon, LoadIcon } from '@/components/icons';
 import { Chip } from '@/components/ui/Chip';
 import { C } from '@/constants';
 import type { MapStructure, PSDInfo } from '@/types';
@@ -13,10 +13,12 @@ interface Props {
   struct: MapStructure | null;
   activeCount: number;
   layerImagesCount: number;
+  onSave: () => void;
+  onLoad: (file: File) => void;
   onOpenPlayer: () => void;
 }
 
-export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onOpenPlayer }: Props) {
+export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer }: Props) {
   return (
     <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.border}` }}>
       <button onClick={onOpenPlayer}
@@ -31,6 +33,17 @@ export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCoun
       }}>
         🗡️ Back Office
       </Link>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <button onClick={onSave} title="Guardar sesión en JSON"
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 10 }}>
+          <SaveIcon size={11} /> Guardar
+        </button>
+        <label title="Cargar sesión desde JSON"
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 10 }}>
+          <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) { onLoad(e.target.files[0]); (e.target as HTMLInputElement).value = ''; } }} />
+          <LoadIcon size={11} /> Cargar
+        </label>
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
         <button onClick={() => onZoomChange(Math.max(0.2, zoom - 0.1))}
           style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer', color: C.dim, padding: '3px 6px', display: 'flex' }}>
