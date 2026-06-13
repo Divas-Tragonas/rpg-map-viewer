@@ -12,10 +12,11 @@ interface Props {
   onAdd: () => void;
   onRemove: (id: number) => void;
   onAdjustHp: (id: number, delta: number) => void;
+  onSetHpMax: (id: number, hpMax: number) => void;
   onLoadParty: () => void;
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onLoadParty }: Props) {
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onLoadParty }: Props) {
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, padding: '8px 10px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
@@ -59,7 +60,12 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
                 <button onClick={() => onAdjustHp(pl.id, -1)} onContextMenu={e => { e.preventDefault(); onAdjustHp(pl.id, -10); }}
                   title="-1 HP (clic dret -10)"
                   style={{ width: 18, height: 18, borderRadius: 3, border: '1px solid rgba(248,81,73,0.4)', background: 'rgba(248,81,73,0.1)', cursor: 'pointer', color: '#f85149', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>−</button>
-                <span style={{ flex: 1, textAlign: 'center', fontSize: 10, color: hpCol, fontWeight: 700 }}>{hp}/{pl.hpMax}</span>
+                <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, fontSize: 10, color: hpCol, fontWeight: 700 }}>
+                  {hp}/
+                  <input type="number" min={1} max={999} value={pl.hpMax} title="Editar vida màxima"
+                    onChange={e => onSetHpMax(pl.id, parseInt(e.target.value) || 1)}
+                    style={{ width: 26, background: 'transparent', border: 'none', borderBottom: `1px dashed ${hpCol}66`, color: hpCol, fontSize: 10, fontWeight: 700, textAlign: 'center', padding: 0, outline: 'none' }} />
+                </span>
                 <button onClick={() => onAdjustHp(pl.id, 1)} onContextMenu={e => { e.preventDefault(); onAdjustHp(pl.id, 10); }}
                   title="+1 HP (clic dret +10)"
                   style={{ width: 18, height: 18, borderRadius: 3, border: `1px solid ${C.hpHigh}66`, background: `${C.hpHigh}1a`, cursor: 'pointer', color: C.hpHigh, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+</button>

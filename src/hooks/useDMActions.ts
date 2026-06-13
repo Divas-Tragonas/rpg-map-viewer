@@ -254,6 +254,14 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
+  const setPlayerHpMax = useCallback((id: number, hpMax: number) => {
+    const max = Math.max(1, hpMax);
+    const updated = rPlayers.current.map(pl =>
+      pl.id === id ? { ...pl, hpMax: max, hp: Math.min(pl.hp ?? max, max) } : pl
+    );
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
   const loadParty = useCallback(() => {
     const plR = rGridAutoSize.current ? Math.round(rGridSize.current * 0.45) : 22;
     const spacing = plR * 2 + 12;
@@ -589,7 +597,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
