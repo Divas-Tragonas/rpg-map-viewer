@@ -262,6 +262,14 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
+  const setPlayerHpMax = useCallback((id: number, hpMax: number) => {
+    const max = Math.max(1, hpMax);
+    const updated = rPlayers.current.map(pl =>
+      pl.id === id ? { ...pl, hpMax: max, hp: Math.min(pl.hp ?? max, max) } : pl
+    );
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
   const loadParty = useCallback(() => {
     const plR = rGridAutoSize.current ? Math.round(rGridSize.current * 0.45) : 22;
     const spacing = plR * 2 + 12;
@@ -355,8 +363,15 @@ export function useDMActions(R: DMRefs, S: Setters) {
       }
       // Restore PSD struct and layer images
       if (state.psdStruct) {
-        rStruct.current = state.psdStruct; rStruct2.current = state.psdStruct;
-        S.setStruct(state.psdStruct);
+        // Migrate sessions saved before the zone→room rename (zonasLayers/enemyZones → roomLayers/enemyRooms)
+        const rawStruct = state.psdStruct;
+        const psdStruct: MapStructure = {
+          extras: rawStruct.extras,
+          roomLayers: rawStruct.roomLayers ?? rawStruct.zonasLayers ?? [],
+          enemyRooms: rawStruct.enemyRooms ?? rawStruct.enemyZones ?? [],
+        };
+        rStruct.current = psdStruct; rStruct2.current = psdStruct;
+        S.setStruct(psdStruct);
         if (state.psdInfo) { rPsdInfo.current = state.psdInfo; S.setPsdInfo(state.psdInfo); }
         const urls: Record<string, string> = state.layerImageUrls || {};
         const imgs: Record<number, HTMLCanvasElement> = {};
@@ -453,7 +468,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   const deleteAreaSpell = useCallback((id: string) => {
     const ns = rActiveSpells.current.filter(s => s.id !== id);
-    rActiveSpells.current = ns; S.setActiveSpells(ns); _broadcastState({});
+    rActiveSpells.current = ns; S.setActiveSpells(ns);
+    bcRef.current?.postMessage({ type: 'DELETE_SPELL', id });
+    _broadcastState({});
   }, [_broadcastState]);
 
   const clearPaintedZones = useCallback(() => {
@@ -592,7 +609,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,

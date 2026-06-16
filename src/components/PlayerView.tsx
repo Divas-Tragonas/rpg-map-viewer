@@ -505,6 +505,9 @@ export function PlayerView() {
         const sp = { ...msg.spell, startTime: performance.now() };
         rActiveSpells.current = [...rActiveSpells.current, sp];
         setActiveSpells([...rActiveSpells.current]);
+      } else if (msg.type === 'DELETE_SPELL') {
+        rActiveSpells.current = rActiveSpells.current.filter(s => s.id !== msg.id);
+        setActiveSpells([...rActiveSpells.current]);
       } else if (msg.type === 'BOSS_INTRO') {
         if (triggerBossIntroRef.current) {
           const _run = (portrait: unknown) => triggerBossIntroRef.current!({ ...msg, portrait });

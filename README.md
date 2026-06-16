@@ -26,7 +26,7 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
-### v3.44
+### v3.48
 - WebSocket sync (`/sync?role=dm|client`) per sincronitzar DM i clients iPad en xarxa local.
 - `usePlayerTokenDrag`: hook per arrossegar tokens al PlayerView (ratolí + tactil).
 - Tots els missatges BC duplicats per WS: STATE, STRUCT, BG (binary), STROKE, SPELL, BOSS_INTRO, EXPOSITOR, POINTER.
@@ -34,6 +34,18 @@ npm run dev   # http://localhost:3001
 - `gridSnap` propagat a BCStateMessage i BCStructMessage per a l'iPad.
 - `src/lib/ws.ts`: SyncSocket amb reconnexió automàtica.
 - API: nou mòdul `sync` (sync.service.ts + sync.routes.ts) amb late-join caching.
+
+### v3.47
+- Panell de jugadors: la vida màxima de cada personatge ara és editable directament (input al costat de l'HP).
+
+### v3.46
+- Fix: les sessions guardades abans del renom zona→sala (`zonasLayers`/`enemyZones`) ara es carreguen correctament (migració automàtica a `roomLayers`/`enemyRooms`).
+
+### v3.45
+- Recuperats els botons "Guardar"/"Cargar" partida (JSON) a `BottomControls`, al costat del Back Office.
+
+### v3.44
+- Fix: eliminar un spell d'àrea (sleep/grease) ara desapareix també a la vista del jugador (nou missatge BC `DELETE_SPELL`).
 
 ### v3.43
 - CLAUDE.md: workflow obligatori per canvis cross-repo (frontend + API).
