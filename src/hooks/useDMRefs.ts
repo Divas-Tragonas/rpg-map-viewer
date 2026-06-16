@@ -6,6 +6,7 @@ import type {
   Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
 } from '@/types';
 import type { CinematicTimeline } from '@/lib/cinematic';
+import type { SyncSocket } from '@/lib/ws';
 
 export function useDMRefs() {
   const stageRef  = useRef<HTMLDivElement>(null);
@@ -59,6 +60,7 @@ export function useDMRefs() {
   const lastDrawRef     = useRef<{ mx: number; my: number } | null>(null);
   const rHoveredRoom    = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const bcRef           = useRef<BroadcastChannel | null>(null);
+  const wsRef           = useRef<SyncSocket | null>(null);
   const panDragRef      = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number; private?: boolean } | null>(null);
   const rPanOffset      = useRef<Point>({ x: 0, y: 0 });
   const roomAnimRef     = useRef<Record<string, number>>({});
@@ -127,7 +129,7 @@ export function useDMRefs() {
     rSelectedToken, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
-    dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef,
+    dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,
     panDragRef, rPanOffset, roomAnimRef, visualPosRef, currentStrokeRef, strokeQueueRef,
     activeStrokeAnim, rDeathCanvas, shapePointsRef, isShapeDrawingRef, bgBufferRef,
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,

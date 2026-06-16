@@ -14,6 +14,7 @@ import { useRafLoop } from '@/hooks/useRafLoop';
 import { useMouseHandlers } from '@/hooks/useMouseHandlers';
 import { useWheelZoom } from '@/hooks/useWheelZoom';
 import { useKeyboardHandlers } from '@/hooks/useKeyboardHandlers';
+import { createSyncSocket } from '@/lib/ws';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { LayerTree } from '@/components/dm/LayerTree';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
@@ -143,6 +144,23 @@ export function DMView() {
     R.bcRef.current = bc;
     bc.onmessage = (e) => { if (e.data?.type === 'PLAYER_READY') _sendFullState(); };
     return () => { bc.close(); R.bcRef.current = null; };
+  }, [_sendFullState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── WebSocket setup (network sync for cross-device iPad/player) ───────────
+  useEffect(() => {
+    const ws = createSyncSocket('dm', (ev) => {
+      let msg: { type: string; id?: number | string; x?: number; y?: number };
+      try { msg = JSON.parse(ev.data as string); } catch { return; }
+      if (msg.type === 'PLAYER_READY') {
+        _sendFullState();
+      } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
+        const np = { ...R.rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
+        R.rPos.current = np;
+        setPos(np);
+      }
+    });
+    R.wsRef.current = ws;
+    return () => { ws.close(); R.wsRef.current = null; };
   }, [_sendFullState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Draw / death canvas init ───────────────────────────────────────────────
@@ -290,24 +308,29 @@ export function DMView() {
     expositorKbVariant.current = Math.floor(Math.random() * 4);
     expositorKbPhase.current = 0;
     // Auto-send if already active on player
-    if (expositorActiveRef.current && R.bcRef.current) {
+    if (expositorActiveRef.current) {
       file.arrayBuffer().then(buf => {
         R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
+        R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_SHOW_META', mimeType: file.type }));
+        R.wsRef.current?.sendBinary(buf);
       });
     }
   }, [expositorLocalSrc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendExpositorToPlayer = useCallback(async () => {
     const file = expositorFileRef.current;
-    if (!file || !R.bcRef.current) return;
+    if (!file) return;
     const buf = await file.arrayBuffer();
-    R.bcRef.current.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
+    R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
+    R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_SHOW_META', mimeType: file.type }));
+    R.wsRef.current?.sendBinary(buf);
     expositorActiveRef.current = true;
     setExpositorActive(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hideExpositorOnPlayer = useCallback(() => {
     R.bcRef.current?.postMessage({ type: 'EXPOSITOR_HIDE' });
+    R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_HIDE' }));
     expositorActiveRef.current = false;
     setExpositorActive(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -353,14 +376,16 @@ export function DMView() {
           expositorLastSync.current = now;
           const pw = expositorPreviewRef.current?.clientWidth || 320;
           const ph = expositorPreviewRef.current?.clientHeight || 260;
-          R.bcRef.current?.postMessage({
+          const expSync = {
             type: 'EXPOSITOR_SYNC',
             zoom: userZ * kb.scale,
             panXNorm: userPx / pw,
             panYNorm: userPy / ph,
             kbTxPct: kb.tx,
             kbTyPct: kb.ty,
-          });
+          };
+          R.bcRef.current?.postMessage(expSync);
+          R.wsRef.current?.send(JSON.stringify(expSync));
         }
       }
     };
@@ -645,14 +670,14 @@ export function DMView() {
         setPsdEnemyProps={setPsdEnemyProps}
         setLibEnemyProps={setLibEnemyProps}
         removeLibEnemy={removeLibEnemy}
-        bcRef={R.bcRef}
+        bcRef={R.bcRef} wsRef={R.wsRef}
         onTriggerBossIntro={triggerBossIntro}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}
         rPsdEnemyImgCache={R.rPsdEnemyImgCache}
         libEnemies={libEnemies} psdEnemyOverrides={psdEnemyOverrides}
-        bcRef={R.bcRef}
+        bcRef={R.bcRef} wsRef={R.wsRef}
         onClose={() => setSceneConfigMenu(null)}
         onTriggerBossIntro={triggerBossIntro}
         setPsdEnemyProps={setPsdEnemyProps}

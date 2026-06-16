@@ -26,6 +26,15 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.44
+- WebSocket sync (`/sync?role=dm|client`) per sincronitzar DM i clients iPad en xarxa local.
+- `usePlayerTokenDrag`: hook per arrossegar tokens al PlayerView (ratolí + tactil).
+- Tots els missatges BC duplicats per WS: STATE, STRUCT, BG (binary), STROKE, SPELL, BOSS_INTRO, EXPOSITOR, POINTER.
+- Protocol binari de dos frames per imatges/vídeo (JSON metadata + ArrayBuffer).
+- `gridSnap` propagat a BCStateMessage i BCStructMessage per a l'iPad.
+- `src/lib/ws.ts`: SyncSocket amb reconnexió automàtica.
+- API: nou mòdul `sync` (sync.service.ts + sync.routes.ts) amb late-join caching.
+
 ### v3.43
 - CLAUDE.md: workflow obligatori per canvis cross-repo (frontend + API).
 

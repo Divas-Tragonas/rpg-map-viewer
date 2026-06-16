@@ -2,6 +2,7 @@ API SPEC — RPG Map Viewer
 ========================
 
 BASE URL: configurat via NEXT_PUBLIC_API_URL (sense barra final)
+WS BASE : substituir http per ws → ws://[host]:3000
 
 
 ## TIPUS Enemy
@@ -17,7 +18,7 @@ BASE URL: configurat via NEXT_PUBLIC_API_URL (sense barra final)
 }
 
 
-## ENDPOINTS
+## ENDPOINTS HTTP
 
 GET    /enemies          -> Enemy[]  (200)
 POST   /enemies          -> Enemy    (201)  body: Enemy sense id
@@ -36,3 +37,69 @@ DELETE /enemies/:id      -> 204
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
 Access-Control-Allow-Headers: Content-Type
+
+
+## WEBSOCKET SYNC — GET /sync?role=dm|client
+
+Connexió WebSocket per sincronitzar DM i clients (iPad, etc.) en xarxa local.
+
+### Connexió
+
+  ws://[host]:3000/sync?role=dm       → client DM (laptop)
+  ws://[host]:3000/sync?role=client   → client jugador (iPad)
+
+### Protocol de missatges
+
+Tots els missatges JSON tenen camp `type` (string).
+Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
+
+#### DM → Servidor → Clients (rol=client rep aquests tipus)
+
+| type                | Contingut addicional                                            | Descripció                         |
+|---------------------|-----------------------------------------------------------------|------------------------------------|
+| STATE               | Camps de BCStateMessage (vis, pos, zoom, players, gridSnap...)  | Delta d'estat                      |
+| STRUCT              | Estat complet inicial (BCStructMessage)                         | Enviat en reconnexió / late join   |
+| BG_META             | { mimeType: string, withFade?: boolean }                        | Capçalera del frame binari BG      |
+| EXPOSITOR_SHOW_META | { mimeType: string }                                            | Capçalera del frame binari expositor |
+| STROKE              | { points, color, size, tool }                                   | Traç de dibuix                     |
+| CLEAR_DRAW          | —                                                               | Netejar canvas                     |
+| UNDO_DRAW           | { strokeHistory: StrokeData[] }                                 | Desfer traç                        |
+| POINTER             | { pos: Point | null }                                           | Cursor DM                          |
+| SPELL               | { spell: Spell }                                                | Animació de spell                  |
+| BOSS_INTRO          | { tokenId, bossName, tokenPos, portraitDataUrl }                | Cinematica boss                    |
+| BOSS_INTRO_SKIP     | —                                                               | Saltar cinematica                  |
+| EXPOSITOR_HIDE      | —                                                               | Amagar expositor                   |
+| EXPOSITOR_SYNC      | { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }                  | Sincronització expositor           |
+| (binary frame)      | ArrayBuffer (imatge o vídeo)                                    | Segueix BG_META o EXPOSITOR_SHOW_META |
+
+#### Client → Servidor → DM (rol=dm rep aquests tipus)
+
+| type         | Contingut addicional                           | Descripció                          |
+|--------------|------------------------------------------------|-------------------------------------|
+| TOKEN_MOVE   | { id: number | string, x: number, y: number }  | Client mou token (iPad drag)        |
+| PLAYER_READY | —                                              | Client connectat, sol·licita STRUCT |
+
+### Late join
+
+Quan un client (role=client) es connecta, el servidor li envia immediatament
+l'últim missatge STRUCT rebut del DM (si n'hi ha). Això sincronitza l'estat
+sense que el DM hagi de fer res.
+
+### Reconnnexió
+
+El client (`src/lib/ws.ts`) es reconnecta automàticament als 2 segons si la
+connexió es tanca. En reconnectar, envia `PLAYER_READY` per demanar STRUCT.
+
+### Exemple de flux iPad
+
+  iPad connecta ws://[laptop-LAN-IP]:3000/sync?role=client
+  → Servidor envia STRUCT cached (si hi ha)
+  → iPad envia PLAYER_READY
+  → DM rep PLAYER_READY → envia BG_META + binary + STRUCT
+  → iPad rep tot i mostra el mapa
+  → Usuari arrossega token → iPad envia TOKEN_MOVE
+  → DM rep TOKEN_MOVE → actualitza posició localment
+
+### Variables d'entorn necessàries
+
+  NEXT_PUBLIC_API_URL=http://[laptop-LAN-IP]:3000   # canviar de localhost per accés LAN

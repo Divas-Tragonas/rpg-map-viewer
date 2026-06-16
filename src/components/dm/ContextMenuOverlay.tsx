@@ -34,6 +34,7 @@ interface Props {
   setLibEnemyProps: (id: number, props: Partial<LibEnemy>) => void;
   removeLibEnemy: (id: number) => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
+  wsRef: React.MutableRefObject<import('@/lib/ws').SyncSocket | null>;
   onTriggerBossIntro: (data: Record<string, unknown>) => void;
 }
 
@@ -45,7 +46,7 @@ export function ContextMenuOverlay({
   setDefeated, setConditions,
   adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
-  bcRef, onTriggerBossIntro,
+  bcRef, wsRef, onTriggerBossIntro,
 }: Props) {
   useEffect(() => {
     if (!contextMenu) return;
@@ -235,6 +236,7 @@ export function ContextMenuOverlay({
                   const _img = new Image(); _img.src = _le.imageData;
                   onTriggerBossIntro({ tokenId: contextMenu.id, bossName: contextMenu.name, portrait: _img, tokenPos: tp });
                   bcRef.current?.postMessage({ type: 'BOSS_INTRO', tokenId: contextMenu.id, bossName: contextMenu.name, tokenPos: tp, portraitDataUrl: _le.imageData });
+                  wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO', tokenId: contextMenu.id, bossName: contextMenu.name, tokenPos: tp, portraitDataUrl: _le.imageData }));
                   onClose(); return;
                 }
               }

@@ -12,7 +12,10 @@ import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
+import { createSyncSocket } from '@/lib/ws';
+import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides } from '@/types';
+import type { SyncSocket } from '@/lib/ws';
 
 export function PlayerView() {
   const [bgLoaded,   setBgLoaded]   = useState(false);
@@ -36,6 +39,7 @@ export function PlayerView() {
   const rActiveSpells = useRef<Spell[]>([]);
   const rGridVisible  = useRef(false);
   const rGridSize     = useRef(70);
+  const rGridSnap     = useRef(false);
   const rGridLineWidth = useRef(1.5);
   const rGridOriginX  = useRef(0);
   const rGridOriginY  = useRef(0);
@@ -87,6 +91,9 @@ export function PlayerView() {
   const skipBossIntroRef     = useRef<(() => void) | null>(null);
 
   const bcRef = useRef<BroadcastChannel | null>(null);
+  const wsRef = useRef<SyncSocket | null>(null);
+  const pendingBgMetaRef = useRef<{ mimeType: string; withFade?: boolean } | null>(null);
+  const pendingExpMetaRef = useRef<{ mimeType: string } | null>(null);
   const rafRef = useRef<number>(0);
   const _ctx2dRef = useRef<CanvasRenderingContext2D | null>(null);
   const isShapeDrawingRef = useRef(false);
@@ -357,6 +364,7 @@ export function PlayerView() {
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
+        if (msg.gridSnap      !== undefined) rGridSnap.current      = msg.gridSnap;
         if (msg.gridOriginX   !== undefined) rGridOriginX.current   = msg.gridOriginX;
         if (msg.gridOriginY   !== undefined) rGridOriginY.current   = msg.gridOriginY;
         if (msg.gridLineWidth !== undefined) rGridLineWidth.current = msg.gridLineWidth;
@@ -440,6 +448,7 @@ export function PlayerView() {
         }
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
+        if (msg.gridSnap      !== undefined) rGridSnap.current      = msg.gridSnap;
         if (msg.gridOriginX   !== undefined) rGridOriginX.current   = msg.gridOriginX;
         if (msg.gridOriginY   !== undefined) rGridOriginY.current   = msg.gridOriginY;
         if (msg.gridLineWidth !== undefined) rGridLineWidth.current = msg.gridLineWidth;
@@ -544,6 +553,57 @@ export function PlayerView() {
     bc.postMessage({ type: 'PLAYER_READY' });
     return () => bc.close();
   }, [_loadBgFromUrl]);
+
+  // ── WebSocket setup (receives same messages as BC, for cross-device iPad) ──
+  useEffect(() => {
+    const ws = createSyncSocket('client', async (ev: MessageEvent) => {
+      // Binary frame = BG image or expositor media
+      if (ev.data instanceof ArrayBuffer) {
+        const bgMeta = pendingBgMetaRef.current;
+        const expMeta = pendingExpMetaRef.current;
+        if (bgMeta) {
+          pendingBgMetaRef.current = null;
+          const blob = new Blob([ev.data], { type: bgMeta.mimeType });
+          const url = URL.createObjectURL(blob);
+          _loadBgFromUrl(url, bgMeta.mimeType, !!bgMeta.withFade);
+        } else if (expMeta) {
+          pendingExpMetaRef.current = null;
+          const blob = new Blob([ev.data], { type: expMeta.mimeType });
+          const url = URL.createObjectURL(blob);
+          const newType = expMeta.mimeType.startsWith('video/') ? 'video' : 'image';
+          if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
+          expositorObjectUrl.current = url;
+          setExpositorSrc(url);
+          setExpositorType(newType);
+          setExpositorFading(false);
+          setExpositorVisible(true);
+        }
+        return;
+      }
+      // JSON frame — reuse BC message handler by synthesizing a fake BC event
+      if (typeof ev.data === 'string') {
+        let parsed: unknown;
+        try { parsed = JSON.parse(ev.data); } catch { return; }
+        const msg = parsed as { type: string };
+        if (msg.type === 'BG_META') {
+          pendingBgMetaRef.current = parsed as { mimeType: string; withFade?: boolean };
+          return;
+        }
+        if (msg.type === 'EXPOSITOR_SHOW_META') {
+          pendingExpMetaRef.current = parsed as { mimeType: string };
+          return;
+        }
+        // Synthesize a fake BroadcastChannel MessageEvent so the existing BC handler processes it
+        const fakeEv = { data: parsed } as MessageEvent;
+        if (bcRef.current?.onmessage) {
+          await (bcRef.current.onmessage as (e: MessageEvent) => Promise<void>)(fakeEv);
+        }
+      }
+    });
+    wsRef.current = ws;
+    ws.send(JSON.stringify({ type: 'PLAYER_READY' }));
+    return () => { ws.close(); wsRef.current = null; };
+  }, [_loadBgFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
@@ -700,12 +760,26 @@ export function PlayerView() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  const tokenDrag = usePlayerTokenDrag(
+    canvasRef,
+    mediaRef as React.MutableRefObject<HTMLElement | null>,
+    rPos, rZoom, rPanOffset,
+    rPlayers, rLibEnemies, rStruct, rTokenSizeOverride,
+    rGridSnap, rGridSize, rGridOriginX, rGridOriginY,
+    rSelectedToken,
+    wsRef,
+  );
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden' }}>
       <div ref={stageRef} style={{ position: 'absolute', inset: 0 }} />
       <canvas
         ref={canvasRef}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'transparent' }}
+        onMouseDown={tokenDrag.onMouseDown}
+        onTouchStart={tokenDrag.onTouchStart}
+        onTouchMove={tokenDrag.onTouchMove}
+        onTouchEnd={tokenDrag.onTouchEnd}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'transparent', touchAction: 'none', cursor: 'grab' }}
       />
       <div
         ref={bgTransitionRef}

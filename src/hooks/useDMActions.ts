@@ -45,7 +45,7 @@ interface Setters {
 
 export function useDMActions(R: DMRefs, S: Setters) {
   const {
-    bcRef, rVis, rPos, rZoom, rPanOffset, rPlayers, rLibEnemies, rConditions, rDefeated,
+    bcRef, wsRef, rVis, rPos, rZoom, rPanOffset, rPlayers, rLibEnemies, rConditions, rDefeated,
     rPaintedZones, rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride,
     rGridLineWidth, rGridOriginX, rGridOriginY, rEnemyHighlight, rHighlightLocked, rHighlightAlpha,
     rActiveSpells, rStruct, rStruct2, dmLocalPan, dmLocalZoom, dmPreviewBcastRef,
@@ -57,14 +57,14 @@ export function useDMActions(R: DMRefs, S: Setters) {
   } = R;
 
   const _broadcastState = useCallback((extra: Record<string, unknown> = {}) => {
-    const bc = bcRef.current; if (!bc) return;
     const _isDMPrev = dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1;
-    bc.postMessage({
+    const msg = {
       type: 'STATE',
       vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, panOffset: rPanOffset.current,
       gridVisible: rGridVisible.current, gridSize: rGridSize.current,
+      gridSnap: rGridSnap.current,
       gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current,
       highlightLocked: rHighlightLocked.current,
@@ -75,15 +75,18 @@ export function useDMActions(R: DMRefs, S: Setters) {
       dmPreviewZoom: rZoom.current * dmLocalZoom.current,
       dmPreviewPan: { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y },
       ...extra,
-    });
+    };
+    bcRef.current?.postMessage(msg);
+    wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
   const _sendFullState = useCallback(() => {
-    const bc = bcRef.current; if (!bc) return;
     if (bgBufferRef.current) {
-      bc.postMessage({ type: 'BG', buffer: bgBufferRef.current.buffer, mimeType: bgBufferRef.current.mimeType });
+      bcRef.current?.postMessage({ type: 'BG', buffer: bgBufferRef.current.buffer, mimeType: bgBufferRef.current.mimeType });
+      wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: bgBufferRef.current.mimeType, withFade: false }));
+      wsRef.current?.sendBinary(bgBufferRef.current.buffer);
     }
-    bc.postMessage({
+    const structMsg = {
       type: 'STRUCT',
       struct: rStruct2.current,
       vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
@@ -92,13 +95,16 @@ export function useDMActions(R: DMRefs, S: Setters) {
       conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, panOffset: rPanOffset.current,
       gridVisible: rGridVisible.current, gridSize: rGridSize.current,
+      gridSnap: rGridSnap.current,
       gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current,
       highlightLocked: rHighlightLocked.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
       psdEnemyOverrides: rPsdEnemyOverrides.current,
-    });
+    };
+    bcRef.current?.postMessage(structMsg);
+    wsRef.current?.send(JSON.stringify(structMsg));
   }, []);
 
   const loadBg = useCallback(async (file: File) => {
@@ -128,6 +134,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     S.setBgLoaded(true); S.setBgName(file.name);
     _broadcastState({});
     bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: file.type, withFade: true });
+    wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: file.type, withFade: true }));
+    wsRef.current?.sendBinary(buf);
   }, [_broadcastState]);
 
   const loadPSD = useCallback(async (file: File) => {
@@ -285,7 +293,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const oc = drawCanvasRef.current; if (!oc) return;
     oc.getContext('2d')!.clearRect(0, 0, oc.width, oc.height);
     strokeHistoryRef.current = []; S.setCanUndo(false);
-    bcRef.current?.postMessage({ type: 'CLEAR_DRAW' }); _broadcastState({});
+    bcRef.current?.postMessage({ type: 'CLEAR_DRAW' });
+    wsRef.current?.send(JSON.stringify({ type: 'CLEAR_DRAW' }));
+    _broadcastState({});
   }, [_broadcastState]);
 
   const undoStroke = useCallback(() => {
@@ -297,6 +307,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     ctx2.clearRect(0, 0, oc.width, oc.height);
     for (const stroke of hist) replayStroke(ctx2, stroke);
     bcRef.current?.postMessage({ type: 'UNDO_DRAW', strokeHistory: [...hist] });
+    wsRef.current?.send(JSON.stringify({ type: 'UNDO_DRAW', strokeHistory: [...hist] }));
   }, []);
 
   const saveSession = useCallback(() => {
@@ -398,6 +409,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const ns = [...rActiveSpells.current, sp];
     rActiveSpells.current = ns; S.setActiveSpells(ns);
     bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
+    wsRef.current?.send(JSON.stringify({ type: 'SPELL', spell: { ...sp, startTime: 0 } }));
     setSpellMenu(null);
   }, []);
 

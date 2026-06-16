@@ -213,6 +213,7 @@ export interface BCStateMessage {
   paintedZones?: PaintedZone[];
   gridVisible?: boolean;
   gridSize?: number;
+  gridSnap?: boolean;
   gridOriginX?: number;
   gridOriginY?: number;
   gridLineWidth?: number;
@@ -242,6 +243,7 @@ export interface BCStructMessage {
   panOffset: Point;
   gridVisible: boolean;
   gridSize: number;
+  gridSnap: boolean;
   gridOriginX: number;
   gridOriginY: number;
   gridLineWidth: number;
@@ -266,4 +268,7 @@ export type BCMessage =
   | { type: 'PLAYER_READY' }
   | { type: 'EXPOSITOR_SHOW'; buffer: ArrayBuffer; mimeType: string }
   | { type: 'EXPOSITOR_HIDE' }
-  | { type: 'EXPOSITOR_SYNC'; zoom: number; panXNorm: number; panYNorm: number; kbTxPct: number; kbTyPct: number };
+  | { type: 'EXPOSITOR_SYNC'; zoom: number; panXNorm: number; panYNorm: number; kbTxPct: number; kbTyPct: number }
+  | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number }
+  | { type: 'BG_META'; mimeType: string; withFade?: boolean }
+  | { type: 'EXPOSITOR_SHOW_META'; mimeType: string };

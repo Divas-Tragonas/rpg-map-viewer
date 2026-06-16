@@ -12,6 +12,7 @@ interface Props {
   libEnemies: LibEnemy[];
   psdEnemyOverrides: PsdEnemyOverrides;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
+  wsRef: React.MutableRefObject<import('@/lib/ws').SyncSocket | null>;
   onClose: () => void;
   onTriggerBossIntro: (data: Record<string, unknown>) => void;
   setPsdEnemyProps?: (id: number, props: import('@/types').PsdEnemyOverride) => void;
@@ -20,7 +21,7 @@ interface Props {
 
 export function SceneConfigOverlay({
   sceneConfigMenu, rLayerImages, rPsdEnemyImgCache, libEnemies, psdEnemyOverrides,
-  bcRef, onClose, onTriggerBossIntro, setPsdEnemyProps, setLibEnemyProps,
+  bcRef, wsRef, onClose, onTriggerBossIntro, setPsdEnemyProps, setLibEnemyProps,
 }: Props) {
   if (!sceneConfigMenu) return null;
 
@@ -85,6 +86,7 @@ export function SceneConfigOverlay({
               }
             }
             bcRef.current?.postMessage({ type: 'BOSS_INTRO', tokenId: sceneConfigMenu.id, bossName: _scName, tokenPos: tp, portraitDataUrl });
+            wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO', tokenId: sceneConfigMenu.id, bossName: _scName, tokenPos: tp, portraitDataUrl }));
             onClose();
           }}
           onCancel={onClose}

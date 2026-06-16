@@ -77,6 +77,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const ns = [...R.rActiveSpells.current, sp];
       R.rActiveSpells.current = ns; S.setActiveSpells(ns);
       R.bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
+      R.wsRef.current?.send(JSON.stringify({ type: 'SPELL', spell: { ...sp, startTime: 0 } }));
       R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
       e.preventDefault(); return;
     }
@@ -296,6 +297,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (now - R.pointerThrottleRef.current > 33) {
         R.pointerThrottleRef.current = now;
         R.bcRef.current?.postMessage({ type: 'POINTER', pos: { x: mx, y: my } });
+        R.wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: { x: mx, y: my } }));
       }
       return;
     }
@@ -483,8 +485,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.drawChangedRef.current = false;
       const pts = R.currentStrokeRef.current;
       R.currentStrokeRef.current = [];
-      if (pts.length > 1 && R.bcRef.current) {
-        R.bcRef.current.postMessage({ type: 'STROKE', points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current });
+      if (pts.length > 1) {
+        const strokeMsg = { type: 'STROKE', points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current };
+        R.bcRef.current?.postMessage(strokeMsg);
+        R.wsRef.current?.send(JSON.stringify(strokeMsg));
         R.strokeHistoryRef.current.push({ points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current });
         S.setCanUndo(true);
       }
@@ -502,6 +506,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.rDrawTool.current === 'pointer') {
       R.rPointerPos.current = null;
       R.bcRef.current?.postMessage({ type: 'POINTER', pos: null });
+      R.wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: null }));
     }
   }, []);
 
