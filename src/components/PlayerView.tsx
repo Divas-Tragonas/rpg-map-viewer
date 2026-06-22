@@ -48,6 +48,7 @@ export function PlayerView() {
   const rPointerPos   = useRef<{ x: number; y: number } | null>(null);
   const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
+  const rMultiSelected = useRef<Set<number | string>>(new Set());
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
   const visualZoomRef = useRef(1);
@@ -680,7 +681,7 @@ export function PlayerView() {
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
-        rPointerPos, rSelectedToken,
+        rPointerPos, rSelectedToken, rMultiSelected,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
       };
 

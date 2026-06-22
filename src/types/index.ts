@@ -150,6 +150,8 @@ export interface ContextMenuState {
   isLibEnemy?: boolean;
   libEnemyId?: number;
   tokenPos?: Point | null;
+  isMultiSelect?: boolean;
+  ids?: (number | string)[];
 }
 
 export interface ExpositorState {

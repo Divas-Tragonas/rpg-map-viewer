@@ -44,6 +44,8 @@ export function useDMRefs() {
   const rEnemyHighlight  = useRef(false);
   const rHighlightLocked = useRef(false);
   const rSelectedToken   = useRef<number | string | null>(null);
+  const rMultiSelected   = useRef<Set<number | string>>(new Set());
+  const groupDragRef     = useRef<Map<number | string, { ox: number; oy: number }> | null>(null);
   const rHighlightAlpha  = useRef(0);
   const rGridDmAlpha     = useRef(0);
   const rActiveSpells    = useRef<Spell[]>([]);
@@ -126,7 +128,7 @@ export function useDMRefs() {
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, groupDragRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,

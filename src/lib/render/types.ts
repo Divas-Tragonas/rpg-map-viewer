@@ -90,6 +90,7 @@ export interface FrameContext {
 
   rPointerPos:      MutableRefObject<{ x: number; y: number } | null>;
   rSelectedToken:   MutableRefObject<number | string | null>;
+  rMultiSelected:   MutableRefObject<Set<number | string>>;
 
   rLibEnemies:         MutableRefObject<import('@/types').LibEnemy[]>;
   rPsdEnemyOverrides:  MutableRefObject<import('@/types').PsdEnemyOverrides>;

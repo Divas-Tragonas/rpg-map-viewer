@@ -238,11 +238,20 @@ export function DMView() {
     onMouseUp(setPos, snapAllTokens, sizeAllTokens, setGridSize, setGridOriginX, setGridOriginY, setGridCalibrating);
   }, [onMouseUp, setPos, snapAllTokens, sizeAllTokens, setGridSize, setGridOriginX, setGridOriginY, setGridCalibrating]);
 
+  // ── Multi-selection group delete (Delete/Backspace removes lib enemies in the selection) ──
+  const onDeleteSelection = useCallback(() => {
+    for (const id of R.rMultiSelected.current) {
+      if (typeof id === 'string' && id.startsWith('lib_')) removeLibEnemy(parseInt(id.replace('lib_', '')));
+    }
+    R.rMultiSelected.current = new Set();
+  }, [removeLibEnemy]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
     setDrawTool, undoStroke, skipBossIntro,
     broadcastState: () => _broadcastState({}),
     setCtrlPanActive, setShiftPanActive, setZoom,
+    onDeleteSelection,
   });
 
   // ── Canvas-level callbacks ────────────────────────────────────────────────

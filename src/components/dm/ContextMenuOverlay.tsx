@@ -58,6 +58,53 @@ export function ContextMenuOverlay({
   if (!contextMenu) return null;
   const id = String(contextMenu.id);
 
+  if (contextMenu.isMultiSelect && contextMenu.ids) {
+    const ids = contextMenu.ids;
+    const idsStr = ids.map(String);
+    return (
+      <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 230), top: Math.min(contextMenu.y, window.innerHeight - 420), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', minWidth: 220, overflow: 'hidden' }}>
+        <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}` }}>
+          <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>{contextMenu.name}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, padding: 6, maxHeight: 280, overflowY: 'auto' }}>
+          {CONDITIONS.map(cond => (
+            <button key={cond.id}
+              onMouseDown={e => { e.stopPropagation(); idsStr.forEach(tid => onToggleCondition(tid, cond.id)); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: '1px solid transparent', borderRadius: 6, cursor: 'pointer', background: 'transparent', color: C.dim, fontSize: 11, textAlign: 'left' }}>
+              <div style={{ width: 13, height: 13, borderRadius: '50%', background: cond.bg, flexShrink: 0, opacity: 0.5 }} />
+              {cond.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button onMouseDown={e => {
+            e.stopPropagation();
+            const nd = { ...rDefeated.current };
+            idsStr.forEach(tid => { if (!nd[tid]) { nd[tid] = true; defeatedAnimRef.current[tid] = 0; } });
+            rDefeated.current = nd; setDefeated({ ...nd }); onBroadcast();
+          }} style={{ width: '100%', padding: '6px', background: `${C.enemy}14`, border: `1px solid ${C.enemy}4d`, borderRadius: 5, color: C.enemy, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+            ✕ Marcar tots derrotats
+          </button>
+          <button onMouseDown={e => {
+            e.stopPropagation();
+            const nc = { ...rConditions.current };
+            idsStr.forEach(tid => delete nc[tid]);
+            rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
+          }} style={{ width: '100%', padding: '6px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 5, color: C.dim, cursor: 'pointer', fontSize: 11 }}>
+            Netejar estados
+          </button>
+          <button onMouseDown={e => {
+            e.stopPropagation();
+            ids.forEach(tid => { if (typeof tid === 'string' && tid.startsWith('lib_')) removeLibEnemy(parseInt(tid.replace('lib_', ''))); });
+            onClose();
+          }} style={{ width: '100%', padding: '6px', background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', borderRadius: 5, color: '#f85149', cursor: 'pointer', fontSize: 11 }}>
+            🗑 Eliminar de la biblioteca ({ids.filter(tid => typeof tid === 'string' && tid.startsWith('lib_')).length})
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 230), top: Math.min(contextMenu.y, window.innerHeight - 500), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', minWidth: 220, overflow: 'hidden' }}>
       {/* Header */}

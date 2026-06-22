@@ -17,7 +17,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
   const {
     sc, pp, isDM, s, v, rLayerImages, rConditions, rDefeated,
     defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha,
-    rHighlightLocked, highlightStartRef, visualPosRef, rTokenSizeOverride, rSelectedToken,
+    rHighlightLocked, highlightStartRef, visualPosRef, rTokenSizeOverride, rSelectedToken, rMultiSelected,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
   } = fc;
 
@@ -168,7 +168,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.restore();
     }
 
-    if (isDM && rSelectedToken.current === en.id) {
+    if (isDM && (rSelectedToken.current === en.id || rMultiSelected.current.has(en.id))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
@@ -181,7 +181,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
-    visualPosRef, rSelectedToken, rTokenSizeOverride, rHighlightAlpha,
+    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha,
   } = fc;
 
   rLibEnemies.current.forEach(en => {
@@ -348,7 +348,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.restore();
     }
 
-    if (isDM && rSelectedToken.current === `lib_${en.id}`) {
+    if (isDM && (rSelectedToken.current === `lib_${en.id}` || rMultiSelected.current.has(`lib_${en.id}`))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
@@ -360,7 +360,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
 export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
-    sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride,
+    sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride,
     rDefeated, defeatedAnimRef,
   } = fc;
   rPlayers.current.forEach(pl => {
@@ -469,7 +469,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.restore();
     }
 
-    if (isDM && rSelectedToken.current === `pl_${pl.id}`) {
+    if (isDM && (rSelectedToken.current === `pl_${pl.id}` || rMultiSelected.current.has(`pl_${pl.id}`))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();

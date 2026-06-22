@@ -28,6 +28,17 @@ interface MouseHandlerSetters {
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
 
+function getTokenPos(R: DMRefs, id: number | string): { x: number; y: number } | null {
+  const p = R.rPos.current[id];
+  if (p) return p;
+  if (typeof id === 'string' && id.startsWith('pl_')) {
+    const plId = parseInt(id.replace('pl_', ''));
+    const pl = R.rPlayers.current.find(p => p.id === plId);
+    if (pl) return { x: pl.x, y: pl.y };
+  }
+  return null;
+}
+
 function mapCoords(e: React.MouseEvent | MouseEvent, canvas: HTMLCanvasElement, media: HTMLImageElement | HTMLVideoElement | null, rZoom: { current: number }, rPanOffset: { current: { x: number; y: number } }, dmLocalPan: { current: { x: number; y: number } }, dmLocalZoom: { current: number }) {
   const r = canvas.getBoundingClientRect();
   const W = r.width, H = r.height;
@@ -161,6 +172,29 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     S.setSelectedToken(null); R.rSelectedToken.current = null;
+    R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
+
+    // Selects `id` (adding to the multi-selection if one is already active) and arms
+    // a drag — solo, or in lockstep with the rest of the selection when it has >1 member.
+    const selectAndArmDrag = (id: number | string, ep: { x: number; y: number }) => {
+      const sel = R.rMultiSelected.current;
+      sel.add(id);
+      R.rMultiSelected.current = new Set(sel);
+      S.setSelectedToken(id); R.rSelectedToken.current = id;
+      R.dragRef.current = { id, ox: mx - ep.x, oy: my - ep.y };
+      if (sel.size > 1) {
+        const offsets = new Map<number | string, { ox: number; oy: number }>();
+        for (const sid of sel) {
+          if (sid === id) continue;
+          const p = getTokenPos(R, sid);
+          if (p) offsets.set(sid, { ox: mx - p.x, oy: my - p.y });
+        }
+        R.groupDragRef.current = offsets;
+      } else {
+        R.groupDragRef.current = null;
+      }
+      S.setActiveDrag(id); S.setCanvasCursor('grabbing');
+    };
 
     // Check lib enemies first (they are on top)
     for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
@@ -168,8 +202,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
       const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
       if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
-        R.dragRef.current = { id: `lib_${len.id}`, ox: mx - lep.x, oy: my - lep.y };
-        S.setActiveDrag(`lib_${len.id}`); S.setSelectedToken(`lib_${len.id}`); R.rSelectedToken.current = `lib_${len.id}`; S.setCanvasCursor('grabbing');
+        selectAndArmDrag(`lib_${len.id}`, lep);
         e.preventDefault(); return;
       }
     }
@@ -179,8 +212,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
       const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
       if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
-        R.dragRef.current = { id: `pl_${pl.id}`, ox: mx - ppos.x, oy: my - ppos.y };
-        S.setActiveDrag(`pl_${pl.id}`); S.setSelectedToken(`pl_${pl.id}`); R.rSelectedToken.current = `pl_${pl.id}`; S.setCanvasCursor('grabbing');
+        selectAndArmDrag(`pl_${pl.id}`, ppos);
         e.preventDefault(); return;
       }
     }
@@ -193,8 +225,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
           const ep = R.rPos.current[en.id]; if (!ep) continue;
           const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
           if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
-            R.dragRef.current = { id: en.id, ox: mx - ep.x, oy: my - ep.y };
-            S.setActiveDrag(en.id); S.setSelectedToken(en.id); R.rSelectedToken.current = en.id; S.setCanvasCursor('grabbing');
+            selectAndArmDrag(en.id, ep);
             e.preventDefault(); return;
           }
         }
@@ -380,7 +411,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         np = { x: snapCC(np.x, gox), y: snapCC(np.y, goy) };
       }
     }
-    R.rPos.current = { ...R.rPos.current, [id]: np };
+    const nextPos = { ...R.rPos.current, [id]: np };
+    if (R.groupDragRef.current) {
+      for (const [sid, off] of R.groupDragRef.current) {
+        nextPos[sid] = { x: mx - off.ox, y: my - off.oy };
+      }
+    }
+    R.rPos.current = nextPos;
   }, [mc, _broadcastState]);
 
   const onMouseUp = useCallback((
@@ -478,7 +515,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     if (R.dragRef.current) setPos({ ...R.rPos.current });
-    R.dragRef.current = null; S.setActiveDrag(null);
+    R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null;
     S.setCanvasCursor(R.rDrawTool.current === 'shape' ? WAND_CURSOR : 'default');
 
     if (R.drawChangedRef.current) {
@@ -499,7 +536,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onMouseLeaveCanvas = useCallback(() => {
     R.panDragRef.current = null;
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
-    R.dragRef.current = null; S.setActiveDrag(null);
+    R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null;
     R.rHoveredRoom.current = null;
     R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;
@@ -533,12 +570,21 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         return;
       }
     }
+    // If the right-clicked token is part of an active multi-selection, show the group menu instead
+    const sel = R.rMultiSelected.current;
+    const maybeMultiMenu = (id: number | string): boolean => {
+      if (sel.size <= 1 || !sel.has(id)) return false;
+      S.setContextMenu({ id, name: `${sel.size} seleccionats`, x: e.clientX, y: e.clientY, isMultiSelect: true, ids: [...sel] });
+      return true;
+    };
+
     // Check lib enemies
     for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
       const len = R.rLibEnemies.current[i];
       const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
       const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
       if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
+        if (maybeMultiMenu(`lib_${len.id}`)) return;
         S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id, tokenPos: lep });
         return;
       }
@@ -548,6 +594,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
       const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
       if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
+        if (maybeMultiMenu(`pl_${pl.id}`)) return;
         S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY }); return;
       }
     }
@@ -558,6 +605,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         const ep = R.rPos.current[en.id]; if (!ep) continue;
         const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
         if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
+          if (maybeMultiMenu(en.id)) return;
           S.setContextMenu({ id: en.id, name: en.name, x: e.clientX, y: e.clientY }); return;
         }
       }
