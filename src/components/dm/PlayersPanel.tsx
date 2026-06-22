@@ -13,10 +13,11 @@ interface Props {
   onRemove: (id: number) => void;
   onAdjustHp: (id: number, delta: number) => void;
   onSetHpMax: (id: number, hpMax: number) => void;
+  onRename: (id: number, name: string) => void;
   onLoadParty: () => void;
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onLoadParty }: Props) {
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onRename, onLoadParty }: Props) {
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, padding: '8px 10px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
@@ -53,7 +54,8 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
             <div key={pl.id} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: '5px 6px', border: '1px solid rgba(255,255,255,0.07)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: pl.color, flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 11, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{pl.name}</span>
+                <input value={pl.name} title="Editar nom" onChange={e => onRename(pl.id, e.target.value)}
+                  style={{ flex: 1, minWidth: 0, fontSize: 11, color: C.text, fontWeight: 600, background: 'transparent', border: 'none', outline: 'none', padding: 0 }} />
                 <button onClick={() => onRemove(pl.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: 0, display: 'flex', flexShrink: 0 }}><X size={9} /></button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>

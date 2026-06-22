@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.52
+- Permet editar el nom dels jugadors un cop creats (camp editable al panell de jugadors)
+
 ### v3.51
 - Fix selecció múltiple: clicar un token ja seleccionat dins un grup el treu de la selecció (clic sense arrossegar = toggle; arrossegar manté el grup).
 
