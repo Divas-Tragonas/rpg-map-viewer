@@ -171,9 +171,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       e.preventDefault(); return;
     }
 
-    S.setSelectedToken(null); R.rSelectedToken.current = null;
-    R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
-
     // Selects `id` (adding to the multi-selection if one is already active) and arms
     // a drag — solo, or in lockstep with the rest of the selection when it has >1 member.
     const selectAndArmDrag = (id: number | string, ep: { x: number; y: number }) => {
@@ -231,6 +228,9 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
       }
     }
+
+    S.setSelectedToken(null); R.rSelectedToken.current = null;
+    R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
 
     const hovZ = R.rHoveredRoom.current;
     if (hovZ) {
