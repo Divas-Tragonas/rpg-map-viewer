@@ -175,10 +175,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // a drag — solo, or in lockstep with the rest of the selection when it has >1 member.
     const selectAndArmDrag = (id: number | string, ep: { x: number; y: number }) => {
       const sel = R.rMultiSelected.current;
+      const reclickingGroupMember = sel.size > 1 && sel.has(id);
       sel.add(id);
       R.rMultiSelected.current = new Set(sel);
       S.setSelectedToken(id); R.rSelectedToken.current = id;
       R.dragRef.current = { id, ox: mx - ep.x, oy: my - ep.y };
+      R.pendingDeselectRef.current = reclickingGroupMember ? { id, mx, my } : null;
       if (sel.size > 1) {
         const offsets = new Map<number | string, { ox: number; oy: number }>();
         for (const sid of sel) {
@@ -397,6 +399,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     if (!R.dragRef.current) return;
+    if (R.pendingDeselectRef.current) {
+      const pd = R.pendingDeselectRef.current;
+      if (Math.hypot(mx - pd.mx, my - pd.my) > 3 / R.rZoom.current) R.pendingDeselectRef.current = null;
+    }
     const { id, ox, oy } = R.dragRef.current;
     let np = { x: mx - ox, y: my - oy };
     if (R.rGridSnap.current && R.rGridSize.current > 0) {
@@ -515,6 +521,15 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     if (R.dragRef.current) setPos({ ...R.rPos.current });
+    if (R.pendingDeselectRef.current) {
+      const { id } = R.pendingDeselectRef.current;
+      R.pendingDeselectRef.current = null;
+      const sel = new Set(R.rMultiSelected.current);
+      sel.delete(id);
+      R.rMultiSelected.current = sel;
+      const next = sel.size > 0 ? [...sel][sel.size - 1] : null;
+      R.rSelectedToken.current = next; S.setSelectedToken(next);
+    }
     R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null;
     S.setCanvasCursor(R.rDrawTool.current === 'shape' ? WAND_CURSOR : 'default');
 
@@ -536,7 +551,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onMouseLeaveCanvas = useCallback(() => {
     R.panDragRef.current = null;
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
-    R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null;
+    R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null; R.pendingDeselectRef.current = null;
     R.rHoveredRoom.current = null;
     R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;

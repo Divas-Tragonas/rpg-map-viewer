@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.51
+- Fix selecció múltiple: clicar un token ja seleccionat dins un grup el treu de la selecció (clic sense arrossegar = toggle; arrossegar manté el grup).
+
 ### v3.50
 - Selecció múltiple de tokens: clics consecutius (sense modificadors) afegeixen tokens a la selecció.
 - Arrossegar qualsevol token seleccionat mou tot el grup mantenint els offsets relatius.
