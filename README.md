@@ -26,6 +26,12 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.50
+- Selecció múltiple de tokens: clics consecutius (sense modificadors) afegeixen tokens a la selecció.
+- Arrossegar qualsevol token seleccionat mou tot el grup mantenint els offsets relatius.
+- Accions de grup des del menú contextual: alternar condició, marcar derrotats, netejar condicions, treure de la selecció.
+- Anell de selecció blau polsant per a tokens enemics, de biblioteca i jugadors en multi-selecció.
+
 ### v3.49
 - Animació de mort (X creuada + desaturació) ara també pels tokens de jugadors, no només pels enemics.
 - `adjustPlayerHp` marca `rDefeated` automàticament quan l'HP arriba a 0.
