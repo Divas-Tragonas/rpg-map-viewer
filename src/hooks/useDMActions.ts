@@ -259,7 +259,19 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const updated = rPlayers.current.map(pl =>
       pl.id === id ? { ...pl, hp: Math.max(0, Math.min(pl.hpMax, (pl.hp ?? pl.hpMax) + delta)) } : pl
     );
-    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+    rPlayers.current = updated; S.setPlayers(updated);
+    const changed = updated.find(pl => pl.id === id);
+    if (changed) {
+      const key = `pl_${id}`;
+      const isNowDefeated = changed.hp <= 0;
+      const wasDefeated = !!rDefeated.current[key];
+      if (isNowDefeated !== wasDefeated) {
+        const nd = { ...rDefeated.current };
+        if (isNowDefeated) nd[key] = true; else delete nd[key];
+        rDefeated.current = nd; S.setDefeated({ ...nd });
+      }
+    }
+    _broadcastState({});
   }, [_broadcastState]);
 
   const setPlayerHpMax = useCallback((id: number, hpMax: number) => {

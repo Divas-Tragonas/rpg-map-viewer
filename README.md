@@ -26,6 +26,10 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.49
+- Animació de mort (X creuada + desaturació) ara també pels tokens de jugadors, no només pels enemics.
+- `adjustPlayerHp` marca `rDefeated` automàticament quan l'HP arriba a 0.
+
 ### v3.48
 - WebSocket sync (`/sync?role=dm|client`) per sincronitzar DM i clients iPad en xarxa local.
 - `usePlayerTokenDrag`: hook per arrossegar tokens al PlayerView (ratolí + tactil).

@@ -359,7 +359,10 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 }
 
 export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride } = fc;
+  const {
+    sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride,
+    rDefeated, defeatedAnimRef,
+  } = fc;
   rPlayers.current.forEach(pl => {
     const rawPos = pp[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     let ppos = rawPos;
@@ -382,22 +385,53 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];
     const isInvis = plCondIds.includes('invisible');
     if (isInvis && !isDM) return;
+    const isDefeated = !!rDefeated.current[`pl_${pl.id}`];
+    let colorProg = 0, crossProg = 0;
+    if (isDefeated) {
+      if (isDM) { colorProg = 1; crossProg = 1; }
+      else {
+        const key = `pl_${pl.id}`;
+        let prog = defeatedAnimRef.current[key] ?? 0;
+        if (prog < 1) { prog = Math.min(1, prog + 0.018); defeatedAnimRef.current[key] = prog; }
+        colorProg = Math.min(1, prog * 2); crossProg = Math.max(0, prog * 2 - 1);
+      }
+    }
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = pl.color;
-    ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
     const plTintCond = [...plCondIds].reverse().map(id => CONDITIONS_BY_ID.get(id)).find(c => c?.tint);
-    if (plTintCond) {
-      ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = 0.45;
-      ctx.fillStyle = plTintCond.tint!;
+    if (isDefeated && colorProg > 0) {
+      ctx.save();
+      ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
+      ctx.globalAlpha = 1 - colorProg * 0.35;
+      ctx.fillStyle = pl.color;
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
+      if (plTintCond) {
+        ctx.save(); ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.clip();
+        ctx.globalAlpha = (1 - colorProg * 0.35) * 0.45;
+        ctx.fillStyle = plTintCond.tint!; ctx.fillRect(ppos.x, ppos.y, R * 2, R * 2); ctx.restore();
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
+      ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
+      ctx.save(); ctx.globalAlpha = colorProg * 0.42;
+      ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = '#cc1111'; ctx.fillRect(ppos.x, ppos.y, R * 2, R * 2);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = pl.color;
+      ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
+      if (plTintCond) {
+        ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = 0.45;
+        ctx.fillStyle = plTintCond.tint!;
+        ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
+      if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
+      ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
     }
-    ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
-    if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
-    ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
     ctx.fillStyle = '#fff'; ctx.font = `bold ${13 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
     ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
@@ -416,6 +450,23 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.fillRect(barX, barY, barW * hpRatio, barH);
       ctx.font = `bold ${9 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#e6edf3';
       ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH + 9 / sc); ctx.textAlign = 'left';
+    }
+
+    if (isDefeated && (isDM || crossProg > 0)) {
+      const cx = ppos.x + R, cy = ppos.y + R, cr = R * 0.82;
+      ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
+      if (isDM) {
+        ctx.beginPath(); ctx.moveTo(cx - cr, cy - cr); ctx.lineTo(cx + cr, cy + cr); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + cr, cy - cr); ctx.lineTo(cx - cr, cy + cr); ctx.stroke();
+      } else {
+        const lineLen = cr * 2 * 1.42;
+        const p1 = Math.min(1, crossProg * 2);
+        if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(cx - cr, cy - cr); ctx.lineTo(cx + cr, cy + cr); ctx.stroke(); }
+        const p2 = Math.max(0, crossProg * 2 - 1);
+        if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(cx + cr, cy - cr); ctx.lineTo(cx - cr, cy + cr); ctx.stroke(); }
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
     }
 
     if (isDM && rSelectedToken.current === `pl_${pl.id}`) {
