@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.53
+- Fix: l'avís "Sin carpeta EXTRAS" (i altres warnings de PSD) ara es tanca automàticament als 10s d'aparèixer.
+
 ### v3.52
 - Permet editar el nom dels jugadors un cop creats (camp editable al panell de jugadors)
 

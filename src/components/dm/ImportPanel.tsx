@@ -17,6 +17,12 @@ interface Props {
 }
 
 export function ImportPanel({ bgLoaded, bgName, parsing, struct, psdInfo, parseError, warnings, warningsDismissed, setWarningsDismissed, onLoadBg, onLoadPSD, onLoadDemo }: Props) {
+  React.useEffect(() => {
+    if (warnings.length === 0 || parseError || warningsDismissed) return;
+    const t = setTimeout(() => setWarningsDismissed(true), 10000);
+    return () => clearTimeout(t);
+  }, [warnings, parseError, warningsDismissed, setWarningsDismissed]);
+
   return (
     <div style={{ padding: '6px 12px 7px', borderBottom: `1px solid ${C.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
