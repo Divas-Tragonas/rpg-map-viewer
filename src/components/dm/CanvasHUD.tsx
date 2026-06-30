@@ -7,6 +7,7 @@ import type { MapStructure, VisMap } from '@/types';
 interface Props {
   ctrlPanActive: boolean;
   shiftPanActive: boolean;
+  areaSelectMode: boolean;
   struct: MapStructure | null; vis: VisMap;
   enemyHighlight: boolean; highlightLocked: boolean;
   gridCalibrating: boolean;
@@ -16,7 +17,7 @@ interface Props {
   onToggleHighlightLocked: () => void;
 }
 
-export function CanvasHUD({ ctrlPanActive, shiftPanActive, struct, vis, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
+export function CanvasHUD({ ctrlPanActive, shiftPanActive, areaSelectMode, struct, vis, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleEnemyHighlight, onToggleHighlightLocked }: Props) {
   return (
     <>
       {gridCalibrating && (
@@ -35,6 +36,12 @@ export function CanvasHUD({ ctrlPanActive, shiftPanActive, struct, vis, enemyHig
           <div title="Mode pan DM actiu — prem SHIFT per desactivar"
             style={{ background: 'rgba(88,166,255,.15)', border: '1px solid #58a6ff', borderRadius: 6, padding: '5px 9px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, animation: 'pulse 1.5s infinite', pointerEvents: 'none', letterSpacing: '0.05em' }}>
             SHIFT
+          </div>
+        )}
+        {areaSelectMode && (
+          <div title="Mode selecció per àrea actiu — arrossega per seleccionar tokens · prem A o ESC per sortir"
+            style={{ background: 'rgba(88,166,255,.15)', border: '1px solid #58a6ff', borderRadius: 6, padding: '5px 9px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, animation: 'pulse 1.5s infinite', pointerEvents: 'none', letterSpacing: '0.05em' }}>
+            ▣ SELECCIÓ
           </div>
         )}
         <div style={{ background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 11px', fontSize: 11, color: C.dim }}>

@@ -69,6 +69,7 @@ export function DMView() {
   const [ctxEditName, setCtxEditName] = useState('');
   const [ctxEditHpMax, setCtxEditHpMax] = useState(0);
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
+  const [areaSelectMode, setAreaSelectMode] = useState(false);
   const [dmPrivateActive, setDmPrivateActive] = useState(false);
   const [ctrlPanActive, setCtrlPanActive] = useState(false);
   const [shiftPanActive, setShiftPanActive] = useState(false);
@@ -277,6 +278,7 @@ export function DMView() {
     setDrawTool, undoStroke, skipBossIntro,
     broadcastState: () => _broadcastState({}),
     setCtrlPanActive, setShiftPanActive, setZoom,
+    setAreaSelectMode,
     onDeleteSelection,
   });
 
@@ -695,7 +697,7 @@ export function DMView() {
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : canvasCursor }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : areaSelectMode ? 'crosshair' : canvasCursor }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={handleMouseUp}
@@ -703,7 +705,7 @@ export function DMView() {
           onContextMenu={onContextMenu}
         />
         <CanvasHUD
-          ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} struct={struct} vis={vis}
+          ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode} struct={struct} vis={vis}
           enemyHighlight={enemyHighlight}
           highlightLocked={highlightLocked} gridCalibrating={gridCalibrating}
           onResetView={onResetView} onResetPrivate={onResetPrivate}
@@ -926,7 +928,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.54</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.55</div>
             </div>
           </div>
         )}

@@ -66,6 +66,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
       return;
     }
+    // Area (marquee) selection mode — RTS-style box select (toggled with "A").
+    // Takes priority over every tool so a left-drag always rubber-bands.
+    if (e.button === 0 && R.rAreaSelectMode.current) {
+      const { mx: amx, my: amy } = mc(e);
+      R.rAreaSelectRect.current = { x0: amx, y0: amy, x1: amx, y1: amy };
+      e.preventDefault(); return;
+    }
     // Shift + left click in shape tool = straight-line spell drawing
     if (e.button === 0 && (e.shiftKey || R.rShiftHeld.current) && R.rDrawTool.current === 'shape') {
       const { mx: smx, my: smy } = mc(e);
@@ -273,6 +280,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     const { mx, my } = mc(e);
 
+    // Update marquee selection rectangle
+    if (R.rAreaSelectRect.current) {
+      R.rAreaSelectRect.current = { ...R.rAreaSelectRect.current, x1: mx, y1: my };
+      return;
+    }
+
     if (R.rGridCalibrating.current) {
       R.gridCalibHoverRef.current = { hx: mx, hy: my };
       if (R.gridCalibRef.current) { R.gridCalibCurrRef.current = { cx: mx, cy: my }; return; }
@@ -436,6 +449,38 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     setGridCalibrating: (v: boolean) => void,
   ) => {
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
+
+    // Finalize marquee (area) selection — collect every token whose center is inside the box
+    if (R.rAreaSelectRect.current) {
+      const rect = R.rAreaSelectRect.current;
+      R.rAreaSelectRect.current = null;
+      const left = Math.min(rect.x0, rect.x1), right = Math.max(rect.x0, rect.x1);
+      const top = Math.min(rect.y0, rect.y1), bottom = Math.max(rect.y0, rect.y1);
+      const dragDist = Math.hypot(rect.x1 - rect.x0, rect.y1 - rect.y0);
+      const sel = new Set<number | string>();
+      // A real drag selects; a tiny click just clears the current selection
+      if (dragDist > 4 / R.rZoom.current) {
+        const inside = (x: number, y: number) => x >= left && x <= right && y >= top && y <= bottom;
+        for (const len of R.rLibEnemies.current) {
+          const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
+          if (inside(lep.x, lep.y)) sel.add(`lib_${len.id}`);
+        }
+        for (const pl of R.rPlayers.current) {
+          const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
+          const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
+          if (inside(ppos.x + pR, ppos.y + pR)) sel.add(`pl_${pl.id}`);
+        }
+        const st = R.rStruct.current;
+        if (st) for (const room of st.enemyRooms) for (const en of room.enemies) {
+          const ep = R.rPos.current[en.id]; if (!ep) continue;
+          if (inside(ep.x, ep.y)) sel.add(en.id);
+        }
+      }
+      R.rMultiSelected.current = sel;
+      const last = sel.size > 0 ? [...sel][sel.size - 1] : null;
+      R.rSelectedToken.current = last; S.setSelectedToken(last);
+      return;
+    }
 
     // Finalize straight-line spell
     if (R.isSpellLineDrawingRef.current) {

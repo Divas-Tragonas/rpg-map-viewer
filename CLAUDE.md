@@ -341,6 +341,12 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 - **Snap**: `rGridSnap` — snapa tokens al centre de cel·la
 - **AutoSize** (`gridAutoSize`): `rTokenSizeOverride` — map `{tokenId: R}` escala tokens al 90% cel·la
 
+### Selecció per àrea (marquee)
+- Drecera `A` (toggle) → `rAreaSelectMode`. Cursor en creu + indicador "▣ SELECCIÓ" a `CanvasHUD`.
+- En aquest mode, left-drag dibuixa un rectangle (`rAreaSelectRect` en coords de mapa) que selecciona **només tokens** (PSD enemies, lib enemies i jugadors) amb el centre dins. Resultat → `rMultiSelected`.
+- `A` o `ESC` per sortir (gestionat a `useKeyboardHandlers`). El rectangle es renderitza en espai pantalla a `useRafLoop` (després del grid).
+- **Zoom**: el cap del zoom compartit és ×10 (1000%) a `useWheelZoom` i `BottomControls`.
+
 ### Tokens enemics
 - **PSD enemies**: R = `Math.max(Math.min(en.w, en.h) / 2, 22)` (o override via `rTokenSizeOverride`)
 - **Lib enemies**: `LibEnemy[]` afegits manualment des del panell, amb imatge custom opcional

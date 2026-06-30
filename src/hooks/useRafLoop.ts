@@ -173,6 +173,21 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderGrid(ctx, fc);
       renderGridCalib(ctx, fc);
 
+      // Area (marquee) selection rectangle — drawn in screen space so it stays crisp at any zoom
+      if (R.rAreaSelectRect.current) {
+        const r = R.rAreaSelectRect.current;
+        const x0 = ox + Math.min(r.x0, r.x1) * sc, y0 = oy + Math.min(r.y0, r.y1) * sc;
+        const x1 = ox + Math.max(r.x0, r.x1) * sc, y1 = oy + Math.max(r.y0, r.y1) * sc;
+        ctx.save();
+        ctx.fillStyle = 'rgba(88,166,255,0.12)';
+        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.strokeStyle = 'rgba(88,166,255,0.9)';
+        ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
+        ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
       // DM cursors — rendered last so they appear above everything
       {
         const tool = R.rDrawTool.current;

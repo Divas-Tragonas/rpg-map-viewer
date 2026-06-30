@@ -26,6 +26,10 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.55
+- **Selecció per àrea (marquee)**: prem `A` per activar un mode de selecció estil Age of Empires / cursor de Windows. Arrossega un rectangle sobre el mapa per seleccionar *només tokens* (enemics PSD, enemics de biblioteca i jugadors) que quedin dins. Prem `A` o `ESC` per sortir. Indicador "▣ SELECCIÓ" a la barra superior i cursor en creu.
+- **Zoom ampliat fins al 1000%**: el zoom compartit (roda del ratolí i control inferior) ara arriba fins a ×10 en comptes de ×5.
+
 ### v3.54
 - **Revelador de text**: nova eina d'escena. Botó "Text" a dalt a l'esquerra del visualitzador que obre una finestra flotant gran amb editor, controls (velocitat, suavitat, pauses dramàtiques, mode manual frase a frase) i previsualització.
 - El DM controla la revelació; el jugador rep el text a pantalla completa amb tipografia gran (serif) i el mateix esvaïment suau, sincronitzat via `TEXTREVEAL_SHOW/SYNC/HIDE` (BroadcastChannel + WebSocket).

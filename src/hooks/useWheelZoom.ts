@@ -31,7 +31,7 @@ export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPriva
         setDmPrivateActive(true); _broadcastState({}); return;
       }
 
-      const newZoom = Math.min(5, Math.max(0.2, R.rZoom.current * factor));
+      const newZoom = Math.min(10, Math.max(0.2, R.rZoom.current * factor));
       if (newZoom === R.rZoom.current) return;
       const scOld = Math.min(W / mw, H / mh) * R.rZoom.current;
       const scNew = Math.min(W / mw, H / mh) * newZoom;
