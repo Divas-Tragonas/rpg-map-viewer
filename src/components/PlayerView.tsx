@@ -13,6 +13,7 @@ import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/l
 import { renderGrid, renderDMPointer } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
 import { createSyncSocket } from '@/lib/ws';
+import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
@@ -110,6 +111,18 @@ export function PlayerView() {
   const expositorInnerRef = useRef<HTMLDivElement | null>(null);
   const expTgt = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
   const expCur = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
+
+  // ── Revelador de text ──────────────────────────────────────────────────────
+  const [textRevealVisible, setTextRevealVisible] = useState(false);
+  const [textRevealFading, setTextRevealFading] = useState(false);
+  const textRevealVisibleRef = useRef(false);
+  const textRevealStageRef = useRef<HTMLDivElement>(null);
+  const textRevealTextRef = useRef<HTMLDivElement>(null);
+  const trEngineRef = useRef<RevealEngine | null>(null);
+  const trTargetRef = useRef(0);
+  const trCpsRef = useRef(20);
+  const trFadeRef = useRef(450);
+  const trLastTsRef = useRef(0);
 
   const _loadBgFromUrl = useCallback((url: string, mimeType: string, withFade: boolean) => {
     const stage = stageRef.current; if (!stage) return;
@@ -551,6 +564,31 @@ export function PlayerView() {
           kbTx: msg.kbTxPct,
           kbTy: msg.kbTyPct,
         };
+      } else if (msg.type === 'TEXTREVEAL_SHOW') {
+        const doShow = () => {
+          const container = textRevealTextRef.current;
+          if (!container) return;
+          const eng = trEngineRef.current ?? new RevealEngine();
+          trEngineRef.current = eng;
+          eng.setText(msg.text, container);
+          trTargetRef.current = msg.pos;
+          trCpsRef.current = msg.cps;
+          trFadeRef.current = msg.fadeMs;
+          trLastTsRef.current = 0;
+          if (msg.pos > 0) eng.snapTo(msg.pos);
+          setTextRevealFading(false);
+          textRevealVisibleRef.current = true;
+          setTextRevealVisible(true);
+        };
+        if (textRevealVisibleRef.current) { setTextRevealFading(true); setTimeout(doShow, 350); }
+        else doShow();
+      } else if (msg.type === 'TEXTREVEAL_HIDE') {
+        textRevealVisibleRef.current = false;
+        setTextRevealVisible(false);
+      } else if (msg.type === 'TEXTREVEAL_SYNC') {
+        trTargetRef.current = msg.pos;
+        trCpsRef.current = msg.cps;
+        trFadeRef.current = msg.fadeMs;
       }
     };
 
@@ -662,6 +700,22 @@ export function PlayerView() {
           (media as HTMLElement).style.left   = bgL + 'px';
           (media as HTMLElement).style.top    = bgT + 'px';
           prevBgStyle = newStyle;
+        }
+      }
+
+      // Text reveal follower — independent del mapa: funciona sobre qualsevol escena.
+      // (Seguim el `pos` del DM amb rellotge local perquè l'esvaïment continuï durant les pauses.)
+      {
+        const trEng = trEngineRef.current;
+        if (trEng && textRevealVisibleRef.current) {
+          const now = performance.now();
+          const dt = trLastTsRef.current ? Math.min(80, now - trLastTsRef.current) : 16;
+          trLastTsRef.current = now;
+          trEng.tick(dt);
+          trEng.follow(trTargetRef.current, trCpsRef.current);
+          trEng.render(trFadeRef.current, textRevealStageRef.current);
+        } else {
+          trLastTsRef.current = 0;
         }
       }
 
@@ -820,6 +874,33 @@ export function PlayerView() {
           {expositorSrc && expositorType === 'video' && (
             <video src={expositorSrc} autoPlay loop muted playsInline draggable={false} style={{ maxWidth: '100vw', maxHeight: '100vh', objectFit: 'contain', display: 'block' }} />
           )}
+        </div>
+      </div>
+
+      {/* Revelador de text overlay */}
+      <div
+        style={{
+          position: 'absolute', inset: 0, zIndex: 51,
+          background: 'radial-gradient(130% 90% at 50% 0%, #1a1611 0%, #0a0806 62%)',
+          opacity: (textRevealVisible && !textRevealFading) ? 1 : 0,
+          pointerEvents: textRevealVisible ? 'auto' : 'none',
+          transition: textRevealFading ? 'opacity 0.3s ease-in-out' : 'opacity 1.4s ease-in-out',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          ref={textRevealStageRef}
+          style={{ position: 'absolute', inset: 0, overflowY: 'auto', scrollBehavior: 'smooth', padding: '15vh 9% 32vh' }}
+        >
+          <div
+            ref={textRevealTextRef}
+            style={{
+              fontFamily: "'EB Garamond','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif",
+              fontSize: 'clamp(2rem, 4.6vw, 4rem)', lineHeight: 1.55, whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em',
+              color: '#ece3d0', textShadow: '0 2px 24px rgba(0,0,0,0.6)',
+            }}
+          />
         </div>
       </div>
     </div>

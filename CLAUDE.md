@@ -189,6 +189,7 @@ src/
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/index.ts  # cpBurst, cpUpdate, cpDraw (partícules cinematica)
+│   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)
 │   ├── conditions/index.ts # Helpers de condicions D&D
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
 │   ├── textures/           # Textures procedurals (noise, elements)
@@ -312,6 +313,10 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `SPELL` | DM→Jugador | Inici d'animació de spell |
 | `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal |
 | `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
+| `EXPOSITOR_SHOW/HIDE/SYNC` | DM→Jugador | Expositor d'imatge/vídeo (veure feature) |
+| `TEXTREVEAL_SHOW` | DM→Jugador | Revelador de text: text complet + `pos`, `cps`, `fadeMs` |
+| `TEXTREVEAL_SYNC` | DM→Jugador | Front de revelació (`pos`) streamejat a ~30fps |
+| `TEXTREVEAL_HIDE` | DM→Jugador | Amagar revelador de text |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
@@ -353,6 +358,17 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 ### Vista privada DM
 - `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats al jugador
 - Refs: `dmLocalPan`, `dmLocalZoom` — animació de retorn suau (`dmPrivateReturnAnim`)
+
+### Expositor (visualitzador d'imatges/vídeo)
+- Botó "Expositor" a dalt a l'esquerra del canvas → panell flotant al DM (preview amb zoom/pan + Ken Burns).
+- El jugador mostra el contingut a pantalla completa (overlay zIndex 50) amb fade IN/OUT i `EXPOSITOR_SYNC` (LERP).
+
+### Revelador de text (`src/lib/textreveal/`)
+- Botó "Text" a dalt a l'esquerra (al costat d'Expositor) → panell flotant gran al DM amb editor, controls i previsualització.
+- Motor compartit `RevealEngine` (`src/lib/textreveal/index.ts`): construeix spans, esvaïment per caràcter (smoothstep + blur), pauses dramàtiques al final de frase, mode manual.
+- **El DM és la font de veritat**: integra el front `pos` (velocitat `cps` + pauses + manual) i emet `TEXTREVEAL_SYNC { pos, cps, fadeMs }` a ~30fps. El jugador *segueix* aquest `pos` amb el seu propi rellotge (`RevealEngine.follow`), de manera que les pauses es propaguen però l'esvaïment continua suau.
+- Overlay del jugador a zIndex 51 (sobre l'expositor) amb tipografia serif gran i fade IN/OUT (1.4s / 0.3s), igual que l'expositor.
+- **Sinergia**: mostrar text amaga l'expositor i viceversa (crossfade); obrir un panell tanca l'altre; funciona sobre qualsevol escena (mapa, imatge o res) perquè el seguidor del jugador corre *abans* de `if (!s) return` al `tick()`.
 
 ---
 

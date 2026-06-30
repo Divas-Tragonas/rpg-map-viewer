@@ -272,6 +272,9 @@ export type BCMessage =
   | { type: 'EXPOSITOR_SHOW'; buffer: ArrayBuffer; mimeType: string }
   | { type: 'EXPOSITOR_HIDE' }
   | { type: 'EXPOSITOR_SYNC'; zoom: number; panXNorm: number; panYNorm: number; kbTxPct: number; kbTyPct: number }
+  | { type: 'TEXTREVEAL_SHOW'; text: string; pos: number; cps: number; fadeMs: number }
+  | { type: 'TEXTREVEAL_HIDE' }
+  | { type: 'TEXTREVEAL_SYNC'; pos: number; cps: number; fadeMs: number }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }
   | { type: 'EXPOSITOR_SHOW_META'; mimeType: string };

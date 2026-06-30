@@ -70,6 +70,9 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | BOSS_INTRO_SKIP     | —                                                               | Saltar cinematica                  |
 | EXPOSITOR_HIDE      | —                                                               | Amagar expositor                   |
 | EXPOSITOR_SYNC      | { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }                  | Sincronització expositor           |
+| TEXTREVEAL_SHOW     | { text: string, pos: number, cps: number, fadeMs: number }      | Mostrar revelador de text          |
+| TEXTREVEAL_SYNC     | { pos: number, cps: number, fadeMs: number }                    | Front de revelació (~30fps)        |
+| TEXTREVEAL_HIDE     | —                                                               | Amagar revelador de text           |
 | (binary frame)      | ArrayBuffer (imatge o vídeo)                                    | Segueix BG_META o EXPOSITOR_SHOW_META |
 
 #### Client → Servidor → DM (rol=dm rep aquests tipus)
