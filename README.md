@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.56
+- **Selecció per àrea additiva**: cada rectangle que dibuixes amb el mode `A` ara s'acumula a la selecció existent en comptes de substituir-la. Per netejar la selecció, prem `ESC`.
+
 ### v3.55
 - **Selecció per àrea (marquee)**: prem `A` per activar un mode de selecció estil Age of Empires / cursor de Windows. Arrossega un rectangle sobre el mapa per seleccionar *només tokens* (enemics PSD, enemics de biblioteca i jugadors) que quedin dins. Prem `A` o `ESC` per sortir. Indicador "▣ SELECCIÓ" a la barra superior i cursor en creu.
 - **Zoom ampliat fins al 1000%**: el zoom compartit (roda del ratolí i control inferior) ara arriba fins a ×10 en comptes de ×5.

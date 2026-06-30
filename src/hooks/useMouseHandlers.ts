@@ -457,8 +457,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const left = Math.min(rect.x0, rect.x1), right = Math.max(rect.x0, rect.x1);
       const top = Math.min(rect.y0, rect.y1), bottom = Math.max(rect.y0, rect.y1);
       const dragDist = Math.hypot(rect.x1 - rect.x0, rect.y1 - rect.y0);
-      const sel = new Set<number | string>();
-      // A real drag selects; a tiny click just clears the current selection
+      // Additive: every marquee accumulates onto the existing selection
+      const sel = new Set<number | string>(R.rMultiSelected.current);
       if (dragDist > 4 / R.rZoom.current) {
         const inside = (x: number, y: number) => x >= left && x <= right && y >= top && y <= bottom;
         for (const len of R.rLibEnemies.current) {
