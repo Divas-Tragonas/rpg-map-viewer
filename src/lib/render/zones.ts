@@ -130,16 +130,64 @@ export function drawFlatZone(ctx: CanvasRenderingContext2D, zone: PaintedZone): 
   ctx.restore();
 }
 
-export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone, t: number, txCache: Record<string, HTMLCanvasElement>): void {
-  const { left, top, w, h, cx, cy } = zone.bbox;
-  const tQ = Math.floor(t * 20) / 20;
-  const cacheKey = zone.id + ':' + tQ;
-  // Shared geometry constants (must match what's used to build the cached canvas)
-  const RS = Math.max(4, Math.ceil(Math.max(w, h) / 120));
+// Lower cap = fewer texels for the noise loop to fill (quadratic saving). The result is
+// heavily blurred/alpha-masked and drawn upscaled anyway, so detail loss is not visible.
+const TEXTURE_MAX_DIM = 70;
+// Regen rate per zone: each full regen re-evaluates every texel's noise function, which is
+// the expensive part (tens of ms for a large zone) — 20/s per zone was fine for one zone
+// but multiplies badly once several large/overlapping zones are on screen at once.
+const TEXTURE_HZ = 8;
+
+function zonePhase(zone: PaintedZone): number {
+  // Deterministic per-zone offset so multiple zones don't all regenerate on the same
+  // frame — spreads the noise-loop cost across frames instead of bursting together.
+  let h = 0;
+  for (let i = 0; i < zone.id.length; i++) h = (h * 31 + zone.id.charCodeAt(i)) >>> 0;
+  return (h % 997) / 997 / TEXTURE_HZ;
+}
+
+interface ZoneMask { canvas: HTMLCanvasElement; ptw: number; pth: number; padLeft: number; padTop: number; RS: number; }
+// The blurred shape mask only depends on zone.points (not on time), but used to be
+// rebuilt — CSS `blur()` filter and all — on every ~50ms texture regen. Caching it per
+// zone object (invalidated automatically when a drag/edit produces a new points array,
+// same pattern as getZonePath) removes the single most expensive step from the hot path,
+// which matters a lot once zones are large or several of them overlap on screen.
+const zoneMaskCache = new WeakMap<PaintedZone, ZoneMask>();
+function getZoneMask(zone: PaintedZone): ZoneMask {
+  let mask = zoneMaskCache.get(zone);
+  if (mask) return mask;
+  const { left, top, w, h } = zone.bbox;
+  // Texel resolution capped independent of zone size (keeps the per-pixel noise loop
+  // affordable even for huge zones); the final draw upsamples via drawImage.
+  const RS = Math.max(4, Math.ceil(Math.max(w, h) / TEXTURE_MAX_DIM));
   const PAD = 12; // texture-pixel padding per side so blur never cuts at canvas edge
   const padLeft = left - PAD * RS, padTop = top - PAD * RS;
   const tw = Math.ceil(w / RS), th = Math.ceil(h / RS);
   const ptw = tw + 2 * PAD, pth = th + 2 * PAD;
+  // High-res alpha mask at 4× resolution; PAD ensures blur fades inside canvas bounds
+  const maskW = ptw * 4, maskH = pth * 4;
+  const mScale = 4 / RS;
+  const blurPx = Math.max(4, Math.min(maskW, maskH) * 0.028);
+  const mc = document.createElement('canvas'); mc.width = maskW; mc.height = maskH;
+  const mctx = mc.getContext('2d')!;
+  mctx.filter = `blur(${blurPx}px)`;
+  mctx.fillStyle = 'white';
+  mctx.beginPath();
+  zone.points.forEach((p, i) => {
+    const ppx = (p.x - padLeft) * mScale, ppy = (p.y - padTop) * mScale;
+    if (i === 0) mctx.moveTo(ppx, ppy); else mctx.lineTo(ppx, ppy);
+  });
+  mctx.closePath(); mctx.fill();
+  mask = { canvas: mc, ptw, pth, padLeft, padTop, RS };
+  zoneMaskCache.set(zone, mask);
+  return mask;
+}
+
+export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone, t: number, txCache: Record<string, HTMLCanvasElement>): void {
+  const { cx, cy } = zone.bbox;
+  const { canvas: maskCanvas, ptw, pth, padLeft, padTop, RS } = getZoneMask(zone);
+  const tQ = Math.floor((t + zonePhase(zone)) * TEXTURE_HZ) / TEXTURE_HZ;
+  const cacheKey = zone.id + ':' + tQ;
 
   let cachedCanvas = txCache[cacheKey];
   if (!cachedCanvas) {
@@ -159,22 +207,8 @@ export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone
       }
     }
     octx.putImageData(img, 0, 0);
-    // High-res alpha mask at 4× resolution; PAD ensures blur fades inside canvas bounds
-    const maskW = ptw * 4, maskH = pth * 4;
-    const mScale = 4 / RS;
-    const blurPx = Math.max(4, Math.min(maskW, maskH) * 0.028);
-    const mc = document.createElement('canvas'); mc.width = maskW; mc.height = maskH;
-    const mctx = mc.getContext('2d')!;
-    mctx.filter = `blur(${blurPx}px)`;
-    mctx.fillStyle = 'white';
-    mctx.beginPath();
-    zone.points.forEach((p, i) => {
-      const ppx = (p.x - padLeft) * mScale, ppy = (p.y - padTop) * mScale;
-      if (i === 0) mctx.moveTo(ppx, ppy); else mctx.lineTo(ppx, ppy);
-    });
-    mctx.closePath(); mctx.fill();
     octx.globalCompositeOperation = 'destination-in';
-    octx.drawImage(mc, 0, 0, ptw, pth);
+    octx.drawImage(maskCanvas, 0, 0, ptw, pth);
     octx.globalCompositeOperation = 'source-over';
     cachedCanvas = txCache[cacheKey] = oc;
   }

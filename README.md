@@ -26,6 +26,10 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.59
+- **Optimització textura de zones màgiques al jugador (fps baixos amb zones grans/apilades)**: la màscara borrosa (filtre `blur` a 4× resolució) es recalculava sencera a cada regeneració de textura (~20/s per zona) tot i que només depèn de la forma de la zona, no del temps — ara es cacheja per zona i només es torna a fer quan la zona canvia de veritat. La resolució de la textura de soroll es limita més (era el coll d'ampolla real: desenes de ms per zona gran) i la freqüència de regeneració baixa de 20 a 8 Hz; a més cada zona regenera en un instant lleugerament diferent (esbiaix per zona) perquè zones apilades no facin tot el treball al mateix frame.
+- **1 zona gran**: sense caiguda de fps perceptible. **3 zones grans totalment apilades** (cas extrem): de ~8 fps abans d'aquest canvi a ~23 fps; queda pendent moure el càlcul de soroll a un Web Worker si encara es nota lag amb molts overlaps simultanis.
+
 ### v3.58
 - **Optimització zones màgiques (lag amb zones grans)**: les zones dibuixades a mà lliure generaven centenars/milers de punts en àrees grans, i cada punt es recorria cada frame (DM), a cada regeneració de textura (jugador) i a cada moviment de ratolí (hover/drag). Ara els punts es simplifiquen (Ramer-Douglas-Peucker) en crear la zona, amb un límit dur de 200 punts; el contorn de la zona al DM es cacheja com a `Path2D` per no reconstruir-lo cada frame; i la captura de punts en viu durant el dibuix ja no copia l'array sencer a cada moviment de ratolí (era O(n²) en zones grans).
 
