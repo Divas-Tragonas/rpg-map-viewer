@@ -1,9 +1,12 @@
 import type { FrameContext } from './types';
 
 export function renderGrid(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { sc, ox, oy, mw, mh, isDM, rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY, rGridDmAlpha, rGridCalibrating } = fc;
+  const { sc, ox, oy, mw, mh, isDM, rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY, rGridDmAlpha, rGridCalibrating, rDrawTool } = fc;
+  // The DM gets the grid as a reference while measuring (tool 4), even if it's not
+  // toggled on for players.
+  const measuring = isDM && rDrawTool?.current === 'pointer';
   const _gridAlpha = isDM ? rGridDmAlpha.current : 1;
-  if (rGridVisible.current && rGridSize.current > 0 && !rGridCalibrating.current && _gridAlpha > 0.005) {
+  if ((rGridVisible.current || measuring) && rGridSize.current > 0 && !rGridCalibrating.current && _gridAlpha > 0.005) {
     const gs = rGridSize.current, lw = rGridLineWidth.current;
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;

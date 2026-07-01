@@ -1,6 +1,6 @@
 'use client';
 import { useCallback } from 'react';
-import { pointInPolygon, getBBox } from '@/lib/geometry';
+import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
 
 const AREA_TYPES = new Set(['sleep', 'grease']);
@@ -403,6 +403,30 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       // so an O(n) copy on every mousemove would make drawing large zones itself laggy.
       if (Math.hypot(mx - last.x, my - last.y) > 6 / R.rZoom.current) {
         pts.push({ x: mx, y: my });
+        // A spell trace that crosses itself is auto-detected as an area effect — the
+        // enclosed loop counts as a closed circle the moment the two points cross.
+        const n = pts.length;
+        if (n >= 4) {
+          const a1 = pts[n - 2], a2 = pts[n - 1];
+          for (let i = 0; i < n - 3; i++) {
+            const ix = segmentsIntersect(a1, a2, pts[i], pts[i + 1]) ? segmentIntersection(a1, a2, pts[i], pts[i + 1]) : null;
+            if (ix) {
+              R.isShapeDrawingRef.current = false;
+              R.shapePointsRef.current = [];
+              const canvas = R.canvasRef.current!;
+              const rect = canvas.getBoundingClientRect();
+              const media = R.mediaRef.current;
+              let imw = 1920, imh = 1080;
+              if (media?.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth) { imw = (media as HTMLImageElement).naturalWidth; imh = (media as HTMLImageElement).naturalHeight; }
+              if (media?.tagName === 'VIDEO' && (media as HTMLVideoElement).videoWidth) { imw = (media as HTMLVideoElement).videoWidth; imh = (media as HTMLVideoElement).videoHeight; }
+              const isc = Math.min(rect.width / imw, rect.height / imh) * R.rZoom.current;
+              const pan = R.rPanOffset.current;
+              const iox = (rect.width - imw * isc) / 2 + pan.x, ioy = (rect.height - imh * isc) / 2 + pan.y;
+              S.setSpellMenu({ points: [ix], cx: rect.left + iox + ix.x * isc, cy: rect.top + ioy + ix.y * isc, mode: 'area' });
+              break;
+            }
+          }
+        }
       }
       return;
     }

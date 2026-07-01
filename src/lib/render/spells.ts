@@ -24,12 +24,6 @@ function worldToFt(px: number, gridSize: number): number {
   return gridSize > 0 ? Math.round((px / gridSize) * 5) : 0;
 }
 
-function pathLength(pts: Point[]): number {
-  let d = 0;
-  for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-  return d;
-}
-
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 /**
@@ -58,15 +52,6 @@ function drawImpact(ctx: CanvasRenderingContext2D, cx: number, cy: number, maxRP
   ctx.beginPath(); ctx.arc(cx, cy, maxR * 0.6 * Math.min(1, imp * 2.2), 0, Math.PI * 2); ctx.stroke();
 }
 
-/** Unified ft label. Typography: bold 11/sc monospace. Fades in 0–0.3s, out 1.0–1.5s. */
-function drawFtLabel(ctx: CanvasRenderingContext2D, x: number, y: number, ft: number, emoji: string, color: string, sc: number, elapsed: number): void {
-  const alpha = elapsed < 0.3 ? elapsed / 0.3 : elapsed < 1.0 ? 1 : Math.max(0, 1 - (elapsed - 1.0) / 0.5);
-  if (alpha < 0.01) return;
-  ctx.globalAlpha = alpha * 0.9;
-  ctx.font = `bold ${11 / sc}px monospace`; ctx.fillStyle = color; ctx.textAlign = 'center';
-  ctx.fillText(`${emoji} ${ft}ft`, x, y);
-}
-
 // ── Path spells ─────────────────────────────────────────────────────────────
 
 export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number): void {
@@ -91,8 +76,6 @@ export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], e
     const imp = (elapsed - TRAVEL) / IMPACT, end = pts[pts.length - 1];
     drawImpact(ctx, end.x, end.y, 48, '#ff6600', sc, imp);
   }
-  const fbEnd = pts[pts.length - 1];
-  drawFtLabel(ctx, fbEnd.x, fbEnd.y - 54 / sc, worldToFt(pathLength(pts), gridSize), '🔥', '#ff8800', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -120,8 +103,6 @@ export function drawSpellLightning(ctx: CanvasRenderingContext2D, pts: Point[], 
     ctx.globalAlpha = Math.sin(sP * Math.PI) * fade * 0.9; ctx.fillStyle = '#ffe066';
     ctx.beginPath(); ctx.arc(sp.x, sp.y, 3 / sc, 0, Math.PI * 2); ctx.fill();
   }
-  const ltEnd = pts[pts.length - 1];
-  drawFtLabel(ctx, ltEnd.x, ltEnd.y - 16 / sc, worldToFt(pathLength(pts), gridSize), '⚡', '#ffd200', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -147,8 +128,6 @@ export function drawSpellMagicBeam(ctx: CanvasRenderingContext2D, pts: Point[], 
     const sr = (1.2 + 2.5 * Math.abs(Math.sin(tN * 5.1 + i2))) / sc;
     ctx.beginPath(); ctx.arc(sP2.x, sP2.y, sr, 0, Math.PI * 2); ctx.fill();
   }
-  const mbEnd = pts[pts.length - 1];
-  drawFtLabel(ctx, mbEnd.x, mbEnd.y - 16 / sc, worldToFt(pathLength(pts), gridSize), '✨', '#9988ff', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -186,7 +165,6 @@ export function drawSpellMagicMissile(ctx: CanvasRenderingContext2D, pts: Point[
     const imp = (elapsed - TRAVEL) / IMPACT;
     drawImpact(ctx, B.x, B.y, 38, '#c084fc', sc, imp);
   }
-  drawFtLabel(ctx, B.x, B.y - 46 / sc, worldToFt(Math.hypot(B.x - A.x, B.y - A.y), gridSize), '🔮', '#c084fc', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -227,7 +205,6 @@ export function drawSpellHideousLaughter(ctx: CanvasRenderingContext2D, pts: Poi
     const imp = (elapsed - TRAVEL) / IMPACT;
     drawImpact(ctx, B.x, B.y, 42, '#facc15', sc, imp);
   }
-  drawFtLabel(ctx, B.x, B.y - 50 / sc, worldToFt(Math.hypot(B.x - A.x, B.y - A.y), gridSize), '😂', '#facc15', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -272,7 +249,6 @@ export function drawSpellBurningHands(ctx: CanvasRenderingContext2D, pts: Point[
     ctx.beginPath(); ctx.moveTo(A.x, A.y);
     ctx.lineTo(A.x + Math.cos(fa) * effectRange * flicker, A.y + Math.sin(fa) * effectRange * flicker); ctx.stroke();
   }
-  drawFtLabel(ctx, B.x, B.y - 20 / sc, worldToFt(dist, gridSize), '🤲', '#f97316', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -317,13 +293,6 @@ export function drawSpellSleep(ctx: CanvasRenderingContext2D, pts: Point[], elap
     ctx.lineTo(zX - zS, zY + zS); ctx.lineTo(zX + zS, zY + zS);
     ctx.stroke();
   }
-  // Label
-  const lAlpha = elapsed < 0.3 ? elapsed / 0.3 : elapsed < 1.0 ? 1 : Math.max(0, 1 - (elapsed - 1.0) / 0.5);
-  if (lAlpha > 0.01) {
-    ctx.globalAlpha = lAlpha * 0.9;
-    ctx.font = `bold ${11 / sc}px monospace`; ctx.fillStyle = '#c7d2fe'; ctx.textAlign = 'center';
-    ctx.fillText(`${data.emoji} ${data.aoeRadiusFt}ft`, center.x, center.y - aoeRadius - 7 / sc);
-  }
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -355,13 +324,6 @@ export function drawSpellGrease(ctx: CanvasRenderingContext2D, pts: Point[], ela
   // Gloss
   ctx.globalAlpha = 0.35 * alpha * shimmer; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
   ctx.beginPath(); ctx.ellipse(center.x, center.y - ry * 0.25, rx * 0.55, ry * 0.2, 0, Math.PI, Math.PI * 2); ctx.stroke();
-  // Label
-  const lAlpha = elapsed < 0.3 ? elapsed / 0.3 : elapsed < 1.0 ? 1 : Math.max(0, 1 - (elapsed - 1.0) / 0.5);
-  if (lAlpha > 0.01) {
-    ctx.globalAlpha = lAlpha * 0.9;
-    ctx.font = `bold ${11 / sc}px monospace`; ctx.fillStyle = '#d9f99d'; ctx.textAlign = 'center';
-    ctx.fillText(`${data.emoji} ${data.aoeRadiusFt}ft`, center.x, center.y - ry - 7 / sc);
-  }
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -387,6 +349,18 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     ctx.beginPath(); ctx.arc(end.x, end.y, 5 / sc, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 0.60;
     ctx.beginPath(); ctx.arc(start.x, start.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
+
+    // Live "shortest distance" readout — a straight line is already its own diagonal.
+    const ft = worldToFt(Math.hypot(end.x - start.x, end.y - start.y), gridSize);
+    const lmx = (start.x + end.x) / 2, lmy = (start.y + end.y) / 2;
+    ctx.globalAlpha = 0.9; ctx.font = `bold ${12 / sc}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const text = `📏 ${ft}ft`;
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = 'rgba(10,13,18,0.82)';
+    ctx.fillRect(lmx - tw / 2 - 5 / sc, lmy - 17 / sc, tw + 10 / sc, 14 / sc);
+    ctx.fillStyle = '#ffd200';
+    ctx.fillText(text, lmx, lmy - 10 / sc);
+    ctx.textBaseline = 'alphabetic';
 
   } else if (preview.mode === 'area_place') {
     const { origin, center, spellType } = preview;
@@ -423,11 +397,6 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     if (isOval) { ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.stroke(); }
     else        { ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.stroke(); }
     ctx.setLineDash([]);
-
-    // Label
-    ctx.globalAlpha = 0.85; ctx.fillStyle = data.color;
-    ctx.font = `bold ${11 / sc}px monospace`; ctx.textAlign = 'center';
-    ctx.fillText(`${data.emoji} ${data.aoeRadiusFt}ft`, center.x, center.y - aoeWorld - 7 / sc);
   }
 
   ctx.globalAlpha = 1; ctx.restore();
