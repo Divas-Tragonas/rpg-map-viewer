@@ -5,7 +5,7 @@ import { extractLayerImages } from '@/lib/psd/extractor';
 import { buildTree, validateStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
-import { BC_CHANNEL, DEFAULT_PARTY, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES } from '@/constants';
+import { BC_CHANNEL, DEFAULT_PARTY, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride } from '@/types';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
@@ -616,6 +616,25 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState]);
 
+  // Sets a token's diameter in feet (converted to the pixel radius used for rendering/hit-testing).
+  // Player tokens are stored as a top-left corner + radius, so their position is compensated to
+  // keep the visual center fixed when the radius changes; PSD/lib enemies are stored center-based.
+  const setTokenSize = useCallback((id: string, feet: number) => {
+    const newR = radiusFromFeet(feet, rGridSize.current);
+    const oldR = rTokenSizeOverride.current[id] ?? 22;
+    const ov = { ...rTokenSizeOverride.current, [id]: newR };
+    rTokenSizeOverride.current = ov; S.setTokenSizeOverride(ov);
+    if (id.startsWith('pl_')) {
+      const p = rPos.current[id];
+      if (p) {
+        const delta = oldR - newR;
+        const np = { ...rPos.current, [id]: { x: p.x + delta, y: p.y + delta } };
+        rPos.current = np; S.setPos(np);
+      }
+    }
+    _broadcastState({ tokenSizeOverride: ov });
+  }, [_broadcastState]);
+
   const setLibEnemyProps = useCallback((id: number, props: Partial<LibEnemy>) => {
     const updated = rLibEnemies.current.map(en => en.id === id ? { ...en, ...props } : en);
     rLibEnemies.current = updated; S.setLibEnemies(updated);
@@ -645,6 +664,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
-    removeLibEnemy, toggleLibEnemyVisibility,
+    removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
   };
 }

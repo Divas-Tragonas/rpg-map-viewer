@@ -266,6 +266,7 @@ export type BCMessage =
   | { type: 'CLEAR_DRAW' }
   | { type: 'UNDO_DRAW'; strokeHistory: StrokeData[] }
   | { type: 'POINTER'; pos: Point | null }
+  | { type: 'MEASURE'; a: Point | null; b: Point | null }
   | { type: 'SPELL'; spell: Omit<Spell, 'startTime'> & { startTime: number } }
   | { type: 'DELETE_SPELL'; id: string }
   | { type: 'BOSS_INTRO'; tokenId: number | string; bossName: string; tokenPos: Point | null; portraitDataUrl: string | null }

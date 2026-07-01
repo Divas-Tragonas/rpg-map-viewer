@@ -19,6 +19,9 @@ interface Props {
   setCtxEditName: (v: string) => void;
   ctxEditHpMax: number;
   setCtxEditHpMax: (v: number) => void;
+  ctxEditSizeFt: number;
+  setCtxEditSizeFt: (v: number) => void;
+  onSetTokenSize: (id: string, feet: number) => void;
   onClose: () => void;
   onToggleCondition: (tokenId: string, condId: string) => void;
   onDeletePaintedZone: (id: string) => void;
@@ -45,6 +48,7 @@ export function ContextMenuOverlay({
   contextMenu, conditions, defeated, rDefeated, defeatedAnimRef, rConditions,
   rLibEnemies, rPsdEnemyOverrides, rPlayers,
   ctxEditName, setCtxEditName, ctxEditHpMax, setCtxEditHpMax,
+  ctxEditSizeFt, setCtxEditSizeFt, onSetTokenSize,
   onClose, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
   setDefeated, setConditions,
   adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
@@ -192,6 +196,19 @@ export function ContextMenuOverlay({
         </div>
       ) : (
         <>
+          <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 9, color: C.dim, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Mida (peus)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number" min={1} step={0.5} value={ctxEditSizeFt}
+                onChange={e => setCtxEditSizeFt(parseFloat(e.target.value) || 0)}
+                onBlur={() => { if (ctxEditSizeFt > 0) onSetTokenSize(id, ctxEditSizeFt); }}
+                onKeyDown={e => { if (e.key === 'Enter' && ctxEditSizeFt > 0) onSetTokenSize(id, ctxEditSizeFt); }}
+                style={{ width: 64, boxSizing: 'border-box', background: '#0d1117', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 6px', color: C.text, fontSize: 11, outline: 'none' }}
+              />
+              <span style={{ color: C.dim, fontSize: 10 }}>ft de diàmetre</span>
+            </div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, padding: 6, maxHeight: 280, overflowY: 'auto' }}>
             {CONDITIONS.map(cond => {
               const active = (conditions[id] || []).includes(cond.id);

@@ -34,7 +34,10 @@ export function DrawToolsPanel({ drawTool, drawColor, setDrawColor, drawSize, se
           return (
             <button key={t} onClick={() => onSetDrawTool(dt => {
               const nt = dt === t ? 'none' : t;
-              if (nt === 'none' && isPtr) bcRef.current?.postMessage({ type: 'POINTER', pos: null });
+              if (nt === 'none' && isPtr) {
+                bcRef.current?.postMessage({ type: 'POINTER', pos: null });
+                bcRef.current?.postMessage({ type: 'MEASURE', a: null, b: null });
+              }
               return nt;
             })} title={label}
               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '5px 2px', borderRadius: 5, border: `1px solid ${drawTool === t ? col : C.border}`, background: drawTool === t ? `${col}22` : 'transparent', cursor: 'pointer', color: drawTool === t ? col : C.dim, fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden' }}>
@@ -66,6 +69,11 @@ export function DrawToolsPanel({ drawTool, drawColor, setDrawColor, drawSize, se
           style={{ flex: 1, accentColor: drawColor, minWidth: 0 }} />
         <span style={{ color: C.dim, fontSize: 10, minWidth: 22, flexShrink: 0 }}>{drawSize}px</span>
       </div>
+      {drawTool === 'pointer' && (
+        <div style={{ marginTop: 6, fontSize: 9.5, color: C.dim, lineHeight: 1.4 }}>
+          📏 Clica per marcar l&apos;inici, torna a clicar per fixar el final (regla en peus) i un tercer clic l&apos;elimina.
+        </div>
+      )}
     </div>
   );
 }

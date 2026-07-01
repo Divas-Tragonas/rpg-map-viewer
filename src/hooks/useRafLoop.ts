@@ -4,7 +4,7 @@ import { renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePrevie
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
-import { renderGrid, renderGridCalib } from '@/lib/render/grid';
+import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
@@ -119,7 +119,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rGridOriginX: R.rGridOriginX, rGridOriginY: R.rGridOriginY,
         rGridCalibrating: R.rGridCalibrating, rGridDmAlpha: R.rGridDmAlpha,
         gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef, gridCalibHoverRef: R.gridCalibHoverRef,
-        rPointerPos: R.rPointerPos, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected,
+        rPointerPos: R.rPointerPos, rMeasure: R.rMeasure, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected,
         rLibEnemies: R.rLibEnemies,
         rPsdEnemyOverrides: R.rPsdEnemyOverrides,
         rPsdEnemyImgCache: R.rPsdEnemyImgCache,
@@ -219,6 +219,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
           ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
+        renderMeasureRuler(ctx, fc);
         if (tool === 'shape' && R.rCursorScreenPos.current) {
           const { x: cx, y: cy } = R.rCursorScreenPos.current;
           const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);

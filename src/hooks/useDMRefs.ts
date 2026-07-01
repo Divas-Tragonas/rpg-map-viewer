@@ -94,6 +94,8 @@ export function useDMRefs() {
   const invisAlphaRef     = useRef<Record<string, number>>({});
   const strokeHistoryRef  = useRef<StrokeData[]>([]);
   const rPointerPos       = useRef<Point | null>(null);
+  // Measuring ruler (tool 4/"Senyal"): click cycle a(start) -> b(fixed end) -> clear.
+  const rMeasure          = useRef<{ a: Point | null; b: Point | null }>({ a: null, b: null });
   const rShiftHeld          = useRef(false);
   const rHoveredPaintedZoneId    = useRef<string | null>(null);
   const rSelectedPaintedZoneId   = useRef<string | null>(null);
@@ -143,7 +145,7 @@ export function useDMRefs() {
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,
     zoneDragRef, areaSpellDragRef, defeatedAnimRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
-    rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
+    rPointerPos, rMeasure, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
+import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius } from '@/constants';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -68,6 +68,7 @@ export function DMView() {
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
   const [ctxEditName, setCtxEditName] = useState('');
   const [ctxEditHpMax, setCtxEditHpMax] = useState(0);
+  const [ctxEditSizeFt, setCtxEditSizeFt] = useState(5);
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
   const [areaSelectMode, setAreaSelectMode] = useState(false);
   const [dmPrivateActive, setDmPrivateActive] = useState(false);
@@ -138,7 +139,7 @@ export function DMView() {
     setDrawToolState(prev => {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       R.rDrawTool.current = next;
-      if (prev === 'pointer' && next !== 'pointer') R.rPointerPos.current = null;
+      if (prev === 'pointer' && next !== 'pointer') { R.rPointerPos.current = null; R.rMeasure.current = { a: null, b: null }; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
       else if (next === 'none') setCanvasCursor('default');
       return next;
@@ -162,7 +163,7 @@ export function DMView() {
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
-    removeLibEnemy, toggleLibEnemyVisibility,
+    removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
   } = useDMActions(R, S);
 
   // ── BC setup (DM only receives PLAYER_READY) ──────────────────────────────
@@ -349,6 +350,27 @@ export function DMView() {
       setCtxEditName(contextMenu.name);
       setCtxEditHpMax(0);
     }
+
+    // Current token diameter (px), falling back to each token type's default when unset.
+    const key = String(contextMenu.id);
+    let radiusPx = R.rTokenSizeOverride.current[key];
+    if (radiusPx == null) {
+      if (contextMenu.isLibEnemy && contextMenu.libEnemyId !== undefined) {
+        radiusPx = R.rLibEnemies.current.find(e => e.id === contextMenu.libEnemyId)?.R ?? 25;
+      } else if (typeof contextMenu.id === 'string' && contextMenu.id.startsWith('pl_')) {
+        radiusPx = 22;
+      } else if (typeof contextMenu.id === 'number' && R.rStruct.current) {
+        let found: number | undefined;
+        for (const room of R.rStruct.current.enemyRooms) {
+          const en = room.enemies.find(e => e.id === contextMenu.id);
+          if (en) { found = Math.max(Math.min(en.w, en.h) / 2, 22); break; }
+        }
+        radiusPx = found ?? 25;
+      } else {
+        radiusPx = 25;
+      }
+    }
+    setCtxEditSizeFt(feetFromRadius(radiusPx, R.rGridSize.current));
   }, [contextMenu]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onZoomChange = useCallback((z: number) => {
@@ -949,7 +971,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.60</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.61</div>
             </div>
           </div>
         )}
@@ -982,6 +1004,8 @@ export function DMView() {
         rPlayers={R.rPlayers}
         ctxEditName={ctxEditName} setCtxEditName={setCtxEditName}
         ctxEditHpMax={ctxEditHpMax} setCtxEditHpMax={setCtxEditHpMax}
+        ctxEditSizeFt={ctxEditSizeFt} setCtxEditSizeFt={setCtxEditSizeFt}
+        onSetTokenSize={setTokenSize}
         onClose={() => setContextMenu(null)}
         onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone} onDeleteAreaSpell={deleteAreaSpell}
         onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}

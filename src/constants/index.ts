@@ -103,6 +103,21 @@ export const BC_CHANNEL = 'rpg_map_sync_v18';
 export const TOKEN_LERP  = 0.07;
 export const TSCALE      = 90;
 
+// 1 grid cell = 5ft (D&D convention). Token radius (px) = gridSize * 0.09 * feet,
+// so a 5ft (medium) token comes out to gridSize*0.45 — matching the existing
+// "mida automàtica" auto-fit factor used by sizeAllTokens/addLibEnemy.
+const FT_TO_RADIUS_FACTOR = 0.09;
+
+export function radiusFromFeet(feet: number, gridSize: number): number {
+  const gs = gridSize > 0 ? gridSize : 70;
+  return Math.max(4, Math.round(gs * FT_TO_RADIUS_FACTOR * feet));
+}
+
+export function feetFromRadius(radiusPx: number, gridSize: number): number {
+  const gs = gridSize > 0 ? gridSize : 70;
+  return Math.round((radiusPx / (gs * FT_TO_RADIUS_FACTOR)) * 2) / 2;
+}
+
 // Pixel-art yellow wand cursor (hotspot 3,3)
 const _wand = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect x="2" y="0" width="2" height="6" fill="white" opacity=".85"/><rect x="0" y="2" width="6" height="2" fill="white" opacity=".85"/><rect x="2" y="2" width="2" height="2" fill="white"/><rect x="5" y="5" width="3" height="3" fill="%23ffe000"/><rect x="7" y="7" width="3" height="3" fill="%23e6c000"/><rect x="9" y="9" width="3" height="3" fill="%23ffd700"/><rect x="11" y="11" width="3" height="3" fill="%23e6c000"/><rect x="13" y="13" width="3" height="3" fill="%23ffd700"/><rect x="15" y="15" width="3" height="3" fill="%23e6c000"/><rect x="17" y="17" width="3" height="3" fill="%23ffd700"/><rect x="19" y="19" width="3" height="3" fill="%23e6c000"/><rect x="21" y="21" width="3" height="3" fill="%23d4a017"/><rect x="23" y="23" width="3" height="3" fill="%238b5e00"/><rect x="25" y="25" width="3" height="3" fill="%237a4e00"/><rect x="27" y="27" width="3" height="3" fill="%235c3a00"/></svg>`;
 export const WAND_CURSOR = `url("data:image/svg+xml,${_wand}") 3 3, crosshair`;

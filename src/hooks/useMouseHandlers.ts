@@ -178,6 +178,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       e.preventDefault(); return;
     }
 
+    // Measuring ruler (tool 4/"Senyal"): click cycle — start point, then fixed end point, then clear.
+    if (tool === 'pointer') {
+      const m = R.rMeasure.current;
+      const next = !m.a ? { a: { x: mx, y: my }, b: null }
+        : !m.b ? { a: m.a, b: { x: mx, y: my } }
+        : { a: null, b: null };
+      R.rMeasure.current = next;
+      R.bcRef.current?.postMessage({ type: 'MEASURE', a: next.a, b: next.b });
+      R.wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: next.a, b: next.b }));
+      e.preventDefault(); return;
+    }
+
     // Selects `id` (adding to the multi-selection if one is already active) and arms
     // a drag — solo, or in lockstep with the rest of the selection when it has >1 member.
     const selectAndArmDrag = (id: number | string, ep: { x: number; y: number }) => {

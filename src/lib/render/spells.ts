@@ -20,6 +20,16 @@ function ftToWorld(ft: number, gridSize: number): number {
   return (ft / 5) * gridSize;
 }
 
+function worldToFt(px: number, gridSize: number): number {
+  return gridSize > 0 ? Math.round((px / gridSize) * 5) : 0;
+}
+
+function pathLength(pts: Point[]): number {
+  let d = 0;
+  for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return d;
+}
+
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 /**
@@ -59,7 +69,7 @@ function drawFtLabel(ctx: CanvasRenderingContext2D, x: number, y: number, ft: nu
 
 // ── Path spells ─────────────────────────────────────────────────────────────
 
-export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number): void {
+export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number): void {
   ctx.save();
   const TRAVEL = dur * 0.72, IMPACT = dur - TRAVEL;
   if (elapsed <= TRAVEL) {
@@ -81,10 +91,12 @@ export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], e
     const imp = (elapsed - TRAVEL) / IMPACT, end = pts[pts.length - 1];
     drawImpact(ctx, end.x, end.y, 48, '#ff6600', sc, imp);
   }
+  const fbEnd = pts[pts.length - 1];
+  drawFtLabel(ctx, fbEnd.x, fbEnd.y - 54 / sc, worldToFt(pathLength(pts), gridSize), '🔥', '#ff8800', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
-export function drawSpellLightning(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number): void {
+export function drawSpellLightning(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number): void {
   ctx.save();
   const tN = performance.now();
   const fade = elapsed < 0.18 ? elapsed / 0.18 : elapsed > dur - 0.28 ? Math.max(0, (dur - elapsed) / 0.28) : 1;
@@ -108,10 +120,12 @@ export function drawSpellLightning(ctx: CanvasRenderingContext2D, pts: Point[], 
     ctx.globalAlpha = Math.sin(sP * Math.PI) * fade * 0.9; ctx.fillStyle = '#ffe066';
     ctx.beginPath(); ctx.arc(sp.x, sp.y, 3 / sc, 0, Math.PI * 2); ctx.fill();
   }
+  const ltEnd = pts[pts.length - 1];
+  drawFtLabel(ctx, ltEnd.x, ltEnd.y - 16 / sc, worldToFt(pathLength(pts), gridSize), '⚡', '#ffd200', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
-export function drawSpellMagicBeam(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number): void {
+export function drawSpellMagicBeam(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number): void {
   ctx.save();
   const BU = 0.55, FD = 0.42, HOLD = dur - FD;
   const phase = elapsed < BU ? elapsed / BU : 1;
@@ -133,6 +147,8 @@ export function drawSpellMagicBeam(ctx: CanvasRenderingContext2D, pts: Point[], 
     const sr = (1.2 + 2.5 * Math.abs(Math.sin(tN * 5.1 + i2))) / sc;
     ctx.beginPath(); ctx.arc(sP2.x, sP2.y, sr, 0, Math.PI * 2); ctx.fill();
   }
+  const mbEnd = pts[pts.length - 1];
+  drawFtLabel(ctx, mbEnd.x, mbEnd.y - 16 / sc, worldToFt(pathLength(pts), gridSize), '✨', '#9988ff', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -170,6 +186,7 @@ export function drawSpellMagicMissile(ctx: CanvasRenderingContext2D, pts: Point[
     const imp = (elapsed - TRAVEL) / IMPACT;
     drawImpact(ctx, B.x, B.y, 38, '#c084fc', sc, imp);
   }
+  drawFtLabel(ctx, B.x, B.y - 46 / sc, worldToFt(Math.hypot(B.x - A.x, B.y - A.y), gridSize), '🔮', '#c084fc', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -210,6 +227,7 @@ export function drawSpellHideousLaughter(ctx: CanvasRenderingContext2D, pts: Poi
     const imp = (elapsed - TRAVEL) / IMPACT;
     drawImpact(ctx, B.x, B.y, 42, '#facc15', sc, imp);
   }
+  drawFtLabel(ctx, B.x, B.y - 50 / sc, worldToFt(Math.hypot(B.x - A.x, B.y - A.y), gridSize), '😂', '#facc15', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -254,6 +272,7 @@ export function drawSpellBurningHands(ctx: CanvasRenderingContext2D, pts: Point[
     ctx.beginPath(); ctx.moveTo(A.x, A.y);
     ctx.lineTo(A.x + Math.cos(fa) * effectRange * flicker, A.y + Math.sin(fa) * effectRange * flicker); ctx.stroke();
   }
+  drawFtLabel(ctx, B.x, B.y - 20 / sc, worldToFt(dist, gridSize), '🤲', '#f97316', sc, elapsed);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
@@ -428,9 +447,9 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): v
     if (elapsed > dur && !isArea) continue;  // non-area spells expire
     alive.push(sp);
     const renderElapsed = isArea ? Math.min(elapsed, dur * 0.5) : elapsed;  // area spells: clamp to full-alpha state
-    if      (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc);
-    else if (sp.type === 'lightning')        drawSpellLightning(ctx, sp.points, renderElapsed, dur, sc);
-    else if (sp.type === 'magic_beam')       drawSpellMagicBeam(ctx, sp.points, renderElapsed, dur, sc);
+    if      (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc, gridSize);
+    else if (sp.type === 'lightning')        drawSpellLightning(ctx, sp.points, renderElapsed, dur, sc, gridSize);
+    else if (sp.type === 'magic_beam')       drawSpellMagicBeam(ctx, sp.points, renderElapsed, dur, sc, gridSize);
     else if (sp.type === 'magic_missile')    drawSpellMagicMissile(ctx, sp.points, renderElapsed, dur, sc, gridSize);
     else if (sp.type === 'hideous_laughter') drawSpellHideousLaughter(ctx, sp.points, renderElapsed, dur, sc, gridSize);
     else if (sp.type === 'burning_hands')    drawSpellBurningHands(ctx, sp.points, renderElapsed, dur, sc, gridSize);

@@ -10,7 +10,7 @@ import {
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
-import { renderGrid, renderDMPointer } from '@/lib/render/grid';
+import { renderGrid, renderDMPointer, renderMeasureRuler } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
@@ -47,6 +47,7 @@ export function PlayerView() {
   const rEnemyHighlight = useRef(false);
   const rTokenSizeOverride = useRef<TokenSizeMap>({});
   const rPointerPos   = useRef<{ x: number; y: number } | null>(null);
+  const rMeasure      = useRef<{ a: { x: number; y: number } | null; b: { x: number; y: number } | null }>({ a: null, b: null });
   const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
   const rMultiSelected = useRef<Set<number | string>>(new Set());
@@ -515,6 +516,8 @@ export function PlayerView() {
         for (const stroke of (msg.strokeHistory || [])) _replayStroke(ctx2, stroke);
       } else if (msg.type === 'POINTER') {
         rPointerPos.current = msg.pos;
+      } else if (msg.type === 'MEASURE') {
+        rMeasure.current = { a: msg.a, b: msg.b };
       } else if (msg.type === 'SPELL') {
         const sp = { ...msg.spell, startTime: performance.now() };
         rActiveSpells.current = [...rActiveSpells.current, sp];
@@ -735,7 +738,7 @@ export function PlayerView() {
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
-        rPointerPos, rSelectedToken, rMultiSelected,
+        rPointerPos, rMeasure, rSelectedToken, rMultiSelected,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
       };
 
@@ -771,6 +774,7 @@ export function PlayerView() {
 
       renderGrid(ctx, fc);
       renderDMPointer(ctx, fc);
+      renderMeasureRuler(ctx, fc);
 
       if (cinematicActiveRef.current) {
         const tl2 = cinematicTimelineRef.current;

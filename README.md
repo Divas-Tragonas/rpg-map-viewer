@@ -26,6 +26,12 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.61
+- **Sistema de mesura en peus**: 1 casella de grid = 5 peus (conversió compartida amb l'AoE dels hechizos d'àrea).
+  - **Regla de mesura** (eina 4/"Senyal"): clica per marcar l'inici, torna a clicar per fixar el final (es veu DM i jugadors), un tercer clic l'elimina i reinicia el cicle. ESC la cancel·la a mig fer.
+  - **Mida de tokens en peus**: el menú contextual (right-click) d'enemics PSD, biblioteca i jugadors ara permet fixar el diàmetre en peus; es converteix a mida en píxels segons el grid actual.
+  - **Distància dels hechizos**: totes les animacions de màgia (fireball, llamp, rajos, projectil màgic, riure, mans ardents...) mostren ara la distància recorreguda en peus, igual que ja feien les zones d'àrea (dormir/greix).
+
 ### v3.60
 - **Freqüència de textura de zones màgiques adaptativa a la mida**: la reducció a 8 Hz de la v3.59 s'aplicava per igual a totes les zones, així que les petites (mai van ser el problema) es notaven amb l'animació més lenta/entretallada que abans. Ara cada zona calcula la seva pròpia freqüència segons quants texels té: zones petites (fins ~120px) mantenen els 20 Hz originals (animació fluida sense canvis), i només les zones que arriben al límit de resolució (grans) baixen gradualment fins als 8 Hz.
 
