@@ -45,3 +45,4 @@ export const TargetIcon   = mkIcon(<><circle cx="12" cy="12" r="10"/><circle cx=
 export const SaveIcon     = mkIcon(<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>);
 export const LoadIcon     = mkIcon(<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>);
 export const BackIcon     = mkIcon(<polyline points="15 18 9 12 15 6"/>);
+export const PointerIcon  = mkIcon(<path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/>);

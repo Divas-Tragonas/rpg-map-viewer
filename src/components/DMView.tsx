@@ -19,7 +19,7 @@ import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel 
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { LayerTree } from '@/components/dm/LayerTree';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
-import { DrawToolsPanel } from '@/components/dm/DrawToolsPanel';
+import { FloatingToolbar } from '@/components/dm/FloatingToolbar';
 import { GridPanel } from '@/components/dm/GridPanel';
 import { EnemyLibraryPanel } from '@/components/dm/EnemyLibraryPanel';
 import { BottomControls } from '@/components/dm/BottomControls';
@@ -692,14 +692,6 @@ export function DMView() {
           )}
           {sidebarTab === 'eines' && (
             <>
-              <DrawToolsPanel
-                drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
-                drawSize={drawSize} setDrawSize={setDrawSize}
-                canUndo={canUndo} paintedZones={paintedZones}
-                onSetDrawTool={setDrawTool} onUndo={undoStroke}
-                onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
-                bcRef={R.bcRef}
-              />
               <GridPanel
                 gridVisible={gridVisible} gridSize={gridSize} gridSnap={gridSnap}
                 gridAutoSize={gridAutoSize} gridLineWidth={gridLineWidth} gridCalibrating={gridCalibrating}
@@ -754,6 +746,14 @@ export function DMView() {
           onResetView={onResetView} onResetPrivate={onResetPrivate}
           onToggleEnemyHighlight={onToggleEnemyHighlight}
           onToggleHighlightLocked={onToggleHighlightLocked}
+        />
+        <FloatingToolbar
+          drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
+          drawSize={drawSize} setDrawSize={setDrawSize}
+          canUndo={canUndo} paintedZones={paintedZones}
+          onSetDrawTool={setDrawTool} onUndo={undoStroke}
+          onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
+          bcRef={R.bcRef}
         />
         <button
           onClick={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
@@ -971,7 +971,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.61</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.62</div>
             </div>
           </div>
         )}

@@ -162,7 +162,7 @@ src/
 │   ├── icons.tsx           # Icones SVG inline
 │   ├── dm/                 # Panells i overlays del DM
 │   │   ├── ImportPanel, LayerTree, PlayersPanel
-│   │   ├── DrawToolsPanel, GridPanel, EnemyLibraryPanel
+│   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel
 │   │   ├── BottomControls, CanvasHUD
 │   │   └── ContextMenuOverlay, SceneConfigOverlay,
 │   │       SpellMenuOverlay, ShapeMenuOverlay
@@ -335,6 +335,12 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 - Extracció imatges: `extractLayerImages` → `Record<number, HTMLCanvasElement>`
 - Arbre de capes: `buildTree` + `validateStructure` → `MapStructure`
 - Grups esperats al PSD: `zones`, `enemies`, `extras`
+
+### Eines de dibuix (barra flotant)
+- `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral).
+- Botons apilats: Selecció (`none`), Ploma, Goma, Màgies, Senyal, separador, Desfer, Esborrar tot i (condicional) Esborrar zones màgiques.
+- Quan l'eina activa és Ploma/Goma o Senyal, apareix un flyout contextual a la dreta de la columna amb la paleta de color + mida de pinzell, o l'ajuda de la regla de mesura, respectivament.
+- La pestanya lateral "Eines" només conté ara el `GridPanel` (configuració de grid).
 
 ### Grid i tokens
 - Grid configurable: `gridSize`, `gridOriginX/Y`, `gridLineWidth`
