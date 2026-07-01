@@ -45,6 +45,8 @@ export function useDMRefs() {
   const rHighlightLocked = useRef(false);
   const rSelectedToken   = useRef<number | string | null>(null);
   const rMultiSelected   = useRef<Set<number | string>>(new Set());
+  // Token groups — tokenId -> groupId. A token belongs to at most one group.
+  const rTokenGroups     = useRef<Map<number | string, string>>(new Map());
   // Area (marquee) selection — RTS-style box select, toggled with "A"
   const rAreaSelectMode  = useRef(false);
   const rAreaSelectRect  = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -132,7 +134,7 @@ export function useDMRefs() {
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,

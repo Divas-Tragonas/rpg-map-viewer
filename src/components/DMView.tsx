@@ -258,7 +258,7 @@ export function DMView() {
     setDmPrivateActive, setCanvasCursor,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu } =
+  const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState);
 
   const handleMouseUp = useCallback(() => {
@@ -272,6 +272,26 @@ export function DMView() {
     }
     R.rMultiSelected.current = new Set();
   }, [removeLibEnemy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Token groups (double-click a member to select the whole group) ─────────
+  const onCreateGroup = useCallback((ids: (number | string)[]) => {
+    const groupId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    for (const id of ids) R.rTokenGroups.current.set(id, groupId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onDissolveGroup = useCallback((groupId: string) => {
+    for (const [id, gid] of R.rTokenGroups.current) {
+      if (gid === groupId) R.rTokenGroups.current.delete(id);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onLeaveGroup = useCallback((id: number | string) => {
+    const gid = R.rTokenGroups.current.get(id);
+    if (!gid) return;
+    R.rTokenGroups.current.delete(id);
+    const remaining = [...R.rTokenGroups.current.entries()].filter(([, g]) => g === gid);
+    if (remaining.length === 1) R.rTokenGroups.current.delete(remaining[0][0]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
@@ -703,6 +723,7 @@ export function DMView() {
           onMouseUp={handleMouseUp}
           onMouseLeave={onMouseLeaveCanvas}
           onContextMenu={onContextMenu}
+          onDoubleClick={onDoubleClick}
         />
         <CanvasHUD
           ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode} struct={struct} vis={vis}
@@ -928,7 +949,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.56</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.57</div>
             </div>
           </div>
         )}
@@ -973,6 +994,7 @@ export function DMView() {
         removeLibEnemy={removeLibEnemy}
         bcRef={R.bcRef} wsRef={R.wsRef}
         onTriggerBossIntro={triggerBossIntro}
+        onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

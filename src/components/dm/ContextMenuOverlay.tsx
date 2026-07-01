@@ -36,6 +36,9 @@ interface Props {
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<import('@/lib/ws').SyncSocket | null>;
   onTriggerBossIntro: (data: Record<string, unknown>) => void;
+  onCreateGroup: (ids: (number | string)[]) => void;
+  onDissolveGroup: (groupId: string) => void;
+  onLeaveGroup: (id: number | string) => void;
 }
 
 export function ContextMenuOverlay({
@@ -47,6 +50,7 @@ export function ContextMenuOverlay({
   adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
   bcRef, wsRef, onTriggerBossIntro,
+  onCreateGroup, onDissolveGroup, onLeaveGroup,
 }: Props) {
   useEffect(() => {
     if (!contextMenu) return;
@@ -77,6 +81,23 @@ export function ContextMenuOverlay({
           ))}
         </div>
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {contextMenu.existingGroupId ? (
+            <button onMouseDown={e => {
+              e.stopPropagation();
+              onDissolveGroup(contextMenu.existingGroupId!);
+              onClose();
+            }} style={{ width: '100%', padding: '6px', background: `${C.magic}1e`, border: `1px solid ${C.magic}59`, borderRadius: 5, color: C.magicBright, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+              🔓 Dissoldre grup
+            </button>
+          ) : (
+            <button onMouseDown={e => {
+              e.stopPropagation();
+              onCreateGroup(ids);
+              onClose();
+            }} style={{ width: '100%', padding: '6px', background: `${C.magic}1e`, border: `1px solid ${C.magic}59`, borderRadius: 5, color: C.magicBright, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+              🔗 Crear grup
+            </button>
+          )}
           <button onMouseDown={e => {
             e.stopPropagation();
             const nd = { ...rDefeated.current };
@@ -193,6 +214,19 @@ export function ContextMenuOverlay({
                 rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
               }} style={{ width: '100%', padding: '5px', background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', borderRadius: 5, color: '#f85149', cursor: 'pointer', fontSize: 11 }}>
                 Limpiar estados
+              </button>
+            </div>
+          )}
+
+          {/* Leave group */}
+          {contextMenu.existingGroupId && (
+            <div style={{ borderTop: `1px solid ${C.border}`, padding: '4px 6px' }}>
+              <button onMouseDown={e => {
+                e.stopPropagation();
+                onLeaveGroup(contextMenu.id);
+                onClose();
+              }} style={{ width: '100%', padding: '5px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 5, color: C.dim, cursor: 'pointer', fontSize: 11 }}>
+                🔓 Sortir del grup
               </button>
             </div>
           )}

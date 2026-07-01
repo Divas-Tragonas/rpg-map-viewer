@@ -617,6 +617,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const np = { ...rPos.current }; delete np[`lib_${id}`];
     rPos.current = np; S.setPos(np);
     if (R.rSelectedToken.current === `lib_${id}`) { R.rSelectedToken.current = null; }
+    R.rMultiSelected.current.delete(`lib_${id}`);
+    R.rTokenGroups.current.delete(`lib_${id}`);
     _broadcastState({});
   }, [_broadcastState]);
 

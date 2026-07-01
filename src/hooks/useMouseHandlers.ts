@@ -630,11 +630,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         return;
       }
     }
+    // Group the whole current selection fully belongs to, if any (used to offer
+    // "dissoldre grup" instead of "crear grup" in the multi-select context menu).
+    const groupOfSelection = (ids: (number | string)[]): string | undefined => {
+      const gids = new Set(ids.map(tid => R.rTokenGroups.current.get(tid)));
+      if (gids.size !== 1) return undefined;
+      const gid = [...gids][0];
+      if (!gid) return undefined;
+      let memberCount = 0;
+      for (const g of R.rTokenGroups.current.values()) if (g === gid) memberCount++;
+      return memberCount === ids.length ? gid : undefined;
+    };
+
     // If the right-clicked token is part of an active multi-selection, show the group menu instead
     const sel = R.rMultiSelected.current;
     const maybeMultiMenu = (id: number | string): boolean => {
       if (sel.size <= 1 || !sel.has(id)) return false;
-      S.setContextMenu({ id, name: `${sel.size} seleccionats`, x: e.clientX, y: e.clientY, isMultiSelect: true, ids: [...sel] });
+      S.setContextMenu({ id, name: `${sel.size} seleccionats`, x: e.clientX, y: e.clientY, isMultiSelect: true, ids: [...sel], existingGroupId: groupOfSelection([...sel]) });
       return true;
     };
 
@@ -645,7 +657,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
       if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
         if (maybeMultiMenu(`lib_${len.id}`)) return;
-        S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id, tokenPos: lep });
+        S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id, tokenPos: lep, existingGroupId: R.rTokenGroups.current.get(`lib_${len.id}`) });
         return;
       }
     }
@@ -655,7 +667,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
       if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
         if (maybeMultiMenu(`pl_${pl.id}`)) return;
-        S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY }); return;
+        S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(`pl_${pl.id}`) }); return;
       }
     }
     const s2 = R.rStruct.current; if (!s2) return;
@@ -666,7 +678,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
         if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
           if (maybeMultiMenu(en.id)) return;
-          S.setContextMenu({ id: en.id, name: en.name, x: e.clientX, y: e.clientY }); return;
+          S.setContextMenu({ id: en.id, name: en.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(en.id) }); return;
         }
       }
     }
@@ -674,5 +686,47 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     S.setContextMenu(null);
   }, [mc]);
 
-  return { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, mc };
+  // Double click on a grouped token selects every member of its group.
+  const onDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (R.rDrawTool.current !== 'none' || R.rAreaSelectMode.current) return;
+    const { mx, my } = mc(e);
+
+    const selectGroupOrSolo = (id: number | string) => {
+      const gid = R.rTokenGroups.current.get(id);
+      if (gid) {
+        const members = new Set<number | string>();
+        for (const [tid, g] of R.rTokenGroups.current) if (g === gid) members.add(tid);
+        R.rMultiSelected.current = members;
+      } else {
+        R.rMultiSelected.current = new Set();
+      }
+      R.rSelectedToken.current = id; S.setSelectedToken(id);
+    };
+
+    for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
+      const len = R.rLibEnemies.current[i];
+      const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
+      const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
+      if (Math.hypot(mx - lep.x, my - lep.y) <= lR) { selectGroupOrSolo(`lib_${len.id}`); return; }
+    }
+    for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
+      const pl = R.rPlayers.current[i];
+      const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
+      const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
+      if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) { selectGroupOrSolo(`pl_${pl.id}`); return; }
+    }
+    const s3 = R.rStruct.current;
+    if (s3) {
+      for (const room of s3.enemyRooms) {
+        for (let i = room.enemies.length - 1; i >= 0; i--) {
+          const en = room.enemies[i];
+          const ep = R.rPos.current[en.id]; if (!ep) continue;
+          const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
+          if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) { selectGroupOrSolo(en.id); return; }
+        }
+      }
+    }
+  }, [mc]);
+
+  return { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick, mc };
 }

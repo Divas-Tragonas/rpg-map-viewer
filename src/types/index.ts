@@ -152,6 +152,8 @@ export interface ContextMenuState {
   tokenPos?: Point | null;
   isMultiSelect?: boolean;
   ids?: (number | string)[];
+  /** Group the token/selection currently belongs to (fully), if any. */
+  existingGroupId?: string;
 }
 
 export interface ExpositorState {
