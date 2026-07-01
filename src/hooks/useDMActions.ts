@@ -4,7 +4,7 @@ import { parsePSDStructure } from '@/lib/psd/parser';
 import { extractLayerImages } from '@/lib/psd/extractor';
 import { buildTree, validateStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
-import { getBBox } from '@/lib/geometry';
+import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { BC_CHANNEL, DEFAULT_PARTY, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride } from '@/types';
 import type { ApiEnemy } from '@/lib/api';
@@ -475,7 +475,18 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   const addPaintedZone = useCallback((element: string, shapeMenu: { points: { x: number; y: number }[]; bbox: import('@/types').BBox } | null, setShapeMenu: (v: null) => void) => {
     if (!shapeMenu) return;
-    const zone: import('@/types').PaintedZone = { id: Date.now().toString(), element, points: shapeMenu.points, bbox: shapeMenu.bbox };
+    // Freehand drag can produce thousands of raw points on large zones; simplify to keep
+    // per-frame path rebuilds and the player-side texture mask cheap regardless of zone size.
+    const diag = Math.hypot(shapeMenu.bbox.w, shapeMenu.bbox.h);
+    let points = simplifyPolygon(shapeMenu.points, Math.max(2, diag * 0.003));
+    const MAX_POINTS = 200;
+    let tolerance = Math.max(2, diag * 0.003);
+    while (points.length > MAX_POINTS) {
+      tolerance *= 1.6;
+      points = simplifyPolygon(shapeMenu.points, tolerance);
+    }
+    const bbox = getBBox(points);
+    const zone: import('@/types').PaintedZone = { id: Date.now().toString(), element, points, bbox };
     const nz = [...rPaintedZones.current, zone];
     rPaintedZones.current = nz; S.setPaintedZones(nz); setShapeMenu(null); _broadcastState({});
   }, [_broadcastState]);

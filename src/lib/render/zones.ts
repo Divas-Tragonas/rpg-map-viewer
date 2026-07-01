@@ -98,18 +98,29 @@ export function renderExtras(ctx: CanvasRenderingContext2D, fc: FrameContext): v
   });
 }
 
+// Cached per zone object so per-frame drawing doesn't re-walk `points` in JS every frame.
+// A dragged/edited zone gets a new points array (see useMouseHandlers), which naturally
+// invalidates the cache since the WeakMap key changes with it.
+const zonePathCache = new WeakMap<PaintedZone, Path2D>();
+export function getZonePath(zone: PaintedZone): Path2D {
+  let path = zonePathCache.get(zone);
+  if (!path) {
+    path = new Path2D();
+    zone.points.forEach((p, i) => i === 0 ? path!.moveTo(p.x, p.y) : path!.lineTo(p.x, p.y));
+    path.closePath();
+    zonePathCache.set(zone, path);
+  }
+  return path;
+}
+
 export function drawFlatZone(ctx: CanvasRenderingContext2D, zone: PaintedZone): void {
   const el = ELEMENTS_BY_ID.get(zone.element);
   const color = el ? el.color : '#ffffff';
+  const path = getZonePath(zone);
   ctx.save();
-  ctx.beginPath();
-  zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.closePath();
-  ctx.fillStyle = color + '55'; ctx.fill();
+  ctx.fillStyle = color + '55'; ctx.fill(path);
   ctx.strokeStyle = color + 'cc'; ctx.lineWidth = 1.5; ctx.setLineDash([]); ctx.lineJoin = 'round';
-  ctx.beginPath();
-  zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.closePath(); ctx.stroke();
+  ctx.stroke(path);
   if (el) {
     const { cx, cy, w, h } = zone.bbox;
     const fontSize = Math.max(12, Math.min(w, h) * 0.18);
@@ -185,31 +196,27 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
       if (isDragged || isHovered) {
         const zEl = ELEMENTS_BY_ID.get(zone.element);
         const glowColor = zEl ? zEl.color : '#ffffff';
+        const path = getZonePath(zone);
         ctx.save();
-        ctx.beginPath();
-        zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-        ctx.closePath();
         ctx.fillStyle = glowColor + (isDragged ? '44' : '28');
-        ctx.fill();
+        ctx.fill(path);
         ctx.strokeStyle = glowColor + (isDragged ? 'ff' : 'bb');
         ctx.lineWidth = isDragged ? 2.5 : 1.8;
         ctx.setLineDash([]);
-        ctx.stroke();
+        ctx.stroke(path);
         ctx.restore();
       }
       if (isSelected) {
         const fsc = fc.sc;
         const t2 = performance.now() / 500;
         const dash = 8 / fsc, gap = 5 / fsc;
+        const path = getZonePath(zone);
         ctx.save();
-        ctx.beginPath();
-        zone.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-        ctx.closePath();
         ctx.strokeStyle = 'rgba(255,255,255,0.9)';
         ctx.lineWidth = 2 / fsc;
         ctx.setLineDash([dash, gap]);
         ctx.lineDashOffset = -(t2 % (dash + gap)) * (dash + gap);
-        ctx.stroke();
+        ctx.stroke(path);
         ctx.setLineDash([]);
         ctx.restore();
       }

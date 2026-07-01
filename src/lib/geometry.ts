@@ -21,6 +21,44 @@ export function pointInPolygon(x: number, y: number, polygon: Point[]): boolean 
   return inside;
 }
 
+function sqSegDist(p: Point, p1: Point, p2: Point): number {
+  let x = p1.x, y = p1.y, dx = p2.x - x, dy = p2.y - y;
+  if (dx !== 0 || dy !== 0) {
+    const t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy);
+    if (t > 1) { x = p2.x; y = p2.y; }
+    else if (t > 0) { x += dx * t; y += dy * t; }
+  }
+  dx = p.x - x; dy = p.y - y;
+  return dx * dx + dy * dy;
+}
+
+// Ramer-Douglas-Peucker: drops points that deviate less than `tolerance` (world units)
+// from the simplified outline. Keeps freehand-drawn zones from accumulating thousands
+// of points on large drags, which otherwise get re-walked every frame/render.
+export function simplifyPolygon(points: Point[], tolerance: number): Point[] {
+  const n = points.length;
+  if (n <= 4 || tolerance <= 0) return points;
+  const sqTolerance = tolerance * tolerance;
+  const keep = new Uint8Array(n);
+  keep[0] = 1; keep[n - 1] = 1;
+  const stack: [number, number][] = [[0, n - 1]];
+  while (stack.length) {
+    const [first, last] = stack.pop()!;
+    let maxDist = sqTolerance, idx = -1;
+    for (let i = first + 1; i < last; i++) {
+      const d = sqSegDist(points[i], points[first], points[last]);
+      if (d > maxDist) { maxDist = d; idx = i; }
+    }
+    if (idx !== -1) {
+      keep[idx] = 1;
+      stack.push([first, idx], [idx, last]);
+    }
+  }
+  const out: Point[] = [];
+  for (let i = 0; i < n; i++) if (keep[i]) out.push(points[i]);
+  return out;
+}
+
 export function pathLen(pts: Point[]): number {
   let l = 0;
   for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);

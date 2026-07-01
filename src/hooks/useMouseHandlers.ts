@@ -387,8 +387,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.isShapeDrawingRef.current && tool === 'shape') {
       const pts = R.shapePointsRef.current;
       const last = pts[pts.length - 1];
-      if (Math.hypot(mx - last.x, my - last.y) > 3 / R.rZoom.current) {
-        R.shapePointsRef.current = [...pts, { x: mx, y: my }];
+      // Mutate in place (not spread) — this ref is read directly by the RAF preview,
+      // so an O(n) copy on every mousemove would make drawing large zones itself laggy.
+      if (Math.hypot(mx - last.x, my - last.y) > 6 / R.rZoom.current) {
+        pts.push({ x: mx, y: my });
       }
       return;
     }

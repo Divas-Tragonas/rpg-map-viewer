@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.58
+- **Optimització zones màgiques (lag amb zones grans)**: les zones dibuixades a mà lliure generaven centenars/milers de punts en àrees grans, i cada punt es recorria cada frame (DM), a cada regeneració de textura (jugador) i a cada moviment de ratolí (hover/drag). Ara els punts es simplifiquen (Ramer-Douglas-Peucker) en crear la zona, amb un límit dur de 200 punts; el contorn de la zona al DM es cacheja com a `Path2D` per no reconstruir-lo cada frame; i la captura de punts en viu durant el dibuix ja no copia l'array sencer a cada moviment de ratolí (era O(n²) en zones grans).
+
 ### v3.57
 - **Grups de tokens**: selecciona diversos tokens (PSD, biblioteca i/o jugadors barrejats) i fes right-click → "Crear grup" per agrupar-los. Doble click a qualsevol membre selecciona tot el grup a l'instant. Right-click sobre un grup complet mostra "Dissoldre grup"; sobre un sol token d'un grup, "Sortir del grup" (si només en queda 1, es dissol automàticament). Un token només pot pertànyer a un grup alhora. Estat 100% local del DM (no persisteix a reload, no es sincronitza al jugador).
 
