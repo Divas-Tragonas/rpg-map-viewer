@@ -363,6 +363,19 @@ export function PlayerView() {
     drawCanvasRef.current = oc;
   }, []);
 
+  // Drag de tokens de jugador (només pl_*) amb ratolí o tacte (mòbil/tablet)
+  const tokenDrag = usePlayerTokenDrag(
+    canvasRef,
+    mediaRef as React.MutableRefObject<HTMLElement | null>,
+    rPos, rZoom, rPanOffset,
+    rPlayers, rTokenSizeOverride,
+    rGridSnap, rGridSize, rGridOriginX, rGridOriginY,
+    rSelectedToken,
+    wsRef,
+    bcRef,
+  );
+  const tokenDragRef = tokenDrag.dragRef;
+
   useEffect(() => {
     const bc = new BroadcastChannel(BC_CHANNEL);
     bcRef.current = bc;
@@ -454,7 +467,13 @@ export function PlayerView() {
         setBgLoaded(true);
       } else if (msg.type === 'STATE') {
         if (msg.vis)   rVis.current = msg.vis;
-        if (msg.pos)   rPos.current = msg.pos;
+        if (msg.pos) {
+          // Si el jugador està arrossegant un token, no deixar que un STATE del DM
+          // el faci saltar enrere a mig drag: conservar la posició local d'aquest token.
+          const drag = tokenDragRef.current;
+          if (drag && rPos.current[drag.id]) rPos.current = { ...msg.pos, [drag.id]: rPos.current[drag.id] };
+          else rPos.current = msg.pos;
+        }
         if (msg.zoom  !== undefined) rZoom.current = msg.zoom;
         if (msg.panOffset) rPanOffset.current = msg.panOffset;
         if (msg.players)   rPlayers.current = msg.players;
@@ -841,26 +860,15 @@ export function PlayerView() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const tokenDrag = usePlayerTokenDrag(
-    canvasRef,
-    mediaRef as React.MutableRefObject<HTMLElement | null>,
-    rPos, rZoom, rPanOffset,
-    rPlayers, rLibEnemies, rStruct, rTokenSizeOverride,
-    rGridSnap, rGridSize, rGridOriginX, rGridOriginY,
-    rSelectedToken,
-    wsRef,
-    bcRef,
-  );
-
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden' }}>
       <div ref={stageRef} style={{ position: 'absolute', inset: 0 }} />
       <canvas
         ref={canvasRef}
-        onMouseDown={tokenDrag.onMouseDown}
-        onTouchStart={tokenDrag.onTouchStart}
-        onTouchMove={tokenDrag.onTouchMove}
-        onTouchEnd={tokenDrag.onTouchEnd}
+        onPointerDown={tokenDrag.onPointerDown}
+        onPointerMove={tokenDrag.onPointerMove}
+        onPointerUp={tokenDrag.onPointerUp}
+        onPointerCancel={tokenDrag.onPointerUp}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'transparent', touchAction: 'none', cursor: 'grab' }}
       />
       <div

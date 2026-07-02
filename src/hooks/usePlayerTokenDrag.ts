@@ -1,11 +1,11 @@
 'use client';
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
-import type { PosMap, Player, MapStructure, TokenSizeMap, LibEnemy } from '@/types';
+import type { PosMap, Player, TokenSizeMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 interface DragState {
-  id: number | string;
+  id: string;
   ox: number;
   oy: number;
 }
@@ -40,46 +40,23 @@ function toMapCoords(
   };
 }
 
+// La pantalla de jugador només pot moure tokens de JUGADOR (pl_*):
+// els enemics (PSD i biblioteca) queden fora del hit-test expressament.
 function hitTest(
   mx: number,
   my: number,
+  slop: number,
   rPos: RefObject<PosMap>,
   rPlayers: RefObject<Player[]>,
-  rLibEnemies: RefObject<LibEnemy[]>,
-  rStruct: RefObject<MapStructure | null>,
   rTokenSizeOverride: RefObject<TokenSizeMap>,
 ): DragState | null {
-  // Lib enemies (highest priority, last added = top)
-  const libs = rLibEnemies.current;
-  for (let i = libs.length - 1; i >= 0; i--) {
-    const en = libs[i];
-    const pos = rPos.current[`lib_${en.id}`] || { x: 0, y: 0 };
-    const R = rTokenSizeOverride.current[`lib_${en.id}`] ?? en.R;
-    if (Math.hypot(mx - pos.x, my - pos.y) <= R)
-      return { id: `lib_${en.id}`, ox: mx - pos.x, oy: my - pos.y };
-  }
-  // Players
   const players = rPlayers.current;
   for (let i = players.length - 1; i >= 0; i--) {
     const pl = players[i];
     const pos = rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
-    if (Math.hypot(mx - (pos.x + R), my - (pos.y + R)) <= R + 4)
+    if (Math.hypot(mx - (pos.x + R), my - (pos.y + R)) <= R + slop)
       return { id: `pl_${pl.id}`, ox: mx - pos.x, oy: my - pos.y };
-  }
-  // PSD enemies
-  const s = rStruct.current;
-  if (s) {
-    for (const room of s.enemyRooms) {
-      for (let i = room.enemies.length - 1; i >= 0; i--) {
-        const en = room.enemies[i];
-        const pos = rPos.current[en.id];
-        if (!pos) continue;
-        const R = rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
-        if (Math.hypot(mx - pos.x, my - pos.y) <= R)
-          return { id: en.id, ox: mx - pos.x, oy: my - pos.y };
-      }
-    }
   }
   return null;
 }
@@ -91,8 +68,6 @@ export function usePlayerTokenDrag(
   rZoom: RefObject<number>,
   rPanOffset: RefObject<{ x: number; y: number }>,
   rPlayers: RefObject<Player[]>,
-  rLibEnemies: RefObject<LibEnemy[]>,
-  rStruct: RefObject<MapStructure | null>,
   rTokenSizeOverride: RefObject<TokenSizeMap>,
   rGridSnap: RefObject<boolean>,
   rGridSize: RefObject<number>,
@@ -103,42 +78,47 @@ export function usePlayerTokenDrag(
   bcRef: RefObject<BroadcastChannel | null>,
 ) {
   const dragRef = useRef<DragState | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
 
-  function snapPos(np: { x: number; y: number }, id: number | string): { x: number; y: number } {
+  function snapPos(np: { x: number; y: number }, id: string): { x: number; y: number } {
     if (!rGridSnap.current || rGridSize.current <= 0) return np;
     const gs = rGridSize.current;
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
     const snapCC = (v: number, origin: number) =>
       Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
-    if (String(id).startsWith('pl_')) {
-      const Rv = rTokenSizeOverride.current[id] ?? 22;
-      return { x: snapCC(np.x + Rv, gox) - Rv, y: snapCC(np.y + Rv, goy) - Rv };
-    }
-    return { x: snapCC(np.x, gox), y: snapCC(np.y, goy) };
+    const Rv = rTokenSizeOverride.current[id] ?? 22;
+    return { x: snapCC(np.x + Rv, gox) - Rv, y: snapCC(np.y + Rv, goy) - Rv };
   }
 
-  function onDown(clientX: number, clientY: number) {
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (pointerIdRef.current !== null) return; // ja hi ha un drag actiu (multi-touch)
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { mx, my } = toMapCoords(clientX, clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
-    const hit = hitTest(mx, my, rPos, rPlayers, rLibEnemies, rStruct, rTokenSizeOverride);
+    const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
+    // Amb el dit el hit ha de ser més generós que amb el ratolí
+    const slop = e.pointerType === 'touch' ? 16 : 4;
+    const hit = hitTest(mx, my, slop, rPos, rPlayers, rTokenSizeOverride);
+    if (!hit) return;
     dragRef.current = hit;
-    rSelectedToken.current = hit ? hit.id : null;
-  }
+    pointerIdRef.current = e.pointerId;
+    rSelectedToken.current = hit.id;
+    // Captura: el drag continua encara que el dit surti del canvas
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* no crític */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function onMove(clientX: number, clientY: number) {
-    if (!dragRef.current) return;
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!dragRef.current || e.pointerId !== pointerIdRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { mx, my } = toMapCoords(clientX, clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
+    const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
     const { id, ox, oy } = dragRef.current;
     const np = snapPos({ x: mx - ox, y: my - oy }, id);
     rPos.current = { ...rPos.current, [id]: np };
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function onUp() {
-    if (!dragRef.current) return;
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!dragRef.current || e.pointerId !== pointerIdRef.current) return;
     const { id } = dragRef.current;
     const pos = rPos.current[id];
     if (pos) {
@@ -149,43 +129,9 @@ export function usePlayerTokenDrag(
       wsRef.current?.send(JSON.stringify(moveMsg));
     }
     dragRef.current = null;
+    pointerIdRef.current = null;
     rSelectedToken.current = null;
-  }
-
-  // Mouse handlers
-  const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    onDown(e.clientX, e.clientY);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Touch handlers (iPad)
-  const onTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const t = e.touches[0];
-    if (t) onDown(t.clientX, t.clientY);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const onTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const t = e.touches[0];
-    if (t) onMove(t.clientX, t.clientY);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const onTouchEnd = useCallback(() => {
-    onUp();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Global mouse move/up (so drag works outside the canvas too)
-  useEffect(() => {
-    const handleMove = (e: MouseEvent) => onMove(e.clientX, e.clientY);
-    const handleUp = () => onUp();
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return { onMouseDown, onTouchStart, onTouchMove, onTouchEnd, dragRef };
+  return { onPointerDown, onPointerMove, onPointerUp, dragRef };
 }

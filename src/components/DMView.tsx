@@ -175,6 +175,8 @@ export function DMView() {
         _sendFullState();
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment de token fet des de la pantalla de jugador (mateix ordinador, sense WS).
+        // La pantalla de jugador només pot moure tokens de jugador (pl_*).
+        if (!String(msg.id).startsWith('pl_')) return;
         const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
         R.rPos.current = np;
         setPos(np);
@@ -191,6 +193,8 @@ export function DMView() {
       if (msg.type === 'PLAYER_READY') {
         _sendFullState();
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
+        // La pantalla de jugador només pot moure tokens de jugador (pl_*).
+        if (!String(msg.id).startsWith('pl_')) return;
         const np = { ...R.rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         R.rPos.current = np;
         setPos(np);
@@ -974,7 +978,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.68</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.69</div>
             </div>
           </div>
         )}

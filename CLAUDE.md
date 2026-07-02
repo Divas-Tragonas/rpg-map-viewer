@@ -320,7 +320,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `TEXTREVEAL_SYNC` | DM→Jugador | Front de revelació (`pos`) streamejat a ~30fps |
 | `TEXTREVEAL_HIDE` | DM→Jugador | Amagar revelador de text |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
-| `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS) |
+| `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 
@@ -379,6 +379,12 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 ### Zones màgiques (Painted Zones)
 - Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)
 - Textures procedurals animades al jugador (`src/lib/textures/`)
+
+### Moviment de tokens des de la pantalla de jugador (`usePlayerTokenDrag`)
+- `src/hooks/usePlayerTokenDrag.ts` — drag de tokens al canvas de `/player` amb **pointer events** (ratolí, dit i stylus unificats; `touch-action: none` al canvas + `setPointerCapture`).
+- **Només tokens de jugador** (`pl_*`): el hit-test ignora enemics PSD i de biblioteca, i el DM també descarta qualsevol `TOKEN_MOVE` que no comenci per `pl_` (BC i WS).
+- Tolerància tàctil més gran amb el dit (`pointerType === 'touch'` → slop 16px vs 4px de ratolí). Un sol drag actiu (es guarda el `pointerId`; la resta de tocs s'ignoren).
+- En deixar anar, envia `TOKEN_MOVE` per BC **i** WS. Mentre es arrossega: el token segueix el dit sense LERP (`renderPlayerTokens` snapeja si `rSelectedToken === key`) i el handler de `STATE` del jugador conserva la posició local del token arrossegat perquè un broadcast del DM no el faci saltar enrere.
 
 ### Vista privada DM
 - `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats al jugador

@@ -389,6 +389,8 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       const key = `pl_${pl.id}`;
       const vp = visualPosRef.current[key];
       if (!vp) { visualPosRef.current[key] = { ...rawPos }; ppos = rawPos; }
+      // Drag local a la pantalla de jugador: el token segueix el dit sense LERP
+      else if (rSelectedToken.current === key) { vp.x = rawPos.x; vp.y = rawPos.y; ppos = vp; }
       else { vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp; }
       const cx = ppos.x + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
       const cy = ppos.y + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);

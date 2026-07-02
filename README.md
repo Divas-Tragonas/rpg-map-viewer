@@ -26,6 +26,11 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.69
+- **La pantalla de jugador només permet moure tokens de jugador**: els enemics (PSD i biblioteca) ja no es poden arrossegar des de `/player`. El DM també ignora qualsevol `TOKEN_MOVE` que no sigui d'un token `pl_*`.
+- **Moviment tàctil a mòbil/tablet**: el drag de tokens passa a pointer events amb captura de punter (funciona amb dit, stylus i ratolí), tolerància de toc més gran per al dit i el token arrossegat segueix el dit sense retard de LERP.
+- El drag ja no es perd si arriba un `STATE` del DM a mig moviment (la posició local del token arrossegat es conserva).
+
 ### v3.68
 - **Les màgies de projectil/con es rendereixen per sobre dels tokens**: bola de foc, llamp, raig màgic, míssil màgic, riallada i mans ardents ja no queden tapades pels tokens (nou passi `air` després de les fases de tokens, al DM i al jugador). Les màgies d'àrea (dormir, greix) es queden a terra, sota els tokens, com a efectes de sòl.
 - **Redisseny del greix**: contingut dins del radi real de l'àrea (abans esquitxava molt més enllà de l'oval), color de moc verd viscós en lloc de greix fosc de cotxe, vora que ondula lentament, brillantors humides i gotes petites a la vora.
