@@ -29,7 +29,8 @@ interface Props {
 
 export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating, rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rGridLineWidth, rGridCalibrating, rTokenSizeOverride, setGridVisible, setGridSize, setGridSnap, setGridAutoSize, setGridLineWidth, setGridCalibrating, setTokenSizeOverride, onSnapAll, onSizeAll, onBroadcast, gridCalibRef, gridCalibCurrRef }: Props) {
   return (
-    <div style={{ borderTop: `1px solid ${C.border}`, padding: '10px 12px' }}>
+    // Panell flotant (flyout de la barra d'eines): mateix aspecte que la resta de flyouts.
+    <div style={{ padding: '9px 11px', borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', width: 250, pointerEvents: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: gridVisible ? 6 : 0 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', flex: 1 }}>Grid</div>
         <button onClick={() => {

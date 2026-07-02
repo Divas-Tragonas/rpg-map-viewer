@@ -26,6 +26,9 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.66
+- **Grid integrat a la barra flotant**: la configuració del grid (activar/calibrar cel·la, snap, mida automàtica de tokens, gruix de línia) passa de la pestanya lateral "Eines" a un botó nou dins la barra d'eines flotant. Clicar-lo obre un flyout amb tots els controls, seguint el mateix disseny que la resta d'eines. La pestanya "Eines" de la finestra lateral desapareix (només quedaven aquests controls).
+
 ### v3.65
 - **Fix pinzell/goma a prop de la barra flotant**: el contenidor de la barra d'eines flotant capturava els clics i traços del canvas a tota la seva caixa invisible (columna + separació + espai buit sobre el flyout) a la cantonada inferior esquerra. Dibuixar a prop tallava el traç i el reprenia amb una línia recta en sortir de la zona. Ara el contenidor té `pointer-events: none` i només els dos panells visibles reben clics.
 

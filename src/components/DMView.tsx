@@ -20,7 +20,6 @@ import { ImportPanel } from '@/components/dm/ImportPanel';
 import { LayerTree } from '@/components/dm/LayerTree';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
 import { FloatingToolbar } from '@/components/dm/FloatingToolbar';
-import { GridPanel } from '@/components/dm/GridPanel';
 import { EnemyLibraryPanel } from '@/components/dm/EnemyLibraryPanel';
 import { BottomControls } from '@/components/dm/BottomControls';
 import { CanvasHUD } from '@/components/dm/CanvasHUD';
@@ -63,7 +62,7 @@ export function DMView() {
   const [drawToolState, setDrawToolState] = useState<DrawTool>('none');
   const [drawColor, setDrawColor] = useState('#f85149');
   const [drawSize, setDrawSize] = useState(6);
-  const [sidebarTab, setSidebarTab] = useState<'mapa' | 'eines' | 'enemics'>('mapa');
+  const [sidebarTab, setSidebarTab] = useState<'mapa' | 'enemics'>('mapa');
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
   const [ctxEditName, setCtxEditName] = useState('');
@@ -668,10 +667,10 @@ export function DMView() {
 
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-          {(['mapa', 'eines', 'enemics'] as const).map(tab => (
+          {(['mapa', 'enemics'] as const).map(tab => (
             <button key={tab} onClick={() => setSidebarTab(tab)}
               style={{ flex: 1, padding: '7px 4px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', border: 'none', cursor: 'pointer', background: sidebarTab === tab ? `${C.accent}18` : 'transparent', color: sidebarTab === tab ? C.accent : C.dim, borderBottom: sidebarTab === tab ? `2px solid ${C.accent}` : '2px solid transparent' }}>
-              {tab === 'mapa' ? 'Mapa' : tab === 'eines' ? 'Eines' : 'Enemics'}
+              {tab === 'mapa' ? 'Mapa' : 'Enemics'}
             </button>
           ))}
         </div>
@@ -697,22 +696,6 @@ export function DMView() {
                 newPHpMax={newPHpMax} setNewPHpMax={setNewPHpMax}
                 onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
                 onRemove={removePlayer} onAdjustHp={adjustPlayerHp} onSetHpMax={setPlayerHpMax} onRename={renamePlayer} onLoadParty={loadParty}
-              />
-            </>
-          )}
-          {sidebarTab === 'eines' && (
-            <>
-              <GridPanel
-                gridVisible={gridVisible} gridSize={gridSize} gridSnap={gridSnap}
-                gridAutoSize={gridAutoSize} gridLineWidth={gridLineWidth} gridCalibrating={gridCalibrating}
-                rGridVisible={R.rGridVisible} rGridSize={R.rGridSize} rGridSnap={R.rGridSnap}
-                rGridAutoSize={R.rGridAutoSize} rGridLineWidth={R.rGridLineWidth}
-                rGridCalibrating={R.rGridCalibrating} rTokenSizeOverride={R.rTokenSizeOverride}
-                setGridVisible={setGridVisible} setGridSize={setGridSize} setGridSnap={setGridSnap}
-                setGridAutoSize={setGridAutoSize} setGridLineWidth={setGridLineWidth}
-                setGridCalibrating={setGridCalibrating} setTokenSizeOverride={setTokenSizeOverride}
-                onSnapAll={snapAllTokens} onSizeAll={sizeAllTokens} onBroadcast={_broadcastState}
-                gridCalibRef={R.gridCalibRef} gridCalibCurrRef={R.gridCalibCurrRef}
               />
             </>
           )}
@@ -764,6 +747,16 @@ export function DMView() {
           onSetDrawTool={setDrawTool} onUndo={undoStroke}
           onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
           bcRef={R.bcRef} wsRef={R.wsRef}
+          grid={{
+            gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
+            rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridSnap: R.rGridSnap,
+            rGridAutoSize: R.rGridAutoSize, rGridLineWidth: R.rGridLineWidth,
+            rGridCalibrating: R.rGridCalibrating, rTokenSizeOverride: R.rTokenSizeOverride,
+            setGridVisible, setGridSize, setGridSnap, setGridAutoSize, setGridLineWidth,
+            setGridCalibrating, setTokenSizeOverride,
+            onSnapAll: snapAllTokens, onSizeAll: sizeAllTokens, onBroadcast: _broadcastState,
+            gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef,
+          }}
         />
         <button
           onClick={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
@@ -981,7 +974,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.65</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.66</div>
             </div>
           </div>
         )}
