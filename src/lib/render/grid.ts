@@ -1,9 +1,12 @@
 import type { FrameContext } from './types';
 
 export function renderGrid(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { sc, ox, oy, mw, mh, isDM, rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY, rGridDmAlpha, rGridCalibrating } = fc;
+  const { sc, ox, oy, mw, mh, isDM, rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY, rGridDmAlpha, rGridCalibrating, rDrawTool } = fc;
+  // The DM gets the grid as a reference while measuring (tool 4), even if it's not
+  // toggled on for players.
+  const measuring = isDM && rDrawTool?.current === 'pointer';
   const _gridAlpha = isDM ? rGridDmAlpha.current : 1;
-  if (rGridVisible.current && rGridSize.current > 0 && !rGridCalibrating.current && _gridAlpha > 0.005) {
+  if ((rGridVisible.current || measuring) && rGridSize.current > 0 && !rGridCalibrating.current && _gridAlpha > 0.005) {
     const gs = rGridSize.current, lw = rGridLineWidth.current;
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
@@ -55,6 +58,45 @@ export function renderGridCalib(ctx: CanvasRenderingContext2D, fc: FrameContext)
     ctx.fillText(`${Math.round(sz)}px`, qx + sz / 2, qy + sz / 2);
     ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   }
+  ctx.restore();
+}
+
+/** Ruler tool (tool 4/"Senyal"): draws the line + "Xft" label between the click points. */
+export function renderMeasureRuler(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+  const { sc, ox, oy, rMeasure, rPointerPos, rGridSize } = fc;
+  const m = rMeasure?.current;
+  if (!m?.a) return;
+  const end = m.b ?? rPointerPos.current;
+  if (!end) return;
+  const gs = rGridSize.current > 0 ? rGridSize.current : 70;
+  const distPx = Math.hypot(end.x - m.a.x, end.y - m.a.y);
+  const ft = Math.round((distPx / gs) * 5);
+  const sx0 = ox + m.a.x * sc, sy0 = oy + m.a.y * sc;
+  const sx1 = ox + end.x * sc, sy1 = oy + end.y * sc;
+  const fixed = !!m.b;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = fixed ? 'rgba(255,210,0,0.85)' : 'rgba(255,210,0,0.55)';
+  ctx.lineWidth = fixed ? 2.5 : 1.8;
+  if (!fixed) ctx.setLineDash([7, 5]);
+  ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(sx1, sy1); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = 'rgba(255,220,60,0.95)';
+  ctx.beginPath(); ctx.arc(sx0, sy0, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx1, sy1, 4, 0, Math.PI * 2); ctx.fill();
+
+  const mx = (sx0 + sx1) / 2, my = (sy0 + sy1) / 2;
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const text = `📏 ${ft}ft`;
+  const tw = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(10,13,18,0.82)';
+  ctx.fillRect(mx - tw / 2 - 6, my - 19, tw + 12, 16);
+  ctx.fillStyle = '#ffd200';
+  ctx.fillText(text, mx, my - 11);
+  ctx.textBaseline = 'alphabetic';
   ctx.restore();
 }
 

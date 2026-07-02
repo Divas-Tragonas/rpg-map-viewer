@@ -4,7 +4,7 @@ import { renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePrevie
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
-import { renderGrid, renderGridCalib } from '@/lib/render/grid';
+import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
@@ -47,10 +47,14 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         R.dmLocalPan.current.x *= (1 - RL);
         R.dmLocalPan.current.y *= (1 - RL);
         R.dmLocalZoom.current += (1 - R.dmLocalZoom.current) * RL;
-        broadcastDmPreview();
+        // Throttle a ~20Hz: broadcastejar l'estat sencer a 60Hz durant l'animació era el
+        // cas més car de tots. L'estat final exacte s'envia sempre en acabar.
+        const nowB = Date.now();
+        if (nowB - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = nowB; broadcastDmPreview(); }
         if (Math.abs(R.dmLocalPan.current.x) < 0.4 && Math.abs(R.dmLocalPan.current.y) < 0.4 && Math.abs(R.dmLocalZoom.current - 1) < 0.002) {
           R.dmLocalPan.current = { x: 0, y: 0 }; R.dmLocalZoom.current = 1;
           R.dmPrivateReturnAnim.current = false; setDmPrivateActive(false);
+          broadcastDmPreview();
         }
       }
 
@@ -119,7 +123,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rGridOriginX: R.rGridOriginX, rGridOriginY: R.rGridOriginY,
         rGridCalibrating: R.rGridCalibrating, rGridDmAlpha: R.rGridDmAlpha,
         gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef, gridCalibHoverRef: R.gridCalibHoverRef,
-        rPointerPos: R.rPointerPos, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected,
+        rPointerPos: R.rPointerPos, rMeasure: R.rMeasure, rDrawTool: R.rDrawTool, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected,
         rLibEnemies: R.rLibEnemies,
         rPsdEnemyOverrides: R.rPsdEnemyOverrides,
         rPsdEnemyImgCache: R.rPsdEnemyImgCache,
@@ -162,16 +166,33 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderPlayerTokens(ctx, fc);
       ctx.restore();
 
-      // Grid DM alpha
-      if (R.rGridVisible.current) {
+      // Grid DM alpha — also surfaces while measuring (tool 4) so the DM has a grid
+      // reference, even if the grid isn't toggled on ("Activar") for players.
+      {
         const isDragging = !!R.dragRef.current;
-        const tgt = (isDragging || R.rGridCalibrating.current) ? 1 : 0;
+        const measuring = R.rDrawTool.current === 'pointer';
+        const tgt = (R.rGridVisible.current && (isDragging || R.rGridCalibrating.current)) || measuring ? 1 : 0;
         R.rGridDmAlpha.current += (tgt - R.rGridDmAlpha.current) * 0.25;
         if (Math.abs(tgt - R.rGridDmAlpha.current) < 0.004) R.rGridDmAlpha.current = tgt;
       }
 
       renderGrid(ctx, fc);
       renderGridCalib(ctx, fc);
+
+      // Area (marquee) selection rectangle — drawn in screen space so it stays crisp at any zoom
+      if (R.rAreaSelectRect.current) {
+        const r = R.rAreaSelectRect.current;
+        const x0 = ox + Math.min(r.x0, r.x1) * sc, y0 = oy + Math.min(r.y0, r.y1) * sc;
+        const x1 = ox + Math.max(r.x0, r.x1) * sc, y1 = oy + Math.max(r.y0, r.y1) * sc;
+        ctx.save();
+        ctx.fillStyle = 'rgba(88,166,255,0.12)';
+        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.strokeStyle = 'rgba(88,166,255,0.9)';
+        ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
+        ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
 
       // DM cursors — rendered last so they appear above everything
       {
@@ -204,6 +225,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
           ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
+        renderMeasureRuler(ctx, fc);
         if (tool === 'shape' && R.rCursorScreenPos.current) {
           const { x: cx, y: cy } = R.rCursorScreenPos.current;
           const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);

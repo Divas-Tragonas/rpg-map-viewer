@@ -19,6 +19,9 @@ interface Props {
   setCtxEditName: (v: string) => void;
   ctxEditHpMax: number;
   setCtxEditHpMax: (v: number) => void;
+  ctxEditSizeFt: number;
+  setCtxEditSizeFt: (v: number) => void;
+  onSetTokenSize: (id: string, feet: number) => void;
   onClose: () => void;
   onToggleCondition: (tokenId: string, condId: string) => void;
   onDeletePaintedZone: (id: string) => void;
@@ -36,17 +39,22 @@ interface Props {
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<import('@/lib/ws').SyncSocket | null>;
   onTriggerBossIntro: (data: Record<string, unknown>) => void;
+  onCreateGroup: (ids: (number | string)[]) => void;
+  onDissolveGroup: (groupId: string) => void;
+  onLeaveGroup: (id: number | string) => void;
 }
 
 export function ContextMenuOverlay({
   contextMenu, conditions, defeated, rDefeated, defeatedAnimRef, rConditions,
   rLibEnemies, rPsdEnemyOverrides, rPlayers,
   ctxEditName, setCtxEditName, ctxEditHpMax, setCtxEditHpMax,
+  ctxEditSizeFt, setCtxEditSizeFt, onSetTokenSize,
   onClose, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
   setDefeated, setConditions,
   adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
   bcRef, wsRef, onTriggerBossIntro,
+  onCreateGroup, onDissolveGroup, onLeaveGroup,
 }: Props) {
   useEffect(() => {
     if (!contextMenu) return;
@@ -77,6 +85,23 @@ export function ContextMenuOverlay({
           ))}
         </div>
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {contextMenu.existingGroupId ? (
+            <button onMouseDown={e => {
+              e.stopPropagation();
+              onDissolveGroup(contextMenu.existingGroupId!);
+              onClose();
+            }} style={{ width: '100%', padding: '6px', background: `${C.magic}1e`, border: `1px solid ${C.magic}59`, borderRadius: 5, color: C.magicBright, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+              🔓 Dissoldre grup
+            </button>
+          ) : (
+            <button onMouseDown={e => {
+              e.stopPropagation();
+              onCreateGroup(ids);
+              onClose();
+            }} style={{ width: '100%', padding: '6px', background: `${C.magic}1e`, border: `1px solid ${C.magic}59`, borderRadius: 5, color: C.magicBright, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+              🔗 Crear grup
+            </button>
+          )}
           <button onMouseDown={e => {
             e.stopPropagation();
             const nd = { ...rDefeated.current };
@@ -171,6 +196,19 @@ export function ContextMenuOverlay({
         </div>
       ) : (
         <>
+          <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 9, color: C.dim, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Mida (peus)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number" min={1} step={0.5} value={ctxEditSizeFt}
+                onChange={e => setCtxEditSizeFt(parseFloat(e.target.value) || 0)}
+                onBlur={() => { if (ctxEditSizeFt > 0) onSetTokenSize(id, ctxEditSizeFt); }}
+                onKeyDown={e => { if (e.key === 'Enter' && ctxEditSizeFt > 0) onSetTokenSize(id, ctxEditSizeFt); }}
+                style={{ width: 64, boxSizing: 'border-box', background: '#0d1117', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 6px', color: C.text, fontSize: 11, outline: 'none' }}
+              />
+              <span style={{ color: C.dim, fontSize: 10 }}>ft de diàmetre</span>
+            </div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, padding: 6, maxHeight: 280, overflowY: 'auto' }}>
             {CONDITIONS.map(cond => {
               const active = (conditions[id] || []).includes(cond.id);
@@ -193,6 +231,19 @@ export function ContextMenuOverlay({
                 rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
               }} style={{ width: '100%', padding: '5px', background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', borderRadius: 5, color: '#f85149', cursor: 'pointer', fontSize: 11 }}>
                 Limpiar estados
+              </button>
+            </div>
+          )}
+
+          {/* Leave group */}
+          {contextMenu.existingGroupId && (
+            <div style={{ borderTop: `1px solid ${C.border}`, padding: '4px 6px' }}>
+              <button onMouseDown={e => {
+                e.stopPropagation();
+                onLeaveGroup(contextMenu.id);
+                onClose();
+              }} style={{ width: '100%', padding: '5px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 5, color: C.dim, cursor: 'pointer', fontSize: 11 }}>
+                🔓 Sortir del grup
               </button>
             </div>
           )}

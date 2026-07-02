@@ -162,7 +162,7 @@ src/
 │   ├── icons.tsx           # Icones SVG inline
 │   ├── dm/                 # Panells i overlays del DM
 │   │   ├── ImportPanel, LayerTree, PlayersPanel
-│   │   ├── DrawToolsPanel, GridPanel, EnemyLibraryPanel
+│   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel
 │   │   ├── BottomControls, CanvasHUD
 │   │   └── ContextMenuOverlay, SceneConfigOverlay,
 │   │       SpellMenuOverlay, ShapeMenuOverlay
@@ -189,6 +189,7 @@ src/
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/index.ts  # cpBurst, cpUpdate, cpDraw (partícules cinematica)
+│   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)
 │   ├── conditions/index.ts # Helpers de condicions D&D
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
 │   ├── textures/           # Textures procedurals (noise, elements)
@@ -309,16 +310,25 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `CLEAR_DRAW` | DM→Jugador | Netejar canvas de dibuix |
 | `UNDO_DRAW` | DM→Jugador | Desfer + reapplicar historial |
 | `POINTER` | DM→Jugador | Posició del cursor DM |
+| `MEASURE` | DM→Jugador | Punts A/B de la regla de mesura |
 | `SPELL` | DM→Jugador | Inici d'animació de spell |
+| `DELETE_SPELL` | DM→Jugador | Eliminar un spell d'àrea actiu |
 | `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal |
 | `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
+| `EXPOSITOR_SHOW/HIDE/SYNC` | DM→Jugador | Expositor d'imatge/vídeo (veure feature) |
+| `TEXTREVEAL_SHOW` | DM→Jugador | Revelador de text: text complet + `pos`, `cps`, `fadeMs` |
+| `TEXTREVEAL_SYNC` | DM→Jugador | Front de revelació (`pos`) streamejat a ~30fps |
+| `TEXTREVEAL_HIDE` | DM→Jugador | Amagar revelador de text |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
+| `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS) |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 
+**Dieta del `STATE`** (`_broadcastState` a `useDMActions.ts`): els camps pesats (`players`, `conditions`, `defeated`, `paintedZones`, `tokenSizeOverride`, `libEnemies`, `psdEnemyOverrides` — poden portar imatges base64) només s'inclouen al missatge quan la seva **referència** ha canviat des de l'últim enviament (`lastSentHeavyRef`). Per això és crític que tota mutació d'aquests valors creï un objecte/array **nou** (mai mutar in place) i que el jugador els tracti com a camps opcionals. Els broadcasts de pan/zoom (compartit i privat) i l'animació de retorn de vista privada van throttled a ~20Hz amb enviament final garantit — el jugador suavitza amb LERP, així que es veu fluid igualment.
+
 **Quan s'afegeix un nou estat sincronitzat**, actualitzar en 3 llocs:
 1. `BCStateMessage` o `BCStructMessage` a `types/index.ts`
-2. `_broadcastState` a `useDMActions.ts` → missatge `STATE`
+2. `_broadcastState` a `useDMActions.ts` → missatge `STATE` (si és un camp pesat, afegir-lo a `heavy` i a `_syncHeavySent`)
 3. `_sendFullState` → missatge `STRUCT` + handler al jugador
 
 ---
@@ -331,15 +341,35 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 - Arbre de capes: `buildTree` + `validateStructure` → `MapStructure`
 - Grups esperats al PSD: `zones`, `enemies`, `extras`
 
+### Eines de dibuix (barra flotant)
+- `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral).
+- Botons apilats: Selecció (`none`), Ploma, Goma, Màgies, Senyal, separador, Desfer, Esborrar tot i (condicional) Esborrar zones màgiques.
+- Quan l'eina activa és Ploma/Goma o Senyal, apareix un flyout contextual a la dreta de la columna amb la paleta de color + mida de pinzell, o l'ajuda de la regla de mesura, respectivament.
+- La pestanya lateral "Eines" només conté ara el `GridPanel` (configuració de grid).
+
 ### Grid i tokens
 - Grid configurable: `gridSize`, `gridOriginX/Y`, `gridLineWidth`
 - **Snap**: `rGridSnap` — snapa tokens al centre de cel·la
 - **AutoSize** (`gridAutoSize`): `rTokenSizeOverride` — map `{tokenId: R}` escala tokens al 90% cel·la
 
+### Selecció per àrea (marquee)
+- Drecera `A` (toggle) → `rAreaSelectMode`. Cursor en creu + indicador "▣ SELECCIÓ" a `CanvasHUD`.
+- En aquest mode, left-drag dibuixa un rectangle (`rAreaSelectRect` en coords de mapa) que selecciona **només tokens** (PSD enemies, lib enemies i jugadors) amb el centre dins. Resultat → `rMultiSelected`.
+- `A` o `ESC` per sortir (gestionat a `useKeyboardHandlers`). El rectangle es renderitza en espai pantalla a `useRafLoop` (després del grid).
+- **Zoom**: el cap del zoom compartit és ×10 (1000%) a `useWheelZoom` i `BottomControls`.
+
 ### Tokens enemics
 - **PSD enemies**: R = `Math.max(Math.min(en.w, en.h) / 2, 22)` (o override via `rTokenSizeOverride`)
 - **Lib enemies**: `LibEnemy[]` afegits manualment des del panell, amb imatge custom opcional
 - Overrides per PSD enemy: `PsdEnemyOverrides` (`hp`, `hpMax`, `name`, `imageData`)
+
+### Grups de tokens
+- `rTokenGroups` (`useDMRefs.ts`) — `Map<tokenId, groupId>`. Un token només pot pertànyer a un grup alhora. Estat 100% local del DM (ephemeral, ref-only, com `rMultiSelected`); no persisteix a reload ni es sincronitza al jugador.
+- **Crear grup**: seleccionar ≥2 tokens (click additiu o marquee `A`, admet tipus mixtos: PSD/lib/players) → right-click → "🔗 Crear grup" (`onCreateGroup` a `DMView.tsx`). Reassigna els tokens seleccionats a un grup nou, traient-los de qualsevol grup anterior.
+- **Doble click** sobre un token d'un grup (`onDoubleClick` a `useMouseHandlers.ts`) selecciona automàticament tots els membres del grup a `rMultiSelected`. Si el token no pertany a cap grup, funciona com un click normal (selecció solo).
+- **Dissoldre / sortir**: right-click sobre un grup completament seleccionat mostra "🔓 Dissoldre grup" (`onDissolveGroup`); right-click sobre un sol token pertanyent a un grup mostra "🔓 Sortir del grup" (`onLeaveGroup`) — si només queda 1 membre, es dissol automàticament.
+- `ContextMenuState.existingGroupId` distingeix "Crear grup" vs "Dissoldre grup" (multi-select: només si la selecció coincideix exactament amb tots els membres del grup) i mostra/amaga "Sortir del grup" (single-token: el grup del token, si en té).
+- Eliminar un lib enemy (`removeLibEnemy`) neteja també la seva entrada a `rTokenGroups` i `rMultiSelected`.
 
 ### Cinematica boss reveal
 - Llançada via `triggerBossIntroRef.current(data)`
@@ -353,6 +383,17 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 ### Vista privada DM
 - `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats al jugador
 - Refs: `dmLocalPan`, `dmLocalZoom` — animació de retorn suau (`dmPrivateReturnAnim`)
+
+### Expositor (visualitzador d'imatges/vídeo)
+- Botó "Expositor" a dalt a l'esquerra del canvas → panell flotant al DM (preview amb zoom/pan + Ken Burns).
+- El jugador mostra el contingut a pantalla completa (overlay zIndex 50) amb fade IN/OUT i `EXPOSITOR_SYNC` (LERP).
+
+### Revelador de text (`src/lib/textreveal/`)
+- Botó "Text" a dalt a l'esquerra (al costat d'Expositor) → panell flotant gran al DM amb editor, controls i previsualització.
+- Motor compartit `RevealEngine` (`src/lib/textreveal/index.ts`): construeix spans, esvaïment per caràcter (smoothstep + blur), pauses dramàtiques al final de frase, mode manual.
+- **El DM és la font de veritat**: integra el front `pos` (velocitat `cps` + pauses + manual) i emet `TEXTREVEAL_SYNC { pos, cps, fadeMs }` a ~30fps. El jugador *segueix* aquest `pos` amb el seu propi rellotge (`RevealEngine.follow`), de manera que les pauses es propaguen però l'esvaïment continua suau.
+- Overlay del jugador a zIndex 51 (sobre l'expositor) amb tipografia serif gran i fade IN/OUT (1.4s / 0.3s), igual que l'expositor.
+- **Sinergia**: mostrar text amaga l'expositor i viceversa (crossfade); obrir un panell tanca l'altre; funciona sobre qualsevol escena (mapa, imatge o res) perquè el seguidor del jugador corre *abans* de `if (!s) return` al `tick()`.
 
 ---
 

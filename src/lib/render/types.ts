@@ -1,7 +1,7 @@
 import type { MutableRefObject } from 'react';
 import type {
   MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, SpellPreview,
-  ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
+  ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData, Point, DrawTool,
 } from '@/types';
 
 export interface GridCalib {
@@ -89,6 +89,8 @@ export interface FrameContext {
   gridCalibHoverRef:MutableRefObject<GridCalibHover | null>;
 
   rPointerPos:      MutableRefObject<{ x: number; y: number } | null>;
+  rMeasure?:        MutableRefObject<{ a: Point | null; b: Point | null }>;
+  rDrawTool?:       MutableRefObject<DrawTool>;
   rSelectedToken:   MutableRefObject<number | string | null>;
   rMultiSelected:   MutableRefObject<Set<number | string>>;
 

@@ -10,9 +10,10 @@ import {
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
-import { renderGrid, renderDMPointer } from '@/lib/render/grid';
+import { renderGrid, renderDMPointer, renderMeasureRuler } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
 import { createSyncSocket } from '@/lib/ws';
+import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
@@ -46,6 +47,7 @@ export function PlayerView() {
   const rEnemyHighlight = useRef(false);
   const rTokenSizeOverride = useRef<TokenSizeMap>({});
   const rPointerPos   = useRef<{ x: number; y: number } | null>(null);
+  const rMeasure      = useRef<{ a: { x: number; y: number } | null; b: { x: number; y: number } | null }>({ a: null, b: null });
   const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
   const rMultiSelected = useRef<Set<number | string>>(new Set());
@@ -75,6 +77,9 @@ export function PlayerView() {
   const rContextMenu      = useRef(null);
   const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
   const rPsdEnemyImgCache  = useRef<Record<number, HTMLCanvasElement>>({});
+  // Src (base64) ja descodificat per id: evita re-descodificar totes les imatges d'override
+  // cada vegada que arriba un STATE/STRUCT amb psdEnemyOverrides sense canvis reals.
+  const rPsdEnemyImgSrc    = useRef<Record<number, string>>({});
   const txCache           = useRef<Record<string, HTMLCanvasElement>>({});
 
   const rDMPreviewActive = useRef(false);
@@ -106,10 +111,26 @@ export function PlayerView() {
   const [expositorFading, setExpositorFading] = useState(false);
   const [expositorSrc, setExpositorSrc] = useState<string | null>(null);
   const [expositorType, setExpositorType] = useState<'image' | 'video' | null>(null);
+  // Mirall en ref de `expositorVisible`: el handler del BC es crea una sola vegada, així
+  // que llegir l'estat directament hi quedava congelat a `false` i el crossfade entre dues
+  // imatges consecutives no s'executava mai (mateix patró que textRevealVisibleRef).
+  const expositorVisibleRef = useRef(false);
   const expositorObjectUrl = useRef<string | null>(null);
   const expositorInnerRef = useRef<HTMLDivElement | null>(null);
   const expTgt = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
   const expCur = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
+
+  // ── Revelador de text ──────────────────────────────────────────────────────
+  const [textRevealVisible, setTextRevealVisible] = useState(false);
+  const [textRevealFading, setTextRevealFading] = useState(false);
+  const textRevealVisibleRef = useRef(false);
+  const textRevealStageRef = useRef<HTMLDivElement>(null);
+  const textRevealTextRef = useRef<HTMLDivElement>(null);
+  const trEngineRef = useRef<RevealEngine | null>(null);
+  const trTargetRef = useRef(0);
+  const trCpsRef = useRef(20);
+  const trFadeRef = useRef(450);
+  const trLastTsRef = useRef(0);
 
   const _loadBgFromUrl = useCallback((url: string, mimeType: string, withFade: boolean) => {
     const stage = stageRef.current; if (!stage) return;
@@ -381,6 +402,8 @@ export function PlayerView() {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
             if (!ov.imageData) { res(); return; }
+            if (rPsdEnemyImgSrc.current[Number(id)] === ov.imageData) { res(); return; }
+            rPsdEnemyImgSrc.current[Number(id)] = ov.imageData;
             const img = new Image();
             img.onload = () => {
               const oc = document.createElement('canvas');
@@ -471,6 +494,8 @@ export function PlayerView() {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           (Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).forEach(([id, ov]) => {
             if (!ov.imageData) return;
+            if (rPsdEnemyImgSrc.current[Number(id)] === ov.imageData) return;
+            rPsdEnemyImgSrc.current[Number(id)] = ov.imageData;
             const img = new Image();
             img.onload = () => {
               const oc = document.createElement('canvas');
@@ -502,6 +527,8 @@ export function PlayerView() {
         for (const stroke of (msg.strokeHistory || [])) _replayStroke(ctx2, stroke);
       } else if (msg.type === 'POINTER') {
         rPointerPos.current = msg.pos;
+      } else if (msg.type === 'MEASURE') {
+        rMeasure.current = { a: msg.a, b: msg.b };
       } else if (msg.type === 'SPELL') {
         const sp = { ...msg.spell, startTime: performance.now() };
         rActiveSpells.current = [...rActiveSpells.current, sp];
@@ -533,15 +560,17 @@ export function PlayerView() {
           setExpositorSrc(u);
           setExpositorType(newType);
           setExpositorFading(false);
+          expositorVisibleRef.current = true;
           setExpositorVisible(true);
         };
-        if (expositorVisible) {
+        if (expositorVisibleRef.current) {
           setExpositorFading(true);
           setTimeout(() => doShow(url), 350);
         } else {
           doShow(url);
         }
       } else if (msg.type === 'EXPOSITOR_HIDE') {
+        expositorVisibleRef.current = false;
         setExpositorVisible(false);
       } else if (msg.type === 'EXPOSITOR_SYNC') {
         expTgt.current = {
@@ -551,6 +580,31 @@ export function PlayerView() {
           kbTx: msg.kbTxPct,
           kbTy: msg.kbTyPct,
         };
+      } else if (msg.type === 'TEXTREVEAL_SHOW') {
+        const doShow = () => {
+          const container = textRevealTextRef.current;
+          if (!container) return;
+          const eng = trEngineRef.current ?? new RevealEngine();
+          trEngineRef.current = eng;
+          eng.setText(msg.text, container);
+          trTargetRef.current = msg.pos;
+          trCpsRef.current = msg.cps;
+          trFadeRef.current = msg.fadeMs;
+          trLastTsRef.current = 0;
+          if (msg.pos > 0) eng.snapTo(msg.pos);
+          setTextRevealFading(false);
+          textRevealVisibleRef.current = true;
+          setTextRevealVisible(true);
+        };
+        if (textRevealVisibleRef.current) { setTextRevealFading(true); setTimeout(doShow, 350); }
+        else doShow();
+      } else if (msg.type === 'TEXTREVEAL_HIDE') {
+        textRevealVisibleRef.current = false;
+        setTextRevealVisible(false);
+      } else if (msg.type === 'TEXTREVEAL_SYNC') {
+        trTargetRef.current = msg.pos;
+        trCpsRef.current = msg.cps;
+        trFadeRef.current = msg.fadeMs;
       }
     };
 
@@ -575,12 +629,17 @@ export function PlayerView() {
           const blob = new Blob([ev.data], { type: expMeta.mimeType });
           const url = URL.createObjectURL(blob);
           const newType = expMeta.mimeType.startsWith('video/') ? 'video' : 'image';
-          if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
-          expositorObjectUrl.current = url;
-          setExpositorSrc(url);
-          setExpositorType(newType);
-          setExpositorFading(false);
-          setExpositorVisible(true);
+          const doShow = () => {
+            if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
+            expositorObjectUrl.current = url;
+            setExpositorSrc(url);
+            setExpositorType(newType);
+            setExpositorFading(false);
+            expositorVisibleRef.current = true;
+            setExpositorVisible(true);
+          };
+          if (expositorVisibleRef.current) { setExpositorFading(true); setTimeout(doShow, 350); }
+          else doShow();
         }
         return;
       }
@@ -665,6 +724,22 @@ export function PlayerView() {
         }
       }
 
+      // Text reveal follower — independent del mapa: funciona sobre qualsevol escena.
+      // (Seguim el `pos` del DM amb rellotge local perquè l'esvaïment continuï durant les pauses.)
+      {
+        const trEng = trEngineRef.current;
+        if (trEng && textRevealVisibleRef.current) {
+          const now = performance.now();
+          const dt = trLastTsRef.current ? Math.min(80, now - trLastTsRef.current) : 16;
+          trLastTsRef.current = now;
+          trEng.tick(dt);
+          trEng.follow(trTargetRef.current, trCpsRef.current);
+          trEng.render(trFadeRef.current, textRevealStageRef.current);
+        } else {
+          trLastTsRef.current = 0;
+        }
+      }
+
       if (!s) return;
 
       const fc = {
@@ -681,7 +756,7 @@ export function PlayerView() {
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
-        rPointerPos, rSelectedToken, rMultiSelected,
+        rPointerPos, rMeasure, rSelectedToken, rMultiSelected,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
       };
 
@@ -717,6 +792,7 @@ export function PlayerView() {
 
       renderGrid(ctx, fc);
       renderDMPointer(ctx, fc);
+      renderMeasureRuler(ctx, fc);
 
       if (cinematicActiveRef.current) {
         const tl2 = cinematicTimelineRef.current;
@@ -772,6 +848,7 @@ export function PlayerView() {
     rGridSnap, rGridSize, rGridOriginX, rGridOriginY,
     rSelectedToken,
     wsRef,
+    bcRef,
   );
 
   return (
@@ -820,6 +897,33 @@ export function PlayerView() {
           {expositorSrc && expositorType === 'video' && (
             <video src={expositorSrc} autoPlay loop muted playsInline draggable={false} style={{ maxWidth: '100vw', maxHeight: '100vh', objectFit: 'contain', display: 'block' }} />
           )}
+        </div>
+      </div>
+
+      {/* Revelador de text overlay */}
+      <div
+        style={{
+          position: 'absolute', inset: 0, zIndex: 51,
+          background: 'radial-gradient(130% 90% at 50% 0%, #1a1611 0%, #0a0806 62%)',
+          opacity: (textRevealVisible && !textRevealFading) ? 1 : 0,
+          pointerEvents: textRevealVisible ? 'auto' : 'none',
+          transition: textRevealFading ? 'opacity 0.3s ease-in-out' : 'opacity 1.4s ease-in-out',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          ref={textRevealStageRef}
+          style={{ position: 'absolute', inset: 0, overflowY: 'auto', scrollBehavior: 'smooth', padding: '15vh 9% 32vh' }}
+        >
+          <div
+            ref={textRevealTextRef}
+            style={{
+              fontFamily: "'EB Garamond','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif",
+              fontSize: 'clamp(2rem, 4.6vw, 4rem)', lineHeight: 1.55, whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em',
+              color: '#ece3d0', textShadow: '0 2px 24px rgba(0,0,0,0.6)',
+            }}
+          />
         </div>
       </div>
     </div>

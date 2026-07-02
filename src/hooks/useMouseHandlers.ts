@@ -1,6 +1,6 @@
 'use client';
-import { useCallback } from 'react';
-import { pointInPolygon, getBBox } from '@/lib/geometry';
+import { useCallback, useRef } from 'react';
+import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
 
 const AREA_TYPES = new Set(['sleep', 'grease']);
@@ -39,8 +39,7 @@ function getTokenPos(R: DMRefs, id: number | string): { x: number; y: number } |
   return null;
 }
 
-function mapCoords(e: React.MouseEvent | MouseEvent, canvas: HTMLCanvasElement, media: HTMLImageElement | HTMLVideoElement | null, rZoom: { current: number }, rPanOffset: { current: { x: number; y: number } }, dmLocalPan: { current: { x: number; y: number } }, dmLocalZoom: { current: number }) {
-  const r = canvas.getBoundingClientRect();
+function mapCoords(e: React.MouseEvent | MouseEvent, r: DOMRect, media: HTMLImageElement | HTMLVideoElement | null, rZoom: { current: number }, rPanOffset: { current: { x: number; y: number } }, dmLocalPan: { current: { x: number; y: number } }, dmLocalZoom: { current: number }) {
   const W = r.width, H = r.height;
   let mw = 1920, mh = 1080;
   if (media?.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth) { mw = (media as HTMLImageElement).naturalWidth; mh = (media as HTMLImageElement).naturalHeight; }
@@ -52,9 +51,20 @@ function mapCoords(e: React.MouseEvent | MouseEvent, canvas: HTMLCanvasElement, 
 }
 
 export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastState: BroadcastFn) {
-  const mc = useCallback((e: React.MouseEvent | MouseEvent) => {
-    return mapCoords(e, R.canvasRef.current!, R.mediaRef.current, R.rZoom, R.rPanOffset, R.dmLocalPan, R.dmLocalZoom);
+  // getBoundingClientRect pot forçar un reflow i es cridava a cada mousemove; el rect del
+  // canvas només canvia quan canvia el layout, així que es cacheja amb un refresc curt.
+  const rectCacheRef = useRef<{ rect: DOMRect; t: number } | null>(null);
+  const getCanvasRect = useCallback(() => {
+    const now = performance.now();
+    if (!rectCacheRef.current || now - rectCacheRef.current.t > 400) {
+      rectCacheRef.current = { rect: R.canvasRef.current!.getBoundingClientRect(), t: now };
+    }
+    return rectCacheRef.current.rect;
   }, []);
+
+  const mc = useCallback((e: React.MouseEvent | MouseEvent) => {
+    return mapCoords(e, getCanvasRect(), R.mediaRef.current, R.rZoom, R.rPanOffset, R.dmLocalPan, R.dmLocalZoom);
+  }, [getCanvasRect]);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1) {
@@ -65,6 +75,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
       }
       return;
+    }
+    // Area (marquee) selection mode — RTS-style box select (toggled with "A").
+    // Takes priority over every tool so a left-drag always rubber-bands.
+    if (e.button === 0 && R.rAreaSelectMode.current) {
+      const { mx: amx, my: amy } = mc(e);
+      R.rAreaSelectRect.current = { x0: amx, y0: amy, x1: amx, y1: amy };
+      e.preventDefault(); return;
     }
     // Shift + left click in shape tool = straight-line spell drawing
     if (e.button === 0 && (e.shiftKey || R.rShiftHeld.current) && R.rDrawTool.current === 'shape') {
@@ -171,6 +188,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       e.preventDefault(); return;
     }
 
+    // Measuring ruler (tool 4/"Senyal"): click cycle — start point, then fixed end point, then clear.
+    if (tool === 'pointer') {
+      const m = R.rMeasure.current;
+      const next = !m.a ? { a: { x: mx, y: my }, b: null }
+        : !m.b ? { a: m.a, b: { x: mx, y: my } }
+        : { a: null, b: null };
+      R.rMeasure.current = next;
+      R.bcRef.current?.postMessage({ type: 'MEASURE', a: next.a, b: next.b });
+      R.wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: next.a, b: next.b }));
+      e.preventDefault(); return;
+    }
+
     // Selects `id` (adding to the multi-selection if one is already active) and arms
     // a drag — solo, or in lockstep with the rest of the selection when it has >1 member.
     const selectAndArmDrag = (id: number | string, ep: { x: number; y: number }) => {
@@ -257,7 +286,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     // Update screen-space cursor even during pan
     if (R.rDrawTool.current === 'pen' || R.rDrawTool.current === 'eraser' || R.rDrawTool.current === 'shape') {
-      const rect0 = R.canvasRef.current!.getBoundingClientRect();
+      const rect0 = getCanvasRect();
       R.rCursorScreenPos.current = { x: e.clientX - rect0.left, y: e.clientY - rect0.top };
     }
     if (R.panDragRef.current) {
@@ -267,11 +296,24 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.dmLocalPan.current = { x: nx, y: ny }; S.setDmPrivateActive(true);
         const now = Date.now();
         if (now - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now; _broadcastState({}); }
-      } else { R.rPanOffset.current = { x: nx, y: ny }; _broadcastState({}); }
+      } else {
+        R.rPanOffset.current = { x: nx, y: ny };
+        // Mateix throttle que el pan privat: el jugador suavitza el pan amb LERP, així que
+        // ~20Hz és fluid i evitem serialitzar l'estat sencer a cada mousemove. L'estat
+        // final exacte s'envia sempre al mouseup.
+        const now = Date.now();
+        if (now - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now; _broadcastState({}); }
+      }
       return;
     }
 
     const { mx, my } = mc(e);
+
+    // Update marquee selection rectangle
+    if (R.rAreaSelectRect.current) {
+      R.rAreaSelectRect.current = { ...R.rAreaSelectRect.current, x1: mx, y1: my };
+      return;
+    }
 
     if (R.rGridCalibrating.current) {
       R.gridCalibHoverRef.current = { hx: mx, hy: my };
@@ -320,7 +362,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     if (tool === 'pen' || tool === 'eraser' || tool === 'shape') {
-      const rect2 = R.canvasRef.current!.getBoundingClientRect();
+      const rect2 = getCanvasRect();
       R.rCursorScreenPos.current = { x: e.clientX - rect2.left, y: e.clientY - rect2.top };
     }
 
@@ -374,8 +416,34 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.isShapeDrawingRef.current && tool === 'shape') {
       const pts = R.shapePointsRef.current;
       const last = pts[pts.length - 1];
-      if (Math.hypot(mx - last.x, my - last.y) > 3 / R.rZoom.current) {
-        R.shapePointsRef.current = [...pts, { x: mx, y: my }];
+      // Mutate in place (not spread) — this ref is read directly by the RAF preview,
+      // so an O(n) copy on every mousemove would make drawing large zones itself laggy.
+      if (Math.hypot(mx - last.x, my - last.y) > 6 / R.rZoom.current) {
+        pts.push({ x: mx, y: my });
+        // A spell trace that crosses itself is auto-detected as an area effect — the
+        // enclosed loop counts as a closed circle the moment the two points cross.
+        const n = pts.length;
+        if (n >= 4) {
+          const a1 = pts[n - 2], a2 = pts[n - 1];
+          for (let i = 0; i < n - 3; i++) {
+            const ix = segmentsIntersect(a1, a2, pts[i], pts[i + 1]) ? segmentIntersection(a1, a2, pts[i], pts[i + 1]) : null;
+            if (ix) {
+              R.isShapeDrawingRef.current = false;
+              R.shapePointsRef.current = [];
+              const canvas = R.canvasRef.current!;
+              const rect = canvas.getBoundingClientRect();
+              const media = R.mediaRef.current;
+              let imw = 1920, imh = 1080;
+              if (media?.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth) { imw = (media as HTMLImageElement).naturalWidth; imh = (media as HTMLImageElement).naturalHeight; }
+              if (media?.tagName === 'VIDEO' && (media as HTMLVideoElement).videoWidth) { imw = (media as HTMLVideoElement).videoWidth; imh = (media as HTMLVideoElement).videoHeight; }
+              const isc = Math.min(rect.width / imw, rect.height / imh) * R.rZoom.current;
+              const pan = R.rPanOffset.current;
+              const iox = (rect.width - imw * isc) / 2 + pan.x, ioy = (rect.height - imh * isc) / 2 + pan.y;
+              S.setSpellMenu({ points: [ix], cx: rect.left + iox + ix.x * isc, cy: rect.top + ioy + ix.y * isc, mode: 'area' });
+              break;
+            }
+          }
+        }
       }
       return;
     }
@@ -404,23 +472,25 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (Math.hypot(mx - pd.mx, my - pd.my) > 3 / R.rZoom.current) R.pendingDeselectRef.current = null;
     }
     const { id, ox, oy } = R.dragRef.current;
-    let np = { x: mx - ox, y: my - oy };
-    if (R.rGridSnap.current && R.rGridSize.current > 0) {
+    // Snap aplicat a cada token individualment (l'àncora i tots els membres del grup);
+    // abans només snapava l'àncora i la resta del grup quedava desalineada de la graella.
+    const snapTokenPos = (p: { x: number; y: number }, tid: number | string) => {
+      if (!R.rGridSnap.current || R.rGridSize.current <= 0) return p;
       const gs = R.rGridSize.current;
       const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
       const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
       const snapCC = (v: number, origin: number) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
-      if (String(id).startsWith('pl_')) {
-        const Rv = R.rTokenSizeOverride.current[id] ?? 22;
-        np = { x: snapCC(np.x + Rv, gox) - Rv, y: snapCC(np.y + Rv, goy) - Rv };
-      } else {
-        np = { x: snapCC(np.x, gox), y: snapCC(np.y, goy) };
+      if (String(tid).startsWith('pl_')) {
+        const Rv = R.rTokenSizeOverride.current[tid] ?? 22;
+        return { x: snapCC(p.x + Rv, gox) - Rv, y: snapCC(p.y + Rv, goy) - Rv };
       }
-    }
+      return { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
+    };
+    const np = snapTokenPos({ x: mx - ox, y: my - oy }, id);
     const nextPos = { ...R.rPos.current, [id]: np };
     if (R.groupDragRef.current) {
       for (const [sid, off] of R.groupDragRef.current) {
-        nextPos[sid] = { x: mx - off.ox, y: my - off.oy };
+        nextPos[sid] = snapTokenPos({ x: mx - off.ox, y: my - off.oy }, sid);
       }
     }
     R.rPos.current = nextPos;
@@ -436,6 +506,38 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     setGridCalibrating: (v: boolean) => void,
   ) => {
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
+
+    // Finalize marquee (area) selection — collect every token whose center is inside the box
+    if (R.rAreaSelectRect.current) {
+      const rect = R.rAreaSelectRect.current;
+      R.rAreaSelectRect.current = null;
+      const left = Math.min(rect.x0, rect.x1), right = Math.max(rect.x0, rect.x1);
+      const top = Math.min(rect.y0, rect.y1), bottom = Math.max(rect.y0, rect.y1);
+      const dragDist = Math.hypot(rect.x1 - rect.x0, rect.y1 - rect.y0);
+      // Additive: every marquee accumulates onto the existing selection
+      const sel = new Set<number | string>(R.rMultiSelected.current);
+      if (dragDist > 4 / R.rZoom.current) {
+        const inside = (x: number, y: number) => x >= left && x <= right && y >= top && y <= bottom;
+        for (const len of R.rLibEnemies.current) {
+          const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
+          if (inside(lep.x, lep.y)) sel.add(`lib_${len.id}`);
+        }
+        for (const pl of R.rPlayers.current) {
+          const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
+          const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
+          if (inside(ppos.x + pR, ppos.y + pR)) sel.add(`pl_${pl.id}`);
+        }
+        const st = R.rStruct.current;
+        if (st) for (const room of st.enemyRooms) for (const en of room.enemies) {
+          const ep = R.rPos.current[en.id]; if (!ep) continue;
+          if (inside(ep.x, ep.y)) sel.add(en.id);
+        }
+      }
+      R.rMultiSelected.current = sel;
+      const last = sel.size > 0 ? [...sel][sel.size - 1] : null;
+      R.rSelectedToken.current = last; S.setSelectedToken(last);
+      return;
+    }
 
     // Finalize straight-line spell
     if (R.isSpellLineDrawingRef.current) {
@@ -585,11 +687,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         return;
       }
     }
+    // Group the whole current selection fully belongs to, if any (used to offer
+    // "dissoldre grup" instead of "crear grup" in the multi-select context menu).
+    const groupOfSelection = (ids: (number | string)[]): string | undefined => {
+      const gids = new Set(ids.map(tid => R.rTokenGroups.current.get(tid)));
+      if (gids.size !== 1) return undefined;
+      const gid = [...gids][0];
+      if (!gid) return undefined;
+      let memberCount = 0;
+      for (const g of R.rTokenGroups.current.values()) if (g === gid) memberCount++;
+      return memberCount === ids.length ? gid : undefined;
+    };
+
     // If the right-clicked token is part of an active multi-selection, show the group menu instead
     const sel = R.rMultiSelected.current;
     const maybeMultiMenu = (id: number | string): boolean => {
       if (sel.size <= 1 || !sel.has(id)) return false;
-      S.setContextMenu({ id, name: `${sel.size} seleccionats`, x: e.clientX, y: e.clientY, isMultiSelect: true, ids: [...sel] });
+      S.setContextMenu({ id, name: `${sel.size} seleccionats`, x: e.clientX, y: e.clientY, isMultiSelect: true, ids: [...sel], existingGroupId: groupOfSelection([...sel]) });
       return true;
     };
 
@@ -600,7 +714,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
       if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
         if (maybeMultiMenu(`lib_${len.id}`)) return;
-        S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id, tokenPos: lep });
+        S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id, tokenPos: lep, existingGroupId: R.rTokenGroups.current.get(`lib_${len.id}`) });
         return;
       }
     }
@@ -610,7 +724,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
       if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
         if (maybeMultiMenu(`pl_${pl.id}`)) return;
-        S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY }); return;
+        S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(`pl_${pl.id}`) }); return;
       }
     }
     const s2 = R.rStruct.current; if (!s2) return;
@@ -621,7 +735,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
         if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
           if (maybeMultiMenu(en.id)) return;
-          S.setContextMenu({ id: en.id, name: en.name, x: e.clientX, y: e.clientY }); return;
+          S.setContextMenu({ id: en.id, name: en.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(en.id) }); return;
         }
       }
     }
@@ -629,5 +743,47 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     S.setContextMenu(null);
   }, [mc]);
 
-  return { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, mc };
+  // Double click on a grouped token selects every member of its group.
+  const onDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (R.rDrawTool.current !== 'none' || R.rAreaSelectMode.current) return;
+    const { mx, my } = mc(e);
+
+    const selectGroupOrSolo = (id: number | string) => {
+      const gid = R.rTokenGroups.current.get(id);
+      if (gid) {
+        const members = new Set<number | string>();
+        for (const [tid, g] of R.rTokenGroups.current) if (g === gid) members.add(tid);
+        R.rMultiSelected.current = members;
+      } else {
+        R.rMultiSelected.current = new Set();
+      }
+      R.rSelectedToken.current = id; S.setSelectedToken(id);
+    };
+
+    for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
+      const len = R.rLibEnemies.current[i];
+      const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
+      const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
+      if (Math.hypot(mx - lep.x, my - lep.y) <= lR) { selectGroupOrSolo(`lib_${len.id}`); return; }
+    }
+    for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
+      const pl = R.rPlayers.current[i];
+      const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
+      const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
+      if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) { selectGroupOrSolo(`pl_${pl.id}`); return; }
+    }
+    const s3 = R.rStruct.current;
+    if (s3) {
+      for (const room of s3.enemyRooms) {
+        for (let i = room.enemies.length - 1; i >= 0; i--) {
+          const en = room.enemies[i];
+          const ep = R.rPos.current[en.id]; if (!ep) continue;
+          const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
+          if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) { selectGroupOrSolo(en.id); return; }
+        }
+      }
+    }
+  }, [mc]);
+
+  return { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick, mc };
 }

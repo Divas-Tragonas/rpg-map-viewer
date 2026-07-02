@@ -1,11 +1,11 @@
 'use client';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { parsePSDStructure } from '@/lib/psd/parser';
 import { extractLayerImages } from '@/lib/psd/extractor';
 import { buildTree, validateStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
-import { getBBox } from '@/lib/geometry';
-import { BC_CHANNEL, DEFAULT_PARTY, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES } from '@/constants';
+import { getBBox, simplifyPolygon } from '@/lib/geometry';
+import { BC_CHANNEL, DEFAULT_PARTY, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride } from '@/types';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
@@ -56,36 +56,49 @@ export function useDMActions(R: DMRefs, S: Setters) {
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
   } = R;
 
+  // Camps pesats del STATE (arrays grans i imatges base64: MBs si hi ha retrats custom).
+  // Cada mutació d'aquests valors crea un objecte/array nou, així que la identitat de la
+  // referència és un detector de canvis fiable: només s'inclouen al missatge quan han
+  // canviat des de l'últim enviament. El jugador ja tracta tots aquests camps com a
+  // opcionals (`if (msg.X)`), i el STRUCT inicial sempre porta l'estat complet.
+  const lastSentHeavyRef = useRef<Record<string, unknown>>({});
+  const _syncHeavySent = useCallback(() => {
+    lastSentHeavyRef.current = {
+      players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
+      paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
+      libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
+    };
+  }, []);
+
   const _broadcastState = useCallback((extra: Record<string, unknown> = {}) => {
     const _isDMPrev = dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1;
-    const msg = {
+    const msg: Record<string, unknown> = {
       type: 'STATE',
       vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
-      players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
-      paintedZones: rPaintedZones.current, panOffset: rPanOffset.current,
+      panOffset: rPanOffset.current,
       gridVisible: rGridVisible.current, gridSize: rGridSize.current,
       gridSnap: rGridSnap.current,
       gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current,
       highlightLocked: rHighlightLocked.current,
-      tokenSizeOverride: rTokenSizeOverride.current,
-      libEnemies: rLibEnemies.current,
-      psdEnemyOverrides: rPsdEnemyOverrides.current,
       dmPreviewActive: _isDMPrev,
       dmPreviewZoom: rZoom.current * dmLocalZoom.current,
       dmPreviewPan: { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y },
-      ...extra,
     };
+    const heavy: Record<string, unknown> = {
+      players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
+      paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
+      libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
+    };
+    for (const k of Object.keys(heavy)) {
+      if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
+    }
+    Object.assign(msg, extra);
     bcRef.current?.postMessage(msg);
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
-  const _sendFullState = useCallback(() => {
-    if (bgBufferRef.current) {
-      bcRef.current?.postMessage({ type: 'BG', buffer: bgBufferRef.current.buffer, mimeType: bgBufferRef.current.mimeType });
-      wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: bgBufferRef.current.mimeType, withFade: false }));
-      wsRef.current?.sendBinary(bgBufferRef.current.buffer);
-    }
+  const _sendStructState = useCallback(() => {
     const structMsg = {
       type: 'STRUCT',
       struct: rStruct2.current,
@@ -105,7 +118,18 @@ export function useDMActions(R: DMRefs, S: Setters) {
     };
     bcRef.current?.postMessage(structMsg);
     wsRef.current?.send(JSON.stringify(structMsg));
-  }, []);
+    // El STRUCT ja porta l'estat complet: sincronitza el detector de canvis del STATE.
+    _syncHeavySent();
+  }, [_syncHeavySent]);
+
+  const _sendFullState = useCallback(() => {
+    if (bgBufferRef.current) {
+      bcRef.current?.postMessage({ type: 'BG', buffer: bgBufferRef.current.buffer, mimeType: bgBufferRef.current.mimeType });
+      wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: bgBufferRef.current.mimeType, withFade: false }));
+      wsRef.current?.sendBinary(bgBufferRef.current.buffer);
+    }
+    _sendStructState();
+  }, [_sendStructState]);
 
   const loadBg = useCallback(async (file: File) => {
     if (!file) return;
@@ -205,12 +229,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
         newPos[id] = { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
       }
     }
-    // Also snap lib enemies
-    rLibEnemies.current.forEach(en => {
-      const key = `lib_${en.id}`;
-      const p = newPos[key];
-      if (p) newPos[key] = { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
-    });
     rPos.current = newPos; S.setPos(newPos); _broadcastState({});
   }, [_broadcastState]);
 
@@ -250,10 +268,26 @@ export function useDMActions(R: DMRefs, S: Setters) {
     } else { _broadcastState({}); }
   }, [_broadcastState]);
 
-  const removePlayer = useCallback((id: number) => {
-    S.setPlayers(ps => { const ns = ps.filter(p => p.id !== id); rPlayers.current = ns; return ns; });
-    S.setPos(p => { const n = { ...p }; delete n[`pl_${id}`]; return n; });
+  // Neteja totes les entrades associades a una clau de token (condicions, derrotat, mida).
+  // Sense això, en eliminar un token les seves entrades òrfenes viatjaven a cada broadcast.
+  const _cleanupTokenKey = useCallback((key: string) => {
+    if (rConditions.current[key]) { const nc = { ...rConditions.current }; delete nc[key]; rConditions.current = nc; S.setConditions(nc); }
+    if (rDefeated.current[key]) { const nd = { ...rDefeated.current }; delete nd[key]; rDefeated.current = nd; S.setDefeated(nd); }
+    if (rTokenSizeOverride.current[key] !== undefined) { const no = { ...rTokenSizeOverride.current }; delete no[key]; rTokenSizeOverride.current = no; S.setTokenSizeOverride(no); }
+    if (R.rSelectedToken.current === key) R.rSelectedToken.current = null;
+    R.rMultiSelected.current.delete(key);
+    R.rTokenGroups.current.delete(key);
   }, []);
+
+  const removePlayer = useCallback((id: number) => {
+    const key = `pl_${id}`;
+    const ns = rPlayers.current.filter(p => p.id !== id);
+    rPlayers.current = ns; S.setPlayers(ns);
+    const np = { ...rPos.current }; delete np[key];
+    rPos.current = np; S.setPos(np);
+    _cleanupTokenKey(key);
+    _broadcastState({});
+  }, [_broadcastState, _cleanupTokenKey]);
 
   const adjustPlayerHp = useCallback((id: number, delta: number) => {
     const updated = rPlayers.current.map(pl =>
@@ -448,19 +482,21 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, []);
 
   const deleteLayer = useCallback((id: number, kind: string) => {
-    S.setStruct(s => {
-      if (!s) return s;
-      let ns: MapStructure;
-      if (kind === 'room')  ns = { ...s, roomLayers: s.roomLayers.filter(l => l.id !== id) };
-      else if (kind === 'enemy') ns = { ...s, enemyRooms: s.enemyRooms.map(z => ({ ...z, enemies: z.enemies.filter(e => e.id !== id) })) };
-      else if (kind === 'extra') ns = { ...s, extras: { ...s.extras, children: s.extras.children.filter(l => l.id !== id) } };
-      else return s;
-      rStruct.current = ns; rStruct2.current = ns; return ns;
-    });
-    S.setVis(v => { const n = { ...v }; delete n[id]; rVis.current = n; return n; });
-    S.setPos(p => { const n = { ...p }; delete n[id]; rPos.current = n; return n; });
-    S.setLayerImages(li => { const n = { ...li }; delete n[id]; rLayerImages.current = n; return n; });
-  }, []);
+    const s = rStruct.current; if (!s) return;
+    let ns: MapStructure;
+    if (kind === 'room')  ns = { ...s, roomLayers: s.roomLayers.filter(l => l.id !== id) };
+    else if (kind === 'enemy') ns = { ...s, enemyRooms: s.enemyRooms.map(z => ({ ...z, enemies: z.enemies.filter(e => e.id !== id) })) };
+    else if (kind === 'extra') ns = { ...s, extras: { ...s.extras, children: s.extras.children.filter(l => l.id !== id) } };
+    else return;
+    rStruct.current = ns; rStruct2.current = ns; S.setStruct(ns);
+    const nv = { ...rVis.current }; delete nv[id]; rVis.current = nv; S.setVis(nv);
+    const np = { ...rPos.current }; delete np[id]; rPos.current = np; S.setPos(np);
+    const nli = { ...rLayerImages.current }; delete nli[id]; rLayerImages.current = nli; S.setLayerImages(nli);
+    if (rLayerUrls.current[id]) { const nu = { ...rLayerUrls.current }; delete nu[id]; rLayerUrls.current = nu; }
+    // El struct viatja al missatge STRUCT, no al STATE: cal reenviar-lo perquè el jugador
+    // deixi de veure la capa eliminada.
+    _sendStructState();
+  }, [_sendStructState]);
 
   const toggleVis = useCallback((id: number) => {
     const nv = { ...rVis.current, [id]: !rVis.current[id] };
@@ -471,11 +507,23 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const np = { x: en.left + en.w / 2, y: en.top + en.h / 2 };
     rPos.current = { ...rPos.current, [en.id]: np };
     S.setPos(p => ({ ...p, [en.id]: np }));
-  }, []);
+    _broadcastState({});
+  }, [_broadcastState]);
 
   const addPaintedZone = useCallback((element: string, shapeMenu: { points: { x: number; y: number }[]; bbox: import('@/types').BBox } | null, setShapeMenu: (v: null) => void) => {
     if (!shapeMenu) return;
-    const zone: import('@/types').PaintedZone = { id: Date.now().toString(), element, points: shapeMenu.points, bbox: shapeMenu.bbox };
+    // Freehand drag can produce thousands of raw points on large zones; simplify to keep
+    // per-frame path rebuilds and the player-side texture mask cheap regardless of zone size.
+    const diag = Math.hypot(shapeMenu.bbox.w, shapeMenu.bbox.h);
+    let points = simplifyPolygon(shapeMenu.points, Math.max(2, diag * 0.003));
+    const MAX_POINTS = 200;
+    let tolerance = Math.max(2, diag * 0.003);
+    while (points.length > MAX_POINTS) {
+      tolerance *= 1.6;
+      points = simplifyPolygon(shapeMenu.points, tolerance);
+    }
+    const bbox = getBBox(points);
+    const zone: import('@/types').PaintedZone = { id: Date.now().toString(), element, points, bbox };
     const nz = [...rPaintedZones.current, zone];
     rPaintedZones.current = nz; S.setPaintedZones(nz); setShapeMenu(null); _broadcastState({});
   }, [_broadcastState]);
@@ -489,6 +537,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const ns = rActiveSpells.current.filter(s => s.id !== id);
     rActiveSpells.current = ns; S.setActiveSpells(ns);
     bcRef.current?.postMessage({ type: 'DELETE_SPELL', id });
+    wsRef.current?.send(JSON.stringify({ type: 'DELETE_SPELL', id }));
     _broadcastState({});
   }, [_broadcastState]);
 
@@ -605,6 +654,25 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState]);
 
+  // Sets a token's diameter in feet (converted to the pixel radius used for rendering/hit-testing).
+  // Player tokens are stored as a top-left corner + radius, so their position is compensated to
+  // keep the visual center fixed when the radius changes; PSD/lib enemies are stored center-based.
+  const setTokenSize = useCallback((id: string, feet: number) => {
+    const newR = radiusFromFeet(feet, rGridSize.current);
+    const oldR = rTokenSizeOverride.current[id] ?? 22;
+    const ov = { ...rTokenSizeOverride.current, [id]: newR };
+    rTokenSizeOverride.current = ov; S.setTokenSizeOverride(ov);
+    if (id.startsWith('pl_')) {
+      const p = rPos.current[id];
+      if (p) {
+        const delta = oldR - newR;
+        const np = { ...rPos.current, [id]: { x: p.x + delta, y: p.y + delta } };
+        rPos.current = np; S.setPos(np);
+      }
+    }
+    _broadcastState({ tokenSizeOverride: ov });
+  }, [_broadcastState]);
+
   const setLibEnemyProps = useCallback((id: number, props: Partial<LibEnemy>) => {
     const updated = rLibEnemies.current.map(en => en.id === id ? { ...en, ...props } : en);
     rLibEnemies.current = updated; S.setLibEnemies(updated);
@@ -616,9 +684,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rLibEnemies.current = updated; S.setLibEnemies(updated);
     const np = { ...rPos.current }; delete np[`lib_${id}`];
     rPos.current = np; S.setPos(np);
-    if (R.rSelectedToken.current === `lib_${id}`) { R.rSelectedToken.current = null; }
+    _cleanupTokenKey(`lib_${id}`);
     _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _cleanupTokenKey]);
 
   const toggleLibEnemyVisibility = useCallback((id: number) => {
     const updated = rLibEnemies.current.map(en => en.id === id ? { ...en, visible: !en.visible } : en);
@@ -632,6 +700,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
-    removeLibEnemy, toggleLibEnemyVisibility,
+    removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
   };
 }

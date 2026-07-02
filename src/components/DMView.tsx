@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
+import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius } from '@/constants';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -15,10 +15,11 @@ import { useMouseHandlers } from '@/hooks/useMouseHandlers';
 import { useWheelZoom } from '@/hooks/useWheelZoom';
 import { useKeyboardHandlers } from '@/hooks/useKeyboardHandlers';
 import { createSyncSocket } from '@/lib/ws';
+import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { LayerTree } from '@/components/dm/LayerTree';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
-import { DrawToolsPanel } from '@/components/dm/DrawToolsPanel';
+import { FloatingToolbar } from '@/components/dm/FloatingToolbar';
 import { GridPanel } from '@/components/dm/GridPanel';
 import { EnemyLibraryPanel } from '@/components/dm/EnemyLibraryPanel';
 import { BottomControls } from '@/components/dm/BottomControls';
@@ -67,7 +68,9 @@ export function DMView() {
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
   const [ctxEditName, setCtxEditName] = useState('');
   const [ctxEditHpMax, setCtxEditHpMax] = useState(0);
+  const [ctxEditSizeFt, setCtxEditSizeFt] = useState(5);
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
+  const [areaSelectMode, setAreaSelectMode] = useState(false);
   const [dmPrivateActive, setDmPrivateActive] = useState(false);
   const [ctrlPanActive, setCtrlPanActive] = useState(false);
   const [shiftPanActive, setShiftPanActive] = useState(false);
@@ -100,6 +103,31 @@ export function DMView() {
   const expositorInnerRef = React.useRef<HTMLDivElement | null>(null);
   const expositorPreviewRef = React.useRef<HTMLDivElement | null>(null);
 
+  // ── Revelador de text ──────────────────────────────────────────────────────
+  const [textRevealOpen, setTextRevealOpen] = useState(false);
+  const [textRevealActive, setTextRevealActive] = useState(false);
+  const [trDramatic, setTrDramatic] = useState(true);
+  const [trManual, setTrManual] = useState(false);
+  const trEngineRef = React.useRef<RevealEngine | null>(null);
+  const trStageRef = React.useRef<HTMLDivElement | null>(null);
+  const trTextRef = React.useRef<HTMLDivElement | null>(null);
+  const trSrcRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const trSpeedRef = React.useRef<HTMLInputElement | null>(null);
+  const trSmoothRef = React.useRef<HTMLInputElement | null>(null);
+  const trSpeedLblRef = React.useRef<HTMLElement | null>(null);
+  const trSmoothLblRef = React.useRef<HTMLElement | null>(null);
+  const trCounterRef = React.useRef<HTMLSpanElement | null>(null);
+  const trProgRef = React.useRef<HTMLDivElement | null>(null);
+  const trPlayBtnRef = React.useRef<HTMLButtonElement | null>(null);
+  const trRunningRef = React.useRef(false);
+  const trPausedRef = React.useRef(true);
+  const trActiveRef = React.useRef(false);
+  const trDramaticRef = React.useRef(true);
+  const trManualRef = React.useRef(false);
+  const trRafRef = React.useRef<number | null>(null);
+  const trLastTsRef = React.useRef(0);
+  const trLastSyncRef = React.useRef(0);
+
   // ── Refs ──────────────────────────────────────────────────────────────────
   const R = useDMRefs();
 
@@ -111,7 +139,7 @@ export function DMView() {
     setDrawToolState(prev => {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       R.rDrawTool.current = next;
-      if (prev === 'pointer' && next !== 'pointer') R.rPointerPos.current = null;
+      if (prev === 'pointer' && next !== 'pointer') { R.rPointerPos.current = null; R.rMeasure.current = { a: null, b: null }; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
       else if (next === 'none') setCanvasCursor('default');
       return next;
@@ -135,14 +163,24 @@ export function DMView() {
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
-    removeLibEnemy, toggleLibEnemyVisibility,
+    removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
   } = useDMActions(R, S);
 
   // ── BC setup (DM only receives PLAYER_READY) ──────────────────────────────
   useEffect(() => {
     const bc = new BroadcastChannel(BC_CHANNEL);
     R.bcRef.current = bc;
-    bc.onmessage = (e) => { if (e.data?.type === 'PLAYER_READY') _sendFullState(); };
+    bc.onmessage = (e) => {
+      const msg = e.data;
+      if (msg?.type === 'PLAYER_READY') {
+        _sendFullState();
+      } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
+        // Moviment de token fet des de la pantalla de jugador (mateix ordinador, sense WS).
+        const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
+        R.rPos.current = np;
+        setPos(np);
+      }
+    };
     return () => { bc.close(); R.bcRef.current = null; };
   }, [_sendFullState]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -231,7 +269,7 @@ export function DMView() {
     setDmPrivateActive, setCanvasCursor,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu } =
+  const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState);
 
   const handleMouseUp = useCallback(() => {
@@ -246,11 +284,32 @@ export function DMView() {
     R.rMultiSelected.current = new Set();
   }, [removeLibEnemy]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Token groups (double-click a member to select the whole group) ─────────
+  const onCreateGroup = useCallback((ids: (number | string)[]) => {
+    const groupId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    for (const id of ids) R.rTokenGroups.current.set(id, groupId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onDissolveGroup = useCallback((groupId: string) => {
+    for (const [id, gid] of R.rTokenGroups.current) {
+      if (gid === groupId) R.rTokenGroups.current.delete(id);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onLeaveGroup = useCallback((id: number | string) => {
+    const gid = R.rTokenGroups.current.get(id);
+    if (!gid) return;
+    R.rTokenGroups.current.delete(id);
+    const remaining = [...R.rTokenGroups.current.entries()].filter(([, g]) => g === gid);
+    if (remaining.length === 1) R.rTokenGroups.current.delete(remaining[0][0]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
     setDrawTool, undoStroke, skipBossIntro,
     broadcastState: () => _broadcastState({}),
     setCtrlPanActive, setShiftPanActive, setZoom,
+    setAreaSelectMode,
     onDeleteSelection,
   });
 
@@ -301,6 +360,27 @@ export function DMView() {
       setCtxEditName(contextMenu.name);
       setCtxEditHpMax(0);
     }
+
+    // Current token diameter (px), falling back to each token type's default when unset.
+    const key = String(contextMenu.id);
+    let radiusPx = R.rTokenSizeOverride.current[key];
+    if (radiusPx == null) {
+      if (contextMenu.isLibEnemy && contextMenu.libEnemyId !== undefined) {
+        radiusPx = R.rLibEnemies.current.find(e => e.id === contextMenu.libEnemyId)?.R ?? 25;
+      } else if (typeof contextMenu.id === 'string' && contextMenu.id.startsWith('pl_')) {
+        radiusPx = 22;
+      } else if (typeof contextMenu.id === 'number' && R.rStruct.current) {
+        let found: number | undefined;
+        for (const room of R.rStruct.current.enemyRooms) {
+          const en = room.enemies.find(e => e.id === contextMenu.id);
+          if (en) { found = Math.max(Math.min(en.w, en.h) / 2, 22); break; }
+        }
+        radiusPx = found ?? 25;
+      } else {
+        radiusPx = 25;
+      }
+    }
+    setCtxEditSizeFt(feetFromRadius(radiusPx, R.rGridSize.current));
   }, [contextMenu]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onZoomChange = useCallback((z: number) => {
@@ -326,9 +406,18 @@ export function DMView() {
     }
   }, [expositorLocalSrc]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const hideTextRevealOnPlayer = useCallback(() => {
+    R.bcRef.current?.postMessage({ type: 'TEXTREVEAL_HIDE' });
+    R.wsRef.current?.send(JSON.stringify({ type: 'TEXTREVEAL_HIDE' }));
+    trActiveRef.current = false;
+    setTextRevealActive(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sendExpositorToPlayer = useCallback(async () => {
     const file = expositorFileRef.current;
     if (!file) return;
+    // Sinergia: en mostrar una imatge/vídeo, amaguem el revelador de text (crossfade al jugador)
+    if (trActiveRef.current) hideTextRevealOnPlayer();
     const buf = await file.arrayBuffer();
     R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
     R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_SHOW_META', mimeType: file.type }));
@@ -420,6 +509,145 @@ export function DMView() {
     return () => window.removeEventListener('keydown', onKey);
   }, [expositorOpen]);
 
+  // ── Revelador de text: helpers ─────────────────────────────────────────────
+  const trCps = useCallback(() => cpsFromSlider(+(trSpeedRef.current?.value ?? 50)), []);
+  const trFadeMs = useCallback(() => fadeMsFromSlider(+(trSmoothRef.current?.value ?? 55)), []);
+
+  const trUpdateStatus = useCallback(() => {
+    const eng = trEngineRef.current;
+    const n = eng?.n ?? 0;
+    if (trProgRef.current) trProgRef.current.style.width = (n ? (eng!.pos / n * 100) : 0) + '%';
+    if (trCounterRef.current) {
+      if (!n) trCounterRef.current.textContent = '—';
+      else if (trManualRef.current) trCounterRef.current.innerHTML = `Frase <b style="color:${C.accent}">${eng!.sentenceIndex()}</b> / ${eng!.bounds.length}`;
+      else trCounterRef.current.innerHTML = `<b style="color:${C.accent}">${Math.round(eng!.pos / n * 100)}%</b> revelat`;
+    }
+    if (trPlayBtnRef.current) {
+      const eng2 = trEngineRef.current;
+      const lbl = trManualRef.current ? 'Revela frase'
+        : (trRunningRef.current && !trPausedRef.current ? 'Pausa'
+          : (eng2 && eng2.pos > 0 && eng2.pos < eng2.n ? 'Continua' : 'Comença'));
+      trPlayBtnRef.current.textContent = lbl;
+    }
+  }, []);
+
+  const trBuild = useCallback(() => {
+    const container = trTextRef.current; if (!container) return;
+    const eng = trEngineRef.current ?? new RevealEngine();
+    trEngineRef.current = eng;
+    eng.setText(trSrcRef.current?.value ?? '', container);
+    if (trStageRef.current) trStageRef.current.scrollTop = 0;
+    trUpdateStatus();
+  }, [trUpdateStatus]);
+
+  const trBroadcastShow = useCallback(() => {
+    const eng = trEngineRef.current; if (!eng) return;
+    const payload = { type: 'TEXTREVEAL_SHOW' as const, text: trSrcRef.current?.value ?? '', pos: eng.pos, cps: trCps(), fadeMs: trFadeMs() };
+    R.bcRef.current?.postMessage(payload);
+    R.wsRef.current?.send(JSON.stringify(payload));
+  }, [trCps, trFadeMs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sendTextRevealToPlayer = useCallback(() => {
+    let eng = trEngineRef.current;
+    if (!eng || eng.n === 0) { trBuild(); eng = trEngineRef.current; }
+    if (!eng || eng.n === 0) return;
+    // Sinergia: en llançar text, amaguem l'expositor d'imatge (crossfade al jugador)
+    if (expositorActiveRef.current) hideExpositorOnPlayer();
+    trBroadcastShow();
+    trActiveRef.current = true;
+    setTextRevealActive(true);
+  }, [trBuild, trBroadcastShow, hideExpositorOnPlayer]);
+
+  const trPlay = useCallback(() => {
+    let eng = trEngineRef.current;
+    if (!eng || eng.n === 0) { trBuild(); eng = trEngineRef.current; }
+    if (!eng || eng.n === 0) return;
+    if (eng.pos >= eng.n) eng.reset();
+    trPausedRef.current = false; trRunningRef.current = true;
+    trUpdateStatus();
+  }, [trBuild, trUpdateStatus]);
+
+  const trPause = useCallback(() => {
+    trPausedRef.current = true; trUpdateStatus();
+  }, [trUpdateStatus]);
+
+  const trNextSentence = useCallback(() => {
+    let eng = trEngineRef.current;
+    if (!eng || eng.n === 0) { trBuild(); eng = trEngineRef.current; }
+    if (!eng || eng.n === 0) return;
+    const ref = Math.max(eng.pos, eng.target);
+    const nb = eng.nextBoundary(ref);
+    if (nb < 0) return;
+    eng.target = nb; trPausedRef.current = false; trRunningRef.current = true;
+    trUpdateStatus();
+  }, [trBuild, trUpdateStatus]);
+
+  const trPrevSentence = useCallback(() => {
+    const eng = trEngineRef.current; if (!eng || eng.n === 0) return;
+    eng.snapTo(eng.prevBoundary(Math.round(eng.pos)));
+    trUpdateStatus();
+  }, [trUpdateStatus]);
+
+  const trReset = useCallback(() => {
+    const eng = trEngineRef.current; if (!eng) return;
+    eng.reset(); trPausedRef.current = true;
+    if (trStageRef.current) trStageRef.current.scrollTop = 0;
+    trUpdateStatus();
+  }, [trUpdateStatus]);
+
+  // ── Revelador de text: RAF loop (preview + streaming TEXTREVEAL_SYNC) ───────
+  useEffect(() => {
+    if (!textRevealOpen) { trBuild(); return; }
+    trBuild();
+    const tick = (ts: number) => {
+      trRafRef.current = requestAnimationFrame(tick);
+      const eng = trEngineRef.current; if (!eng) return;
+      const dt = trLastTsRef.current ? Math.min(80, ts - trLastTsRef.current) : 16;
+      trLastTsRef.current = ts;
+      eng.tick(dt);
+
+      const cps = trCps();
+      const fadeMs = trFadeMs();
+      if (eng.n && trRunningRef.current && !trPausedRef.current) {
+        eng.advance(dt, cps, trDramaticRef.current, trManualRef.current);
+        const moving = trManualRef.current ? (eng.pos < eng.target - 1e-6) : (eng.pos < eng.n || eng.dwell > 0);
+        const fading = eng.solid < eng.passed;
+        if (!moving && !fading) {
+          trRunningRef.current = false;
+          if (!trManualRef.current && eng.pos >= eng.n) trPausedRef.current = true;
+        }
+      }
+      eng.render(fadeMs, trStageRef.current);
+      trUpdateStatus();
+
+      if (trActiveRef.current && ts - trLastSyncRef.current >= 33) {
+        trLastSyncRef.current = ts;
+        const payload = { type: 'TEXTREVEAL_SYNC' as const, pos: eng.pos, cps, fadeMs };
+        R.bcRef.current?.postMessage(payload);
+        R.wsRef.current?.send(JSON.stringify(payload));
+      }
+    };
+    trRafRef.current = requestAnimationFrame(tick);
+    return () => { if (trRafRef.current) cancelAnimationFrame(trRafRef.current); trLastTsRef.current = 0; };
+  }, [textRevealOpen, trBuild, trCps, trFadeMs, trUpdateStatus]);
+
+  // ── Revelador de text: teclat (només quan el panell és obert) ───────────────
+  useEffect(() => {
+    if (!textRevealOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return;
+      switch (e.key) {
+        case ' ': e.preventDefault(); trManualRef.current ? trNextSentence() : (trPausedRef.current ? trPlay() : trPause()); break;
+        case 'ArrowRight': e.preventDefault(); trManualRef.current ? trNextSentence() : trPlay(); break;
+        case 'ArrowLeft': e.preventDefault(); trManualRef.current ? trPrevSentence() : trReset(); break;
+        case 'r': case 'R': trReset(); break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [textRevealOpen, trNextSentence, trPlay, trPause, trPrevSentence, trReset]);
+
   // ── Computed ───────────────────────────────────────────────────────────────
   const activeCount = struct
     ? struct.enemyRooms.reduce((n, z) => n + z.enemies.filter(e => vis[e.id]).length, 0)
@@ -474,14 +702,6 @@ export function DMView() {
           )}
           {sidebarTab === 'eines' && (
             <>
-              <DrawToolsPanel
-                drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
-                drawSize={drawSize} setDrawSize={setDrawSize}
-                canUndo={canUndo} paintedZones={paintedZones}
-                onSetDrawTool={setDrawTool} onUndo={undoStroke}
-                onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
-                bcRef={R.bcRef}
-              />
               <GridPanel
                 gridVisible={gridVisible} gridSize={gridSize} gridSnap={gridSnap}
                 gridAutoSize={gridAutoSize} gridLineWidth={gridLineWidth} gridCalibrating={gridCalibrating}
@@ -521,26 +741,41 @@ export function DMView() {
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : canvasCursor }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : areaSelectMode ? 'crosshair' : canvasCursor }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={onMouseLeaveCanvas}
           onContextMenu={onContextMenu}
+          onDoubleClick={onDoubleClick}
         />
         <CanvasHUD
-          ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} struct={struct} vis={vis}
+          ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode} struct={struct} vis={vis}
           enemyHighlight={enemyHighlight}
           highlightLocked={highlightLocked} gridCalibrating={gridCalibrating}
           onResetView={onResetView} onResetPrivate={onResetPrivate}
           onToggleEnemyHighlight={onToggleEnemyHighlight}
           onToggleHighlightLocked={onToggleHighlightLocked}
         />
+        <FloatingToolbar
+          drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
+          drawSize={drawSize} setDrawSize={setDrawSize}
+          canUndo={canUndo} paintedZones={paintedZones}
+          onSetDrawTool={setDrawTool} onUndo={undoStroke}
+          onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
+          bcRef={R.bcRef} wsRef={R.wsRef}
+        />
         <button
-          onClick={() => setExpositorOpen(v => !v)}
+          onClick={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
           title="Expositor d'Imatges i Vídeo per als jugadors"
           style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: expositorOpen ? `${C.accent}22` : 'rgba(10,13,18,.92)', border: `1px solid ${expositorOpen ? C.accent : (expositorActive ? C.accent + '88' : C.border)}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: expositorOpen ? C.accent : (expositorActive ? C.accent + 'cc' : C.dim), fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
           {expositorActive ? '◉ Expositor' : 'Expositor'}
+        </button>
+        <button
+          onClick={() => setTextRevealOpen(v => { if (!v) setExpositorOpen(false); return !v; })}
+          title="Revelador de text per als jugadors"
+          style={{ position: 'absolute', top: 12, left: 104, zIndex: 10, background: textRevealOpen ? `${C.accent}22` : 'rgba(10,13,18,.92)', border: `1px solid ${textRevealOpen ? C.accent : (textRevealActive ? C.accent + '88' : C.border)}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: textRevealOpen ? C.accent : (textRevealActive ? C.accent + 'cc' : C.dim), fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
+          {textRevealActive ? '◉ Text' : 'Text'}
         </button>
 
         {/* Expositor floating panel */}
@@ -630,13 +865,123 @@ export function DMView() {
             </div>
           </div>
         )}
+
+        {/* Revelador de text floating panel */}
+        {textRevealOpen && (
+          <div style={{ position: 'absolute', top: 42, left: 12, zIndex: 20, width: 620, maxHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+            <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>Revelador de Text</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: C.dim, fontSize: 10 }}>Espai: revela/pausa · ←→ navega · R reinicia</span>
+                <button onClick={() => setTextRevealOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: 14, lineHeight: 1 }}>×</button>
+              </div>
+            </div>
+
+            <div style={{ overflowY: 'auto', minHeight: 0 }}>
+              {/* Editor */}
+              <textarea
+                ref={trSrcRef}
+                placeholder="Enganxa aquí el text que vols anar revelant…&#10;&#10;Per exemple, la narració d'obertura d'una escena."
+                onChange={() => { if (trPausedRef.current && (trEngineRef.current?.pos ?? 0) === 0) trBuild(); }}
+                style={{ width: '100%', height: 110, resize: 'vertical', border: 'none', borderBottom: `1px solid ${C.border}`, outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: "'EB Garamond',Georgia,serif", fontSize: 14, lineHeight: 1.5, padding: '10px 12px', display: 'block' }}
+              />
+
+              {/* Controls */}
+              <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10, borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.dim, marginBottom: 4 }}>
+                      <span>Velocitat</span><b ref={trSpeedLblRef} style={{ color: C.accent, fontWeight: 600 }}>mitjana</b>
+                    </div>
+                    <input ref={trSpeedRef} type="range" min={1} max={100} defaultValue={50}
+                      onInput={e => { if (trSpeedLblRef.current) trSpeedLblRef.current.textContent = speedLabel(+(e.target as HTMLInputElement).value); }}
+                      style={{ width: '100%', accentColor: C.accent }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.dim, marginBottom: 4 }}>
+                      <span>Suavitat</span><b ref={trSmoothLblRef} style={{ color: C.accent, fontWeight: 600 }}>suau</b>
+                    </div>
+                    <input ref={trSmoothRef} type="range" min={1} max={100} defaultValue={55}
+                      onInput={e => { if (trSmoothLblRef.current) trSmoothLblRef.current.textContent = smoothLabel(+(e.target as HTMLInputElement).value); if (!trRunningRef.current || trPausedRef.current) { trEngineRef.current?.recompute(); } }}
+                      style={{ width: '100%', accentColor: C.accent }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => { const nv = !trDramatic; setTrDramatic(nv); trDramaticRef.current = nv; }}
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: `1px solid ${trDramatic ? C.accent : C.border}`, background: trDramatic ? `${C.accent}18` : 'transparent', color: trDramatic ? C.accent : C.dim, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                    Pauses dramàtiques
+                  </button>
+                  <button
+                    onClick={() => {
+                      const nv = !trManual; setTrManual(nv); trManualRef.current = nv;
+                      const eng = trEngineRef.current; if (eng) eng.target = eng.pos;
+                      trRunningRef.current = nv; trPausedRef.current = !nv;
+                      trUpdateStatus();
+                    }}
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: `1px solid ${trManual ? C.accent : C.border}`, background: trManual ? `${C.accent}18` : 'transparent', color: trManual ? C.accent : C.dim, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                    Control manual (frase a frase)
+                  </button>
+                </div>
+              </div>
+
+              {/* Preview stage */}
+              <div
+                ref={trStageRef}
+                onClick={() => { if (trManualRef.current) trNextSentence(); }}
+                style={{ height: 300, overflowY: 'auto', scrollBehavior: 'smooth', padding: '8% 9% 16%', background: 'radial-gradient(130% 90% at 50% 0%, #1a1611 0%, #0a0806 62%)', cursor: trManual ? 'pointer' : 'default' }}
+              >
+                <div
+                  ref={trTextRef}
+                  style={{ fontFamily: "'EB Garamond','Iowan Old Style',Palatino,Georgia,serif", fontSize: '1.5rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', color: '#ece3d0' }}
+                />
+              </div>
+
+              {/* Status bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 12px', borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.dim }}>
+                <span ref={trCounterRef} style={{ minWidth: 80 }}>—</span>
+                <div style={{ flex: 1, height: 3, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+                  <div ref={trProgRef} style={{ height: '100%', width: '0%', background: C.accent }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ padding: '8px 10px', display: 'flex', gap: 6, flexShrink: 0, borderTop: `1px solid ${C.border}` }}>
+              <button
+                ref={trPlayBtnRef}
+                onClick={() => { trManualRef.current ? trNextSentence() : (trPausedRef.current ? trPlay() : trPause()); }}
+                style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid ${C.accent}`, background: `${C.accent}18`, color: C.accent, cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>
+                Comença
+              </button>
+              <button
+                onClick={trReset}
+                style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: 11 }}>
+                Reinicia
+              </button>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={sendTextRevealToPlayer}
+                style={{ padding: '8px 12px', borderRadius: 6, border: 'none', background: C.accent, color: '#0d1117', cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>
+                {textRevealActive ? '✓ Mostrant als jugadors' : '▶ Mostrar als jugadors'}
+              </button>
+              <button
+                onClick={hideTextRevealOnPlayer}
+                disabled={!textRevealActive}
+                style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: textRevealActive ? 'pointer' : 'default', color: textRevealActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: 11 }}>
+                Ocultar
+              </button>
+            </div>
+          </div>
+        )}
+
         {!bgLoaded && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none' }}>
             <div style={{ textAlign: 'center', color: C.dim }}>
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.53</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.65</div>
             </div>
           </div>
         )}
@@ -669,6 +1014,8 @@ export function DMView() {
         rPlayers={R.rPlayers}
         ctxEditName={ctxEditName} setCtxEditName={setCtxEditName}
         ctxEditHpMax={ctxEditHpMax} setCtxEditHpMax={setCtxEditHpMax}
+        ctxEditSizeFt={ctxEditSizeFt} setCtxEditSizeFt={setCtxEditSizeFt}
+        onSetTokenSize={setTokenSize}
         onClose={() => setContextMenu(null)}
         onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone} onDeleteAreaSpell={deleteAreaSpell}
         onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}
@@ -681,6 +1028,7 @@ export function DMView() {
         removeLibEnemy={removeLibEnemy}
         bcRef={R.bcRef} wsRef={R.wsRef}
         onTriggerBossIntro={triggerBossIntro}
+        onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

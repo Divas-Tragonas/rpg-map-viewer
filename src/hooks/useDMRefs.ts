@@ -45,6 +45,11 @@ export function useDMRefs() {
   const rHighlightLocked = useRef(false);
   const rSelectedToken   = useRef<number | string | null>(null);
   const rMultiSelected   = useRef<Set<number | string>>(new Set());
+  // Token groups — tokenId -> groupId. A token belongs to at most one group.
+  const rTokenGroups     = useRef<Map<number | string, string>>(new Map());
+  // Area (marquee) selection — RTS-style box select, toggled with "A"
+  const rAreaSelectMode  = useRef(false);
+  const rAreaSelectRect  = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const groupDragRef     = useRef<Map<number | string, { ox: number; oy: number }> | null>(null);
   const pendingDeselectRef = useRef<{ id: number | string; mx: number; my: number } | null>(null);
   const rHighlightAlpha  = useRef(0);
@@ -89,6 +94,8 @@ export function useDMRefs() {
   const invisAlphaRef     = useRef<Record<string, number>>({});
   const strokeHistoryRef  = useRef<StrokeData[]>([]);
   const rPointerPos       = useRef<Point | null>(null);
+  // Measuring ruler (tool 4/"Senyal"): click cycle a(start) -> b(fixed end) -> clear.
+  const rMeasure          = useRef<{ a: Point | null; b: Point | null }>({ a: null, b: null });
   const rShiftHeld          = useRef(false);
   const rHoveredPaintedZoneId    = useRef<string | null>(null);
   const rSelectedPaintedZoneId   = useRef<string | null>(null);
@@ -129,7 +136,7 @@ export function useDMRefs() {
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,
@@ -138,7 +145,7 @@ export function useDMRefs() {
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,
     zoneDragRef, areaSpellDragRef, defeatedAnimRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
-    rPointerPos, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
+    rPointerPos, rMeasure, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,

@@ -152,6 +152,8 @@ export interface ContextMenuState {
   tokenPos?: Point | null;
   isMultiSelect?: boolean;
   ids?: (number | string)[];
+  /** Group the token/selection currently belongs to (fully), if any. */
+  existingGroupId?: string;
 }
 
 export interface ExpositorState {
@@ -264,6 +266,7 @@ export type BCMessage =
   | { type: 'CLEAR_DRAW' }
   | { type: 'UNDO_DRAW'; strokeHistory: StrokeData[] }
   | { type: 'POINTER'; pos: Point | null }
+  | { type: 'MEASURE'; a: Point | null; b: Point | null }
   | { type: 'SPELL'; spell: Omit<Spell, 'startTime'> & { startTime: number } }
   | { type: 'DELETE_SPELL'; id: string }
   | { type: 'BOSS_INTRO'; tokenId: number | string; bossName: string; tokenPos: Point | null; portraitDataUrl: string | null }
@@ -272,6 +275,9 @@ export type BCMessage =
   | { type: 'EXPOSITOR_SHOW'; buffer: ArrayBuffer; mimeType: string }
   | { type: 'EXPOSITOR_HIDE' }
   | { type: 'EXPOSITOR_SYNC'; zoom: number; panXNorm: number; panYNorm: number; kbTxPct: number; kbTyPct: number }
+  | { type: 'TEXTREVEAL_SHOW'; text: string; pos: number; cps: number; fadeMs: number }
+  | { type: 'TEXTREVEAL_HIDE' }
+  | { type: 'TEXTREVEAL_SYNC'; pos: number; cps: number; fadeMs: number }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }
   | { type: 'EXPOSITOR_SHOW_META'; mimeType: string };

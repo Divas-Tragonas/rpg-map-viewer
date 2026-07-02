@@ -11,11 +11,12 @@ interface KBOpts {
   setCtrlPanActive: (v: boolean) => void;
   setShiftPanActive: (v: boolean) => void;
   setZoom: (v: number) => void;
+  setAreaSelectMode?: (v: boolean) => void;
   onDeleteSelection?: () => void;
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom, onDeleteSelection } = opts;
+  const { setDrawTool, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom, setAreaSelectMode, onDeleteSelection } = opts;
 
   // CTRL key: toggle shared pan/zoom mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
@@ -75,19 +76,38 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoStroke(); return; }
       if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); R.wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO_SKIP' })); skipBossIntro(); return; }
+      if (e.key === 'Escape' && (R.rAreaSelectMode.current || R.rAreaSelectRect.current)) {
+        R.rAreaSelectMode.current = false; R.rAreaSelectRect.current = null; setAreaSelectMode?.(false);
+        return;
+      }
+      if (e.key === 'Escape' && R.rDrawTool.current === 'pointer' && (R.rMeasure.current.a || R.rMeasure.current.b)) {
+        R.rMeasure.current = { a: null, b: null };
+        R.bcRef.current?.postMessage({ type: 'MEASURE', a: null, b: null });
+        R.wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: null, b: null }));
+        return;
+      }
       if (e.key === 'Escape' && R.rMultiSelected.current.size > 0) { R.rMultiSelected.current = new Set(); return; }
       if ((e.key === 'Delete' || e.key === 'Backspace') && R.rMultiSelected.current.size > 0) { e.preventDefault(); onDeleteSelection?.(); return; }
       if (e.ctrlKey) return;
+      if (e.key === 'a' || e.key === 'A') {
+        const next = !R.rAreaSelectMode.current;
+        R.rAreaSelectMode.current = next; setAreaSelectMode?.(next);
+        if (!next) R.rAreaSelectRect.current = null;
+        return;
+      }
       if (e.key === '1') setDrawTool(t => t === 'pen' ? 'none' : 'pen');
       else if (e.key === '2') setDrawTool(t => t === 'eraser' ? 'none' : 'eraser');
       else if (e.key === '3') setDrawTool(t => t === 'shape' ? 'none' : 'shape');
       else if (e.key === '4') setDrawTool(t => {
         const nt = t === 'pointer' ? 'none' : 'pointer';
-        if (nt === 'none') { R.bcRef.current?.postMessage({ type: 'POINTER', pos: null }); R.wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: null })); }
+        if (nt === 'none') {
+          R.bcRef.current?.postMessage({ type: 'POINTER', pos: null }); R.wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: null }));
+          R.bcRef.current?.postMessage({ type: 'MEASURE', a: null, b: null }); R.wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: null, b: null }));
+        }
         return nt;
       });
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undoStroke, skipBossIntro, onDeleteSelection]);
+  }, [undoStroke, skipBossIntro, onDeleteSelection, setAreaSelectMode]);
 }
