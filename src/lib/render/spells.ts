@@ -664,14 +664,14 @@ export function drawSpellSleep(ctx: CanvasRenderingContext2D, pts: Point[], elap
   ctx.globalAlpha = 1; ctx.restore();
 }
 
-// ── Grease — dark iridescent slick ──────────────────────────────────────────
+// ── Grease — viscous green slime, contained to the real AoE oval ────────────
 
 export function drawSpellGrease(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number, seed: number): void {
   const center = pts[pts.length - 1]; if (!center) return;
   ctx.save();
   const data = AREA_SPELL_DATA['grease'];
   const R = ftToWorld(data.aoeRadiusFt, gridSize);
-  const SQ = 0.58; // vertical squash — puddle in perspective
+  const SQ = 0.55; // vertical squash — same oval as the placement preview
   const tN = performance.now() / 1000;
   const APPEAR = dur * 0.18;
   const spread = elapsed < APPEAR ? easeOutCubic(elapsed / APPEAR) : 1;
@@ -680,58 +680,62 @@ export function drawSpellGrease(ctx: CanvasRenderingContext2D, pts: Point[], ela
 
   // Irregular blob outline from seeded harmonics — drawn in unsquashed space and
   // scaled vertically, so the radial gradients match the puddle's perspective.
+  // Base 0.92R with small harmonics (max ≈ 1.04R) keeps the slime inside the AoE;
+  // the phases drift slowly so the edge undulates like something thick and alive.
   const ph1 = rnd() * Math.PI * 2, ph2 = rnd() * Math.PI * 2, ph3 = rnd() * Math.PI * 2;
-  const a1 = 0.1 + rnd() * 0.08, a2 = 0.05 + rnd() * 0.05, a3 = 0.03 + rnd() * 0.04;
+  const a1 = 0.05 + rnd() * 0.04, a2 = 0.025 + rnd() * 0.025, a3 = 0.015 + rnd() * 0.02;
   ctx.translate(center.x, center.y); ctx.scale(1, SQ);
   const blob = (rx: number) => {
     ctx.beginPath();
     for (let i = 0; i <= 30; i++) {
       const th = (i / 30) * Math.PI * 2;
-      const w = 1 + a1 * Math.sin(3 * th + ph1) + a2 * Math.sin(5 * th + ph2) + a3 * Math.sin(8 * th + ph3);
+      const w = 1 + a1 * Math.sin(3 * th + ph1 + tN * 0.3) + a2 * Math.sin(5 * th + ph2 - tN * 0.22) + a3 * Math.sin(8 * th + ph3 + tN * 0.4);
       i === 0 ? ctx.moveTo(Math.cos(th) * rx * w, Math.sin(th) * rx * w) : ctx.lineTo(Math.cos(th) * rx * w, Math.sin(th) * rx * w);
     }
     ctx.closePath();
   };
-  // Dark oily film — translucent, edge fading to nothing so the floor reads underneath
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.3 * spread);
-  g.addColorStop(0, `rgba(24,20,10,${0.55 * alpha})`);
-  g.addColorStop(0.55, `rgba(32,27,14,${0.48 * alpha})`);
-  g.addColorStop(0.82, `rgba(24,19,10,${0.3 * alpha})`);
-  g.addColorStop(1, 'rgba(18,14,8,0)');
-  ctx.fillStyle = g; blob(R * spread); ctx.fill();
-  // Splatter droplets
-  for (let i = 0; i < 6; i++) {
-    const a = rnd() * Math.PI * 2, d = R * (1.02 + rnd() * 0.28) * spread, s = R * (0.05 + rnd() * 0.07);
-    ctx.globalAlpha = 0.4 * alpha; ctx.fillStyle = 'rgb(24,20,11)';
+  const BASE = R * 0.92 * spread;
+  // Mucus film — translucent snot green, darker towards the edge
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * spread);
+  g.addColorStop(0, `rgba(126,158,32,${0.5 * alpha})`);
+  g.addColorStop(0.55, `rgba(100,132,24,${0.5 * alpha})`);
+  g.addColorStop(0.85, `rgba(72,100,16,${0.44 * alpha})`);
+  g.addColorStop(1, `rgba(52,76,12,${0.2 * alpha})`);
+  ctx.fillStyle = g; blob(BASE); ctx.fill();
+  // Slightly darker sticky border
+  ctx.globalAlpha = 0.35 * alpha; ctx.strokeStyle = 'rgb(58,82,12)'; ctx.lineWidth = 2.5 / sc; ctx.lineJoin = 'round';
+  blob(BASE); ctx.stroke();
+  // Small droplets hugging the edge (inside the AoE)
+  for (let i = 0; i < 5; i++) {
+    const a = rnd() * Math.PI * 2, d = R * (0.9 + rnd() * 0.1) * spread, s = R * (0.03 + rnd() * 0.04);
+    ctx.globalAlpha = 0.45 * alpha; ctx.fillStyle = 'rgb(96,128,24)';
     ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, s, s, 0, 0, Math.PI * 2); ctx.fill();
   }
-  // Iridescent sheen sliding across the surface
+  // Wet sheen sliding across the surface — yellow-green slime gloss
   ctx.globalCompositeOperation = 'lighter';
-  const sheens: [string, number][] = [['110,220,150', 0.22], ['160,130,235', 0.18], ['225,205,130', 0.14]];
+  const sheens: [string, number][] = [['190,230,90', 0.18], ['150,205,50', 0.14], ['225,245,150', 0.1]];
   sheens.forEach(([col, sa], i) => {
     const a = tN * (0.12 + i * 0.05) + i * 2.3;
-    const d = R * 0.4;
+    const d = R * 0.35;
     const sx = Math.cos(a) * d, sy = Math.sin(a) * d;
-    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 0.55);
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 0.5);
     sg.addColorStop(0, `rgba(${col},${sa * alpha})`);
     sg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = sg;
-    ctx.save(); blob(R * spread); ctx.clip();
-    ctx.fillRect(-R * 1.4, -R * 1.4, R * 2.8, R * 2.8);
+    ctx.save(); blob(BASE); ctx.clip();
+    ctx.fillRect(-R * 1.2, -R * 1.2, R * 2.4, R * 2.4);
     ctx.restore();
   });
   // Wet specular rim along the top edge
   ctx.globalAlpha = 0.3 * alpha * (0.75 + 0.25 * Math.sin(tN * 1.1));
-  ctx.strokeStyle = '#cfe3d8'; ctx.lineWidth = 3.5 / sc; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.8 * spread, Math.PI * 1.12, Math.PI * 1.75); ctx.stroke();
-  ctx.globalAlpha = 0.18 * alpha;
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.85 * spread, Math.PI * 0.18, Math.PI * 0.6); ctx.stroke();
-  // Glistening highlights
+  ctx.strokeStyle = '#e9f7c4'; ctx.lineWidth = 3 / sc; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(0, 0, BASE * 0.85, Math.PI * 1.12, Math.PI * 1.75); ctx.stroke();
+  // Glistening slime bubbles
   for (let i = 0; i < 5; i++) {
-    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * R * 0.7, tw0 = rnd() * Math.PI * 2;
+    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * BASE * 0.75, tw0 = rnd() * Math.PI * 2;
     const tw = Math.pow(Math.max(0, Math.sin(tN * 2.2 + tw0)), 10);
     if (tw < 0.03) continue;
-    ctx.globalAlpha = 0.7 * tw * alpha; ctx.fillStyle = '#fff8d8';
+    ctx.globalAlpha = 0.7 * tw * alpha; ctx.fillStyle = '#f2ffd0';
     ctx.beginPath();
     ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, 3 / sc, 1.6 / sc, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -816,7 +820,14 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
 
 // ── Main render ──────────────────────────────────────────────────────────────
 
-export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+/**
+ * Two-pass rendering: 'ground' draws area spells (sleep, grease — floor effects,
+ * called before the token phases so tokens stand on top of them) and 'air' draws
+ * everything else (projectiles, bolts, cones — called after the tokens so they
+ * are never hidden underneath). Expiry bookkeeping is idempotent and runs on
+ * whichever pass observes a change.
+ */
+export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, layer: 'ground' | 'air' = 'air'): void {
   const { rActiveSpells, setActiveSpells, sc, rGridSize, rSpellPreview } = fc;
   const now = performance.now();
   const alive: Spell[] = [];
@@ -827,6 +838,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): v
     const isArea = AREA_SPELL_TYPES.has(sp.type);
     if (elapsed > dur && !isArea) continue;  // non-area spells expire
     alive.push(sp);
+    if (isArea !== (layer === 'ground')) continue;  // each spell draws in its own pass
     const renderElapsed = isArea ? Math.min(elapsed, dur * 0.5) : elapsed;  // area spells: clamp to full-alpha state
     const seed = hash32(sp.id);
     if      (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
@@ -842,5 +854,5 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext): v
     rActiveSpells.current = alive; setActiveSpells(alive);
     pruneSpellFx(new Set(alive.map(sp => sp.id)));
   }
-  if (rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize);
+  if (layer === 'air' && rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize);
 }

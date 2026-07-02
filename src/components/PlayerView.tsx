@@ -767,7 +767,7 @@ export function PlayerView() {
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
       _advStroke(fc);
-      renderSpells(ctx, fc);
+      renderSpells(ctx, fc, 'ground');
 
       const oc = drawCanvasRef.current;
       if (oc) { ctx.globalAlpha = 0.92; ctx.drawImage(oc, 0, 0); ctx.globalAlpha = 1; }
@@ -787,6 +787,7 @@ export function PlayerView() {
       renderEnemyTokens(ctx, fc);
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
+      renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
 
       ctx.restore();
 

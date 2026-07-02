@@ -139,7 +139,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
       advanceStrokeAnim(fc);
-      renderSpells(ctx, fc);
+      renderSpells(ctx, fc, 'ground');
 
       const oc2 = R.drawCanvasRef.current;
       if (oc2) { ctx.globalAlpha = 0.92; ctx.drawImage(oc2, 0, 0); ctx.globalAlpha = 1; }
@@ -164,6 +164,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderEnemyTokens(ctx, fc);
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
+      renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
       ctx.restore();
 
       // Grid DM alpha — also surfaces while measuring (tool 4) so the DM has a grid

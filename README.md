@@ -26,6 +26,10 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.68
+- **Les màgies de projectil/con es rendereixen per sobre dels tokens**: bola de foc, llamp, raig màgic, míssil màgic, riallada i mans ardents ja no queden tapades pels tokens (nou passi `air` després de les fases de tokens, al DM i al jugador). Les màgies d'àrea (dormir, greix) es queden a terra, sota els tokens, com a efectes de sòl.
+- **Redisseny del greix**: contingut dins del radi real de l'àrea (abans esquitxava molt més enllà de l'oval), color de moc verd viscós en lloc de greix fosc de cotxe, vora que ondula lentament, brillantors humides i gotes petites a la vora.
+
 ### v3.67
 - **Redisseny complet de les animacions de màgies** (`src/lib/render/spells.ts`): blending additiu, gradients radials i partícules deterministes (seed per llançament) a tots els efectes.
   - **Bola de foc**: cometa amb cua de flames i fum + explosió multi-fase (flaix, bola de foc turbulenta, ona expansiva, brases voladores i fum) escalada al grid (~2,6 caselles de radi).
