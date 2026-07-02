@@ -310,7 +310,9 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `CLEAR_DRAW` | DM→Jugador | Netejar canvas de dibuix |
 | `UNDO_DRAW` | DM→Jugador | Desfer + reapplicar historial |
 | `POINTER` | DM→Jugador | Posició del cursor DM |
+| `MEASURE` | DM→Jugador | Punts A/B de la regla de mesura |
 | `SPELL` | DM→Jugador | Inici d'animació de spell |
+| `DELETE_SPELL` | DM→Jugador | Eliminar un spell d'àrea actiu |
 | `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal |
 | `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
 | `EXPOSITOR_SHOW/HIDE/SYNC` | DM→Jugador | Expositor d'imatge/vídeo (veure feature) |
@@ -318,12 +320,15 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `TEXTREVEAL_SYNC` | DM→Jugador | Front de revelació (`pos`) streamejat a ~30fps |
 | `TEXTREVEAL_HIDE` | DM→Jugador | Amagar revelador de text |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
+| `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS) |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 
+**Dieta del `STATE`** (`_broadcastState` a `useDMActions.ts`): els camps pesats (`players`, `conditions`, `defeated`, `paintedZones`, `tokenSizeOverride`, `libEnemies`, `psdEnemyOverrides` — poden portar imatges base64) només s'inclouen al missatge quan la seva **referència** ha canviat des de l'últim enviament (`lastSentHeavyRef`). Per això és crític que tota mutació d'aquests valors creï un objecte/array **nou** (mai mutar in place) i que el jugador els tracti com a camps opcionals. Els broadcasts de pan/zoom (compartit i privat) i l'animació de retorn de vista privada van throttled a ~20Hz amb enviament final garantit — el jugador suavitza amb LERP, així que es veu fluid igualment.
+
 **Quan s'afegeix un nou estat sincronitzat**, actualitzar en 3 llocs:
 1. `BCStateMessage` o `BCStructMessage` a `types/index.ts`
-2. `_broadcastState` a `useDMActions.ts` → missatge `STATE`
+2. `_broadcastState` a `useDMActions.ts` → missatge `STATE` (si és un camp pesat, afegir-lo a `heavy` i a `_syncHeavySent`)
 3. `_sendFullState` → missatge `STRUCT` + handler al jugador
 
 ---

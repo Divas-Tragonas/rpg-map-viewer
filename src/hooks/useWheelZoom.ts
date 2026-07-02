@@ -5,6 +5,17 @@ import type { DMRefs } from './useDMRefs';
 export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPrivateActive: (v: boolean) => void, _broadcastState: (extra?: Record<string, unknown>) => void) {
   useEffect(() => {
     const canvas = R.canvasRef.current; if (!canvas) return;
+    // Un gest de roda dispara desenes d'events seguits; broadcastegem a ~20Hz amb un
+    // enviament final (trailing) garantit perquè el jugador acabi exactament on el DM.
+    // El jugador ja suavitza zoom i pan amb LERP, així que 20Hz es veu igual de fluid.
+    let lastBcast = 0;
+    let trailing: ReturnType<typeof setTimeout> | null = null;
+    const throttledBroadcast = () => {
+      const now = Date.now();
+      if (trailing) { clearTimeout(trailing); trailing = null; }
+      if (now - lastBcast > 48) { lastBcast = now; _broadcastState({}); }
+      else trailing = setTimeout(() => { trailing = null; lastBcast = Date.now(); _broadcastState({}); }, 60);
+    };
     const handler = (e: WheelEvent) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
@@ -28,7 +39,7 @@ export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPriva
           y: (e.clientY - r.top - myc * scNew) - (H - mh * scNew) / 2 - R.rPanOffset.current.y,
         };
         R.dmLocalZoom.current = newPrivZoom;
-        setDmPrivateActive(true); _broadcastState({}); return;
+        setDmPrivateActive(true); throttledBroadcast(); return;
       }
 
       const newZoom = Math.min(10, Math.max(0.2, R.rZoom.current * factor));
@@ -42,9 +53,9 @@ export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPriva
         x: (e.clientX - r.left - mx * scNew) - (W - mw * scNew) / 2,
         y: (e.clientY - r.top - my * scNew) - (H - mh * scNew) / 2,
       };
-      R.rZoom.current = newZoom; setZoom(newZoom); _broadcastState({});
+      R.rZoom.current = newZoom; setZoom(newZoom); throttledBroadcast();
     };
     canvas.addEventListener('wheel', handler, { passive: false });
-    return () => canvas.removeEventListener('wheel', handler);
+    return () => { canvas.removeEventListener('wheel', handler); if (trailing) clearTimeout(trailing); };
   }, [setZoom, setDmPrivateActive, _broadcastState]);
 }

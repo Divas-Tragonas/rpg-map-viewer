@@ -3,6 +3,7 @@ import React from 'react';
 import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon } from '@/components/icons';
 import { C, PALETTE } from '@/constants';
 import type { DrawTool, PaintedZone } from '@/types';
+import type { SyncSocket } from '@/lib/ws';
 
 interface Props {
   drawTool: DrawTool;
@@ -14,6 +15,7 @@ interface Props {
   onClearDraw: () => void;
   onClearPaintedZones: () => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
+  wsRef: React.MutableRefObject<SyncSocket | null>;
 }
 
 const TOOLS: [DrawTool, string, React.ReactNode][] = [
@@ -29,7 +31,7 @@ const btnBase: React.CSSProperties = {
   borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer',
 };
 
-export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef }: Props) {
+export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef }: Props) {
   const showFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer';
 
   const selectTool = (t: DrawTool) => onSetDrawTool(dt => {
@@ -37,6 +39,8 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
     if (nt === 'none' && dt === 'pointer') {
       bcRef.current?.postMessage({ type: 'POINTER', pos: null });
       bcRef.current?.postMessage({ type: 'MEASURE', a: null, b: null });
+      wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: null }));
+      wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: null, b: null }));
     }
     return nt;
   });

@@ -1,5 +1,5 @@
 'use client';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
 
@@ -39,8 +39,7 @@ function getTokenPos(R: DMRefs, id: number | string): { x: number; y: number } |
   return null;
 }
 
-function mapCoords(e: React.MouseEvent | MouseEvent, canvas: HTMLCanvasElement, media: HTMLImageElement | HTMLVideoElement | null, rZoom: { current: number }, rPanOffset: { current: { x: number; y: number } }, dmLocalPan: { current: { x: number; y: number } }, dmLocalZoom: { current: number }) {
-  const r = canvas.getBoundingClientRect();
+function mapCoords(e: React.MouseEvent | MouseEvent, r: DOMRect, media: HTMLImageElement | HTMLVideoElement | null, rZoom: { current: number }, rPanOffset: { current: { x: number; y: number } }, dmLocalPan: { current: { x: number; y: number } }, dmLocalZoom: { current: number }) {
   const W = r.width, H = r.height;
   let mw = 1920, mh = 1080;
   if (media?.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth) { mw = (media as HTMLImageElement).naturalWidth; mh = (media as HTMLImageElement).naturalHeight; }
@@ -52,9 +51,20 @@ function mapCoords(e: React.MouseEvent | MouseEvent, canvas: HTMLCanvasElement, 
 }
 
 export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastState: BroadcastFn) {
-  const mc = useCallback((e: React.MouseEvent | MouseEvent) => {
-    return mapCoords(e, R.canvasRef.current!, R.mediaRef.current, R.rZoom, R.rPanOffset, R.dmLocalPan, R.dmLocalZoom);
+  // getBoundingClientRect pot forçar un reflow i es cridava a cada mousemove; el rect del
+  // canvas només canvia quan canvia el layout, així que es cacheja amb un refresc curt.
+  const rectCacheRef = useRef<{ rect: DOMRect; t: number } | null>(null);
+  const getCanvasRect = useCallback(() => {
+    const now = performance.now();
+    if (!rectCacheRef.current || now - rectCacheRef.current.t > 400) {
+      rectCacheRef.current = { rect: R.canvasRef.current!.getBoundingClientRect(), t: now };
+    }
+    return rectCacheRef.current.rect;
   }, []);
+
+  const mc = useCallback((e: React.MouseEvent | MouseEvent) => {
+    return mapCoords(e, getCanvasRect(), R.mediaRef.current, R.rZoom, R.rPanOffset, R.dmLocalPan, R.dmLocalZoom);
+  }, [getCanvasRect]);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1) {
@@ -276,7 +286,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     // Update screen-space cursor even during pan
     if (R.rDrawTool.current === 'pen' || R.rDrawTool.current === 'eraser' || R.rDrawTool.current === 'shape') {
-      const rect0 = R.canvasRef.current!.getBoundingClientRect();
+      const rect0 = getCanvasRect();
       R.rCursorScreenPos.current = { x: e.clientX - rect0.left, y: e.clientY - rect0.top };
     }
     if (R.panDragRef.current) {
@@ -286,7 +296,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.dmLocalPan.current = { x: nx, y: ny }; S.setDmPrivateActive(true);
         const now = Date.now();
         if (now - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now; _broadcastState({}); }
-      } else { R.rPanOffset.current = { x: nx, y: ny }; _broadcastState({}); }
+      } else {
+        R.rPanOffset.current = { x: nx, y: ny };
+        // Mateix throttle que el pan privat: el jugador suavitza el pan amb LERP, així que
+        // ~20Hz és fluid i evitem serialitzar l'estat sencer a cada mousemove. L'estat
+        // final exacte s'envia sempre al mouseup.
+        const now = Date.now();
+        if (now - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now; _broadcastState({}); }
+      }
       return;
     }
 
@@ -345,7 +362,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
 
     if (tool === 'pen' || tool === 'eraser' || tool === 'shape') {
-      const rect2 = R.canvasRef.current!.getBoundingClientRect();
+      const rect2 = getCanvasRect();
       R.rCursorScreenPos.current = { x: e.clientX - rect2.left, y: e.clientY - rect2.top };
     }
 
@@ -455,23 +472,25 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (Math.hypot(mx - pd.mx, my - pd.my) > 3 / R.rZoom.current) R.pendingDeselectRef.current = null;
     }
     const { id, ox, oy } = R.dragRef.current;
-    let np = { x: mx - ox, y: my - oy };
-    if (R.rGridSnap.current && R.rGridSize.current > 0) {
+    // Snap aplicat a cada token individualment (l'àncora i tots els membres del grup);
+    // abans només snapava l'àncora i la resta del grup quedava desalineada de la graella.
+    const snapTokenPos = (p: { x: number; y: number }, tid: number | string) => {
+      if (!R.rGridSnap.current || R.rGridSize.current <= 0) return p;
       const gs = R.rGridSize.current;
       const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
       const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
       const snapCC = (v: number, origin: number) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
-      if (String(id).startsWith('pl_')) {
-        const Rv = R.rTokenSizeOverride.current[id] ?? 22;
-        np = { x: snapCC(np.x + Rv, gox) - Rv, y: snapCC(np.y + Rv, goy) - Rv };
-      } else {
-        np = { x: snapCC(np.x, gox), y: snapCC(np.y, goy) };
+      if (String(tid).startsWith('pl_')) {
+        const Rv = R.rTokenSizeOverride.current[tid] ?? 22;
+        return { x: snapCC(p.x + Rv, gox) - Rv, y: snapCC(p.y + Rv, goy) - Rv };
       }
-    }
+      return { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
+    };
+    const np = snapTokenPos({ x: mx - ox, y: my - oy }, id);
     const nextPos = { ...R.rPos.current, [id]: np };
     if (R.groupDragRef.current) {
       for (const [sid, off] of R.groupDragRef.current) {
-        nextPos[sid] = { x: mx - off.ox, y: my - off.oy };
+        nextPos[sid] = snapTokenPos({ x: mx - off.ox, y: my - off.oy }, sid);
       }
     }
     R.rPos.current = nextPos;
