@@ -26,6 +26,20 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.67
+- **Redisseny complet de les animacions de màgies** (`src/lib/render/spells.ts`): blending additiu, gradients radials i partícules deterministes (seed per llançament) a tots els efectes.
+  - **Bola de foc**: cometa amb cua de flames i fum + explosió multi-fase (flaix, bola de foc turbulenta, ona expansiva, brases voladores i fum) escalada al grid (~2,6 caselles de radi).
+  - **Llamp**: geometria fractal nova a cada re-strike (~110ms) amb branques secundàries, glow blau-blanc de 3 capes i espurnes a l'impacte.
+  - **Raig màgic**: amplada pulsant, polsos d'energia recorrent el feix, espurnes en espiral i glow de càrrega a l'origen.
+  - **Míssil màgic**: ara són 3 projectils escalonats amb trajectòries corbes i impactes independents (com el conjur de D&D).
+  - **Riallada horrible**: raig rosa ondulant i esclat amb crits "HA!" flotants.
+  - **Mans ardents**: con sense vores dures (falques niuades) ple de llengües de flama que avancen amb flicker, nucli blanc a les mans i fum.
+  - **Son**: cúpula de boira onírica amb volves orbitants, estrelles que parpellegen i "Z" tipogràfiques que s'eleven.
+  - **Greix**: bassal fosc translúcid de contorn irregular amb reflexos iridescents en moviment, brillantors i esquitxos.
+- **Textures de zones màgiques millorades** (gel i elèctric, les més fluixes):
+  - **Gel**: blau glacial profund amb facetes cristal·lines (Worley), fractures brillants entre cristalls, vetes fines i espurneig fred.
+  - **Elèctric**: base fosca de tempesta amb filaments d'arc fins blau-blanc que s'arrosseguen i parpellegen, i flaixos que il·luminen tota la zona.
+
 ### v3.66
 - **Grid integrat a la barra flotant**: la configuració del grid (activar/calibrar cel·la, snap, mida automàtica de tokens, gruix de línia) passa de la pestanya lateral "Eines" a un botó nou dins la barra d'eines flotant. Clicar-lo obre un flyout amb tots els controls, seguint el mateix disseny que la resta d'eines. La pestanya "Eines" de la finestra lateral desapareix (només quedaven aquests controls).
 
