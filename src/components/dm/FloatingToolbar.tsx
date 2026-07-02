@@ -45,9 +45,13 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
     return nt;
   });
 
+  // pointerEvents 'none' al contenidor perquè el seu box (columna + gap + espai buit
+  // sobre el flyout) no capturi els clics/traços del canvas de sota; només els dos
+  // panells visibles reactiven pointerEvents. Sense això la goma/pinzell no dibuixen
+  // a tota la cantonada inferior esquerra (hitbox invisible enorme).
   return (
-    <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 10, display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+    <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 10, display: 'flex', alignItems: 'flex-end', gap: 8, pointerEvents: 'none' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', pointerEvents: 'auto' }}>
         {TOOLS.map(([t, label, icon]) => {
           const isPtr = t === 'pointer';
           const isNone = t === 'none';
@@ -78,7 +82,7 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
       </div>
 
       {showFlyout && (
-        <div style={{ padding: '8px 10px', borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150 }}>
+        <div style={{ padding: '8px 10px', borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150, pointerEvents: 'auto' }}>
           {(drawTool === 'pen' || drawTool === 'eraser') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               {PALETTE.map(c => (
