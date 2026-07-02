@@ -1,9 +1,34 @@
 'use client';
 import React from 'react';
-import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon } from '@/components/icons';
+import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon } from '@/components/icons';
 import { C, PALETTE } from '@/constants';
-import type { DrawTool, PaintedZone } from '@/types';
+import { GridPanel } from '@/components/dm/GridPanel';
+import type { DrawTool, PaintedZone, TokenSizeMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
+
+interface GridProps {
+  gridVisible: boolean; gridSize: number; gridSnap: boolean;
+  gridAutoSize: boolean; gridLineWidth: number; gridCalibrating: boolean;
+  rGridVisible: React.MutableRefObject<boolean>;
+  rGridSize: React.MutableRefObject<number>;
+  rGridSnap: React.MutableRefObject<boolean>;
+  rGridAutoSize: React.MutableRefObject<boolean>;
+  rGridLineWidth: React.MutableRefObject<number>;
+  rGridCalibrating: React.MutableRefObject<boolean>;
+  rTokenSizeOverride: React.MutableRefObject<TokenSizeMap>;
+  setGridVisible: (v: boolean) => void;
+  setGridSize: (v: number) => void;
+  setGridSnap: (v: boolean) => void;
+  setGridAutoSize: (v: boolean) => void;
+  setGridLineWidth: (v: number) => void;
+  setGridCalibrating: (v: boolean) => void;
+  setTokenSizeOverride: (v: TokenSizeMap) => void;
+  onSnapAll: () => void;
+  onSizeAll: () => void;
+  onBroadcast: () => void;
+  gridCalibRef: React.MutableRefObject<{ sx: number; sy: number } | null>;
+  gridCalibCurrRef: React.MutableRefObject<{ cx: number; cy: number } | null>;
+}
 
 interface Props {
   drawTool: DrawTool;
@@ -16,6 +41,7 @@ interface Props {
   onClearPaintedZones: () => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<SyncSocket | null>;
+  grid: GridProps;
 }
 
 const TOOLS: [DrawTool, string, React.ReactNode][] = [
@@ -31,8 +57,9 @@ const btnBase: React.CSSProperties = {
   borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer',
 };
 
-export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef }: Props) {
-  const showFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer';
+export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef, grid }: Props) {
+  const [gridOpen, setGridOpen] = React.useState(false);
+  const showDrawFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer';
 
   const selectTool = (t: DrawTool) => onSetDrawTool(dt => {
     const nt = dt === t ? 'none' : t;
@@ -79,9 +106,19 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
             ✨{paintedZones.length}
           </button>
         )}
+        <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />
+        <button onClick={() => setGridOpen(o => !o)} title="Grid (configuració)"
+          style={{ ...btnBase, border: `1px solid ${gridOpen || grid.gridVisible ? C.accent : C.border}`, background: gridOpen || grid.gridVisible ? `${C.accent}22` : 'transparent', color: gridOpen || grid.gridVisible ? C.accent : C.dim }}>
+          <GridIcon size={15} />
+        </button>
       </div>
 
-      {showFlyout && (
+      {(showDrawFlyout || gridOpen) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {gridOpen && (
+            <GridPanel {...grid} />
+          )}
+          {showDrawFlyout && (
         <div style={{ padding: '8px 10px', borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150, pointerEvents: 'auto' }}>
           {(drawTool === 'pen' || drawTool === 'eraser') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -98,6 +135,8 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
             <div style={{ fontSize: 9.5, color: C.dim, lineHeight: 1.4, maxWidth: 220 }}>
               📏 Clica per marcar l&apos;inici, torna a clicar per fixar el final (regla en peus) i un tercer clic l&apos;elimina.
             </div>
+          )}
+        </div>
           )}
         </div>
       )}
