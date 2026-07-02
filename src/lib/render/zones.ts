@@ -275,7 +275,7 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
 }
 
 export function renderShapePreview(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { isShapeDrawingRef, shapePointsRef } = fc;
+  const { isShapeDrawingRef, shapePointsRef, sc, rGridSize } = fc;
   if (!isShapeDrawingRef.current) return;
   const pts = shapePointsRef.current;
   if (pts.length < 2) return;
@@ -286,5 +286,19 @@ export function renderShapePreview(ctx: CanvasRenderingContext2D, fc: FrameConte
   ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = 'rgba(255,210,0,0.6)';
   ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, 5, 0, Math.PI * 2); ctx.fill();
+
+  // Live "shortest distance" readout while casting: start→end diagonal, not path length.
+  const first = pts[0], last = pts[pts.length - 1];
+  const gs = rGridSize.current > 0 ? rGridSize.current : 70;
+  const ft = Math.round((Math.hypot(last.x - first.x, last.y - first.y) / gs) * 5);
+  const mx = (first.x + last.x) / 2, my = (first.y + last.y) / 2;
+  ctx.font = `bold ${12 / sc}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const text = `📏 ${ft}ft`;
+  const tw = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(10,13,18,0.82)';
+  ctx.fillRect(mx - tw / 2 - 5 / sc, my - 17 / sc, tw + 10 / sc, 14 / sc);
+  ctx.fillStyle = '#ffd200';
+  ctx.fillText(text, mx, my - 10 / sc);
+  ctx.textBaseline = 'alphabetic';
   ctx.restore();
 }

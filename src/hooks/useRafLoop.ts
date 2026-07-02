@@ -119,7 +119,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rGridOriginX: R.rGridOriginX, rGridOriginY: R.rGridOriginY,
         rGridCalibrating: R.rGridCalibrating, rGridDmAlpha: R.rGridDmAlpha,
         gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef, gridCalibHoverRef: R.gridCalibHoverRef,
-        rPointerPos: R.rPointerPos, rMeasure: R.rMeasure, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected,
+        rPointerPos: R.rPointerPos, rMeasure: R.rMeasure, rDrawTool: R.rDrawTool, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected,
         rLibEnemies: R.rLibEnemies,
         rPsdEnemyOverrides: R.rPsdEnemyOverrides,
         rPsdEnemyImgCache: R.rPsdEnemyImgCache,
@@ -162,10 +162,12 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderPlayerTokens(ctx, fc);
       ctx.restore();
 
-      // Grid DM alpha
-      if (R.rGridVisible.current) {
+      // Grid DM alpha — also surfaces while measuring (tool 4) so the DM has a grid
+      // reference, even if the grid isn't toggled on ("Activar") for players.
+      {
         const isDragging = !!R.dragRef.current;
-        const tgt = (isDragging || R.rGridCalibrating.current) ? 1 : 0;
+        const measuring = R.rDrawTool.current === 'pointer';
+        const tgt = (R.rGridVisible.current && (isDragging || R.rGridCalibrating.current)) || measuring ? 1 : 0;
         R.rGridDmAlpha.current += (tgt - R.rGridDmAlpha.current) * 0.25;
         if (Math.abs(tgt - R.rGridDmAlpha.current) < 0.004) R.rGridDmAlpha.current = tgt;
       }
