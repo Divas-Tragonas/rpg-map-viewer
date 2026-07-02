@@ -47,10 +47,14 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         R.dmLocalPan.current.x *= (1 - RL);
         R.dmLocalPan.current.y *= (1 - RL);
         R.dmLocalZoom.current += (1 - R.dmLocalZoom.current) * RL;
-        broadcastDmPreview();
+        // Throttle a ~20Hz: broadcastejar l'estat sencer a 60Hz durant l'animació era el
+        // cas més car de tots. L'estat final exacte s'envia sempre en acabar.
+        const nowB = Date.now();
+        if (nowB - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = nowB; broadcastDmPreview(); }
         if (Math.abs(R.dmLocalPan.current.x) < 0.4 && Math.abs(R.dmLocalPan.current.y) < 0.4 && Math.abs(R.dmLocalZoom.current - 1) < 0.002) {
           R.dmLocalPan.current = { x: 0, y: 0 }; R.dmLocalZoom.current = 1;
           R.dmPrivateReturnAnim.current = false; setDmPrivateActive(false);
+          broadcastDmPreview();
         }
       }
 

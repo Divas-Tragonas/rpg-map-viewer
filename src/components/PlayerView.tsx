@@ -77,6 +77,9 @@ export function PlayerView() {
   const rContextMenu      = useRef(null);
   const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
   const rPsdEnemyImgCache  = useRef<Record<number, HTMLCanvasElement>>({});
+  // Src (base64) ja descodificat per id: evita re-descodificar totes les imatges d'override
+  // cada vegada que arriba un STATE/STRUCT amb psdEnemyOverrides sense canvis reals.
+  const rPsdEnemyImgSrc    = useRef<Record<number, string>>({});
   const txCache           = useRef<Record<string, HTMLCanvasElement>>({});
 
   const rDMPreviewActive = useRef(false);
@@ -108,6 +111,10 @@ export function PlayerView() {
   const [expositorFading, setExpositorFading] = useState(false);
   const [expositorSrc, setExpositorSrc] = useState<string | null>(null);
   const [expositorType, setExpositorType] = useState<'image' | 'video' | null>(null);
+  // Mirall en ref de `expositorVisible`: el handler del BC es crea una sola vegada, així
+  // que llegir l'estat directament hi quedava congelat a `false` i el crossfade entre dues
+  // imatges consecutives no s'executava mai (mateix patró que textRevealVisibleRef).
+  const expositorVisibleRef = useRef(false);
   const expositorObjectUrl = useRef<string | null>(null);
   const expositorInnerRef = useRef<HTMLDivElement | null>(null);
   const expTgt = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
@@ -395,6 +402,8 @@ export function PlayerView() {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
             if (!ov.imageData) { res(); return; }
+            if (rPsdEnemyImgSrc.current[Number(id)] === ov.imageData) { res(); return; }
+            rPsdEnemyImgSrc.current[Number(id)] = ov.imageData;
             const img = new Image();
             img.onload = () => {
               const oc = document.createElement('canvas');
@@ -485,6 +494,8 @@ export function PlayerView() {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           (Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).forEach(([id, ov]) => {
             if (!ov.imageData) return;
+            if (rPsdEnemyImgSrc.current[Number(id)] === ov.imageData) return;
+            rPsdEnemyImgSrc.current[Number(id)] = ov.imageData;
             const img = new Image();
             img.onload = () => {
               const oc = document.createElement('canvas');
@@ -549,15 +560,17 @@ export function PlayerView() {
           setExpositorSrc(u);
           setExpositorType(newType);
           setExpositorFading(false);
+          expositorVisibleRef.current = true;
           setExpositorVisible(true);
         };
-        if (expositorVisible) {
+        if (expositorVisibleRef.current) {
           setExpositorFading(true);
           setTimeout(() => doShow(url), 350);
         } else {
           doShow(url);
         }
       } else if (msg.type === 'EXPOSITOR_HIDE') {
+        expositorVisibleRef.current = false;
         setExpositorVisible(false);
       } else if (msg.type === 'EXPOSITOR_SYNC') {
         expTgt.current = {
@@ -616,12 +629,17 @@ export function PlayerView() {
           const blob = new Blob([ev.data], { type: expMeta.mimeType });
           const url = URL.createObjectURL(blob);
           const newType = expMeta.mimeType.startsWith('video/') ? 'video' : 'image';
-          if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
-          expositorObjectUrl.current = url;
-          setExpositorSrc(url);
-          setExpositorType(newType);
-          setExpositorFading(false);
-          setExpositorVisible(true);
+          const doShow = () => {
+            if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
+            expositorObjectUrl.current = url;
+            setExpositorSrc(url);
+            setExpositorType(newType);
+            setExpositorFading(false);
+            expositorVisibleRef.current = true;
+            setExpositorVisible(true);
+          };
+          if (expositorVisibleRef.current) { setExpositorFading(true); setTimeout(doShow, 350); }
+          else doShow();
         }
         return;
       }
@@ -830,6 +848,7 @@ export function PlayerView() {
     rGridSnap, rGridSize, rGridOriginX, rGridOriginY,
     rSelectedToken,
     wsRef,
+    bcRef,
   );
 
   return (

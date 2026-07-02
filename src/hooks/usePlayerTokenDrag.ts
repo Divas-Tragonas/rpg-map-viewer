@@ -100,6 +100,7 @@ export function usePlayerTokenDrag(
   rGridOriginY: RefObject<number>,
   rSelectedToken: RefObject<number | string | null>,
   wsRef: RefObject<SyncSocket | null>,
+  bcRef: RefObject<BroadcastChannel | null>,
 ) {
   const dragRef = useRef<DragState | null>(null);
 
@@ -141,7 +142,11 @@ export function usePlayerTokenDrag(
     const { id } = dragRef.current;
     const pos = rPos.current[id];
     if (pos) {
-      wsRef.current?.send(JSON.stringify({ type: 'TOKEN_MOVE', id, x: pos.x, y: pos.y }));
+      // També per BroadcastChannel: en el setup de dues finestres al mateix ordinador
+      // (sense servidor WS) el moviment ha d'arribar igualment al DM.
+      const moveMsg = { type: 'TOKEN_MOVE', id, x: pos.x, y: pos.y };
+      bcRef.current?.postMessage(moveMsg);
+      wsRef.current?.send(JSON.stringify(moveMsg));
     }
     dragRef.current = null;
     rSelectedToken.current = null;

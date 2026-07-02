@@ -26,6 +26,16 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.63
+- **Dieta del missatge `STATE`**: els camps pesats (jugadors, condicions, zones màgiques, enemics de biblioteca i overrides amb imatges base64) només s'envien quan realment han canviat, en lloc de viatjar sencers a cada interacció. Els broadcasts de pan compartit, zoom de roda i l'animació de retorn de la vista privada ara van limitats a ~20Hz amb enviament final garantit (el jugador ja suavitza amb LERP, així que es veu igual de fluid). Elimina el lag en pan/zoom amb la pantalla de jugador connectada.
+- **Broadcasts que faltaven**: eliminar un jugador, eliminar una capa del PSD, reposicionar un token al seu origen, esborrar un spell d'àrea (WS) i la neteja de punter/regla en desactivar l'eina (WS) ara sí que arriben a la pantalla de jugador.
+- **Enemics derrotats (vista jugador)**: el retrat desaturat es cacheja per token; abans es creava un `<canvas>` nou i es redibuixava a cada frame per sempre.
+- **Crossfade de l'expositor arreglat**: encadenar dues imatges seguides ara fa el fosa encadenat correctament (el handler llegia un estat congelat i saltava el fade).
+- **Moviment de tokens des de la pantalla de jugador**: `TOKEN_MOVE` ara també s'envia per BroadcastChannel, així el drag del jugador arriba al DM en el setup de dues finestres al mateix ordinador (sense servidor WS). Base per a la futura pantalla tàctil.
+- **Grid snap en grups**: en arrossegar una selecció múltiple amb snap actiu, tots els membres del grup snapen a la graella (abans només l'àncora i la resta quedava desalineada).
+- **Neteja d'estat orfe**: eliminar un jugador o un enemic de biblioteca també neteja les seves condicions, estat de derrota i mida de token (abans quedaven per sempre a cada broadcast).
+- Micro-optimitzacions del render: cache del `getBoundingClientRect` als handlers de ratolí i cerca de tint de condicions sense al·locacions per frame.
+
 ### v3.62
 - **Eines flotants tipus Photoshop**: la barra de dibuix (Ploma, Goma, Màgies, Senyal, Desfer, Esborrar) surt de la finestra lateral i passa a ser una columna de botons flotants a baix a l'esquerra del canvas, apilats un sobre l'altre.
 - La paleta de color i la mida del pinzell (Ploma/Goma) i l'ajuda de la regla (Senyal) apareixen en un flyout contextual al costat de la barra quan l'eina corresponent està activa.

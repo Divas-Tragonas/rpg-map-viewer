@@ -13,6 +13,20 @@ function getTokenImg(src: string): HTMLImageElement {
   return img;
 }
 
+// Troba l'última condició amb tint sense crear arrays intermedis (s'executa per token i frame).
+function findTintCond(condIds: string[]) {
+  for (let i = condIds.length - 1; i >= 0; i--) {
+    const c = CONDITIONS_BY_ID.get(condIds[i]);
+    if (c?.tint) return c;
+  }
+  return undefined;
+}
+
+// El retrat desaturat d'un enemic derrotat només canvia mentre avança l'animació (~1s);
+// després és estàtic. Cachejar-lo evita crear un <canvas> nou i redibuixar-lo a cada
+// frame per sempre a la vista del jugador.
+const _deathCanvasCache = new Map<number | string, { canvas: HTMLCanvasElement; prog: number; img: HTMLCanvasElement | null; R: number }>();
+
 export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rLayerImages, rConditions, rDefeated,
@@ -71,19 +85,24 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     ctx.globalAlpha = enAlpha;
 
     if (isDefeated && !isDM) {
-      const deathC = document.createElement('canvas');
       const desatAlpha = Math.min(1, crossProg * 2);
       if (desatAlpha > 0) {
-        deathC.width = R * 2; deathC.height = R * 2;
-        const dc = deathC.getContext('2d')!;
-        dc.save();
-        dc.beginPath(); dc.arc(R, R, R, 0, Math.PI * 2); dc.clip();
-        if (displayImg) { dc.drawImage(displayImg, 0, 0, displayImg.width, displayImg.height, 0, 0, R * 2, R * 2); }
-        else { dc.fillStyle = '#888'; dc.fillRect(0, 0, R * 2, R * 2); }
-        dc.globalCompositeOperation = 'saturation';
-        dc.fillStyle = `rgba(0,0,0,${desatAlpha})`; dc.fillRect(0, 0, R * 2, R * 2);
-        dc.restore();
-        ctx.drawImage(deathC, ep.x - R, ep.y - R);
+        let entry = _deathCanvasCache.get(en.id);
+        if (!entry || entry.prog !== desatAlpha || entry.img !== (displayImg ?? null) || entry.R !== R) {
+          const deathC = entry?.canvas ?? document.createElement('canvas');
+          deathC.width = R * 2; deathC.height = R * 2;
+          const dc = deathC.getContext('2d')!;
+          dc.save();
+          dc.beginPath(); dc.arc(R, R, R, 0, Math.PI * 2); dc.clip();
+          if (displayImg) { dc.drawImage(displayImg, 0, 0, displayImg.width, displayImg.height, 0, 0, R * 2, R * 2); }
+          else { dc.fillStyle = '#888'; dc.fillRect(0, 0, R * 2, R * 2); }
+          dc.globalCompositeOperation = 'saturation';
+          dc.fillStyle = `rgba(0,0,0,${desatAlpha})`; dc.fillRect(0, 0, R * 2, R * 2);
+          dc.restore();
+          entry = { canvas: deathC, prog: desatAlpha, img: displayImg ?? null, R };
+          _deathCanvasCache.set(en.id, entry);
+        }
+        ctx.drawImage(entry.canvas, ep.x - R, ep.y - R);
       }
     } else {
       ctx.fillStyle = 'rgba(0,0,0,.4)';
@@ -99,7 +118,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
         ctx.fillText(displayName.slice(0, 2).toUpperCase(), ep.x, ep.y); ctx.textBaseline = 'alphabetic';
       }
 
-      const tintCond = [...enCondIds].reverse().map(id => CONDITIONS_BY_ID.get(id)).find(c => c?.tint);
+      const tintCond = findTintCond(enCondIds);
       if (tintCond) {
         ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = 0.45;
         ctx.fillStyle = tintCond.tint!;
@@ -234,7 +253,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       }
     }
 
-    const enTintCond = [...enCondIds].reverse().map(id => CONDITIONS_BY_ID.get(id)).find(c => c?.tint);
+    const enTintCond = findTintCond(enCondIds);
     ctx.globalAlpha = enAlpha;
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ep.x + 2 / sc, ep.y + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
@@ -399,7 +418,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
-    const plTintCond = [...plCondIds].reverse().map(id => CONDITIONS_BY_ID.get(id)).find(c => c?.tint);
+    const plTintCond = findTintCond(plCondIds);
     if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;

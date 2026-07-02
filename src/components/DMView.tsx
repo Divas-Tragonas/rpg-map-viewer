@@ -170,7 +170,17 @@ export function DMView() {
   useEffect(() => {
     const bc = new BroadcastChannel(BC_CHANNEL);
     R.bcRef.current = bc;
-    bc.onmessage = (e) => { if (e.data?.type === 'PLAYER_READY') _sendFullState(); };
+    bc.onmessage = (e) => {
+      const msg = e.data;
+      if (msg?.type === 'PLAYER_READY') {
+        _sendFullState();
+      } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
+        // Moviment de token fet des de la pantalla de jugador (mateix ordinador, sense WS).
+        const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
+        R.rPos.current = np;
+        setPos(np);
+      }
+    };
     return () => { bc.close(); R.bcRef.current = null; };
   }, [_sendFullState]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -753,7 +763,7 @@ export function DMView() {
           canUndo={canUndo} paintedZones={paintedZones}
           onSetDrawTool={setDrawTool} onUndo={undoStroke}
           onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
-          bcRef={R.bcRef}
+          bcRef={R.bcRef} wsRef={R.wsRef}
         />
         <button
           onClick={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
@@ -971,7 +981,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.62</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.63</div>
             </div>
           </div>
         )}
