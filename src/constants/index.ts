@@ -35,12 +35,15 @@ export const PALETTE = [
   '#a366c4', '#e08030', '#42baba', '#d4ae38', '#92a4a4',
 ];
 
+// Velocitat de moviment per defecte dels jugadors, en peus (1 casella = 5 ft)
+export const DEFAULT_SPEED_FT = 30;
+
 export const DEFAULT_PARTY = [
-  { name: 'Jugador 1', color: '#4f8fd6', hpMax: 45 },
-  { name: 'Jugador 2', color: '#e05555', hpMax: 60 },
-  { name: 'Jugador 3', color: '#52b86e', hpMax: 38 },
-  { name: 'Jugador 4', color: '#a366c4', hpMax: 52 },
-  { name: 'Jugador 5', color: '#e08030', hpMax: 42 },
+  { name: 'Jugador 1', color: '#4f8fd6', hpMax: 45, speed: 30 },
+  { name: 'Jugador 2', color: '#e05555', hpMax: 60, speed: 30 },
+  { name: 'Jugador 3', color: '#52b86e', hpMax: 38, speed: 30 },
+  { name: 'Jugador 4', color: '#a366c4', hpMax: 52, speed: 30 },
+  { name: 'Jugador 5', color: '#e08030', hpMax: 42, speed: 30 },
 ];
 
 export const ENEMY_TEMPLATES = [

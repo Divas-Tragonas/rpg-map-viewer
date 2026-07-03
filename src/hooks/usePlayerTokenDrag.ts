@@ -1,13 +1,27 @@
 'use client';
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
+import { DEFAULT_SPEED_FT } from '@/constants';
 import type { PosMap, Player, TokenSizeMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
+
+/** Regió de caselles on el jugador pot moure el token durant el drag (Chebyshev: diagonal = 1 casella = 5 ft). */
+export interface MoveRange {
+  startCol: number;
+  startRow: number;
+  maxCells: number;
+  gs: number;
+  gox: number;
+  goy: number;
+}
 
 interface DragState {
   id: string;
   ox: number;
   oy: number;
+  R: number;
+  /** null → sense límit de moviment (grid invàlid) */
+  range: MoveRange | null;
 }
 
 function getMediaDimensions(media: HTMLElement | null): { mw: number; mh: number } {
@@ -49,14 +63,17 @@ function hitTest(
   rPos: RefObject<PosMap>,
   rPlayers: RefObject<Player[]>,
   rTokenSizeOverride: RefObject<TokenSizeMap>,
-): DragState | null {
+): { id: string; ox: number; oy: number; R: number; speed: number; startX: number; startY: number } | null {
   const players = rPlayers.current;
   for (let i = players.length - 1; i >= 0; i--) {
     const pl = players[i];
     const pos = rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
     if (Math.hypot(mx - (pos.x + R), my - (pos.y + R)) <= R + slop)
-      return { id: `pl_${pl.id}`, ox: mx - pos.x, oy: my - pos.y };
+      return {
+        id: `pl_${pl.id}`, ox: mx - pos.x, oy: my - pos.y, R,
+        speed: pl.speed ?? DEFAULT_SPEED_FT, startX: pos.x, startY: pos.y,
+      };
   }
   return null;
 }
@@ -100,7 +117,21 @@ export function usePlayerTokenDrag(
     const slop = e.pointerType === 'touch' ? 16 : 4;
     const hit = hitTest(mx, my, slop, rPos, rPlayers, rTokenSizeOverride);
     if (!hit) return;
-    dragRef.current = hit;
+    // Rang de moviment en caselles a partir de la velocitat en peus del token (1 casella = 5 ft).
+    // El límit només s'aplica a la pantalla de jugador: el DM mou sense restriccions.
+    let range: MoveRange | null = null;
+    const gs = rGridSize.current;
+    if (gs > 0) {
+      const gox = ((rGridOriginX.current % gs) + gs) % gs;
+      const goy = ((rGridOriginY.current % gs) + gs) % gs;
+      range = {
+        startCol: Math.floor((hit.startX + hit.R - gox) / gs),
+        startRow: Math.floor((hit.startY + hit.R - goy) / gs),
+        maxCells: Math.max(0, Math.floor(hit.speed / 5)),
+        gs, gox, goy,
+      };
+    }
+    dragRef.current = { id: hit.id, ox: hit.ox, oy: hit.oy, R: hit.R, range };
     pointerIdRef.current = e.pointerId;
     rSelectedToken.current = hit.id;
     // Captura: el drag continua encara que el dit surti del canvas
@@ -112,8 +143,16 @@ export function usePlayerTokenDrag(
     const canvas = canvasRef.current;
     if (!canvas) return;
     const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
-    const { id, ox, oy } = dragRef.current;
-    const np = snapPos({ x: mx - ox, y: my - oy }, id);
+    const { id, ox, oy, R, range } = dragRef.current;
+    let cx = mx - ox + R, cy = my - oy + R;
+    if (range) {
+      // Clamp del centre dins la regió de caselles abastables (1px de marge perquè
+      // el snap posterior caigui a la casella del perímetre, no a la següent).
+      const { startCol, startRow, maxCells, gs, gox, goy } = range;
+      cx = Math.min(Math.max(cx, gox + (startCol - maxCells) * gs + 1), gox + (startCol + maxCells + 1) * gs - 1);
+      cy = Math.min(Math.max(cy, goy + (startRow - maxCells) * gs + 1), goy + (startRow + maxCells + 1) * gs - 1);
+    }
+    const np = snapPos({ x: cx - R, y: cy - R }, id);
     rPos.current = { ...rPos.current, [id]: np };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

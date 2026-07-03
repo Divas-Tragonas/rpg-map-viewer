@@ -5,7 +5,7 @@ import { extractLayerImages } from '@/lib/psd/extractor';
 import { buildTree, validateStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
-import { BC_CHANNEL, DEFAULT_PARTY, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
+import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride } from '@/types';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
@@ -256,7 +256,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     if (m?.tagName === 'VIDEO' && (m as HTMLVideoElement).videoWidth) { mw = (m as HTMLVideoElement).videoWidth; mh = (m as HTMLVideoElement).videoHeight; }
     const plR = rGridAutoSize.current ? Math.round(rGridSize.current * 0.45) : 22;
     const hp = Math.max(1, hpMax || 20);
-    const pl = { id: Date.now(), name: name.trim(), color, x: mw / 2 - plR, y: mh / 2 - plR, visible: true, hp, hpMax: hp };
+    const pl = { id: Date.now(), name: name.trim(), color, x: mw / 2 - plR, y: mh / 2 - plR, visible: true, hp, hpMax: hp, speed: DEFAULT_SPEED_FT };
     const ns = [...rPlayers.current, pl];
     rPlayers.current = ns; S.setPlayers(ns);
     rPos.current[`pl_${pl.id}`] = { x: pl.x, y: pl.y };
@@ -316,6 +316,12 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
+  const setPlayerSpeed = useCallback((id: number, speed: number) => {
+    const sp = Math.max(0, Math.min(995, Math.round(speed) || 0));
+    const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, speed: sp } : pl);
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
   const renamePlayer = useCallback((id: number, name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -334,7 +340,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const newPlayers = DEFAULT_PARTY.map((def, i) => ({
       id: now + i, name: def.name, color: def.color,
       x: mw / 2 - totalW / 2 + i * spacing - plR, y: mh / 2 - plR,
-      visible: true, hp: def.hpMax, hpMax: def.hpMax,
+      visible: true, hp: def.hpMax, hpMax: def.hpMax, speed: def.speed ?? DEFAULT_SPEED_FT,
     }));
     const ns = [...rPlayers.current, ...newPlayers];
     rPlayers.current = ns; S.setPlayers(ns);
@@ -696,7 +702,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,

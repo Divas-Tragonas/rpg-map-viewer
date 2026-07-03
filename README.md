@@ -26,6 +26,12 @@ npm run dev   # http://localhost:3001
 
 ## Changelog
 
+### v3.70
+- **Velocitat de moviment en peus als tokens de jugador** (`speed`, per defecte 30 ft): nou camp editable al panell de Jugadors del DM (🏃 peus, amb equivalència en caselles).
+- **Límit de moviment a la pantalla de jugador**: en arrossegar el seu token (tàctil o ratolí), el jugador només pot moure'l fins a la distància en peus del token (1 casella = 5 peus, distància Chebyshev: la diagonal compta 1 casella). El token queda clampat dins del rang.
+- **Caselles disponibles marcades en groc suau** durant el drag, amb el perímetre del rang ressaltat.
+- El DM no té cap limitació: mou els tokens la distància que calgui, com sempre.
+
 ### v3.69
 - **La pantalla de jugador només permet moure tokens de jugador**: els enemics (PSD i biblioteca) ja no es poden arrossegar des de `/player`. El DM també ignora qualsevol `TOKEN_MOVE` que no sigui d'un token `pl_*`.
 - **Moviment tàctil a mòbil/tablet**: el drag de tokens passa a pointer events amb captura de punter (funciona amb dit, stylus i ratolí), tolerància de toc més gran per al dit i el token arrossegat segueix el dit sense retard de LERP.

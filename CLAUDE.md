@@ -385,6 +385,7 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 - **Només tokens de jugador** (`pl_*`): el hit-test ignora enemics PSD i de biblioteca, i el DM també descarta qualsevol `TOKEN_MOVE` que no comenci per `pl_` (BC i WS).
 - Tolerància tàctil més gran amb el dit (`pointerType === 'touch'` → slop 16px vs 4px de ratolí). Un sol drag actiu (es guarda el `pointerId`; la resta de tocs s'ignoren).
 - En deixar anar, envia `TOKEN_MOVE` per BC **i** WS. Mentre es arrossega: el token segueix el dit sense LERP (`renderPlayerTokens` snapeja si `rSelectedToken === key`) i el handler de `STATE` del jugador conserva la posició local del token arrossegat perquè un broadcast del DM no el faci saltar enrere.
+- **Límit de moviment per velocitat** (`Player.speed`, peus; per defecte `DEFAULT_SPEED_FT = 30`): el drag des de `/player` clampa el centre del token a un rang de `floor(speed/5)` caselles (Chebyshev) al voltant de la casella d'origen del drag. Les caselles abastables es pinten en groc suau durant el drag (`renderMoveRange` a `render/grid.ts`, cridada al tick del jugador abans dels tokens). El DM edita la velocitat al `PlayersPanel` (`setPlayerSpeed`) i **no** té cap límit en moure tokens. `speed` viatja dins l'array `players` (STRUCT/STATE/sessió), sense camps de sync nous.
 
 ### Vista privada DM
 - `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats al jugador

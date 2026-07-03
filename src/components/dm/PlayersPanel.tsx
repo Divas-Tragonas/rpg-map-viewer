@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { UserPlus, X } from '@/components/icons';
-import { C, PALETTE } from '@/constants';
+import { C, PALETTE, DEFAULT_SPEED_FT } from '@/constants';
 import type { Player } from '@/types';
 
 interface Props {
@@ -13,11 +13,12 @@ interface Props {
   onRemove: (id: number) => void;
   onAdjustHp: (id: number, delta: number) => void;
   onSetHpMax: (id: number, hpMax: number) => void;
+  onSetSpeed: (id: number, speed: number) => void;
   onRename: (id: number, name: string) => void;
   onLoadParty: () => void;
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onRename, onLoadParty }: Props) {
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onSetSpeed, onRename, onLoadParty }: Props) {
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, padding: '8px 10px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
@@ -71,6 +72,13 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
                 <button onClick={() => onAdjustHp(pl.id, 1)} onContextMenu={e => { e.preventDefault(); onAdjustHp(pl.id, 10); }}
                   title="+1 HP (clic dret +10)"
                   style={{ width: 18, height: 18, borderRadius: 3, border: `1px solid ${C.hpHigh}66`, background: `${C.hpHigh}1a`, cursor: 'pointer', color: C.hpHigh, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 3 }} title="Velocitat de moviment en peus (limita el drag des de la pantalla de jugador; 1 casella = 5 peus)">
+                <span style={{ fontSize: 10, flexShrink: 0 }}>🏃</span>
+                <input type="number" min={0} max={995} step={5} value={pl.speed ?? DEFAULT_SPEED_FT}
+                  onChange={e => onSetSpeed(pl.id, parseInt(e.target.value) || 0)}
+                  style={{ width: 30, background: 'transparent', border: 'none', borderBottom: `1px dashed ${C.dim}66`, color: '#d4ae38', fontSize: 10, fontWeight: 700, textAlign: 'center', padding: 0, outline: 'none' }} />
+                <span style={{ fontSize: 9, color: C.dim }}>peus · {Math.floor((pl.speed ?? DEFAULT_SPEED_FT) / 5)}⬚</span>
               </div>
             </div>
           );

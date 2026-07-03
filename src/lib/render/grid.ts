@@ -1,4 +1,34 @@
 import type { FrameContext } from './types';
+import type { MoveRange } from '@/hooks/usePlayerTokenDrag';
+
+/**
+ * Caselles on el jugador pot moure el token durant el drag (pantalla de jugador).
+ * Es dibuixa en espai de mapa (ctx ja translladat/escalat); selecció suau en groc.
+ */
+export function renderMoveRange(ctx: CanvasRenderingContext2D, range: MoveRange, mw: number, mh: number, sc: number): void {
+  const { startCol, startRow, maxCells, gs, gox, goy } = range;
+  const x0 = gox + (startCol - maxCells) * gs;
+  const y0 = goy + (startRow - maxCells) * gs;
+  const size = (maxCells * 2 + 1) * gs;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, mw, mh); ctx.clip();
+  ctx.fillStyle = 'rgba(255,214,64,0.13)';
+  ctx.fillRect(x0, y0, size, size);
+  // línies de cel·la interiors, molt subtils
+  ctx.strokeStyle = 'rgba(255,214,64,0.22)';
+  ctx.lineWidth = Math.max(0.5 / sc, 1 / sc);
+  ctx.beginPath();
+  for (let i = 1; i <= maxCells * 2; i++) {
+    ctx.moveTo(x0 + i * gs, y0); ctx.lineTo(x0 + i * gs, y0 + size);
+    ctx.moveTo(x0, y0 + i * gs); ctx.lineTo(x0 + size, y0 + i * gs);
+  }
+  ctx.stroke();
+  // perímetre del rang
+  ctx.strokeStyle = 'rgba(255,214,64,0.55)';
+  ctx.lineWidth = 2 / sc;
+  ctx.strokeRect(x0, y0, size, size);
+  ctx.restore();
+}
 
 export function renderGrid(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const { sc, ox, oy, mw, mh, isDM, rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY, rGridDmAlpha, rGridCalibrating, rDrawTool } = fc;

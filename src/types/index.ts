@@ -62,6 +62,8 @@ export interface Player {
   visible: boolean;
   hp: number;
   hpMax: number;
+  /** Velocitat de moviment en peus (1 casella = 5 ft). Absent → DEFAULT_SPEED_FT. Limita el drag des de /player; el DM no té límit. */
+  speed?: number;
 }
 
 export interface Point {

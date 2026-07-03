@@ -10,7 +10,7 @@ import {
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
-import { renderGrid, renderDMPointer, renderMeasureRuler } from '@/lib/render/grid';
+import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
@@ -801,6 +801,12 @@ export function PlayerView() {
         } else {
           rHighlightAlpha.current = Math.max(0, rHighlightAlpha.current - 0.08);
         }
+      }
+
+      // Caselles disponibles per moure's (drag local de token de jugador), sota els tokens
+      {
+        const drag = tokenDragRef.current;
+        if (drag?.range) renderMoveRange(ctx, drag.range, mw, mh, sc);
       }
 
       renderEnemyTokens(ctx, fc);
