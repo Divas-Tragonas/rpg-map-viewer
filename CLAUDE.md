@@ -331,6 +331,25 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 2. `_broadcastState` a `useDMActions.ts` → missatge `STATE` (si és un camp pesat, afegir-lo a `heavy` i a `_syncHeavySent`)
 3. `_sendFullState` → missatge `STRUCT` + handler al jugador
 
+### WebSocket — sincronització multi-dispositiu (tablet per wifi)
+
+Cada missatge BC té un mirall WS (`src/lib/ws.ts` → endpoint `/sync?role=dm|client`
+de la API, port 3000; protocol documentat a `api-spec.txt`). **Tot `postMessage` nou
+al BC ha d'anar acompanyat del seu `wsRef.current?.send(JSON.stringify(...))`.** Els
+binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
+
+- **URL del WS en runtime** (`resolveApiBase` a `ws.ts`): si `NEXT_PUBLIC_API_URL` no
+  està definida (o apunta a localhost i la pàgina s'ha carregat des d'un altre host),
+  el WS es connecta al host de `window.location` amb port 3000. Així la tablet que obre
+  `http://[IP-PC]:3001/player` troba la API sense configuració.
+- **`onOpen`** (3r paràmetre de `createSyncSocket`): s'executa a cada connexió i
+  reconnexió. El jugador hi envia `PLAYER_READY` (mai enviar-lo just després de crear
+  el socket: encara està CONNECTING i es descarta). El DM hi fa `_sendFullState()` per
+  refrescar el `STRUCT` en caché del servidor (late join).
+- **`allowedDevOrigins` a `next.config.ts`**: Next 16 bloqueja recursos cross-origin
+  del dev server. La IP LAN del PC del DM ha de ser-hi o la tablet no hidrata (pàgina
+  congelada sense errors visibles).
+
 ---
 
 ## Funcionalitats principals

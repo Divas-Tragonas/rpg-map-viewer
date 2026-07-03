@@ -199,6 +199,11 @@ export function DMView() {
         R.rPos.current = np;
         setPos(np);
       }
+    }, () => {
+      // onOpen (connexió i reconnexions): reenviar l'estat complet perquè el
+      // servidor refresqui el STRUCT en caché per als clients que es connectin
+      // més tard, i els ja connectats recuperin l'estat si el DM havia caigut.
+      _sendFullState();
     });
     R.wsRef.current = ws;
     return () => { ws.close(); R.wsRef.current = null; };
@@ -978,7 +983,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.70</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.71</div>
             </div>
           </div>
         )}

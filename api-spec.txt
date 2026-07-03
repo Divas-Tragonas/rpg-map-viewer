@@ -65,7 +65,9 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | CLEAR_DRAW          | —                                                               | Netejar canvas                     |
 | UNDO_DRAW           | { strokeHistory: StrokeData[] }                                 | Desfer traç                        |
 | POINTER             | { pos: Point | null }                                           | Cursor DM                          |
+| MEASURE             | { a: Point | null, b: Point | null }                            | Regla de mesura                    |
 | SPELL               | { spell: Spell }                                                | Animació de spell                  |
+| DELETE_SPELL        | { id: string }                                                  | Eliminar spell d'àrea actiu        |
 | BOSS_INTRO          | { tokenId, bossName, tokenPos, portraitDataUrl }                | Cinematica boss                    |
 | BOSS_INTRO_SKIP     | —                                                               | Saltar cinematica                  |
 | EXPOSITOR_HIDE      | —                                                               | Amagar expositor                   |
@@ -103,6 +105,12 @@ connexió es tanca. En reconnectar, envia `PLAYER_READY` per demanar STRUCT.
   → Usuari arrossega token → iPad envia TOKEN_MOVE
   → DM rep TOKEN_MOVE → actualitza posició localment
 
-### Variables d'entorn necessàries
+### Variables d'entorn (opcional per a LAN des de v3.71)
 
-  NEXT_PUBLIC_API_URL=http://[laptop-LAN-IP]:3000   # canviar de localhost per accés LAN
+  NEXT_PUBLIC_API_URL=http://[laptop-LAN-IP]:3000
+
+Des de v3.71 el frontend dedueix la URL del WS en runtime: si NEXT_PUBLIC_API_URL
+no està definida (o apunta a localhost i la pàgina s'ha carregat des d'un altre
+host), es connecta al host de window.location amb port 3000. Per tant, per a l'ús
+en LAN (tablet → http://[laptop-LAN-IP]:3001/player) no cal configurar res: la API
+només ha d'escoltar a 0.0.0.0:3000.

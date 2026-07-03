@@ -22,9 +22,35 @@ npm install
 npm run dev   # http://localhost:3001
 ```
 
+## Multi-dispositiu (PC + tablet a la mateixa wifi)
+
+Setup típic: el PC del DM amb dos monitors (vista DM + vista jugadors) i una tablet
+dels jugadors, tots a la mateixa xarxa wifi. La sincronització entre finestres del
+mateix PC va per `BroadcastChannel`; cap a la tablet va per WebSocket a través de la
+API (`divas_tragonas_api`, endpoint `/sync` al port 3000).
+
+1. **Al PC del DM**: arrencar la API (port 3000) i l'app (`npm run dev`, port 3001).
+2. **Trobar la IP LAN del PC** (`ipconfig` a Windows / `ip addr` a Linux), p. ex. `192.168.68.102`.
+3. **Verificar `next.config.ts`**: la IP del PC ha de ser a `allowedDevOrigins`
+   (Next 16 bloqueja l'accés cross-origin al dev server si no hi és — la tablet
+   carregaria una pàgina en blanc). Si la IP canvia (DHCP), actualitzar-la aquí.
+4. **Monitors del PC**: `http://localhost:3001/` (DM) i `http://localhost:3001/player` (jugadors).
+5. **Tablet**: obrir `http://[IP-del-PC]:3001/player` al navegador.
+
+La tablet dedueix automàticament l'adreça del WebSocket a partir de la URL amb què
+ha carregat la pàgina — no cal configurar `NEXT_PUBLIC_API_URL` per a l'ús en LAN.
+Si la connexió cau (wifi inestable), el client es reconnecta sol cada 2 s i demana
+l'estat complet al DM en tornar.
+
 ---
 
 ## Changelog
+
+### v3.71
+- **Sincronització multi-dispositiu (tablet per wifi) arreglada**: la URL del WebSocket ara es dedueix en runtime del host amb què s'ha carregat la pàgina — abans la tablet intentava connectar a `localhost` (ella mateixa) i no rebia mai res si no es recompilava amb `NEXT_PUBLIC_API_URL` apuntant a la IP del PC.
+- **`PLAYER_READY` fiable**: s'envia quan el socket està realment obert (abans s'enviava mentre encara connectava i es descartava en silenci) i es reenvia a cada reconnexió, així la tablet recupera l'estat complet si cau la wifi.
+- El DM reenvia l'estat complet en (re)connectar el seu socket, perquè el servidor tingui sempre l'últim `STRUCT` en caché per als clients que arribin més tard.
+- `allowedDevOrigins` amplia amb `127.0.0.1` i nova secció "Multi-dispositiu" al README amb el pas a pas del setup PC + tablet.
 
 ### v3.70
 - **Velocitat de moviment en peus als tokens de jugador** (`speed`, per defecte 30 ft): nou camp editable al panell de Jugadors del DM (🏃 peus, amb equivalència en caselles).

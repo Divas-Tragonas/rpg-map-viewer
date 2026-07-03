@@ -681,9 +681,14 @@ export function PlayerView() {
           await (bcRef.current.onmessage as (e: MessageEvent) => Promise<void>)(fakeEv);
         }
       }
+    }, () => {
+      // onOpen: s'executa a cada connexió I a cada reconnexió. Enviar-lo aquí
+      // (i no just després de crear el socket, quan encara està CONNECTING i
+      // send() el descartaria) garanteix que el DM rep PLAYER_READY i respon
+      // amb l'estat complet (BG + STRUCT).
+      ws.send(JSON.stringify({ type: 'PLAYER_READY' }));
     });
     wsRef.current = ws;
-    ws.send(JSON.stringify({ type: 'PLAYER_READY' }));
     return () => { ws.close(); wsRef.current = null; };
   }, [_loadBgFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
