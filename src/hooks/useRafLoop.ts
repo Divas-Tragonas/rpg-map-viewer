@@ -22,6 +22,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
     const canvas = R.canvasRef.current; if (!canvas) return;
     let alive = true;
     let prevBgStyle = '';
+    let prevBgEl: HTMLElement | null = null;
     const txCache: Record<string, HTMLCanvasElement> = {};
 
     const tick = () => {
@@ -81,10 +82,13 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         const bgW = Math.round(mw * sc), bgH = Math.round(mh * sc);
         const bgL = Math.round(ox), bgT = Math.round(oy);
         const ns = `${bgW},${bgH},${bgL},${bgT}`;
-        if (ns !== prevBgStyle) {
+        // Comparar també l'element: si s'ha carregat un fons nou amb la mateixa
+        // geometria, el <img>/<video> nou neix sense estils i cal reposicionar-lo.
+        if (ns !== prevBgStyle || media !== prevBgEl) {
           media.style.width = bgW + 'px'; media.style.height = bgH + 'px';
           media.style.left = bgL + 'px'; media.style.top = bgT + 'px';
           prevBgStyle = ns;
+          prevBgEl = media;
         }
       }
 

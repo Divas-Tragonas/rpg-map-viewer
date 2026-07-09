@@ -132,11 +132,30 @@ export function PlayerView() {
   const trFadeRef = useRef(450);
   const trLastTsRef = useRef(0);
 
+  // Dedupe del fons: el DM reenvia el BG sencer a cada PLAYER_READY (reconnexions del
+  // WS cada pocs segons si la xarxa falla) i, en un mateix ordinador, el jugador el rep
+  // duplicat (BC + relay del WS). Recrear l'<img> per un fons idèntic provoca un flaix
+  // de "refresc" visible; amb una firma barata (mida + hash mostrejat) es descarta.
+  const bgSigRef = useRef('');
+  const bgObjectUrlRef = useRef<string | null>(null);
+  const _bgChanged = useCallback((buf: ArrayBuffer, mime: string) => {
+    const u8 = new Uint8Array(buf);
+    let h = 0;
+    const step = Math.max(1, u8.length >> 8);
+    for (let i = 0; i < u8.length; i += step) h = (h * 31 + u8[i]) >>> 0;
+    const sig = `${mime}:${u8.length}:${h}`;
+    if (sig === bgSigRef.current && mediaRef.current) return false;
+    bgSigRef.current = sig;
+    return true;
+  }, []);
+
   const _loadBgFromUrl = useCallback((url: string, mimeType: string, withFade: boolean) => {
     const stage = stageRef.current; if (!stage) return;
     const overlay = bgTransitionRef.current;
     const doLoad = () => {
       if (mediaRef.current) { mediaRef.current.remove(); mediaRef.current = null; }
+      if (bgObjectUrlRef.current && bgObjectUrlRef.current !== url) URL.revokeObjectURL(bgObjectUrlRef.current);
+      bgObjectUrlRef.current = url;
       const isVid = mimeType && mimeType.startsWith('video/');
       const el = document.createElement(isVid ? 'video' : 'img') as HTMLVideoElement & HTMLImageElement;
       el.style.cssText = 'position:absolute;pointer-events:none;display:block;top:0;left:0;';
@@ -384,6 +403,7 @@ export function PlayerView() {
       const msg = ev.data;
 
       if (msg.type === 'BG') {
+        if (!_bgChanged(msg.buffer, msg.mimeType)) return;
         const blob = new Blob([msg.buffer], { type: msg.mimeType });
         const url  = URL.createObjectURL(blob);
         _loadBgFromUrl(url, msg.mimeType, !!msg.withFade);
@@ -629,7 +649,7 @@ export function PlayerView() {
 
     bc.postMessage({ type: 'PLAYER_READY' });
     return () => bc.close();
-  }, [_loadBgFromUrl]);
+  }, [_loadBgFromUrl, _bgChanged]);
 
   // ── WebSocket setup (receives same messages as BC, for cross-device iPad) ──
   useEffect(() => {
@@ -640,6 +660,7 @@ export function PlayerView() {
         const expMeta = pendingExpMetaRef.current;
         if (bgMeta) {
           pendingBgMetaRef.current = null;
+          if (!_bgChanged(ev.data, bgMeta.mimeType)) return;
           const blob = new Blob([ev.data], { type: bgMeta.mimeType });
           const url = URL.createObjectURL(blob);
           _loadBgFromUrl(url, bgMeta.mimeType, !!bgMeta.withFade);
@@ -696,6 +717,7 @@ export function PlayerView() {
     const canvas = canvasRef.current; if (!canvas) return;
     let alive = true;
     let prevBgStyle = '';
+    let prevBgEl: HTMLElement | null = null;
 
     const tick = () => {
       if (!alive) return;
@@ -739,12 +761,16 @@ export function PlayerView() {
         const bgW = Math.round(mw * sc), bgH = Math.round(mh * sc);
         const bgL = Math.round(ox), bgT = Math.round(oy);
         const newStyle = `${bgW},${bgH},${bgL},${bgT}`;
-        if (newStyle !== prevBgStyle) {
+        // Comparar també l'element: si el BG s'ha recreat (reconnexió/reenviament),
+        // el nou <img> neix sense mida ni posició i cal reaplicar-li els estils
+        // encara que la geometria no hagi canviat — si no, queda desajustat.
+        if (newStyle !== prevBgStyle || media !== prevBgEl) {
           (media as HTMLElement).style.width  = bgW + 'px';
           (media as HTMLElement).style.height = bgH + 'px';
           (media as HTMLElement).style.left   = bgL + 'px';
           (media as HTMLElement).style.top    = bgT + 'px';
           prevBgStyle = newStyle;
+          prevBgEl = media;
         }
       }
 

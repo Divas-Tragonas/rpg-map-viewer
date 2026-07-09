@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.73
+- **Fix: la pantalla del jugador es "refrescava" cada pocs segons i el fons quedava desajustat.** Cada reconnexió del WebSocket feia que el DM reenviés l'estat complet (i al mateix ordinador el fons arribava duplicat per BroadcastChannel i WS); el jugador destruïa i recreava l'`<img>` de fons a cada enviament, provocant un flaix visible. Ara el jugador descarta els fons idèntics al que ja mostra (firma per mida + hash) i només recarrega quan el fons canvia de veritat.
+- **Fix del desajust del fons**: quan es recreava l'element de fons amb la mateixa geometria de vista, el `tick()` no li reaplicava mai la mida ni la posició (la caché `prevBgStyle` no canviava) i el fons quedava a dalt a l'esquerra a mida natural. Ara es detecta l'element nou i es reposiciona sempre (jugador i DM).
+- Els object URLs antics del fons ara es revoquen en substituir-lo (evita una fuga de memòria a sessions llargues).
+
 ### v3.72
 - **Fix crític: sincronització trencada al deploy de producció.** `src/lib/ws.ts` mai enviava el paràmetre `?key=` a la connexió WebSocket; des que el servidor `divas_tragonas_api` exigeix `SYNC_KEY` per a l'exposició pública (Tailscale Funnel), totes les connexions de DM i jugador eren rebutjades en silenci amb codi `4401` — per això la pantalla de jugador mai carregava el mapa entre dos dispositius diferents.
 - Nova variable d'entorn `NEXT_PUBLIC_SYNC_KEY`: cal configurar-la a Vercel amb el mateix valor que el `SYNC_KEY` del servidor de la API i redesplegar.
