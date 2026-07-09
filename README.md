@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.75
+- **Fix indicador de punter/regla de mesura invisible a la tablet (Safari)**: en clicar amb l'eina "Senyal", ara el click mateix col·loca i emet l'indicador de punter (abans només ho feia el `mousemove`, que en pantalles tàctils no arriba de manera fiable abans del tap).
+- El primer punt de la regla de mesura es dibuixa encara que no hi hagi posició de cursor viva: un click sempre deixa una marca visible al DM i al jugador.
+- El punter i la regla de mesura viatgen ara dins del `STRUCT`: una reconnexió del WebSocket (Safari en tablet suspèn el socket en bloquejar la pantalla o canviar d'app) ja no els perd.
+
 ### v3.74
 - **Fix: el revelador de text no es veia a Safari en tablet.**
 - El DM ara reenvia `TEXTREVEAL_SHOW` quan rep `PLAYER_READY` (i en reconnectar el seu propi socket): iOS Safari talla el WebSocket en bloquejar la pantalla o canviar d'app, i la tablet es quedava rebent només `TEXTREVEAL_SYNC` sense el text — no es veia mai res. Ara, en reconnectar, recupera el revelador al punt on és.

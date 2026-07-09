@@ -54,6 +54,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
+    rMeasure, rPointerPos,
   } = R;
 
   // Camps pesats del STATE (arrays grans i imatges base64: MBs si hi ha retrats custom).
@@ -115,6 +116,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
       psdEnemyOverrides: rPsdEnemyOverrides.current,
+      measure: rMeasure.current,
+      pointerPos: rPointerPos.current,
     };
     bcRef.current?.postMessage(structMsg);
     wsRef.current?.send(JSON.stringify(structMsg));

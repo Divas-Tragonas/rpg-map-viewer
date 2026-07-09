@@ -97,7 +97,18 @@ export function renderMeasureRuler(ctx: CanvasRenderingContext2D, fc: FrameConte
   const m = rMeasure?.current;
   if (!m?.a) return;
   const end = m.b ?? rPointerPos.current;
-  if (!end) return;
+  const sxA = ox + m.a.x * sc, syA = oy + m.a.y * sc;
+  if (!end) {
+    // Només hi ha el punt A (sense posició de cursor viva, p. ex. tap en tablet):
+    // marcar-lo igualment perquè el click sempre sigui visible.
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,220,60,0.95)';
+    ctx.beginPath(); ctx.arc(sxA, syA, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,210,0,0.55)'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(sxA, syA, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    return;
+  }
   const gs = rGridSize.current > 0 ? rGridSize.current : 70;
   const distPx = Math.hypot(end.x - m.a.x, end.y - m.a.y);
   const ft = Math.round((distPx / gs) * 5);

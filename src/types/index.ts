@@ -258,6 +258,10 @@ export interface BCStructMessage {
   tokenSizeOverride: TokenSizeMap;
   libEnemies: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;
+  // Punter i regla de mesura del DM: es reenvien al STRUCT perquè una reconnexió
+  // del WS (Safari en tablet suspèn el socket sovint) no els perdi.
+  measure?: { a: Point | null; b: Point | null };
+  pointerPos?: Point | null;
 }
 
 export type BCMessage =

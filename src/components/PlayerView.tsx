@@ -431,6 +431,8 @@ export function PlayerView() {
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
+        if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
+        if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.psdEnemyOverrides) {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {

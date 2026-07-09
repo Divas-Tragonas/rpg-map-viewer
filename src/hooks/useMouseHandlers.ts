@@ -190,6 +190,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     // Measuring ruler (tool 4/"Senyal"): click cycle — start point, then fixed end point, then clear.
     if (tool === 'pointer') {
+      // El click també col·loca l'indicador de punter: en pantalles tàctils (Safari en
+      // tablet) el tap no genera un mousemove fiable abans del mousedown, i sense això
+      // el jugador no veia cap indicador en clicar.
+      R.rPointerPos.current = { x: mx, y: my };
+      R.bcRef.current?.postMessage({ type: 'POINTER', pos: { x: mx, y: my } });
+      R.wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: { x: mx, y: my } }));
       const m = R.rMeasure.current;
       const next = !m.a ? { a: { x: mx, y: my }, b: null }
         : !m.b ? { a: m.a, b: { x: mx, y: my } }
