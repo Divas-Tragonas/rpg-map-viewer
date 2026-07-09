@@ -65,7 +65,9 @@ export class RevealEngine {
     for (let i = 0; i < this.n; i++) {
       const sp = document.createElement('span');
       sp.style.opacity = '0';
-      sp.style.willChange = 'opacity,filter';
+      // No posar `will-change` aquí: amb un span per caràcter, iOS Safari promou
+      // milers de capes compositades i, en superar el límit de memòria de capes,
+      // deixa de pintar el text (pantalla en blanc a la tablet).
       sp.textContent = text[i];
       frag.appendChild(sp);
       this.units.push(sp);

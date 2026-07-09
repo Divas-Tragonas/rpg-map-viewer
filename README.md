@@ -46,6 +46,12 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.74
+- **Fix: el revelador de text no es veia a Safari en tablet.**
+- El DM ara reenvia `TEXTREVEAL_SHOW` quan rep `PLAYER_READY` (i en reconnectar el seu propi socket): iOS Safari talla el WebSocket en bloquejar la pantalla o canviar d'app, i la tablet es quedava rebent només `TEXTREVEAL_SYNC` sense el text — no es veia mai res. Ara, en reconnectar, recupera el revelador al punt on és.
+- El jugador tracta el `TEXTREVEAL_SHOW` repetit (mateix text ja visible) com una resincronització: no reconstrueix els spans ni refà el crossfade.
+- Eliminat el `will-change: opacity, filter` per caràcter del `RevealEngine`: amb un span per caràcter, iOS Safari promovia milers de capes compositades i en superar el límit de memòria deixava de pintar el text (pantalla en blanc). L'esvaïment es veu igual: només els caràcters actius porten `filter` transitòriament.
+
 ### v3.73
 - **Fix: la pantalla del jugador es "refrescava" cada pocs segons i el fons quedava desajustat.** Cada reconnexió del WebSocket feia que el DM reenviés l'estat complet (i al mateix ordinador el fons arribava duplicat per BroadcastChannel i WS); el jugador destruïa i recreava l'`<img>` de fons a cada enviament, provocant un flaix visible. Ara el jugador descarta els fons idèntics al que ja mostra (firma per mida + hash) i només recarrega quan el fons canvia de veritat.
 - **Fix del desajust del fons**: quan es recreava l'element de fons amb la mateixa geometria de vista, el `tick()` no li reaplicava mai la mida ni la posició (la caché `prevBgStyle` no canviava) i el fons quedava a dalt a l'esquerra a mida natural. Ara es detecta l'element nou i es reposiciona sempre (jugador i DM).

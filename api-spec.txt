@@ -113,6 +113,8 @@ connexió es tanca. En reconnectar, envia `PLAYER_READY` per demanar STRUCT.
   → Servidor envia STRUCT cached (si hi ha)
   → iPad envia PLAYER_READY
   → DM rep PLAYER_READY → envia BG_META + binary + STRUCT
+    (+ TEXTREVEAL_SHOW si el revelador de text està actiu, perquè el client
+     que reconnecta recuperi el text: els TEXTREVEAL_SYNC sols no porten text)
   → iPad rep tot i mostra el mapa
   → Usuari arrossega token → iPad envia TOKEN_MOVE
   → DM rep TOKEN_MOVE → actualitza posició localment

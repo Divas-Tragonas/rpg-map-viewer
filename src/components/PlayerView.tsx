@@ -620,6 +620,15 @@ export function PlayerView() {
           kbTy: msg.kbTyPct,
         };
       } else if (msg.type === 'TEXTREVEAL_SHOW') {
+        // Reenviament del DM (PLAYER_READY d'un altre client o reconnexió WS) amb
+        // el text que ja estem mostrant: només resincronitzar el front, sense
+        // reconstruir els spans ni refer el crossfade.
+        if (textRevealVisibleRef.current && trEngineRef.current?.chars === msg.text) {
+          trTargetRef.current = msg.pos;
+          trCpsRef.current = msg.cps;
+          trFadeRef.current = msg.fadeMs;
+          return;
+        }
         const doShow = () => {
           const container = textRevealTextRef.current;
           if (!container) return;

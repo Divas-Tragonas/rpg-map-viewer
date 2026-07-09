@@ -126,6 +126,11 @@ export function DMView() {
   const trRafRef = React.useRef<number | null>(null);
   const trLastTsRef = React.useRef(0);
   const trLastSyncRef = React.useRef(0);
+  // Reenviar TEXTREVEAL_SHOW quan un jugador (re)connecta: iOS Safari talla el WS
+  // en bloquejar la pantalla o canviar d'app, i sense això la tablet només rebria
+  // els TEXTREVEAL_SYNC (que ignora perquè no té el text). S'assigna més avall,
+  // quan trBroadcastShow ja existeix.
+  const trResendShowRef = React.useRef<() => void>(() => {});
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const R = useDMRefs();
@@ -173,6 +178,7 @@ export function DMView() {
       const msg = e.data;
       if (msg?.type === 'PLAYER_READY') {
         _sendFullState();
+        trResendShowRef.current();
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment de token fet des de la pantalla de jugador (mateix ordinador, sense WS).
         // La pantalla de jugador només pot moure tokens de jugador (pl_*).
@@ -192,6 +198,7 @@ export function DMView() {
       try { msg = JSON.parse(ev.data as string); } catch { return; }
       if (msg.type === 'PLAYER_READY') {
         _sendFullState();
+        trResendShowRef.current();
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // La pantalla de jugador només pot moure tokens de jugador (pl_*).
         if (!String(msg.id).startsWith('pl_')) return;
@@ -204,6 +211,7 @@ export function DMView() {
       // servidor refresqui el STRUCT en caché per als clients que es connectin
       // més tard, i els ja connectats recuperin l'estat si el DM havia caigut.
       _sendFullState();
+      trResendShowRef.current();
     });
     R.wsRef.current = ws;
     return () => { ws.close(); R.wsRef.current = null; };
@@ -554,6 +562,12 @@ export function DMView() {
     R.bcRef.current?.postMessage(payload);
     R.wsRef.current?.send(JSON.stringify(payload));
   }, [trCps, trFadeMs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Manté trResendShowRef apuntant a la versió actual (els handlers de BC/WS es
+  // creen abans que trBroadcastShow existeixi, per això va via ref).
+  useEffect(() => {
+    trResendShowRef.current = () => { if (trActiveRef.current) trBroadcastShow(); };
+  }, [trBroadcastShow]);
 
   const sendTextRevealToPlayer = useCallback(() => {
     let eng = trEngineRef.current;
@@ -983,7 +997,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.73</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.74</div>
             </div>
           </div>
         )}

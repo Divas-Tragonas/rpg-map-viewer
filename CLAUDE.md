@@ -420,6 +420,8 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **El DM és la font de veritat**: integra el front `pos` (velocitat `cps` + pauses + manual) i emet `TEXTREVEAL_SYNC { pos, cps, fadeMs }` a ~30fps. El jugador *segueix* aquest `pos` amb el seu propi rellotge (`RevealEngine.follow`), de manera que les pauses es propaguen però l'esvaïment continua suau.
 - Overlay del jugador a zIndex 51 (sobre l'expositor) amb tipografia serif gran i fade IN/OUT (1.4s / 0.3s), igual que l'expositor.
 - **Sinergia**: mostrar text amaga l'expositor i viceversa (crossfade); obrir un panell tanca l'altre; funciona sobre qualsevol escena (mapa, imatge o res) perquè el seguidor del jugador corre *abans* de `if (!s) return` al `tick()`.
+- **Reconnexió / late join (tablet Safari)**: el DM reenvia `TEXTREVEAL_SHOW` quan rep `PLAYER_READY` i quan reconnecta el seu WS (`trResendShowRef` a `DMView.tsx`) — iOS Safari talla el WS en bloquejar la pantalla i, sense això, la tablet només rebia `TEXTREVEAL_SYNC` (sense text, no mostrava res). El jugador tracta un `SHOW` amb el mateix text ja visible com a resincronització (no reconstrueix ni refà el crossfade).
+- **No posar `will-change` als spans per caràcter** (`RevealEngine.setText`): iOS Safari promou cada span a capa compositada i amb textos llargs supera el límit de memòria de capes → el text no es pinta (pantalla en blanc a la tablet).
 
 ---
 
