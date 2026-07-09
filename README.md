@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.72
+- **Fix crític: sincronització trencada al deploy de producció.** `src/lib/ws.ts` mai enviava el paràmetre `?key=` a la connexió WebSocket; des que el servidor `divas_tragonas_api` exigeix `SYNC_KEY` per a l'exposició pública (Tailscale Funnel), totes les connexions de DM i jugador eren rebutjades en silenci amb codi `4401` — per això la pantalla de jugador mai carregava el mapa entre dos dispositius diferents.
+- Nova variable d'entorn `NEXT_PUBLIC_SYNC_KEY`: cal configurar-la a Vercel amb el mateix valor que el `SYNC_KEY` del servidor de la API i redesplegar.
+- `api-spec.txt` actualitzat amb la secció d'autenticació del WebSocket (`&key=...`, codi `4401`).
+
 ### v3.71
 - **Sincronització multi-dispositiu (tablet per wifi) arreglada**: la URL del WebSocket ara es dedueix en runtime del host amb què s'ha carregat la pàgina — abans la tablet intentava connectar a `localhost` (ella mateixa) i no rebia mai res si no es recompilava amb `NEXT_PUBLIC_API_URL` apuntant a la IP del PC.
 - **`PLAYER_READY` fiable**: s'envia quan el socket està realment obert (abans s'enviava mentre encara connectava i es descartava en silenci) i es reenvia a cada reconnexió, així la tablet recupera l'estat complet si cau la wifi.

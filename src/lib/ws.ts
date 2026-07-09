@@ -33,7 +33,8 @@ export function createSyncSocket(
   onOpen?: () => void,
 ): SyncSocket {
   const base = resolveApiBase().replace(/^http/, 'ws');
-  const url = `${base}/sync?role=${role}`;
+  const key = process.env.NEXT_PUBLIC_SYNC_KEY;
+  const url = `${base}/sync?role=${role}${key ? `&key=${encodeURIComponent(key)}` : ''}`;
 
   let ws: WebSocket;
   let dead = false;

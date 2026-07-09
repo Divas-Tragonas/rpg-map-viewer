@@ -39,14 +39,26 @@ Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
 Access-Control-Allow-Headers: Content-Type
 
 
-## WEBSOCKET SYNC — GET /sync?role=dm|client
+## WEBSOCKET SYNC — GET /sync?role=dm|client[&key=...]
 
-Connexió WebSocket per sincronitzar DM i clients (iPad, etc.) en xarxa local.
+Connexió WebSocket per sincronitzar DM i clients (iPad, etc.), tant en xarxa
+local com per internet (via Tailscale Funnel).
 
 ### Connexió
 
   ws://[host]:3000/sync?role=dm       → client DM (laptop)
   ws://[host]:3000/sync?role=client   → client jugador (iPad)
+
+### Autenticació (SYNC_KEY)
+
+Si el servidor té `SYNC_KEY` configurat (obligatori quan s'exposa públicament
+via Tailscale Funnel), **tots** els clients han d'incloure `&key=<SYNC_KEY>`
+a la URL de connexió, o el servidor tanca la connexió amb codi `4401` i motiu
+`"invalid key"`. Si `SYNC_KEY` no està definit al servidor, el paràmetre és
+ignorat (accés obert, ús només LAN).
+
+Al frontend, la clau es llegeix de `NEXT_PUBLIC_SYNC_KEY` (`src/lib/ws.ts`) i
+ha de coincidir amb el `SYNC_KEY` configurat al `.env` del servidor de la API.
 
 ### Protocol de missatges
 
