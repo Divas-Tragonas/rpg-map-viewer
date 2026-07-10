@@ -207,6 +207,9 @@ export function DMView() {
         const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
         R.rPos.current = np;
         setPos(np);
+        // Reenviar l'estat perquè la resta de pantalles de jugador (p. ex. una
+        // tele) rebin la nova posició en temps real sense esperar cap refresh del DM.
+        _broadcastState({});
       }
     };
     return () => { bc.close(); R.bcRef.current = null; };
@@ -231,6 +234,9 @@ export function DMView() {
         const np = { ...R.rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         R.rPos.current = np;
         setPos(np);
+        // Reenviar l'estat perquè la resta de pantalles de jugador (p. ex. una
+        // tele) rebin la nova posició en temps real sense esperar cap refresh del DM.
+        _broadcastState({});
       }
     }, () => {
       // onOpen (connexió i reconnexions): reenviar l'estat complet perquè el
@@ -1042,7 +1048,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.81</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.82</div>
             </div>
           </div>
         )}

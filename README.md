@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.82
+- **Fix: el moviment d'un token des d'una tablet s'actualitza en temps real a la resta de pantalles de jugador** (p. ex. una tele). Quan el DM rep un `TOKEN_MOVE` d'un jugador, ara reenvia l'estat (`_broadcastState`) perquè els altres clients rebin la nova posició a l'instant, sense necessitat de fer refresh de la pantalla del DM.
+
 ### v3.81
 - **Tret el botó d'esborrar totes les parets** (era massa perillós). Les parets/sales es gestionen amb `Backspace` (desfà l'última), `Esc` (cancel·la la cadena en curs) i "Eliminar sala" al menú contextual de cada sala.
 
