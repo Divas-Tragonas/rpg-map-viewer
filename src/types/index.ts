@@ -91,6 +91,23 @@ export interface PaintedZone {
   bbox: BBox;
 }
 
+// Un tram de paret dibuixat pel DM. Les sales fosques es deriven del conjunt de parets.
+export interface Wall {
+  a: Point;
+  b: Point;
+}
+
+// Sala detectada (una cara tancada del graf de parets). El polígon `points` es recalcula
+// a cada canvi de parets; `dark`/`revealed` els controla el DM.
+export interface Room {
+  id: string;
+  points: Point[];
+  bbox: BBox;
+  name: string;
+  dark: boolean;      // true → habitació fosca (overlay de foscor + ull, com Photoshop)
+  revealed: boolean;  // true → revelada als jugadors (només aplica quan dark)
+}
+
 export type SpellType = 'fireball' | 'lightning' | 'magic_beam' | 'magic_missile' | 'hideous_laughter' | 'burning_hands' | 'sleep' | 'grease';
 
 export interface Spell {
@@ -109,7 +126,7 @@ export interface AreaSpellPending {
   origin: Point;
 }
 
-export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer';
+export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall';
 
 export interface StrokeData {
   points: Point[];
@@ -158,6 +175,10 @@ export interface ContextMenuState {
   ids?: (number | string)[];
   /** Group the token/selection currently belongs to (fully), if any. */
   existingGroupId?: string;
+  /** Set when the right-click landed on a detected room (walls tool). */
+  isRoom?: boolean;
+  roomDark?: boolean;
+  roomRevealed?: boolean;
 }
 
 export interface ExpositorState {
@@ -234,6 +255,7 @@ export interface BCStateMessage {
   dmPreviewPan?: Point;
   libEnemies?: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;
+  rooms?: Room[];
 }
 
 export interface BCStructMessage {
@@ -260,6 +282,7 @@ export interface BCStructMessage {
   tokenSizeOverride: TokenSizeMap;
   libEnemies: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;
+  rooms?: Room[];
   // Punter i regla de mesura del DM: es reenvien al STRUCT perquè una reconnexió
   // del WS (Safari en tablet suspèn el socket sovint) no els perdi.
   measure?: { a: Point | null; b: Point | null };

@@ -5,7 +5,7 @@ import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, PsdEnemyOverrides,
+  LibEnemy, PsdEnemyOverrides, Wall, Room,
 } from '@/types';
 import { useDMRefs } from '@/hooks/useDMRefs';
 import { useCinematic } from '@/hooks/useCinematic';
@@ -46,6 +46,8 @@ export function DMView() {
   const [conditions, setConditions] = useState<ConditionsMap>({});
   const [defeated, setDefeated] = useState<DefeatedMap>({});
   const [paintedZones, setPaintedZones] = useState<PaintedZone[]>([]);
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [activeDrag, setActiveDrag] = useState<string | number | null>(null);
   const [canUndo, setCanUndo] = useState(false);
@@ -144,7 +146,9 @@ export function DMView() {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       R.rDrawTool.current = next;
       if (prev === 'pointer' && next !== 'pointer') { R.rPointerPos.current = null; R.rMeasure.current = { a: null, b: null }; }
+      if (prev === 'wall' && next !== 'wall') { R.rWallPenLast.current = null; R.rWallCursor.current = null; R.rHoveredRoomId.current = null; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
+      else if (next === 'wall') setCanvasCursor('crosshair');
       else if (next === 'none') setCanvasCursor('default');
       return next;
     });
@@ -157,7 +161,7 @@ export function DMView() {
     setPaintedZones, setExpanded, setCanUndo, setActiveSpells, setGridSize, setGridSnap,
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
     setWarningsDismissed, setGridVisible, setGridAutoSize,
-    setLibEnemies, setPsdEnemyOverrides,
+    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -168,6 +172,7 @@ export function DMView() {
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
+    redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls,
   } = useDMActions(R, S);
 
   // ── BC setup (DM only receives PLAYER_READY) ──────────────────────────────
@@ -245,6 +250,7 @@ export function DMView() {
     R.rPlayers.current = players; R.rLibEnemies.current = libEnemies;
     R.rDrawColor.current = drawColor; R.rDrawSize.current = drawSize;
     R.rConditions.current = conditions; R.rPaintedZones.current = paintedZones;
+    R.rWalls.current = walls; R.rRooms.current = rooms;
     R.rDefeated.current = defeated;
     R.rGridVisible.current = gridVisible; R.rGridSize.current = gridSize;
     R.rGridSnap.current = gridSnap; R.rGridAutoSize.current = gridAutoSize;
@@ -257,6 +263,7 @@ export function DMView() {
     R.rPsdEnemyOverrides.current = psdEnemyOverrides;
   }, [
     struct, vis, pos, zoom, players, libEnemies, drawColor, drawSize, conditions, paintedZones,
+    walls, rooms,
     defeated, gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride,
     gridLineWidth, gridOriginX, gridOriginY, gridCalibrating, enemyHighlight, highlightLocked,
     selectedToken, layerImages, contextMenu, activeSpells, psdEnemyOverrides,
@@ -294,7 +301,8 @@ export function DMView() {
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
     setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
-  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+    setWalls, setRooms, redetectRooms,
+  }), [redetectRooms]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState);
@@ -331,6 +339,16 @@ export function DMView() {
     if (remaining.length === 1) R.rTokenGroups.current.delete(remaining[0][0]);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Desfer l'última paret (Backspace amb l'eina Parets activa) ─────────────
+  const removeLastWall = useCallback(() => {
+    if (R.rWalls.current.length === 0) return;
+    const last = R.rWalls.current[R.rWalls.current.length - 1];
+    const nw = R.rWalls.current.slice(0, -1);
+    R.rWalls.current = nw; setWalls(nw);
+    R.rWallPenLast.current = nw.length > 0 ? last.a : null;
+    redetectRooms();
+  }, [redetectRooms]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
     setDrawTool, undoStroke, skipBossIntro,
@@ -338,6 +356,7 @@ export function DMView() {
     setCtrlPanActive, setShiftPanActive, setZoom,
     setAreaSelectMode,
     onDeleteSelection,
+    removeLastWall,
   });
 
   // ── Canvas-level callbacks ────────────────────────────────────────────────
@@ -758,7 +777,7 @@ export function DMView() {
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : areaSelectMode ? 'crosshair' : canvasCursor }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : (areaSelectMode || drawToolState === 'wall') ? 'crosshair' : canvasCursor }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={handleMouseUp}
@@ -778,8 +797,10 @@ export function DMView() {
           drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
           drawSize={drawSize} setDrawSize={setDrawSize}
           canUndo={canUndo} paintedZones={paintedZones}
+          roomCount={rooms.length} wallCount={walls.length}
           onSetDrawTool={setDrawTool} onUndo={undoStroke}
           onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
+          onClearWalls={clearWalls}
           bcRef={R.bcRef} wsRef={R.wsRef}
           grid={{
             gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
@@ -1008,7 +1029,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.78</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.79</div>
             </div>
           </div>
         )}
@@ -1056,6 +1077,8 @@ export function DMView() {
         bcRef={R.bcRef} wsRef={R.wsRef}
         onTriggerBossIntro={triggerBossIntro}
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}
+        onSetRoomDark={setRoomDark} onToggleRoomReveal={toggleRoomReveal}
+        onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

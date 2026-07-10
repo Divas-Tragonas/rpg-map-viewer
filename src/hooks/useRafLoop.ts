@@ -5,6 +5,7 @@ import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
+import { renderRooms, renderWalls, renderWallDraft } from '@/lib/render/darkrooms';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
@@ -135,10 +136,14 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rHoveredPaintedZoneId: R.rHoveredPaintedZoneId,
         rSelectedPaintedZoneId: R.rSelectedPaintedZoneId,
         rSpellPreview: R.rSpellPreview,
+        rWalls: R.rWalls, rRooms: R.rRooms, rWallPenLast: R.rWallPenLast,
+        rWallCursor: R.rWallCursor, rHoveredRoomId: R.rHoveredRoomId, roomRevealAnimRef: R.roomRevealAnimRef,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
       renderRoomOverlays(ctx, fc);
+      renderRooms(ctx, fc);
+      renderWalls(ctx, fc);
       renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
@@ -175,7 +180,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       // reference, even if the grid isn't toggled on ("Activar") for players.
       {
         const isDragging = !!R.dragRef.current;
-        const measuring = R.rDrawTool.current === 'pointer';
+        const measuring = R.rDrawTool.current === 'pointer' || R.rDrawTool.current === 'wall';
         const tgt = (R.rGridVisible.current && (isDragging || R.rGridCalibrating.current)) || measuring ? 1 : 0;
         R.rGridDmAlpha.current += (tgt - R.rGridDmAlpha.current) * 0.25;
         if (Math.abs(tgt - R.rGridDmAlpha.current) < 0.004) R.rGridDmAlpha.current = tgt;
@@ -231,6 +236,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
           ctx.restore();
         }
         renderMeasureRuler(ctx, fc);
+        renderWallDraft(ctx, fc);
         if (tool === 'shape' && R.rCursorScreenPos.current) {
           const { x: cx, y: cy } = R.rCursorScreenPos.current;
           const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);

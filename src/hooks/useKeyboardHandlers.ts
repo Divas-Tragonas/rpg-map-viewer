@@ -13,10 +13,11 @@ interface KBOpts {
   setZoom: (v: number) => void;
   setAreaSelectMode?: (v: boolean) => void;
   onDeleteSelection?: () => void;
+  removeLastWall?: () => void;
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom, setAreaSelectMode, onDeleteSelection } = opts;
+  const { setDrawTool, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom, setAreaSelectMode, onDeleteSelection, removeLastWall } = opts;
 
   // CTRL key: toggle shared pan/zoom mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
@@ -48,7 +49,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     const onDown = (e: KeyboardEvent) => {
       if (e.key !== 'Shift' || e.repeat) return;
       R.rShiftHeld.current = true;
-      if (R.rDrawTool.current === 'shape') return;
+      if (R.rDrawTool.current === 'shape' || R.rDrawTool.current === 'wall') return;
       if (!R.rShiftPanToggle.current) {
         R.rShiftPanToggle.current = true;
         setShiftPanActive(true);
@@ -86,6 +87,14 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         R.wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: null, b: null }));
         return;
       }
+      // Eina Parets: Esc aixeca la ploma, Backspace/Delete desfà l'última paret.
+      if (e.key === 'Escape' && R.rDrawTool.current === 'wall' && (R.rWallPenLast.current || R.rWallCursor.current)) {
+        R.rWallPenLast.current = null; R.rWallCursor.current = null;
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && R.rDrawTool.current === 'wall') {
+        e.preventDefault(); removeLastWall?.(); return;
+      }
       if (e.key === 'Escape' && R.rMultiSelected.current.size > 0) { R.rMultiSelected.current = new Set(); return; }
       if ((e.key === 'Delete' || e.key === 'Backspace') && R.rMultiSelected.current.size > 0) { e.preventDefault(); onDeleteSelection?.(); return; }
       if (e.ctrlKey) return;
@@ -106,8 +115,9 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         }
         return nt;
       });
+      else if (e.key === '5') setDrawTool(t => t === 'wall' ? 'none' : 'wall');
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undoStroke, skipBossIntro, onDeleteSelection, setAreaSelectMode]);
+  }, [undoStroke, skipBossIntro, onDeleteSelection, setAreaSelectMode, removeLastWall]);
 }

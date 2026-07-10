@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon } from '@/components/icons';
+import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon } from '@/components/icons';
 import { C, PALETTE } from '@/constants';
 import { GridPanel } from '@/components/dm/GridPanel';
 import type { DrawTool, PaintedZone, TokenSizeMap } from '@/types';
@@ -35,10 +35,12 @@ interface Props {
   drawColor: string; setDrawColor: (c: string) => void;
   drawSize: number; setDrawSize: (n: number) => void;
   canUndo: boolean; paintedZones: PaintedZone[];
+  roomCount: number; wallCount: number;
   onSetDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
   onUndo: () => void;
   onClearDraw: () => void;
   onClearPaintedZones: () => void;
+  onClearWalls: () => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<SyncSocket | null>;
   grid: GridProps;
@@ -50,6 +52,7 @@ const TOOLS: [DrawTool, string, React.ReactNode][] = [
   ['eraser',  'Goma (2)',       <Eraser key="eraser" size={15} />],
   ['shape',   'Màgies (3)',     <TriangleIcon key="shape" size={15} />],
   ['pointer', 'Senyal (4)',     <CrosshairIcon key="pointer" size={15} />],
+  ['wall',    'Parets (5)',     <WallIcon key="wall" size={15} />],
 ];
 
 const btnBase: React.CSSProperties = {
@@ -57,9 +60,9 @@ const btnBase: React.CSSProperties = {
   borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer',
 };
 
-export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef, grid }: Props) {
+export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, roomCount, wallCount, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, onClearWalls, bcRef, wsRef, grid }: Props) {
   const [gridOpen, setGridOpen] = React.useState(false);
-  const showDrawFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer';
+  const showDrawFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer' || drawTool === 'wall';
 
   const selectTool = (t: DrawTool) => onSetDrawTool(dt => {
     const nt = dt === t ? 'none' : t;
@@ -82,7 +85,8 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
         {TOOLS.map(([t, label, icon]) => {
           const isPtr = t === 'pointer';
           const isNone = t === 'none';
-          const col = isPtr ? '#58a6ff' : isNone ? C.accent : drawColor;
+          const isWall = t === 'wall';
+          const col = isWall ? C.accent : isPtr ? '#58a6ff' : isNone ? C.accent : drawColor;
           const active = drawTool === t;
           return (
             <button key={t} onClick={() => selectTool(t)} title={label}
@@ -104,6 +108,12 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
           <button onClick={onClearPaintedZones} title="Esborrar zones màgiques"
             style={{ ...btnBase, border: `1px solid ${C.magic}66`, background: `${C.magic}14`, color: C.magic, fontSize: 10, fontWeight: 700 }}>
             ✨{paintedZones.length}
+          </button>
+        )}
+        {wallCount > 0 && (
+          <button onClick={onClearWalls} title="Esborrar totes les parets i sales"
+            style={{ ...btnBase, border: `1px solid ${C.accent}66`, background: `${C.accent}14`, color: C.accent, fontSize: 10, fontWeight: 700 }}>
+            🧱{roomCount}
           </button>
         )}
         <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />
@@ -134,6 +144,12 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
           {drawTool === 'pointer' && (
             <div style={{ fontSize: 9.5, color: C.dim, lineHeight: 1.4, maxWidth: 220 }}>
               📏 Clica per marcar l&apos;inici, torna a clicar per fixar el final (regla en peus) i un tercer clic l&apos;elimina.
+            </div>
+          )}
+          {drawTool === 'wall' && (
+            <div style={{ fontSize: 9.5, color: C.dim, lineHeight: 1.5, maxWidth: 230 }}>
+              🧱 <b style={{ color: C.text }}>Parets:</b> clica per anar posant parets. En tancar una geometria es crea una sala. Clic dret sobre la sala → marcar-la <b style={{ color: C.text }}>fosca</b> i revelar-la amb l&apos;ull.
+              <div style={{ marginTop: 4, color: C.dim }}>Shift = orto · Backspace = desfà · Esc / doble-clic = nova cadena{grid.gridSnap ? ' · snap a graella' : ''}</div>
             </div>
           )}
         </div>

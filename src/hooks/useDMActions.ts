@@ -5,8 +5,9 @@ import { extractLayerImages } from '@/lib/psd/extractor';
 import { buildTree, validateStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
+import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
-import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride } from '@/types';
+import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room } from '@/types';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 
@@ -41,6 +42,8 @@ interface Setters {
   setGridAutoSize: (v: boolean) => void;
   setLibEnemies: (v: LibEnemy[] | ((prev: LibEnemy[]) => LibEnemy[])) => void;
   setPsdEnemyOverrides: (v: PsdEnemyOverrides) => void;
+  setWalls: (v: Wall[]) => void;
+  setRooms: (v: Room[]) => void;
 }
 
 export function useDMActions(R: DMRefs, S: Setters) {
@@ -54,7 +57,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
-    rMeasure, rPointerPos,
+    rMeasure, rPointerPos, rWalls, rRooms, rWallPenLast,
   } = R;
 
   // Camps pesats del STATE (arrays grans i imatges base64: MBs si hi ha retrats custom).
@@ -68,6 +71,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
+      rooms: rRooms.current,
     };
   }, []);
 
@@ -90,6 +94,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
+      rooms: rRooms.current,
     };
     for (const k of Object.keys(heavy)) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
@@ -116,6 +121,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
       psdEnemyOverrides: rPsdEnemyOverrides.current,
+      rooms: rRooms.current,
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
     };
@@ -398,6 +404,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       gridLineWidth: rGridLineWidth.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
+      walls: rWalls.current, rooms: rRooms.current,
       drawCanvas: oc && oc.width > 1 ? oc.toDataURL('image/png') : null,
     };
     if (bgBufferRef.current) {
@@ -472,6 +479,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.gridOriginY !== undefined)  { rGridOriginY.current = state.gridOriginY; S.setGridOriginY(state.gridOriginY); }
       if (state.tokenSizeOverride) { rTokenSizeOverride.current = state.tokenSizeOverride; S.setTokenSizeOverride(state.tokenSizeOverride); }
       if (state.libEnemies)    { rLibEnemies.current = state.libEnemies; S.setLibEnemies(state.libEnemies); }
+      if (state.walls)         { rWalls.current = state.walls; S.setWalls(state.walls); }
+      if (state.rooms)         { rRooms.current = state.rooms; S.setRooms(state.rooms); }
       if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;
         if (oc) {
@@ -708,6 +717,66 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState]);
 
+  // ── Parets → sales fosques ──────────────────────────────────────────────────
+  // Re-detecta les cares tancades del graf de parets i reconcilia amb les sales
+  // existents (preserva id/nom/estat). Es crida a cada canvi de parets.
+  const redetectRooms = useCallback(() => {
+    const faces = detectRooms(rWalls.current);
+    const rooms = reconcileRooms(rRooms.current, faces);
+    rRooms.current = rooms; S.setRooms(rooms);
+    _broadcastState({});
+  }, [_broadcastState]);
+
+  const setRoomDark = useCallback((id: string, dark: boolean) => {
+    const nr = rRooms.current.map(r => r.id === id ? { ...r, dark, revealed: dark ? r.revealed : false } : r);
+    rRooms.current = nr; S.setRooms(nr); _broadcastState({});
+  }, [_broadcastState]);
+
+  const toggleRoomReveal = useCallback((id: string) => {
+    const nr = rRooms.current.map(r => r.id === id ? { ...r, revealed: !r.revealed } : r);
+    rRooms.current = nr; S.setRooms(nr); _broadcastState({});
+  }, [_broadcastState]);
+
+  const renameRoom = useCallback((id: string, name: string) => {
+    const nr = rRooms.current.map(r => r.id === id ? { ...r, name } : r);
+    rRooms.current = nr; S.setRooms(nr); _broadcastState({});
+  }, [_broadcastState]);
+
+  // Elimina les parets exclusives d'aquesta sala (les que no comparteix amb cap altra),
+  // i re-detecta. Per una sala aïllada això n'esborra tot el contorn; per una sala
+  // subdividida, les parets compartides es conserven i les dues sales es fusionen.
+  const deleteRoom = useCallback((id: string) => {
+    const room = rRooms.current.find(r => r.id === id);
+    if (!room) return;
+    const onOutline = (p: { x: number; y: number }, poly: { x: number; y: number }[], tol: number) => {
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length];
+        const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy || 1;
+        let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        if (Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)) <= tol) return true;
+      }
+      return false;
+    };
+    const others = rRooms.current.filter(r => r.id !== id);
+    const wallOnRoom = (w: Wall, poly: { x: number; y: number }[]) =>
+      onOutline(w.a, poly, 9) && onOutline(w.b, poly, 9);
+    const keep = rWalls.current.filter(w => {
+      if (!wallOnRoom(w, room.points)) return true;
+      // paret compartida amb una altra sala → conservar (fusiona les sales)
+      return others.some(o => wallOnRoom(w, o.points));
+    });
+    rWalls.current = keep; S.setWalls(keep);
+    rWallPenLast.current = null;
+    redetectRooms();
+  }, [redetectRooms]);
+
+  const clearWalls = useCallback(() => {
+    rWalls.current = []; rRooms.current = []; rWallPenLast.current = null;
+    S.setWalls([]); S.setRooms([]);
+    _broadcastState({});
+  }, [_broadcastState]);
+
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
@@ -715,5 +784,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
+    redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls,
   };
 }

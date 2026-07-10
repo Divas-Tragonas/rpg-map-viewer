@@ -276,6 +276,9 @@ Afegir la crida a `useRafLoop.ts` entre `ctx.save()` i `ctx.restore()`.
 | `renderEnemyTokens` | render/tokens.ts | Tokens enemics PSD: drag, LERP, condicions, derrota |
 | `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures |
 | `renderPlayerTokens` | render/tokens.ts | Tokens jugador: LERP, condicions |
+| `renderRooms` | render/darkrooms.ts | Sales fosques: foscor (jugador) / overlay+contorn+ull (DM) |
+| `renderWalls` | render/darkrooms.ts | Parets dibuixades pel DM (no visibles al jugador) |
+| `renderWallDraft` | render/darkrooms.ts | Paret elàstica en curs (espai pantalla, com la regla) |
 | `renderGrid` | render/grid.ts | Grid overlay |
 | `renderGridCalib` | render/grid.ts | Calibració visual del grid |
 | `renderDMPointer` | render/grid.ts | Cursor del DM visible al jugador |
@@ -398,6 +401,15 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 ### Zones màgiques (Painted Zones)
 - Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)
 - Textures procedurals animades al jugador (`src/lib/textures/`)
+
+### Parets → Sales fosques (eina "Parets", drecera `5`)
+- **Model**: el DM dibuixa **parets** (segments) clicant successivament (estil regla de mesura). El conjunt de parets és la font de veritat del DM (`rWalls`, no es sincronitza). Les **sales** (`rRooms`) se'n deriven per **detecció de cares en un graf planar** (`src/lib/rooms/detect.ts` → `detectRooms`): fusiona vèrtexs propers, parteix als encreuaments (X) i a les unions en T, i extreu les cares tancades mínimes (recorregut de half-edges amb gir horari; cares acotades = àrea > 0 en coords de pantalla). Cada cara nova és una sala; una paret que divideix una sala la parteix en dues.
+- **Reconciliació** (`reconcileRooms`): a cada canvi de parets es recalculen les cares i s'aparellen amb les sales existents (per centroide + àrea) perquè `id`, nom i estat (`dark`/`revealed`) es preservin.
+- **Interacció** (`useMouseHandlers`, eina `'wall'`): clic afegeix un vèrtex i tanca el tram amb l'anterior; `snapWall` fa imant a vèrtexs existents (tancament), orto amb Shift i snap a graella. `Backspace` desfà l'última paret (`removeLastWall` a `DMView`), `Esc`/doble-clic aixequen la ploma. Re-detecció via `redetectRooms` (a `useDMActions`).
+- **Sales fosques**: `Room.dark` (marcar via clic dret) → interior negre opac al jugador; `Room.revealed` (ull: clic sobre la sala en mode selecció, o menú contextual) → es revela amb fade suau (`roomRevealAnimRef`). Menú de sala a `ContextMenuOverlay` (`isRoom`): marcar fosca, revelar/amagar, reanomenar, eliminar (esborra les parets exclusives de la sala).
+- **Render** (`src/lib/render/darkrooms.ts`): `renderRooms` (foscor al jugador + overlay/contorn/nom/ull al DM, dins la transformació de mapa, després de `renderRoomOverlays`), `renderWalls` (parets, només DM), `renderWallDraft` (paret elàstica en curs, espai pantalla, com la regla).
+- **Sync**: camp nou `rooms` a `STATE`/`STRUCT` (camp pesat: només s'envia quan canvia la referència). Persisteix a la sessió (`walls` + `rooms`). Les parets NO viatgen al jugador.
+- **Pendent** (futur): sistema d'il·luminació/visió, revelat automàtic en entrar-hi un jugador, portes, edició de vèrtexs.
 
 ### Moviment de tokens des de la pantalla de jugador (`usePlayerTokenDrag`)
 - `src/hooks/usePlayerTokenDrag.ts` — drag de tokens al canvas de `/player` amb **pointer events** (ratolí, dit i stylus unificats; `touch-action: none` al canvas + `setPointerCapture`).

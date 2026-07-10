@@ -4,6 +4,7 @@ import type {
   MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
   Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
+  Wall, Room,
 } from '@/types';
 import type { CinematicTimeline } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
@@ -28,6 +29,14 @@ export function useDMRefs() {
   const rLayerUrls    = useRef<Record<string, string>>({});
   const rConditions   = useRef<ConditionsMap>({});
   const rPaintedZones = useRef<PaintedZone[]>([]);
+  // Parets + sales fosques (eina "Parets"). rWalls és la font de veritat del DM (no es
+  // sincronitza); rRooms se'n deriva per detecció de cares i sí que viatja al jugador.
+  const rWalls          = useRef<Wall[]>([]);
+  const rRooms          = useRef<Room[]>([]);
+  const rWallPenLast    = useRef<Point | null>(null);   // últim vèrtex de la cadena activa (null = ploma amunt)
+  const rWallCursor     = useRef<{ x: number; y: number; onVertex: boolean } | null>(null); // preview de la paret en curs
+  const rHoveredRoomId  = useRef<string | null>(null);  // sala sota el cursor (ull, mode selecció)
+  const roomRevealAnimRef = useRef<Record<string, number>>({}); // 1 = fosca opaca, 0 = revelada
   const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
   const rPsdEnemyImgCache  = useRef<Record<number, HTMLCanvasElement>>({});
   const rContextMenu  = useRef<unknown>(null);
@@ -134,6 +143,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
+    rWalls, rRooms, rWallPenLast, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,

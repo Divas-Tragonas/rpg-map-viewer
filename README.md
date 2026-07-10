@@ -46,6 +46,12 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.79
+- **Nova eina "Parets" (🧱, drecera `5`)**: es dibuixen parets clicant successivament (estil regla de mesura, amb línia elàstica i distància en peus). En tancar una geometria, el sistema detecta automàticament la sala tancada (detecció de cares en un graf planar: fusiona vèrtexs propers, parteix als encreuaments i a les unions en T). Cada cara nova tancada crea una sala automàticament; una paret que divideix una sala existent la parteix en dues.
+- **Sales fosques amb ull (com Photoshop)**: clic dret sobre una sala → marcar-la com a *fosca*. Les sales fosques neixen amagades (interior negre opac al jugador) i el DM les revela/amaga amb l'ull (clic sobre la sala en mode selecció, o des del menú contextual). El revelat s'anima suaument al jugador. Reanomenar i eliminar sala també des del menú contextual.
+- **Mecàniques bàsiques de dibuix**: tancament magnètic sobre vèrtexs existents, snap a la graella (si està actiu), mode orto amb Shift (0°/45°/90°), `Backspace` desfà l'última paret, `Esc` / doble-clic aixequen la ploma per començar una cadena nova.
+- Parets i sales es sincronitzen al jugador (nou camp `rooms` a `STATE`/`STRUCT`) i es desen a la sessió. Les parets són una eina del DM (no es mostren al jugador); només viatja la foscor de les sales.
+
 ### v3.78
 - **Fix: la targeta de jugador ja no canvia de mida** en aparèixer la confirmació d'esborrat (la capçalera té una alçada mínima estable).
 - **Fix: bloquejar el moviment d'un jugador s'aplica a l'instant a la pantalla de jugador.** El bloqueig del drag ja funcionava en obrir un token nou, però ara, com a xarxa de seguretat, si arriba un `TOKEN_MOVE` d'un token bloquejat (p. ex. una pantalla de jugador que encara no hagués rebut el bloqueig), el DM reenvia la posició autoritzada i el token torna al seu lloc immediatament, sense necessitat de cap clic al DM.

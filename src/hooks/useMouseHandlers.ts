@@ -24,6 +24,9 @@ interface MouseHandlerSetters {
   setCanUndo: (v: boolean) => void;
   setDmPrivateActive: (v: boolean) => void;
   setCanvasCursor: (c: string) => void;
+  setWalls: (v: import('@/types').Wall[]) => void;
+  setRooms: (v: import('@/types').Room[]) => void;
+  redetectRooms: () => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -65,6 +68,36 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const mc = useCallback((e: React.MouseEvent | MouseEvent) => {
     return mapCoords(e, getCanvasRect(), R.mediaRef.current, R.rZoom, R.rPanOffset, R.dmLocalPan, R.dmLocalZoom);
   }, [getCanvasRect]);
+
+  // Punt de paret amb imant: 1) s'enganxa a un vèrtex de paret existent (tancament),
+  // 2) mode orto amb Shift respecte l'últim vèrtex, 3) snap a la graella si està actiu.
+  const snapWall = useCallback((mx: number, my: number, sc: number) => {
+    const tol = 12 / sc;
+    let best: { x: number; y: number } | null = null, bestD = tol;
+    for (const w of R.rWalls.current) {
+      for (const v of [w.a, w.b]) {
+        const d = Math.hypot(mx - v.x, my - v.y);
+        if (d < bestD) { bestD = d; best = v; }
+      }
+    }
+    if (best) return { x: best.x, y: best.y, onVertex: true };
+    let px = mx, py = my;
+    const last = R.rWallPenLast.current;
+    if (R.rShiftHeld.current && last) {
+      const dx = px - last.x, dy = py - last.y;
+      const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+      const len = Math.hypot(dx, dy);
+      px = last.x + Math.cos(ang) * len; py = last.y + Math.sin(ang) * len;
+    }
+    if (R.rGridSnap.current && R.rGridSize.current > 0) {
+      const gs = R.rGridSize.current;
+      const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
+      const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
+      px = Math.round((px - gox) / gs) * gs + gox;
+      py = Math.round((py - goy) / gs) * gs + goy;
+    }
+    return { x: px, y: py, onVertex: false };
+  }, []);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1) {
@@ -110,7 +143,27 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       e.preventDefault(); return;
     }
     if (e.button !== 0) return;
-    const { mx, my } = mc(e);
+    const { mx, my, sc } = mc(e);
+
+    // Eina "Parets": cada clic col·loca un vèrtex i tanca el tram amb l'anterior.
+    // En enganxar-se a un vèrtex existent es tanca la geometria → detecció de sala.
+    if (R.rDrawTool.current === 'wall') {
+      const snap = snapWall(mx, my, sc);
+      const p = { x: snap.x, y: snap.y };
+      const last = R.rWallPenLast.current;
+      if (last) {
+        if (Math.hypot(p.x - last.x, p.y - last.y) > 0.5) {
+          R.rWalls.current = [...R.rWalls.current, { a: last, b: p }];
+          R.rWallPenLast.current = p;
+          S.setWalls(R.rWalls.current);
+          S.redetectRooms();
+        }
+      } else {
+        R.rWallPenLast.current = p;
+        R.rWallCursor.current = { x: p.x, y: p.y, onVertex: snap.onVertex };
+      }
+      e.preventDefault(); return;
+    }
 
     if (R.rGridCalibrating.current) {
       R.gridCalibRef.current = { sx: mx, sy: my };
@@ -269,6 +322,17 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     S.setSelectedToken(null); R.rSelectedToken.current = null;
     R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
 
+    // Clic sobre una sala fosca (mode selecció) = revelar / amagar (com l'ull de Photoshop).
+    const hovR = R.rHoveredRoomId.current;
+    if (hovR) {
+      const rm = R.rRooms.current.find(r => r.id === hovR);
+      if (rm && rm.dark) {
+        const nr = R.rRooms.current.map(r => r.id === hovR ? { ...r, revealed: !r.revealed } : r);
+        R.rRooms.current = nr; S.setRooms(nr); _broadcastState({});
+        e.preventDefault(); return;
+      }
+    }
+
     const hovZ = R.rHoveredRoom.current;
     if (hovZ) {
       const { id, lx, ly, lw, lh } = hovZ;
@@ -313,7 +377,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       return;
     }
 
-    const { mx, my } = mc(e);
+    const { mx, my, sc } = mc(e);
+
+    // Paret en curs (eina "Parets"): línia elàstica de l'últim vèrtex al cursor amb imant.
+    if (R.rDrawTool.current === 'wall') {
+      R.rWallCursor.current = snapWall(mx, my, sc);
+      return;
+    }
 
     // Update marquee selection rectangle
     if (R.rAreaSelectRect.current) {
@@ -365,6 +435,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
         R.rHoveredRoom.current = found;
       }
+      // Sala fosca sota el cursor (per a l'ull de revelar)
+      let hovRoom: string | null = null;
+      for (let i = R.rRooms.current.length - 1; i >= 0; i--) {
+        const rm = R.rRooms.current[i];
+        if (rm.dark && pointInPolygon(mx, my, rm.points)) { hovRoom = rm.id; break; }
+      }
+      R.rHoveredRoomId.current = hovRoom;
     }
 
     if (tool === 'pen' || tool === 'eraser' || tool === 'shape') {
@@ -661,6 +738,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
     R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null; R.pendingDeselectRef.current = null;
     R.rHoveredRoom.current = null;
+    R.rHoveredRoomId.current = null;
+    R.rWallCursor.current = null;
     R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;
     if (R.rDrawTool.current === 'pointer') {
@@ -745,12 +824,22 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
       }
     }
+    // Sala detectada (eina Parets) — prioritat més baixa (àrea gran sota els tokens)
+    for (let i = R.rRooms.current.length - 1; i >= 0; i--) {
+      const rm = R.rRooms.current[i];
+      if (pointInPolygon(mx, my, rm.points)) {
+        S.setContextMenu({ id: rm.id, name: rm.name, x: e.clientX, y: e.clientY, isRoom: true, roomDark: rm.dark, roomRevealed: rm.revealed });
+        return;
+      }
+    }
     R.rSelectedPaintedZoneId.current = null;
     S.setContextMenu(null);
   }, [mc]);
 
   // Double click on a grouped token selects every member of its group.
   const onDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Doble clic amb l'eina Parets = aixecar la ploma (acabar la cadena actual).
+    if (R.rDrawTool.current === 'wall') { R.rWallPenLast.current = null; R.rWallCursor.current = null; return; }
     if (R.rDrawTool.current !== 'none' || R.rAreaSelectMode.current) return;
     const { mx, my } = mc(e);
 

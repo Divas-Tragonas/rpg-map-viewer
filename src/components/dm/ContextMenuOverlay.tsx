@@ -42,6 +42,10 @@ interface Props {
   onCreateGroup: (ids: (number | string)[]) => void;
   onDissolveGroup: (groupId: string) => void;
   onLeaveGroup: (id: number | string) => void;
+  onSetRoomDark: (id: string, dark: boolean) => void;
+  onToggleRoomReveal: (id: string) => void;
+  onRenameRoom: (id: string, name: string) => void;
+  onDeleteRoom: (id: string) => void;
 }
 
 export function ContextMenuOverlay({
@@ -55,6 +59,7 @@ export function ContextMenuOverlay({
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
   bcRef, wsRef, onTriggerBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom,
 }: Props) {
   useEffect(() => {
     if (!contextMenu) return;
@@ -65,6 +70,46 @@ export function ContextMenuOverlay({
 
   if (!contextMenu) return null;
   const id = String(contextMenu.id);
+
+  // ── Menú de sala (eina Parets) ────────────────────────────────────────────
+  if (contextMenu.isRoom) {
+    const rid = String(contextMenu.id);
+    const dark = !!contextMenu.roomDark;
+    const revealed = !!contextMenu.roomRevealed;
+    return (
+      <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 250), top: Math.min(contextMenu.y, window.innerHeight - 250), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', minWidth: 230, overflow: 'hidden' }}>
+        <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>🧱 Sala</span>
+          <span style={{ color: C.dim, fontSize: 10 }}>{dark ? (revealed ? 'fosca · revelada' : 'fosca · amagada') : 'normal'}</span>
+        </div>
+        <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 9, color: C.dim, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Nom</div>
+          <input
+            defaultValue={contextMenu.name}
+            onKeyDown={e => { if (e.key === 'Enter') { onRenameRoom(rid, (e.target as HTMLInputElement).value); onClose(); } }}
+            onBlur={e => onRenameRoom(rid, e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', background: '#0d1117', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 6px', color: C.text, fontSize: 11, outline: 'none' }}
+          />
+        </div>
+        <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button onMouseDown={e => { e.stopPropagation(); onSetRoomDark(rid, !dark); }}
+            style={{ width: '100%', padding: '7px', borderRadius: 6, border: `1px solid ${dark ? C.accent : C.border}`, background: dark ? `${C.accent}22` : 'rgba(255,255,255,0.04)', color: dark ? C.accent : C.text, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            {dark ? '🌑 És una sala fosca (treure)' : '🌑 Marcar com a sala fosca'}
+          </button>
+          {dark && (
+            <button onMouseDown={e => { e.stopPropagation(); onToggleRoomReveal(rid); }}
+              style={{ width: '100%', padding: '7px', borderRadius: 6, border: `1px solid ${C.room}66`, background: `${C.room}18`, color: C.room, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              {revealed ? '🙈 Amagar als jugadors' : '👁 Revelar als jugadors'}
+            </button>
+          )}
+          <button onMouseDown={e => { e.stopPropagation(); onDeleteRoom(rid); onClose(); }}
+            style={{ width: '100%', padding: '7px', borderRadius: 6, background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', color: '#f85149', cursor: 'pointer', fontSize: 12 }}>
+            🗑 Eliminar sala (esborra les seves parets)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (contextMenu.isMultiSelect && contextMenu.ids) {
     const ids = contextMenu.ids;

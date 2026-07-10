@@ -7,6 +7,7 @@ import {
 import {
   renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
+import { renderRooms } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
@@ -15,7 +16,7 @@ import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cine
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides } from '@/types';
+import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 export function PlayerView() {
@@ -37,6 +38,8 @@ export function PlayerView() {
   const rConditions  = useRef<ConditionsMap>({});
   const rDefeated    = useRef<DefeatedMap>({});
   const rPaintedZones = useRef<PaintedZone[]>([]);
+  const rRooms        = useRef<Room[]>([]);
+  const roomRevealAnimRef = useRef<Record<string, number>>({});
   const rActiveSpells = useRef<Spell[]>([]);
   const rGridVisible  = useRef(false);
   const rGridSize     = useRef(70);
@@ -416,6 +419,13 @@ export function PlayerView() {
         if (msg.conditions)    rConditions.current    = msg.conditions;
         if (msg.defeated)      rDefeated.current      = msg.defeated;
         if (msg.paintedZones)  rPaintedZones.current  = msg.paintedZones;
+        if (msg.rooms) {
+          rRooms.current = msg.rooms;
+          // Inicialitzar l'anim de revelat perquè no hi hagi flaix en connectar.
+          const anim: Record<string, number> = {};
+          for (const rm of msg.rooms as Room[]) anim[rm.id] = rm.dark && !rm.revealed ? 1 : 0;
+          roomRevealAnimRef.current = anim;
+        }
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
@@ -511,6 +521,7 @@ export function PlayerView() {
           msg.paintedZones.forEach((z: PaintedZone) => { if (!existingIds.has(z.id)) zoneAppearRef.current[z.id] = performance.now(); });
           rPaintedZones.current = msg.paintedZones;
         }
+        if (msg.rooms) rRooms.current = msg.rooms;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
         if (msg.gridSnap      !== undefined) rGridSnap.current      = msg.gridSnap;
@@ -819,11 +830,13 @@ export function PlayerView() {
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
+        rRooms, roomRevealAnimRef,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 
       renderRoomOverlays(ctx, fc);
+      renderRooms(ctx, fc);
       renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
