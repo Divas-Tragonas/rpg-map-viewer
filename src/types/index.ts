@@ -310,5 +310,6 @@ export type BCMessage =
   | { type: 'TEXTREVEAL_HIDE' }
   | { type: 'TEXTREVEAL_SYNC'; pos: number; cps: number; fadeMs: number }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number }
+  | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }
   | { type: 'EXPOSITOR_SHOW_META'; mimeType: string };

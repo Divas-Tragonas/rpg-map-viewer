@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.85
+- **Fix definitiu del relay de moviment de tokens** (reset de zoom + enemics que desapareixien). Ara el DM reenvia un missatge dedicat `TOKEN_RELAY` amb només el token mogut, i la pantalla de jugador el **fusiona** dins les seves posicions sense reemplaçar la resta de l'estat ni tocar la càmera. Així la tele rep el moviment en temps real sense perdre enemics/sales ni resetejar el zoom.
+
 ### v3.84
 - **Fix: el relay del moviment de tokens ja no fa desaparèixer enemics ni sales.** El relay de v3.83 enviava un STATE només amb `pos`, cosa que deixava fora la resta de l'estat. Ara el DM reenvia l'estat complet però amb l'opció `omitCamera` (sense `zoom`/`panOffset`), així la tele rep el moviment i tot l'estat en temps real però manté la seva pròpia vista.
 

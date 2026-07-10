@@ -200,17 +200,25 @@ export function DMView() {
         if (!String(msg.id).startsWith('pl_')) return;
         if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) {
           // Token bloquejat: reenvia la posició autoritzada perquè torni al lloc al jugador
-          // a l'instant (encara que la seva pantalla no hagués rebut el bloqueig).
-          _broadcastState({});
+          // a l'instant (encara que la seva pantalla no hagués rebut el bloqueig). Un
+          // TOKEN_RELAY (i no un STATE complet) evita resetejar-li el zoom.
+          const auth = R.rPos.current[msg.id as string | number];
+          if (auth) {
+            const back = { type: 'TOKEN_RELAY', id: msg.id, x: auth.x, y: auth.y };
+            R.bcRef.current?.postMessage(back);
+            R.wsRef.current?.send(JSON.stringify(back));
+          }
           return;
         }
         const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
         R.rPos.current = np;
         setPos(np);
-        // Reenviar l'estat a la resta de pantalles de jugador (p. ex. una tele) perquè
-        // rebin el moviment en temps real, però SENSE la càmera (omitCamera): un STATE
-        // amb zoom/pan els resetejaria la vista a cada moviment de token.
-        _broadcastState({}, { omitCamera: true });
+        // Relay a la resta de pantalles de jugador (p. ex. una tele): NOMÉS aquest
+        // token. El jugador el fusiona dins rPos sense tocar res més, així no
+        // desapareixen enemics/sales ni es reseteja el zoom (cf. TOKEN_RELAY).
+        const relay = { type: 'TOKEN_RELAY', id: msg.id, x: msg.x, y: msg.y };
+        R.bcRef.current?.postMessage(relay);
+        R.wsRef.current?.send(JSON.stringify(relay));
       }
     };
     return () => { bc.close(); R.bcRef.current = null; };
@@ -229,16 +237,24 @@ export function DMView() {
         if (!String(msg.id).startsWith('pl_')) return;
         if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) {
           // Token bloquejat: reenvia la posició autoritzada perquè torni al lloc al jugador.
-          _broadcastState({});
+          // Un TOKEN_RELAY (i no un STATE complet) evita resetejar-li el zoom.
+          const auth = R.rPos.current[msg.id];
+          if (auth) {
+            const back = { type: 'TOKEN_RELAY', id: msg.id, x: auth.x, y: auth.y };
+            R.bcRef.current?.postMessage(back);
+            R.wsRef.current?.send(JSON.stringify(back));
+          }
           return;
         }
         const np = { ...R.rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         R.rPos.current = np;
         setPos(np);
-        // Reenviar l'estat a la resta de pantalles de jugador (p. ex. una tele) perquè
-        // rebin el moviment en temps real, però SENSE la càmera (omitCamera): un STATE
-        // amb zoom/pan els resetejaria la vista a cada moviment de token.
-        _broadcastState({}, { omitCamera: true });
+        // Relay a la resta de pantalles de jugador (p. ex. una tele): NOMÉS aquest
+        // token. El jugador el fusiona dins rPos sense tocar res més, així no
+        // desapareixen enemics/sales ni es reseteja el zoom (cf. TOKEN_RELAY).
+        const relay = { type: 'TOKEN_RELAY', id: msg.id, x: msg.x, y: msg.y };
+        R.bcRef.current?.postMessage(relay);
+        R.wsRef.current?.send(JSON.stringify(relay));
       }
     }, () => {
       // onOpen (connexió i reconnexions): reenviar l'estat complet perquè el
@@ -1050,7 +1066,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.84</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.85</div>
             </div>
           </div>
         )}

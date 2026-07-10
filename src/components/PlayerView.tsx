@@ -558,6 +558,16 @@ export function PlayerView() {
             img.src = ov.imageData!;
           });
         }
+      } else if (msg.type === 'TOKEN_RELAY') {
+        // Relay del DM d'un token mogut des d'una altra pantalla de jugador (p. ex.
+        // una tablet). Es FUSIONA només aquest token dins rPos: no reemplaça tot
+        // l'estat de posicions (així no desapareixen enemics) ni toca la càmera
+        // (així no es reseteja el zoom). Si aquesta pantalla està arrossegant el
+        // mateix token, es conserva la posició local perquè no salti a mig drag.
+        const drag = tokenDragRef.current;
+        if (!(drag && String(drag.id) === String(msg.id))) {
+          rPos.current = { ...rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
+        }
       } else if (msg.type === 'STROKE') {
         const pts = msg.points;
         if (pts && pts.length > 1) {

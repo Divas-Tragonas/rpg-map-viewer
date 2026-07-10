@@ -75,28 +75,21 @@ export function useDMActions(R: DMRefs, S: Setters) {
     };
   }, []);
 
-  // `omitCamera`: no inclou zoom/panOffset/dmPreview* al missatge, de manera que el
-  // client conserva la seva pròpia vista. S'usa al relay de moviment de tokens (un
-  // moviment fet des d'una pantalla de jugador no ha de reposicionar la càmera de la
-  // resta de pantalles) però mantenint la resta de l'estat perquè no desaparegui res.
-  const _broadcastState = useCallback((extra: Record<string, unknown> = {}, opts: { omitCamera?: boolean } = {}) => {
+  const _broadcastState = useCallback((extra: Record<string, unknown> = {}) => {
     const _isDMPrev = dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1;
     const msg: Record<string, unknown> = {
       type: 'STATE',
-      vis: rVis.current, pos: rPos.current,
+      vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
+      panOffset: rPanOffset.current,
       gridVisible: rGridVisible.current, gridSize: rGridSize.current,
       gridSnap: rGridSnap.current,
       gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current,
       highlightLocked: rHighlightLocked.current,
+      dmPreviewActive: _isDMPrev,
+      dmPreviewZoom: rZoom.current * dmLocalZoom.current,
+      dmPreviewPan: { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y },
     };
-    if (!opts.omitCamera) {
-      msg.zoom = rZoom.current;
-      msg.panOffset = rPanOffset.current;
-      msg.dmPreviewActive = _isDMPrev;
-      msg.dmPreviewZoom = rZoom.current * dmLocalZoom.current;
-      msg.dmPreviewPan = { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y };
-    }
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
