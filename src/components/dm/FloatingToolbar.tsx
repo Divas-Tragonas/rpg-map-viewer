@@ -35,12 +35,10 @@ interface Props {
   drawColor: string; setDrawColor: (c: string) => void;
   drawSize: number; setDrawSize: (n: number) => void;
   canUndo: boolean; paintedZones: PaintedZone[];
-  roomCount: number; wallCount: number;
   onSetDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
   onUndo: () => void;
   onClearDraw: () => void;
   onClearPaintedZones: () => void;
-  onClearWalls: () => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<SyncSocket | null>;
   grid: GridProps;
@@ -60,7 +58,7 @@ const btnBase: React.CSSProperties = {
   borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer',
 };
 
-export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, roomCount, wallCount, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, onClearWalls, bcRef, wsRef, grid }: Props) {
+export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef, grid }: Props) {
   const [gridOpen, setGridOpen] = React.useState(false);
   const showDrawFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer' || drawTool === 'wall';
 
@@ -108,12 +106,6 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
           <button onClick={onClearPaintedZones} title="Esborrar zones màgiques"
             style={{ ...btnBase, border: `1px solid ${C.magic}66`, background: `${C.magic}14`, color: C.magic, fontSize: 10, fontWeight: 700 }}>
             ✨{paintedZones.length}
-          </button>
-        )}
-        {wallCount > 0 && (
-          <button onClick={onClearWalls} title="Esborrar totes les parets i sales"
-            style={{ ...btnBase, border: `1px solid ${C.accent}66`, background: `${C.accent}14`, color: C.accent, fontSize: 10, fontWeight: 700 }}>
-            🧱{roomCount}
           </button>
         )}
         <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />

@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.81
+- **Tret el botó d'esborrar totes les parets** (era massa perillós). Les parets/sales es gestionen amb `Backspace` (desfà l'última), `Esc` (cancel·la la cadena en curs) i "Eliminar sala" al menú contextual de cada sala.
+
 ### v3.80
 - **Fog of war real**: qualsevol token, dibuix o spell dins d'una sala fosca no revelada queda amagat als jugadors (la foscor es pinta damunt de tot al jugador).
 - **Snap a línies**: en dibuixar parets, el cursor s'enganxa també a les arestes de parets existents (no només als vèrtexs), així les sales contigües queden connectades i "sobre rails".
