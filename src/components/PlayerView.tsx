@@ -836,7 +836,6 @@ export function PlayerView() {
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 
       renderRoomOverlays(ctx, fc);
-      renderRooms(ctx, fc);
       renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
@@ -868,6 +867,10 @@ export function PlayerView() {
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
+
+      // La foscor de les sales fosques es pinta DAMUNT de tot: així qualsevol token,
+      // dibuix o spell dins d'una sala fosca queda amagat als jugadors (fog of war).
+      renderRooms(ctx, fc);
 
       ctx.restore();
 

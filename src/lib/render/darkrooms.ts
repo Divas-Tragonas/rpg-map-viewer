@@ -49,14 +49,19 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
     if (fc.roomRevealAnimRef) fc.roomRevealAnimRef.current[room.id] = Math.abs(next - tgt) < 0.004 ? tgt : next;
     const a = fc.roomRevealAnimRef ? fc.roomRevealAnimRef.current[room.id] : tgt;
 
+    // Farcir amb el polígon exacte + contorn del mateix color eixampla la foscor uns
+    // píxels cap enfora, de manera que dues sales contigües se solapin i no quedi cap
+    // fil visible del mapa a la paret compartida.
+    const seamW = Math.max(2, 2.5 / sc);
+
     if (!isDM) {
       // Jugador: només importa la foscor de les sales fosques.
       if (room.dark && a > 0.004) {
         ctx.save();
-        roomPath(ctx, room); ctx.clip();
         ctx.fillStyle = `rgba(3,4,7,${a})`;
-        const b = room.bbox;
-        ctx.fillRect(b.left - 2, b.top - 2, b.w + 4, b.h + 4);
+        ctx.strokeStyle = `rgba(3,4,7,${a})`;
+        ctx.lineJoin = 'round'; ctx.lineWidth = seamW; ctx.setLineDash([]);
+        roomPath(ctx, room); ctx.fill(); ctx.stroke();
         ctx.restore();
       }
       continue;
@@ -66,10 +71,10 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
     const isHov = hovId === room.id;
     if (room.dark) {
       ctx.save();
-      roomPath(ctx, room); ctx.clip();
       ctx.fillStyle = `rgba(3,4,7,${0.14 + a * 0.5})`;
-      const b = room.bbox;
-      ctx.fillRect(b.left - 2, b.top - 2, b.w + 4, b.h + 4);
+      ctx.strokeStyle = `rgba(3,4,7,${0.14 + a * 0.5})`;
+      ctx.lineJoin = 'round'; ctx.lineWidth = seamW; ctx.setLineDash([]);
+      roomPath(ctx, room); ctx.fill(); ctx.stroke();
       ctx.restore();
       roomPath(ctx, room);
       ctx.strokeStyle = isHov ? 'rgba(255,255,255,0.85)' : `rgba(88,166,255,${0.55 + a * 0.25})`;

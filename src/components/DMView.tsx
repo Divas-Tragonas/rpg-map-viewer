@@ -146,7 +146,7 @@ export function DMView() {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       R.rDrawTool.current = next;
       if (prev === 'pointer' && next !== 'pointer') { R.rPointerPos.current = null; R.rMeasure.current = { a: null, b: null }; }
-      if (prev === 'wall' && next !== 'wall') { R.rWallPenLast.current = null; R.rWallCursor.current = null; R.rHoveredRoomId.current = null; }
+      if (prev === 'wall' && next !== 'wall') { R.rWallPenLast.current = null; R.rWallChain.current = []; R.rWallCursor.current = null; R.rHoveredRoomId.current = null; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
       else if (next === 'wall') setCanvasCursor('crosshair');
       else if (next === 'none') setCanvasCursor('default');
@@ -172,8 +172,18 @@ export function DMView() {
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
-    redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls,
+    redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls, cancelWallChain,
   } = useDMActions(R, S);
+
+  // Embolcalls que refresquen el menú contextual de sala al moment (sense re-seleccionar).
+  const handleSetRoomDark = useCallback((id: string, dark: boolean) => {
+    setRoomDark(id, dark);
+    setContextMenu(cm => cm && String(cm.id) === id ? { ...cm, roomDark: dark, roomRevealed: dark ? cm.roomRevealed : false } : cm);
+  }, [setRoomDark]);
+  const handleToggleRoomReveal = useCallback((id: string) => {
+    toggleRoomReveal(id);
+    setContextMenu(cm => cm && String(cm.id) === id ? { ...cm, roomRevealed: !cm.roomRevealed } : cm);
+  }, [toggleRoomReveal]);
 
   // ── BC setup (DM only receives PLAYER_READY) ──────────────────────────────
   useEffect(() => {
@@ -345,6 +355,10 @@ export function DMView() {
     const last = R.rWalls.current[R.rWalls.current.length - 1];
     const nw = R.rWalls.current.slice(0, -1);
     R.rWalls.current = nw; setWalls(nw);
+    // Treu-la també de la cadena en curs si n'era l'última.
+    if (R.rWallChain.current[R.rWallChain.current.length - 1] === last) {
+      R.rWallChain.current = R.rWallChain.current.slice(0, -1);
+    }
     R.rWallPenLast.current = nw.length > 0 ? last.a : null;
     redetectRooms();
   }, [redetectRooms]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -357,6 +371,7 @@ export function DMView() {
     setAreaSelectMode,
     onDeleteSelection,
     removeLastWall,
+    cancelWallChain,
   });
 
   // ── Canvas-level callbacks ────────────────────────────────────────────────
@@ -1029,7 +1044,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.79</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.80</div>
             </div>
           </div>
         )}
@@ -1077,7 +1092,7 @@ export function DMView() {
         bcRef={R.bcRef} wsRef={R.wsRef}
         onTriggerBossIntro={triggerBossIntro}
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}
-        onSetRoomDark={setRoomDark} onToggleRoomReveal={toggleRoomReveal}
+        onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
       />
       <SceneConfigOverlay

@@ -46,6 +46,16 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.80
+- **Fog of war real**: qualsevol token, dibuix o spell dins d'una sala fosca no revelada queda amagat als jugadors (la foscor es pinta damunt de tot al jugador).
+- **Snap a línies**: en dibuixar parets, el cursor s'enganxa també a les arestes de parets existents (no només als vèrtexs), així les sales contigües queden connectades i "sobre rails".
+- **Fi de geometria net**: en tancar-se una geometria s'acaba la cadena automàticament (cal tornar a clicar per començar-ne una altra; abans encadenava sol).
+- **Esc cancel·la la cadena** de parets a mig fer (elimina totes les línies no completades); Backspace segueix desfent només l'última.
+- **Costura de sales sense forats**: les sales contigües se solapen uns píxels perquè no es vegi cap fil del mapa a la paret compartida.
+- **Menú de sala en viu**: en marcar una sala com a fosca amb el clic dret, la finestra flotant s'actualitza a l'instant (abans calia des-seleccionar i tornar-hi).
+- **Amagar una sala revelada** requereix ara tenir el mode **Shift** actiu (evita re-enfosquir-la sense voler); revelar-la és lliure.
+- Eliminats el doble-clic i el mode orto amb Shift de l'eina (redundants amb el nou flux).
+
 ### v3.79
 - **Nova eina "Parets" (🧱, drecera `5`)**: es dibuixen parets clicant successivament (estil regla de mesura, amb línia elàstica i distància en peus). En tancar una geometria, el sistema detecta automàticament la sala tancada (detecció de cares en un graf planar: fusiona vèrtexs propers, parteix als encreuaments i a les unions en T). Cada cara nova tancada crea una sala automàticament; una paret que divideix una sala existent la parteix en dues.
 - **Sales fosques amb ull (com Photoshop)**: clic dret sobre una sala → marcar-la com a *fosca*. Les sales fosques neixen amagades (interior negre opac al jugador) i el DM les revela/amaga amb l'ull (clic sobre la sala en mode selecció, o des del menú contextual). El revelat s'anima suaument al jugador. Reanomenar i eliminar sala també des del menú contextual.

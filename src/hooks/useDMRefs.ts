@@ -34,6 +34,7 @@ export function useDMRefs() {
   const rWalls          = useRef<Wall[]>([]);
   const rRooms          = useRef<Room[]>([]);
   const rWallPenLast    = useRef<Point | null>(null);   // últim vèrtex de la cadena activa (null = ploma amunt)
+  const rWallChain      = useRef<Wall[]>([]);            // parets afegides a la cadena oberta actual (per cancel·lar amb Esc)
   const rWallCursor     = useRef<{ x: number; y: number; onVertex: boolean } | null>(null); // preview de la paret en curs
   const rHoveredRoomId  = useRef<string | null>(null);  // sala sota el cursor (ull, mode selecció)
   const roomRevealAnimRef = useRef<Record<string, number>>({}); // 1 = fosca opaca, 0 = revelada
@@ -143,7 +144,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rWallPenLast, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,

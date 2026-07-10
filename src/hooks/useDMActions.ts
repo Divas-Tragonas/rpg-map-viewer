@@ -57,7 +57,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
-    rMeasure, rPointerPos, rWalls, rRooms, rWallPenLast,
+    rMeasure, rPointerPos, rWalls, rRooms, rWallPenLast, rWallChain, rWallCursor,
   } = R;
 
   // Camps pesats del STATE (arrays grans i imatges base64: MBs si hi ha retrats custom).
@@ -771,8 +771,20 @@ export function useDMActions(R: DMRefs, S: Setters) {
     redetectRooms();
   }, [redetectRooms]);
 
+  // Cancel·la la cadena de parets en curs (Esc): treu del graf les parets afegides des
+  // de l'últim cop que es va abaixar la ploma i que encara no formen cap geometria.
+  const cancelWallChain = useCallback(() => {
+    const chain = new Set(rWallChain.current);
+    rWallPenLast.current = null; rWallCursor.current = null; rWallChain.current = [];
+    if (chain.size === 0) return;
+    const keep = rWalls.current.filter(w => !chain.has(w));
+    rWalls.current = keep; S.setWalls(keep);
+    redetectRooms();
+  }, [redetectRooms]);
+
   const clearWalls = useCallback(() => {
     rWalls.current = []; rRooms.current = []; rWallPenLast.current = null;
+    rWallChain.current = []; rWallCursor.current = null;
     S.setWalls([]); S.setRooms([]);
     _broadcastState({});
   }, [_broadcastState]);
@@ -784,6 +796,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
-    redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls,
+    redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls, cancelWallChain,
   };
 }
