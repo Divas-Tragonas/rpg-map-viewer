@@ -183,7 +183,12 @@ export function DMView() {
         // Moviment de token fet des de la pantalla de jugador (mateix ordinador, sense WS).
         // La pantalla de jugador només pot moure tokens de jugador (pl_*) amb moviment actiu.
         if (!String(msg.id).startsWith('pl_')) return;
-        if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) return;
+        if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) {
+          // Token bloquejat: reenvia la posició autoritzada perquè torni al lloc al jugador
+          // a l'instant (encara que la seva pantalla no hagués rebut el bloqueig).
+          _broadcastState({});
+          return;
+        }
         const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
         R.rPos.current = np;
         setPos(np);
@@ -203,7 +208,11 @@ export function DMView() {
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // La pantalla de jugador només pot moure tokens de jugador (pl_*) amb moviment actiu.
         if (!String(msg.id).startsWith('pl_')) return;
-        if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) return;
+        if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) {
+          // Token bloquejat: reenvia la posició autoritzada perquè torni al lloc al jugador.
+          _broadcastState({});
+          return;
+        }
         const np = { ...R.rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         R.rPos.current = np;
         setPos(np);
@@ -999,7 +1008,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.77</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.78</div>
             </div>
           </div>
         )}

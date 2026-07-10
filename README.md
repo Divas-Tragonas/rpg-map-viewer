@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.78
+- **Fix: la targeta de jugador ja no canvia de mida** en aparèixer la confirmació d'esborrat (la capçalera té una alçada mínima estable).
+- **Fix: bloquejar el moviment d'un jugador s'aplica a l'instant a la pantalla de jugador.** El bloqueig del drag ja funcionava en obrir un token nou, però ara, com a xarxa de seguretat, si arriba un `TOKEN_MOVE` d'un token bloquejat (p. ex. una pantalla de jugador que encara no hagués rebut el bloqueig), el DM reenvia la posició autoritzada i el token torna al seu lloc immediatament, sense necessitat de cap clic al DM.
+
 ### v3.77
 - **Confirmació abans d'eliminar un jugador**: la ✕ de cada targeta ja no esborra directament; ara demana confirmació inline (Eliminar? Sí / No) per evitar pèrdues accidentals a mitja sessió.
 - **El nom del jugador ja es pot editar bé un cop creat**: abans el camp rebutjava qualsevol valor buit intermedi (i retallava els espais), de manera que no es podien escriure noms amb espais ni esborrar l'últim caràcter per reescriure'l. Ara el camp admet qualsevol edició i, si es deixa buit, torna a "Jugador" en perdre el focus.
