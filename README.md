@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.83
+- **Fix: el relay del moviment de tokens ja no reseteja el zoom** de la resta de pantalles de jugador. Ara el DM reenvia només la posició dels tokens (no un STATE complet amb zoom/pan), així la tele rep el moviment en temps real però manté la seva vista.
+
 ### v3.82
 - **Fix: el moviment d'un token des d'una tablet s'actualitza en temps real a la resta de pantalles de jugador** (p. ex. una tele). Quan el DM rep un `TOKEN_MOVE` d'un jugador, ara reenvia l'estat (`_broadcastState`) perquè els altres clients rebin la nova posició a l'instant, sense necessitat de fer refresh de la pantalla del DM.
 
