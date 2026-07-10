@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.77
+- **Confirmació abans d'eliminar un jugador**: la ✕ de cada targeta ja no esborra directament; ara demana confirmació inline (Eliminar? Sí / No) per evitar pèrdues accidentals a mitja sessió.
+- **El nom del jugador ja es pot editar bé un cop creat**: abans el camp rebutjava qualsevol valor buit intermedi (i retallava els espais), de manera que no es podien escriure noms amb espais ni esborrar l'últim caràcter per reescriure'l. Ara el camp admet qualsevol edició i, si es deixa buit, torna a "Jugador" en perdre el focus.
+
 ### v3.76
 - **Redisseny del panell de jugadors (sidebar del DM)**: les targetes ocupen ara tota l'amplada del panell i s'apilen una sota l'altra (abans anaven a dues columnes i la segona quedava tallada).
 - Vida molt més llegible (número gran) i botons −/+ més grans (32px, amb clic dret ±10 com abans).

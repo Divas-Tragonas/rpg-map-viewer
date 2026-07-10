@@ -58,6 +58,7 @@ function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSe
   const hpCol = ratio > 0.5 ? C.hpHigh : ratio > 0.25 ? C.hpMid : C.enemy;
   const speed = pl.speed ?? DEFAULT_SPEED_FT;
   const canMove = pl.canMove !== false;
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const hpBtn = (delta: number, col: string, bg: string, sign: string) => (
     <button onClick={() => onAdjustHp(pl.id, delta)} onContextMenu={e => { e.preventDefault(); onAdjustHp(pl.id, delta * 10); }}
       title={`${sign}1 HP (clic dret ${sign}10)`}
@@ -67,11 +68,23 @@ function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSe
     <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.07)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px 0 8px' }}>
         <div style={{ width: 11, height: 11, borderRadius: '50%', background: pl.color, flexShrink: 0 }} />
-        <input value={pl.name} title="Editar nom" onChange={e => onRename(pl.id, e.target.value)}
+        <input value={pl.name} title="Editar nom"
+          onChange={e => onRename(pl.id, e.target.value)}
+          onBlur={e => { const t = e.target.value.trim(); onRename(pl.id, t || 'Jugador'); }}
           style={{ flex: 1, minWidth: 0, fontSize: 13, color: C.text, fontWeight: 700, background: 'transparent', border: 'none', outline: 'none', padding: 0 }} />
         {!canMove && <span title="Moviment desactivat des de la pantalla de jugador" style={{ fontSize: 11, flexShrink: 0 }}>🔒</span>}
-        <button onClick={() => onRemove(pl.id)} title="Eliminar jugador"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: 0, display: 'flex', flexShrink: 0 }}><X size={11} /></button>
+        {confirmDelete ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <span style={{ fontSize: 10, color: C.enemy, fontWeight: 700 }}>Eliminar?</span>
+            <button onClick={() => onRemove(pl.id)} title="Confirmar eliminació"
+              style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${C.enemy}`, background: `${C.enemy}22`, cursor: 'pointer', color: C.enemy, fontSize: 11, fontWeight: 700 }}>Sí</button>
+            <button onClick={() => setConfirmDelete(false)} title="Cancel·lar"
+              style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', cursor: 'pointer', color: C.dim, fontSize: 11, fontWeight: 700 }}>No</button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmDelete(true)} title="Eliminar jugador"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: 0, display: 'flex', flexShrink: 0 }}><X size={11} /></button>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px 8px 8px' }}>
         {hpBtn(-1, '#f85149', 'rgba(248,81,73,0.1)', '−')}

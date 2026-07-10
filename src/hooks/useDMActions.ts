@@ -331,9 +331,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const renamePlayer = useCallback((id: number, name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, name: trimmed } : pl);
+    // Es desa el valor tal qual (permet espais i buit mentre s'edita); el component
+    // valida al perdre el focus i restaura un nom per defecte si queda buit.
+    const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, name } : pl);
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
