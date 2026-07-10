@@ -207,12 +207,10 @@ export function DMView() {
         const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
         R.rPos.current = np;
         setPos(np);
-        // Relay NOMÉS de la posició a la resta de pantalles de jugador (p. ex. una
-        // tele) perquè rebin el moviment en temps real. No enviem zoom/pan aquí: un
-        // STATE complet forçaria la vista del client i li resetejaria el zoom.
-        const relay = { type: 'STATE', pos: np };
-        R.bcRef.current?.postMessage(relay);
-        R.wsRef.current?.send(JSON.stringify(relay));
+        // Reenviar l'estat a la resta de pantalles de jugador (p. ex. una tele) perquè
+        // rebin el moviment en temps real, però SENSE la càmera (omitCamera): un STATE
+        // amb zoom/pan els resetejaria la vista a cada moviment de token.
+        _broadcastState({}, { omitCamera: true });
       }
     };
     return () => { bc.close(); R.bcRef.current = null; };
@@ -237,12 +235,10 @@ export function DMView() {
         const np = { ...R.rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         R.rPos.current = np;
         setPos(np);
-        // Relay NOMÉS de la posició a la resta de pantalles de jugador (p. ex. una
-        // tele) perquè rebin el moviment en temps real. No enviem zoom/pan aquí: un
-        // STATE complet forçaria la vista del client i li resetejaria el zoom.
-        const relay = { type: 'STATE', pos: np };
-        R.bcRef.current?.postMessage(relay);
-        R.wsRef.current?.send(JSON.stringify(relay));
+        // Reenviar l'estat a la resta de pantalles de jugador (p. ex. una tele) perquè
+        // rebin el moviment en temps real, però SENSE la càmera (omitCamera): un STATE
+        // amb zoom/pan els resetejaria la vista a cada moviment de token.
+        _broadcastState({}, { omitCamera: true });
       }
     }, () => {
       // onOpen (connexió i reconnexions): reenviar l'estat complet perquè el
@@ -1054,7 +1050,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.83</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>v3.84</div>
             </div>
           </div>
         )}
