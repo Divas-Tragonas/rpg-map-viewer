@@ -405,6 +405,12 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Tolerància tàctil més gran amb el dit (`pointerType === 'touch'` → slop 16px vs 4px de ratolí). Un sol drag actiu (es guarda el `pointerId`; la resta de tocs s'ignoren).
 - En deixar anar, envia `TOKEN_MOVE` per BC **i** WS. Mentre es arrossega: el token segueix el dit sense LERP (`renderPlayerTokens` snapeja si `rSelectedToken === key`) i el handler de `STATE` del jugador conserva la posició local del token arrossegat perquè un broadcast del DM no el faci saltar enrere.
 - **Límit de moviment per velocitat** (`Player.speed`, peus; per defecte `DEFAULT_SPEED_FT = 30`): el drag des de `/player` clampa el centre del token a un rang de `floor(speed/5)` caselles (Chebyshev) al voltant de la casella d'origen del drag. Les caselles abastables es pinten en groc suau durant el drag (`renderMoveRange` a `render/grid.ts`, cridada al tick del jugador abans dels tokens). El DM edita la velocitat al `PlayersPanel` (`setPlayerSpeed`) i **no** té cap límit en moure tokens. `speed` viatja dins l'array `players` (STRUCT/STATE/sessió), sense camps de sync nous.
+- **Bloqueig de moviment per jugador** (`Player.canMove`, absent → `true`): amb `canMove === false` el hit-test de `usePlayerTokenDrag` ignora el token (no es pot ni començar el drag des de `/player`) i el DM descarta els `TOKEN_MOVE` d'aquest token (BC i WS, handlers a `DMView.tsx`). El DM el commuta al desplegable de configuració del `PlayersPanel` (`setPlayerCanMove`); la targeta mostra 🔒. Com `speed`, viatja dins `players` sense camps de sync nous.
+
+### Panell de jugadors (`src/components/dm/PlayersPanel.tsx`)
+- Targetes a **una columna** (amplada completa del sidebar), apilades verticalment.
+- Cada targeta (`PlayerCard`): capçalera (color, nom editable, 🔒 si `canMove === false`, ✕ eliminar) + fila d'HP gran (botons −/+ de 32px amb clic dret ±10, vida a 24px) + botó d'engranatge.
+- L'engranatge desplega una **secció de configuració** enganxada sota la targeta amb animació suau (truc CSS `grid-template-rows: 0fr→1fr`, sense mesurar alçades): vida actual, vida màxima, velocitat (peus + equivalència en caselles) i toggle de moviment des de la pantalla de jugador. Només un desplegable obert alhora (`openConfigId`).
 
 ### Vista privada DM
 - `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats al jugador

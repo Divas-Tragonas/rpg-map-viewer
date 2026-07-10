@@ -64,6 +64,8 @@ export interface Player {
   hpMax: number;
   /** Velocitat de moviment en peus (1 casella = 5 ft). Absent → DEFAULT_SPEED_FT. Limita el drag des de /player; el DM no té límit. */
   speed?: number;
+  /** false → el token no es pot moure des de /player (el DM sempre pot). Absent → true. */
+  canMove?: boolean;
 }
 
 export interface Point {

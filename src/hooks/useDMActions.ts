@@ -325,6 +325,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
+  const setPlayerCanMove = useCallback((id: number, canMove: boolean) => {
+    const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, canMove } : pl);
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
   const renamePlayer = useCallback((id: number, name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -705,7 +710,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,

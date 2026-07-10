@@ -46,6 +46,12 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.76
+- **Redisseny del panell de jugadors (sidebar del DM)**: les targetes ocupen ara tota l'amplada del panell i s'apilen una sota l'altra (abans anaven a dues columnes i la segona quedava tallada).
+- Vida molt més llegible (número gran) i botons −/+ més grans (32px, amb clic dret ±10 com abans).
+- Nou botó d'engranatge a cada targeta que desplega una secció de configuració enganxada a sota (animació suau que desplaça la resta de targetes): vida actual, vida màxima, velocitat de moviment i interruptor per activar/desactivar el moviment des de la pantalla de jugador.
+- **Nou camp `canMove` per jugador**: quan el DM el desactiva, el token no es pot arrossegar des de `/player` (el hit-test l'ignora i el DM descarta qualsevol `TOKEN_MOVE` seu per BC i WS). Es mostra un cadenat 🔒 a la targeta. El DM el pot moure sempre.
+
 ### v3.75
 - **Fix indicador de punter/regla de mesura invisible a la tablet (Safari)**: en clicar amb l'eina "Senyal", ara el click mateix col·loca i emet l'indicador de punter (abans només ho feia el `mousemove`, que en pantalles tàctils no arriba de manera fiable abans del tap).
 - El primer punt de la regla de mesura es dibuixa encara que no hi hagi posició de cursor viva: un click sempre deixa una marca visible al DM i al jugador.
