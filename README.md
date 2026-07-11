@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.87
+- **Fix sincronització de tokens entre pantalles de jugador per WebSocket (iPad/cross-device).** El relay `TOKEN_RELAY` que propaga el moviment d'un token de jugador a la resta de pantalles ara està documentat al contracte (`api-spec.txt`) com a missatge dm→client: el servidor de la API l'ha de reenviar als clients igual que `STATE`. Fins ara només funcionava al mateix ordinador (BroadcastChannel); les pantalles connectades per WebSocket (iPad, teles) no es refrescaven perquè el servidor no reenviava aquest tipus.
+
 ### v3.86
 - **Fix: bugs de rendering a la pantalla de jugador (sincronització robusta).**
   - Els spells d'àrea (dormir/grasa) ara desapareixen del jugador quan el DM els esborra encara que el `DELETE_SPELL` puntual es perdi: `activeSpells` es reconcilia al `STATE`/`STRUCT` (font de veritat del DM). També fa que un jugador que es connecta tard vegi els spells d'àrea ja actius.
