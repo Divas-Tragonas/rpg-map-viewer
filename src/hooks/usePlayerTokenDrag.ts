@@ -5,7 +5,12 @@ import { DEFAULT_SPEED_FT } from '@/constants';
 import type { PosMap, Player, TokenSizeMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
-/** Regió de caselles on el jugador pot moure el token durant el drag (Chebyshev: diagonal = 1 casella = 5 ft). */
+/**
+ * Regió de caselles on el jugador pot moure el token durant el drag.
+ * Cost de moviment estil D&D amb diagonal = 10 ft (2 × ortogonal): el cost per
+ * arribar a una casella (dc, dr) és `5·(|dc| + |dr|)` peus → distància de Manhattan.
+ * Per tant la regió abastable és un rombe (|dc| + |dr| ≤ maxCells), no un quadrat.
+ */
 export interface MoveRange {
   startCol: number;
   startRow: number;
@@ -147,11 +152,26 @@ export function usePlayerTokenDrag(
     const { id, ox, oy, R, range } = dragRef.current;
     let cx = mx - ox + R, cy = my - oy + R;
     if (range) {
-      // Clamp del centre dins la regió de caselles abastables (1px de marge perquè
-      // el snap posterior caigui a la casella del perímetre, no a la següent).
+      // Clamp del centre dins del rombe de caselles abastables (Manhattan, diagonal = 10 ft).
       const { startCol, startRow, maxCells, gs, gox, goy } = range;
-      cx = Math.min(Math.max(cx, gox + (startCol - maxCells) * gs + 1), gox + (startCol + maxCells + 1) * gs - 1);
-      cy = Math.min(Math.max(cy, goy + (startRow - maxCells) * gs + 1), goy + (startRow + maxCells + 1) * gs - 1);
+      const col = Math.floor((cx - gox) / gs);
+      const row = Math.floor((cy - goy) / gs);
+      const dc = col - startCol, dr = row - startRow;
+      const dist = Math.abs(dc) + Math.abs(dr);
+      if (dist > maxCells) {
+        // Projectem (dc, dr) sobre la vora del rombe conservant la direcció del punter.
+        const sc = Math.sign(dc), sr = Math.sign(dr);
+        const tdc = (Math.abs(dc) * maxCells) / dist;
+        const tdr = (Math.abs(dr) * maxCells) / dist;
+        let ndc = Math.floor(tdc), ndr = Math.floor(tdr);
+        if (ndc + ndr < maxCells) {
+          if (tdc - ndc >= tdr - ndr) ndc++; else ndr++;
+        }
+        const tcol = startCol + sc * ndc, trow = startRow + sr * ndr;
+        // 1px de marge perquè el snap posterior caigui a la casella del perímetre.
+        cx = Math.min(Math.max(cx, gox + tcol * gs + 1), gox + (tcol + 1) * gs - 1);
+        cy = Math.min(Math.max(cy, goy + trow * gs + 1), goy + (trow + 1) * gs - 1);
+      }
     }
     const np = snapPos({ x: cx - R, y: cy - R }, id);
     rPos.current = { ...rPos.current, [id]: np };

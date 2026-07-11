@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.88
+- **Àrea de moviment de tokens de jugador coherent (rombe).** El límit de moviment ara tracta la diagonal com a 10 ft (variant D&D), de manera que la regió abastable és un rombe (distància de Manhattan) en comptes d'un quadrat que arribava massa lluny en diagonal. El clamp del drag projecta el punter sobre la vora del rombe conservant la direcció, i el ressaltat groc dibuixa el rombe amb perímetre esglaonat.
+
 ### v3.87
 - **Fix sincronització de tokens entre pantalles de jugador per WebSocket (iPad/cross-device).** El relay `TOKEN_RELAY` que propaga el moviment d'un token de jugador a la resta de pantalles ara està documentat al contracte (`api-spec.txt`) com a missatge dm→client: el servidor de la API l'ha de reenviar als clients igual que `STATE`. Fins ara només funcionava al mateix ordinador (BroadcastChannel); les pantalles connectades per WebSocket (iPad, teles) no es refrescaven perquè el servidor no reenviava aquest tipus.
 
