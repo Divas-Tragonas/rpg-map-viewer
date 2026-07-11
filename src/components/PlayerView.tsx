@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layers } from '@/components/icons';
 import {
-  BC_CHANNEL, TOKEN_LERP,
+  BC_CHANNEL, TOKEN_LERP, APP_VERSION,
 } from '@/constants';
 import {
   renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview,
@@ -997,6 +997,7 @@ export function PlayerView() {
           <Layers size={40} color="#21262d" />
           <div style={{ fontSize: 18, color: '#e6edf3', fontWeight: 600 }}>RPG Map Viewer</div>
           <div style={{ fontSize: 13 }}>Esperant al Dungeon Master...</div>
+          <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
         </div>
       )}
 
