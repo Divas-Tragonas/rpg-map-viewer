@@ -7,9 +7,10 @@ import type { SyncSocket } from '@/lib/ws';
 
 /**
  * Regió de caselles on el jugador pot moure el token durant el drag.
- * Cost de moviment estil D&D amb diagonal = 10 ft (2 × ortogonal): el cost per
- * arribar a una casella (dc, dr) és `5·(|dc| + |dr|)` peus → distància de Manhattan.
- * Per tant la regió abastable és un rombe (|dc| + |dr| ≤ maxCells), no un quadrat.
+ * Distància euclidiana real (la diagonal costa ~7 ft = √2·5, com a la realitat):
+ * una casella (dc, dr) és abastable si `dc² + dr² ≤ (maxCells + 0.5)²`.
+ * Per tant la regió abastable és un **disc rasteritzat** (cercle pixelat), no un
+ * quadrat ni un rombe — la forma coherent de moviment.
  */
 export interface MoveRange {
   startCol: number;
@@ -152,22 +153,20 @@ export function usePlayerTokenDrag(
     const { id, ox, oy, R, range } = dragRef.current;
     let cx = mx - ox + R, cy = my - oy + R;
     if (range) {
-      // Clamp del centre dins del rombe de caselles abastables (Manhattan, diagonal = 10 ft).
+      // Clamp del centre dins del cercle de caselles abastables (distància euclidiana).
       const { startCol, startRow, maxCells, gs, gox, goy } = range;
+      const r2 = (maxCells + 0.5) * (maxCells + 0.5);
       const col = Math.floor((cx - gox) / gs);
       const row = Math.floor((cy - goy) / gs);
-      const dc = col - startCol, dr = row - startRow;
-      const dist = Math.abs(dc) + Math.abs(dr);
-      if (dist > maxCells) {
-        // Projectem (dc, dr) sobre la vora del rombe conservant la direcció del punter.
-        const sc = Math.sign(dc), sr = Math.sign(dr);
-        const tdc = (Math.abs(dc) * maxCells) / dist;
-        const tdr = (Math.abs(dr) * maxCells) / dist;
-        let ndc = Math.floor(tdc), ndr = Math.floor(tdr);
-        if (ndc + ndr < maxCells) {
-          if (tdc - ndc >= tdr - ndr) ndc++; else ndr++;
+      let dc = col - startCol, dr = row - startRow;
+      if (dc * dc + dr * dr > r2) {
+        // Caminem la casella cap endins fins entrar al disc, reduint primer l'eix dominant
+        // (així la casella final sempre és una de les pintades i segueix la direcció del punter).
+        while (dc * dc + dr * dr > r2) {
+          if (Math.abs(dc) >= Math.abs(dr)) dc -= Math.sign(dc);
+          else dr -= Math.sign(dr);
         }
-        const tcol = startCol + sc * ndc, trow = startRow + sr * ndr;
+        const tcol = startCol + dc, trow = startRow + dr;
         // 1px de marge perquè el snap posterior caigui a la casella del perímetre.
         cx = Math.min(Math.max(cx, gox + tcol * gs + 1), gox + (tcol + 1) * gs - 1);
         cy = Math.min(Math.max(cy, goy + trow * gs + 1), goy + (trow + 1) * gs - 1);

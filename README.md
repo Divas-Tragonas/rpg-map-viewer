@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.90
+- **Àrea de moviment de tokens de jugador com un cercle real.** En comptes del rombe (que es veia estrany), el límit de moviment ara usa distància euclidiana (`dc² + dr² ≤ (maxCells + 0.5)²`) → un **disc rasteritzat** idèntic a les taules de cercles pixel-art. La diagonal costa el seu valor real (~7 ft = √2·5). El clamp del drag camina la casella cap endins fins entrar al disc conservant la direcció, i el ressaltat groc pinta el cercle amb perímetre esglaonat.
+
 ### v3.88
 - **Àrea de moviment de tokens de jugador coherent (rombe).** El límit de moviment ara tracta la diagonal com a 10 ft (variant D&D), de manera que la regió abastable és un rombe (distància de Manhattan) en comptes d'un quadrat que arribava massa lluny en diagonal. El clamp del drag projecta el punter sobre la vora del rombe conservant la direcció, i el ressaltat groc dibuixa el rombe amb perímetre esglaonat.
 

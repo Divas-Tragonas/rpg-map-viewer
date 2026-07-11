@@ -4,34 +4,37 @@ import type { MoveRange } from '@/hooks/usePlayerTokenDrag';
 /**
  * Caselles on el jugador pot moure el token durant el drag (pantalla de jugador).
  * Es dibuixa en espai de mapa (ctx ja translladat/escalat); selecció suau en groc.
- * Rombe de moviment (Manhattan, diagonal = 10 ft): abastable si |dc| + |dr| ≤ maxCells.
+ * Cercle de moviment (distància euclidiana): abastable si dc² + dr² ≤ (maxCells + 0.5)².
+ * Dóna un disc rasteritzat (cercle pixelat) igual que les taules de cercles pixel-art.
  */
 export function renderMoveRange(ctx: CanvasRenderingContext2D, range: MoveRange, mw: number, mh: number, sc: number): void {
   const { startCol, startRow, maxCells, gs, gox, goy } = range;
+  const r2 = (maxCells + 0.5) * (maxCells + 0.5);
+  const inRange = (dc: number, dr: number) => dc * dc + dr * dr <= r2;
   const cellX = (dc: number) => gox + (startCol + dc) * gs;
   const cellY = (dr: number) => goy + (startRow + dr) * gs;
+  const lim = maxCells + 1;
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, mw, mh); ctx.clip();
-  // farciment de les caselles del rombe + línies de cel·la molt subtils
+  // farciment de les caselles del disc + línies de cel·la molt subtils
   ctx.fillStyle = 'rgba(255,214,64,0.13)';
   ctx.strokeStyle = 'rgba(255,214,64,0.22)';
   ctx.lineWidth = Math.max(0.5 / sc, 1 / sc);
-  for (let dr = -maxCells; dr <= maxCells; dr++) {
-    const span = maxCells - Math.abs(dr);
-    for (let dc = -span; dc <= span; dc++) {
+  for (let dr = -lim; dr <= lim; dr++) {
+    for (let dc = -lim; dc <= lim; dc++) {
+      if (!inRange(dc, dr)) continue;
       const x = cellX(dc), y = cellY(dr);
       ctx.fillRect(x, y, gs, gs);
       ctx.strokeRect(x, y, gs, gs);
     }
   }
-  // perímetre esglaonat: només les arestes que toquen fora del rombe
-  const inRange = (dc: number, dr: number) => Math.abs(dc) + Math.abs(dr) <= maxCells;
+  // perímetre esglaonat: només les arestes que toquen fora del disc
   ctx.strokeStyle = 'rgba(255,214,64,0.55)';
   ctx.lineWidth = 2 / sc;
   ctx.beginPath();
-  for (let dr = -maxCells; dr <= maxCells; dr++) {
-    const span = maxCells - Math.abs(dr);
-    for (let dc = -span; dc <= span; dc++) {
+  for (let dr = -lim; dr <= lim; dr++) {
+    for (let dc = -lim; dc <= lim; dc++) {
+      if (!inRange(dc, dr)) continue;
       const x = cellX(dc), y = cellY(dr);
       if (!inRange(dc - 1, dr)) { ctx.moveTo(x, y); ctx.lineTo(x, y + gs); }
       if (!inRange(dc + 1, dr)) { ctx.moveTo(x + gs, y); ctx.lineTo(x + gs, y + gs); }
