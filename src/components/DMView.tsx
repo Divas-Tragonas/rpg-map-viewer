@@ -1,11 +1,11 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius, APP_VERSION } from '@/constants';
+import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT } from '@/constants';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, PsdEnemyOverrides, Wall, Room,
+  LibEnemy, PsdEnemyOverrides, Wall, Room, TurnState,
 } from '@/types';
 import { useDMRefs } from '@/hooks/useDMRefs';
 import { useCinematic } from '@/hooks/useCinematic';
@@ -27,6 +27,7 @@ import { SpellMenuOverlay } from '@/components/dm/SpellMenuOverlay';
 import { ShapeMenuOverlay } from '@/components/dm/ShapeMenuOverlay';
 import { ContextMenuOverlay } from '@/components/dm/ContextMenuOverlay';
 import { SceneConfigOverlay } from '@/components/dm/SceneConfigOverlay';
+import { TurnTracker } from '@/components/dm/TurnTracker';
 
 export function DMView() {
   // ── State ────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ export function DMView() {
   const [paintedZones, setPaintedZones] = useState<PaintedZone[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [activeDrag, setActiveDrag] = useState<string | number | null>(null);
   const [canUndo, setCanUndo] = useState(false);
@@ -161,7 +163,7 @@ export function DMView() {
     setPaintedZones, setExpanded, setCanUndo, setActiveSpells, setGridSize, setGridSnap,
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
     setWarningsDismissed, setGridVisible, setGridAutoSize,
-    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms,
+    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setTurn,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -174,6 +176,102 @@ export function DMView() {
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
     redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, cancelWallChain,
   } = useDMActions(R, S);
+
+  // ── Sistema per torns ──────────────────────────────────────────────────────
+  // Peus amb què arrenca un token en agafar el torn: la velocitat del jugador. Els
+  // enemics no tenen límit des de /player, així que un sentinella gran fa de "sense límit".
+  const _budgetFor = useCallback((id: number | string): number => {
+    const s = String(id);
+    if (s.startsWith('pl_')) return R.rPlayers.current.find(p => `pl_${p.id}` === s)?.speed ?? DEFAULT_SPEED_FT;
+    return 100000;
+  }, [R]);
+
+  const _applyTurn = useCallback((t: TurnState) => {
+    R.rTurn.current = t; setTurn(t); _broadcastState({});
+  }, [R, _broadcastState]);
+
+  const startTurnCombat = useCallback((includeIds: (number | string)[]) => {
+    // Tots els jugadors s'afegeixen automàticament; després els enemics/grups triats. Dedup.
+    const order: (number | string)[] = [];
+    const seen = new Set<string>();
+    [...R.rPlayers.current.map(p => `pl_${p.id}` as string | number), ...includeIds].forEach(id => {
+      const k = String(id);
+      if (!seen.has(k)) { seen.add(k); order.push(id); }
+    });
+    if (order.length === 0) return;
+    _applyTurn({ active: true, order, turnIndex: 0, round: 1, activeRemainingFt: _budgetFor(order[0]) });
+  }, [R, _applyTurn, _budgetFor]);
+
+  const endTurnCombat = useCallback(() => {
+    _applyTurn({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
+  }, [_applyTurn]);
+
+  const advanceTurn = useCallback(() => {
+    const t = R.rTurn.current;
+    if (!t.active || t.order.length === 0) return;
+    let ni = t.turnIndex + 1, round = t.round;
+    if (ni >= t.order.length) { ni = 0; round += 1; }  // volta completa → nova ronda
+    _applyTurn({ ...t, turnIndex: ni, round, activeRemainingFt: _budgetFor(t.order[ni]) });
+  }, [R, _applyTurn, _budgetFor]);
+
+  const advanceRound = useCallback(() => {
+    const t = R.rTurn.current;
+    if (!t.active || t.order.length === 0) return;  // salta els que queden i comença ronda nova
+    _applyTurn({ ...t, turnIndex: 0, round: t.round + 1, activeRemainingFt: _budgetFor(t.order[0]) });
+  }, [R, _applyTurn, _budgetFor]);
+
+  // Processa un TOKEN_MOVE rebut d'una pantalla de jugador (BC o WS). El DM és autoritat:
+  // valida el bloqueig manual i, si hi ha combat, que sigui el token del torn actiu i que el
+  // moviment no superi el saldo de peus (mateixa mètrica de disc que el clamp del drag). Si
+  // rebutja, retorna la posició autoritzada (TOKEN_RELAY) perquè el token torni al lloc a l'instant.
+  const handlePlayerTokenMove = useCallback((id: number | string, x: number, y: number) => {
+    const sid = String(id);
+    if (!sid.startsWith('pl_')) return;
+    const bounceBack = () => {
+      const auth = R.rPos.current[id];
+      if (!auth) return;
+      const back = { type: 'TOKEN_RELAY', id, x: auth.x, y: auth.y };
+      R.bcRef.current?.postMessage(back);
+      R.wsRef.current?.send(JSON.stringify(back));
+    };
+    if (R.rPlayers.current.find(p => `pl_${p.id}` === sid)?.canMove === false) { bounceBack(); return; }
+
+    const turn = R.rTurn.current;
+    let consumedFt = 0;
+    if (turn.active) {
+      if (sid !== String(turn.order[turn.turnIndex])) { bounceBack(); return; }  // no és el seu torn
+      const gs = R.rGridSize.current;
+      if (gs > 0) {
+        const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
+        const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
+        const Rv = R.rTokenSizeOverride.current[id] ?? 22;
+        const cur = R.rPos.current[id] ?? { x, y };
+        const col = (px: number) => Math.floor((px + Rv - gox) / gs);
+        const row = (py: number) => Math.floor((py + Rv - goy) / gs);
+        const cells = Math.max(0, Math.ceil(Math.hypot(col(x) - col(cur.x), row(y) - row(cur.y)) - 0.5));
+        consumedFt = cells * 5;
+        if (consumedFt > turn.activeRemainingFt + 0.001) { bounceBack(); return; }
+      }
+    }
+
+    const np = { ...R.rPos.current, [id]: { x, y } };
+    R.rPos.current = np; setPos(np);
+
+    if (turn.active) {
+      // Descompta el saldo i propaga pos + saldo a totes les pantalles amb un STATE
+      // (la font autoritzada de rPos, així el disc del jugador s'encongeix i res salta).
+      if (consumedFt > 0) {
+        const nt = { ...turn, activeRemainingFt: Math.max(0, turn.activeRemainingFt - consumedFt) };
+        R.rTurn.current = nt; setTurn(nt);
+      }
+      _broadcastState({});
+    } else {
+      // Fora de combat: relay d'un sol token (sense reset de càmera ni de la resta de tokens).
+      const relay = { type: 'TOKEN_RELAY', id, x, y };
+      R.bcRef.current?.postMessage(relay);
+      R.wsRef.current?.send(JSON.stringify(relay));
+    }
+  }, [R, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Embolcalls que refresquen el menú contextual de sala al moment (sense re-seleccionar).
   const handleSetRoomDark = useCallback((id: string, dark: boolean) => {
@@ -195,30 +293,9 @@ export function DMView() {
         _sendFullState();
         trResendShowRef.current();
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
-        // Moviment de token fet des de la pantalla de jugador (mateix ordinador, sense WS).
-        // La pantalla de jugador només pot moure tokens de jugador (pl_*) amb moviment actiu.
-        if (!String(msg.id).startsWith('pl_')) return;
-        if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) {
-          // Token bloquejat: reenvia la posició autoritzada perquè torni al lloc al jugador
-          // a l'instant (encara que la seva pantalla no hagués rebut el bloqueig). Un
-          // TOKEN_RELAY (i no un STATE complet) evita resetejar-li el zoom.
-          const auth = R.rPos.current[msg.id as string | number];
-          if (auth) {
-            const back = { type: 'TOKEN_RELAY', id: msg.id, x: auth.x, y: auth.y };
-            R.bcRef.current?.postMessage(back);
-            R.wsRef.current?.send(JSON.stringify(back));
-          }
-          return;
-        }
-        const np = { ...R.rPos.current, [msg.id as string | number]: { x: msg.x as number, y: msg.y as number } };
-        R.rPos.current = np;
-        setPos(np);
-        // Relay a la resta de pantalles de jugador (p. ex. una tele): NOMÉS aquest
-        // token. El jugador el fusiona dins rPos sense tocar res més, així no
-        // desapareixen enemics/sales ni es reseteja el zoom (cf. TOKEN_RELAY).
-        const relay = { type: 'TOKEN_RELAY', id: msg.id, x: msg.x, y: msg.y };
-        R.bcRef.current?.postMessage(relay);
-        R.wsRef.current?.send(JSON.stringify(relay));
+        // Moviment fet des de la pantalla de jugador (mateix ordinador via BC). La validació
+        // (bloqueig, torn actiu i saldo de peus) i la propagació viuen a handlePlayerTokenMove.
+        handlePlayerTokenMove(msg.id, msg.x, msg.y);
       }
     };
     return () => { bc.close(); R.bcRef.current = null; };
@@ -233,28 +310,9 @@ export function DMView() {
         _sendFullState();
         trResendShowRef.current();
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
-        // La pantalla de jugador només pot moure tokens de jugador (pl_*) amb moviment actiu.
-        if (!String(msg.id).startsWith('pl_')) return;
-        if (R.rPlayers.current.find(p => p.id === Number(String(msg.id).slice(3)))?.canMove === false) {
-          // Token bloquejat: reenvia la posició autoritzada perquè torni al lloc al jugador.
-          // Un TOKEN_RELAY (i no un STATE complet) evita resetejar-li el zoom.
-          const auth = R.rPos.current[msg.id];
-          if (auth) {
-            const back = { type: 'TOKEN_RELAY', id: msg.id, x: auth.x, y: auth.y };
-            R.bcRef.current?.postMessage(back);
-            R.wsRef.current?.send(JSON.stringify(back));
-          }
-          return;
-        }
-        const np = { ...R.rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
-        R.rPos.current = np;
-        setPos(np);
-        // Relay a la resta de pantalles de jugador (p. ex. una tele): NOMÉS aquest
-        // token. El jugador el fusiona dins rPos sense tocar res més, així no
-        // desapareixen enemics/sales ni es reseteja el zoom (cf. TOKEN_RELAY).
-        const relay = { type: 'TOKEN_RELAY', id: msg.id, x: msg.x, y: msg.y };
-        R.bcRef.current?.postMessage(relay);
-        R.wsRef.current?.send(JSON.stringify(relay));
+        // Moviment des de la pantalla de jugador (per xarxa). Mateixa validació + propagació
+        // que la via BC (bloqueig, torn actiu i saldo de peus) a handlePlayerTokenMove.
+        handlePlayerTokenMove(msg.id, msg.x, msg.y);
       }
     }, () => {
       // onOpen (connexió i reconnexions): reenviar l'estat complet perquè el
@@ -849,6 +907,19 @@ export function DMView() {
             onSnapAll: snapAllTokens, onSizeAll: sizeAllTokens, onBroadcast: _broadcastState,
             gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef,
           }}
+        />
+        <TurnTracker
+          turn={turn}
+          players={players}
+          libEnemies={libEnemies}
+          struct={struct}
+          psdEnemyOverrides={psdEnemyOverrides}
+          vis={vis}
+          tokenGroupsRef={R.rTokenGroups}
+          onStart={startTurnCombat}
+          onEnd={endTurnCombat}
+          onAdvance={advanceTurn}
+          onAdvanceRound={advanceRound}
         />
         <button
           onClick={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}

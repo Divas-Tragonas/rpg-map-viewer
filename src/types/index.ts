@@ -224,6 +224,16 @@ export interface Element {
   emoji: string;
 }
 
+// Sistema per torns (iniciativa). El DM és la font de veritat; el jugador el rep
+// sincronitzat per limitar el moviment del token actiu segons el saldo restant.
+export interface TurnState {
+  active: boolean;               // combat en curs
+  order: (number | string)[];    // ordre de torn: ids plans de token (pl_*, lib_*, o id PSD)
+  turnIndex: number;             // índex dins `order` del token que té el torn
+  round: number;                 // ronda actual (comença a 1)
+  activeRemainingFt: number;     // peus de moviment que li queden al token actiu
+}
+
 export type VisMap = Record<number | string, boolean>;
 export type PosMap = Record<number | string, Point>;
 export type ConditionsMap = Record<string, string[]>;
@@ -261,6 +271,8 @@ export interface BCStateMessage {
   // l'estat obsolet a la pantalla del jugador (camp pesat: només quan canvia la ref).
   activeSpells?: Spell[];
   measure?: { a: Point | null; b: Point | null };
+  // Estat del sistema per torns (camp lleuger: petit i s'envia sempre).
+  turn?: TurnState;
 }
 
 export interface BCStructMessage {
@@ -294,6 +306,7 @@ export interface BCStructMessage {
   // del WS (Safari en tablet suspèn el socket sovint) no els perdi.
   measure?: { a: Point | null; b: Point | null };
   pointerPos?: Point | null;
+  turn?: TurnState;
 }
 
 export type BCMessage =

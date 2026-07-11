@@ -2,7 +2,7 @@ import type { MutableRefObject } from 'react';
 import type {
   MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, SpellPreview,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData, Point, DrawTool,
-  Wall, Room,
+  Wall, Room, TurnState,
 } from '@/types';
 
 export interface GridCalib {
@@ -94,6 +94,7 @@ export interface FrameContext {
   rDrawTool?:       MutableRefObject<DrawTool>;
   rSelectedToken:   MutableRefObject<number | string | null>;
   rMultiSelected:   MutableRefObject<Set<number | string>>;
+  rTurn?:           MutableRefObject<TurnState>;
 
   rLibEnemies:         MutableRefObject<import('@/types').LibEnemy[]>;
   rPsdEnemyOverrides:  MutableRefObject<import('@/types').PsdEnemyOverrides>;

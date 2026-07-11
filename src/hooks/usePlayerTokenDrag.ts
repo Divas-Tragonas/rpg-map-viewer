@@ -2,7 +2,7 @@
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
-import type { PosMap, Player, TokenSizeMap } from '@/types';
+import type { PosMap, Player, TokenSizeMap, TurnState } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 /**
@@ -100,6 +100,7 @@ export function usePlayerTokenDrag(
   rSelectedToken: RefObject<number | string | null>,
   wsRef: RefObject<SyncSocket | null>,
   bcRef: RefObject<BroadcastChannel | null>,
+  rTurn: RefObject<TurnState>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -124,7 +125,16 @@ export function usePlayerTokenDrag(
     const slop = e.pointerType === 'touch' ? 16 : 4;
     const hit = hitTest(mx, my, slop, rPos, rPlayers, rTokenSizeOverride);
     if (!hit) return;
-    // Rang de moviment en caselles a partir de la velocitat en peus del token (1 casella = 5 ft).
+    // Durant un combat per torns, des de /player només es pot moure el token que té el
+    // torn actiu, i el seu abast és el saldo de moviment restant (no la velocitat sencera).
+    const turn = rTurn.current;
+    let speedFt = hit.speed;
+    if (turn?.active) {
+      const activeId = turn.order[turn.turnIndex];
+      if (String(hit.id) !== String(activeId)) return; // no és el seu torn
+      speedFt = turn.activeRemainingFt;
+    }
+    // Rang de moviment en caselles a partir dels peus disponibles (1 casella = 5 ft).
     // El límit només s'aplica a la pantalla de jugador: el DM mou sense restriccions.
     let range: MoveRange | null = null;
     const gs = rGridSize.current;
@@ -134,7 +144,7 @@ export function usePlayerTokenDrag(
       range = {
         startCol: Math.floor((hit.startX + hit.R - gox) / gs),
         startRow: Math.floor((hit.startY + hit.R - goy) / gs),
-        maxCells: Math.max(0, Math.floor(hit.speed / 5)),
+        maxCells: Math.max(0, Math.floor(speedFt / 5)),
         gs, gox, goy,
       };
     }

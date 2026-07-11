@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.91
+- **Sistema per torns (iniciativa).** Nova barra inferior al canvas del DM: s'activa el combat, s'hi afegeixen automàticament tots els jugadors i es trien quins enemics o grups incloure. Els tokens es mostren en fila per ordre de torn; el que té el torn actiu porta un **aro daurat sòlid** (al mapa i a la barra). Durant el seu torn, des de `/player` el jugador només pot moure el token actiu i fins que gasti els seus peus (p. ex. amb 15 ft: mou 5 → li queden 10); el disc de moviment s'encongeix a cada pas i el DM valida el saldo (rebot si se supera). Clicar el token actiu de la barra passa el torn al següent; en tancar la volta comença una ronda nova i tots recuperen moviment. Botó **⏭ Ronda** per forçar ronda nova. El DM no té cap límit de moviment. L'estat viatja al jugador dins `STATE`/`STRUCT` i persisteix a la sessió.
+
 ### v3.90
 - **Àrea de moviment de tokens de jugador com un cercle real.** En comptes del rombe (que es veia estrany), el límit de moviment ara usa distància euclidiana (`dc² + dr² ≤ (maxCells + 0.5)²`) → un **disc rasteritzat** idèntic a les taules de cercles pixel-art. La diagonal costa el seu valor real (~7 ft = √2·5). El clamp del drag camina la casella cap endins fins entrar al disc conservant la direcció, i el ressaltat groc pinta el cercle amb perímetre esglaonat.
 

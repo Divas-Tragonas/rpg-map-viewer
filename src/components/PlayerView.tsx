@@ -16,7 +16,7 @@ import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cine
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room } from '@/types';
+import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, TurnState } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 export function PlayerView() {
@@ -54,6 +54,7 @@ export function PlayerView() {
   const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
   const rMultiSelected = useRef<Set<number | string>>(new Set());
+  const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
   const visualZoomRef = useRef(1);
@@ -415,6 +416,7 @@ export function PlayerView() {
     rSelectedToken,
     wsRef,
     bcRef,
+    rTurn,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
@@ -474,6 +476,7 @@ export function PlayerView() {
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
+        if (msg.turn) rTurn.current = msg.turn;
         if (msg.psdEnemyOverrides) {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
@@ -563,6 +566,7 @@ export function PlayerView() {
           rPaintedZones.current = msg.paintedZones;
         }
         if (msg.rooms) rRooms.current = msg.rooms;
+        if (msg.turn) rTurn.current = msg.turn;
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
@@ -881,7 +885,7 @@ export function PlayerView() {
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
-        rPointerPos, rMeasure, rSelectedToken, rMultiSelected,
+        rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
         rRooms, roomRevealAnimRef,
       };

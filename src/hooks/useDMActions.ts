@@ -44,6 +44,7 @@ interface Setters {
   setPsdEnemyOverrides: (v: PsdEnemyOverrides) => void;
   setWalls: (v: Wall[]) => void;
   setRooms: (v: Room[]) => void;
+  setTurn: (v: import('@/types').TurnState) => void;
 }
 
 export function useDMActions(R: DMRefs, S: Setters) {
@@ -57,7 +58,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
-    rMeasure, rPointerPos, rWalls, rRooms, rWallPenLast, rWallChain, rWallCursor,
+    rMeasure, rPointerPos, rWalls, rRooms, rWallPenLast, rWallChain, rWallCursor, rTurn,
   } = R;
 
   // Camps pesats del STATE (arrays grans i imatges base64: MBs si hi ha retrats custom).
@@ -92,6 +93,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // La regla de mesura es reconcilia a cada STATE (tiny): recupera un MEASURE de
       // neteja perdut perquè no quedi una distància obsoleta a la pantalla del jugador.
       measure: rMeasure.current,
+      // Estat per torns (petit): s'envia sempre perquè el jugador limiti el moviment
+      // del token actiu segons el saldo restant.
+      turn: rTurn.current,
     };
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
@@ -128,6 +132,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       activeSpells: rActiveSpells.current,
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
+      turn: rTurn.current,
     };
     bcRef.current?.postMessage(structMsg);
     wsRef.current?.send(JSON.stringify(structMsg));
@@ -409,6 +414,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
       walls: rWalls.current, rooms: rRooms.current,
+      turn: rTurn.current,
       drawCanvas: oc && oc.width > 1 ? oc.toDataURL('image/png') : null,
     };
     if (bgBufferRef.current) {
@@ -485,6 +491,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.libEnemies)    { rLibEnemies.current = state.libEnemies; S.setLibEnemies(state.libEnemies); }
       if (state.walls)         { rWalls.current = state.walls; S.setWalls(state.walls); }
       if (state.rooms)         { rRooms.current = state.rooms; S.setRooms(state.rooms); }
+      if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;
         if (oc) {

@@ -13,6 +13,19 @@ function getTokenImg(src: string): HTMLImageElement {
   return img;
 }
 
+// Aro del token que té el torn actiu (sistema per torns). Daurat SÒLID i gruixut:
+// coherent amb la paleta groga però deliberadament diferent de l'aro de "ressaltar
+// enemics" (doble anell suau, alpha animat) i del blau discontinu de selecció del DM.
+function drawActiveTurnRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number): void {
+  const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 3);
+  ctx.save();
+  ctx.strokeStyle = `rgba(255,190,40,${0.22 + 0.14 * pulse})`; ctx.lineWidth = 9 / sc;
+  ctx.beginPath(); ctx.arc(cx, cy, R + (9 + 3 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,196,52,0.95)'; ctx.lineWidth = 4 / sc;
+  ctx.beginPath(); ctx.arc(cx, cy, R + (5 + 1.5 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 // Troba l'última condició amb tint sense crear arrays intermedis (s'executa per token i frame).
 function findTintCond(condIds: string[]) {
   for (let i = condIds.length - 1; i >= 0; i--) {
@@ -32,8 +45,11 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     sc, pp, isDM, s, v, rLayerImages, rConditions, rDefeated,
     defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha,
     rHighlightLocked, highlightStartRef, visualPosRef, rTokenSizeOverride, rSelectedToken, rMultiSelected,
-    rPsdEnemyOverrides, rPsdEnemyImgCache,
+    rPsdEnemyOverrides, rPsdEnemyImgCache, rTurn,
   } = fc;
+
+  const _turn = rTurn?.current;
+  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
 
   s.enemyRooms.forEach(room => room.enemies.forEach(en => {
     const rawPos = pp[en.id];
@@ -193,6 +209,8 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
 
+    if (_activeId != null && _activeId === en.id && !isDefeated) drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
+
     ctx.restore();
   }));
 }
@@ -200,8 +218,11 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
-    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha,
+    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha, rTurn,
   } = fc;
+
+  const _turn = rTurn?.current;
+  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
 
   rLibEnemies.current.forEach(en => {
     const rawEp = (pp[`lib_${en.id}`] as { x: number; y: number } | undefined) || { x: 0, y: 0 };
@@ -373,6 +394,8 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
 
+    if (_activeId != null && _activeId === `lib_${en.id}` && !isDefeated) drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
+
     ctx.globalAlpha = 1;
   });
 }
@@ -380,8 +403,10 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride,
-    rDefeated, defeatedAnimRef,
+    rDefeated, defeatedAnimRef, rTurn,
   } = fc;
+  const _turn = rTurn?.current;
+  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
   rPlayers.current.forEach(pl => {
     const rawPos = pp[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     let ppos = rawPos;
@@ -495,5 +520,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
+
+    if (_activeId != null && _activeId === `pl_${pl.id}` && !isDefeated) drawActiveTurnRing(ctx, ppos.x + R, ppos.y + R, R, sc);
   });
 }

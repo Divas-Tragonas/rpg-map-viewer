@@ -128,7 +128,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rGridOriginX: R.rGridOriginX, rGridOriginY: R.rGridOriginY,
         rGridCalibrating: R.rGridCalibrating, rGridDmAlpha: R.rGridDmAlpha,
         gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef, gridCalibHoverRef: R.gridCalibHoverRef,
-        rPointerPos: R.rPointerPos, rMeasure: R.rMeasure, rDrawTool: R.rDrawTool, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected,
+        rPointerPos: R.rPointerPos, rMeasure: R.rMeasure, rDrawTool: R.rDrawTool, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected, rTurn: R.rTurn,
         rLibEnemies: R.rLibEnemies,
         rPsdEnemyOverrides: R.rPsdEnemyOverrides,
         rPsdEnemyImgCache: R.rPsdEnemyImgCache,
