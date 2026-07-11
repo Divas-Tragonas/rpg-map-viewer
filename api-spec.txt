@@ -87,6 +87,7 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | TEXTREVEAL_SHOW     | { text: string, pos: number, cps: number, fadeMs: number }      | Mostrar revelador de text          |
 | TEXTREVEAL_SYNC     | { pos: number, cps: number, fadeMs: number }                    | Front de revelació (~30fps)        |
 | TEXTREVEAL_HIDE     | —                                                               | Amagar revelador de text           |
+| TOKEN_RELAY         | { id: number | string, x: number, y: number }                   | Relay d'un TOKEN_MOVE d'un client a la resta de clients (veure sota) |
 | (binary frame)      | ArrayBuffer (imatge o vídeo)                                    | Segueix BG_META o EXPOSITOR_SHOW_META |
 
 #### Client → Servidor → DM (rol=dm rep aquests tipus)
@@ -95,6 +96,21 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 |--------------|------------------------------------------------|-------------------------------------|
 | TOKEN_MOVE   | { id: number | string, x: number, y: number }  | Client mou token (iPad drag)        |
 | PLAYER_READY | —                                              | Client connectat, sol·licita STRUCT |
+
+### Relay de moviment de tokens entre clients (TOKEN_RELAY)
+
+Quan un client (p. ex. un iPad) mou un token de jugador, envia `TOKEN_MOVE`
+al DM. El DM el processa i, per propagar el moviment a la RESTA de pantalles de
+jugador (altres iPads/teles), reenvia un `TOKEN_RELAY { id, x, y }` (rol=dm).
+
+El servidor ha de reenviar `TOKEN_RELAY` als clients EXACTAMENT igual que
+qualsevol altre missatge dm→client (STATE, POINTER, etc.). Si el servidor
+filtra per tipus i descarta els tipus desconeguts, cal afegir `TOKEN_RELAY`
+a la llista de tipus reenviats dm→client; altrament els altres clients mai
+reben el moviment i les seves pantalles no es refresquen (només es veu al
+mateix ordinador via BroadcastChannel, no cross-device via WebSocket).
+
+`TOKEN_RELAY` NO s'ha de cachejar com a estat (no és STRUCT); només reenviar.
 
 ### Late join
 
@@ -118,6 +134,9 @@ connexió es tanca. En reconnectar, envia `PLAYER_READY` per demanar STRUCT.
   → iPad rep tot i mostra el mapa
   → Usuari arrossega token → iPad envia TOKEN_MOVE
   → DM rep TOKEN_MOVE → actualitza posició localment
+  → DM reenvia TOKEN_RELAY { id, x, y } (rol=dm)
+  → Servidor reenvia TOKEN_RELAY a la resta de clients (altres iPads/teles)
+  → Els altres clients fusionen la nova posició del token i refresquen
 
 ### Variables d'entorn (opcional per a LAN des de v3.71)
 
