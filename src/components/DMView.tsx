@@ -187,6 +187,7 @@ export function DMView() {
   }, [R]);
 
   const _applyTurn = useCallback((t: TurnState) => {
+    R.rMoveHistory.current = [];  // cada canvi de torn reinicia l'historial de Ctrl+Z
     R.rTurn.current = t; setTurn(t); _broadcastState({});
   }, [R, _broadcastState]);
 
@@ -209,16 +210,55 @@ export function DMView() {
   const advanceTurn = useCallback(() => {
     const t = R.rTurn.current;
     if (!t.active || t.order.length === 0) return;
-    let ni = t.turnIndex + 1, round = t.round;
-    if (ni >= t.order.length) { ni = 0; round += 1; }  // volta completa → nova ronda
-    _applyTurn({ ...t, turnIndex: ni, round, activeRemainingFt: _budgetFor(t.order[ni]) });
+    // Desa el saldo amb què deixa el torn el token actual (per poder recuperar-lo després).
+    const remaining = { ...(t.remaining ?? {}), [String(t.order[t.turnIndex])]: t.activeRemainingFt };
+    let ni = t.turnIndex + 1, round = t.round, rem = remaining;
+    if (ni >= t.order.length) { ni = 0; round += 1; rem = {}; }  // volta completa → nova ronda (neteja saldos)
+    _applyTurn({ ...t, turnIndex: ni, round, remaining: rem, activeRemainingFt: _budgetFor(t.order[ni]) });
   }, [R, _applyTurn, _budgetFor]);
 
   const advanceRound = useCallback(() => {
     const t = R.rTurn.current;
     if (!t.active || t.order.length === 0) return;  // salta els que queden i comença ronda nova
-    _applyTurn({ ...t, turnIndex: 0, round: t.round + 1, activeRemainingFt: _budgetFor(t.order[0]) });
+    _applyTurn({ ...t, turnIndex: 0, round: t.round + 1, remaining: {}, activeRemainingFt: _budgetFor(t.order[0]) });
   }, [R, _applyTurn, _budgetFor]);
+
+  // Recupera el torn d'un token anterior tal com l'havia deixat (saldo de peus inclòs). Desa
+  // abans el saldo del token actual perquè, en tornar cap endavant, es respecti el que li quedava.
+  const recoverTurn = useCallback((id: number | string) => {
+    const t = R.rTurn.current;
+    if (!t.active) return;
+    const idx = t.order.findIndex(o => String(o) === String(id));
+    if (idx < 0 || idx === t.turnIndex) return;
+    const remaining = { ...(t.remaining ?? {}), [String(t.order[t.turnIndex])]: t.activeRemainingFt };
+    const restored = remaining[String(id)] ?? _budgetFor(id);
+    _applyTurn({ ...t, turnIndex: idx, remaining, activeRemainingFt: restored });
+  }, [R, _applyTurn, _budgetFor]);
+
+  // Reordena la cua de torns (mode edició de la barra) mantenint actiu el mateix token.
+  const reorderTurn = useCallback((newOrder: (number | string)[]) => {
+    const t = R.rTurn.current;
+    if (!t.active) return;
+    const activeId = t.order[t.turnIndex];
+    const turnIndex = Math.max(0, newOrder.findIndex(o => String(o) === String(activeId)));
+    _applyTurn({ ...t, order: newOrder, turnIndex });
+  }, [R, _applyTurn]);
+
+  // Ctrl+Z (només amb l'eina de selecció i combat actiu): desfà l'últim moviment del token
+  // actiu i li retorna els peus gastats. L'historial es limita al torn actual (es neteja al canviar).
+  const undoTokenMove = useCallback(() => {
+    const hist = R.rMoveHistory.current;
+    if (hist.length === 0) return;
+    const last = hist.pop()!;
+    const np = { ...R.rPos.current, [last.id]: last.from };
+    R.rPos.current = np; setPos(np);
+    const t = R.rTurn.current;
+    if (t.active && String(t.order[t.turnIndex]) === String(last.id) && last.spentFt > 0) {
+      const nt = { ...t, activeRemainingFt: t.activeRemainingFt + last.spentFt };
+      R.rTurn.current = nt; setTurn(nt);
+    }
+    _broadcastState({});
+  }, [R, _broadcastState]);
 
   // Processa un TOKEN_MOVE rebut d'una pantalla de jugador (BC o WS). El DM és autoritat:
   // valida el bloqueig manual i, si hi ha combat, que sigui el token del torn actiu i que el
@@ -252,6 +292,11 @@ export function DMView() {
         consumedFt = cells * 5;
         if (consumedFt > turn.activeRemainingFt + 0.001) { bounceBack(); return; }
       }
+    }
+
+    if (turn.active) {
+      // Registra el moviment (posició d'origen + peus gastats) per poder desfer-lo amb Ctrl+Z.
+      R.rMoveHistory.current.push({ id, from: R.rPos.current[id] ?? { x, y }, spentFt: consumedFt });
     }
 
     const np = { ...R.rPos.current, [id]: { x, y } };
@@ -447,7 +492,7 @@ export function DMView() {
 
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
-    setDrawTool, undoStroke, skipBossIntro,
+    setDrawTool, undoStroke, undoTokenMove, skipBossIntro,
     broadcastState: () => _broadcastState({}),
     setCtrlPanActive, setShiftPanActive, setZoom,
     setAreaSelectMode,
@@ -920,6 +965,8 @@ export function DMView() {
           onEnd={endTurnCombat}
           onAdvance={advanceTurn}
           onAdvanceRound={advanceRound}
+          onRecoverTurn={recoverTurn}
+          onReorder={reorderTurn}
         />
         <button
           onClick={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}

@@ -59,6 +59,8 @@ export function useDMRefs() {
   const rTokenGroups     = useRef<Map<number | string, string>>(new Map());
   // Sistema per torns (iniciativa). Mirall de l'estat `turn`; el tick i el drag el llegeixen.
   const rTurn            = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
+  // Historial de moviments del torn actiu (per Ctrl+Z). DM-only, es neteja a cada canvi de torn.
+  const rMoveHistory     = useRef<Array<{ id: number | string; from: Point; spentFt: number }>>([]);
   // Area (marquee) selection — RTS-style box select, toggled with "A"
   const rAreaSelectMode  = useRef(false);
   const rAreaSelectRect  = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -149,7 +151,7 @@ export function useDMRefs() {
     rWalls, rRooms, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,

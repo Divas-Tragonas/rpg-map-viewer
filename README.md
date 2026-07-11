@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.92
+- **Millores al sistema per torns.** La barra és més gran i llegible. En finalitzar el combat demana **confirmació** (evita clics accidentals). L'aro daurat de torn actiu ara **només** surt als tokens de jugador (els enemics ja no es ressalten en or). Nou **clic dret sobre un token anterior** de la barra → "↩ Recuperar el seu torn" (torna a aquell token amb els peus que li quedaven). **Ctrl+Z** desfà l'últim moviment del torn i retorna els peus gastats — encaminat per eina: amb l'eina de **selecció** funciona el Ctrl+Z de combat; amb una eina de dibuix (pinzell/goma) funciona el de traços. Nou botó **⚙** a la barra que obre un **mode edició** on s'arrosseguen els tokens per canviar l'ordre de torn.
+
 ### v3.91
 - **Sistema per torns (iniciativa).** Nova barra inferior al canvas del DM: s'activa el combat, s'hi afegeixen automàticament tots els jugadors i es trien quins enemics o grups incloure. Els tokens es mostren en fila per ordre de torn; el que té el torn actiu porta un **aro daurat sòlid** (al mapa i a la barra). Durant el seu torn, des de `/player` el jugador només pot moure el token actiu i fins que gasti els seus peus (p. ex. amb 15 ft: mou 5 → li queden 10); el disc de moviment s'encongeix a cada pas i el DM valida el saldo (rebot si se supera). Clicar el token actiu de la barra passa el torn al següent; en tancar la volta comença una ronda nova i tots recuperen moviment. Botó **⏭ Ronda** per forçar ronda nova. El DM no té cap límit de moviment. L'estat viatja al jugador dins `STATE`/`STRUCT` i persisteix a la sessió.
 

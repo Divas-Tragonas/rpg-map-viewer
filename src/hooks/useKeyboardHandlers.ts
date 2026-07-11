@@ -6,6 +6,7 @@ import type { DMRefs } from './useDMRefs';
 interface KBOpts {
   setDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
   undoStroke: () => void;
+  undoTokenMove: () => void;
   skipBossIntro: () => void;
   broadcastState: () => void;
   setCtrlPanActive: (v: boolean) => void;
@@ -18,7 +19,7 @@ interface KBOpts {
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undoStroke, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom, setAreaSelectMode, onDeleteSelection, removeLastWall, cancelWallChain } = opts;
+  const { setDrawTool, undoStroke, undoTokenMove, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom, setAreaSelectMode, onDeleteSelection, removeLastWall, cancelWallChain } = opts;
 
   // CTRL key: toggle shared pan/zoom mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
@@ -76,7 +77,14 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoStroke(); return; }
+      // Ctrl+Z segons l'eina: amb l'eina de selecció ('none') desfà l'últim moviment del
+      // torn actiu (combat); amb una eina de dibuix desfà l'últim traç. Cadascú el seu.
+      if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (R.rDrawTool.current === 'none') undoTokenMove();
+        else undoStroke();
+        return;
+      }
       if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); R.wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO_SKIP' })); skipBossIntro(); return; }
       if (e.key === 'Escape' && (R.rAreaSelectMode.current || R.rAreaSelectRect.current)) {
         R.rAreaSelectMode.current = false; R.rAreaSelectRect.current = null; setAreaSelectMode?.(false);
@@ -121,5 +129,5 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undoStroke, skipBossIntro, onDeleteSelection, setAreaSelectMode, removeLastWall, cancelWallChain]);
+  }, [undoStroke, undoTokenMove, skipBossIntro, onDeleteSelection, setAreaSelectMode, removeLastWall, cancelWallChain]);
 }

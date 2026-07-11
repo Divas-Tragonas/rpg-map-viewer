@@ -232,6 +232,9 @@ export interface TurnState {
   turnIndex: number;             // índex dins `order` del token que té el torn
   round: number;                 // ronda actual (comença a 1)
   activeRemainingFt: number;     // peus de moviment que li queden al token actiu
+  // Saldo de peus amb què va acabar cada token que ja ha passat aquesta ronda (per poder
+  // "recuperar" el seu torn tal com havia quedat). Es neteja a cada ronda nova.
+  remaining?: Record<string, number>;
 }
 
 export type VisMap = Record<number | string, boolean>;

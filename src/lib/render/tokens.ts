@@ -45,11 +45,8 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     sc, pp, isDM, s, v, rLayerImages, rConditions, rDefeated,
     defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha,
     rHighlightLocked, highlightStartRef, visualPosRef, rTokenSizeOverride, rSelectedToken, rMultiSelected,
-    rPsdEnemyOverrides, rPsdEnemyImgCache, rTurn,
+    rPsdEnemyOverrides, rPsdEnemyImgCache,
   } = fc;
-
-  const _turn = rTurn?.current;
-  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
 
   s.enemyRooms.forEach(room => room.enemies.forEach(en => {
     const rawPos = pp[en.id];
@@ -209,8 +206,6 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
 
-    if (_activeId != null && _activeId === en.id && !isDefeated) drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
-
     ctx.restore();
   }));
 }
@@ -218,11 +213,8 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
-    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha, rTurn,
+    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha,
   } = fc;
-
-  const _turn = rTurn?.current;
-  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
 
   rLibEnemies.current.forEach(en => {
     const rawEp = (pp[`lib_${en.id}`] as { x: number; y: number } | undefined) || { x: 0, y: 0 };
@@ -393,8 +385,6 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
-
-    if (_activeId != null && _activeId === `lib_${en.id}` && !isDefeated) drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
 
     ctx.globalAlpha = 1;
   });
