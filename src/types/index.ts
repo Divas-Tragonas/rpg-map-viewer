@@ -256,6 +256,11 @@ export interface BCStateMessage {
   libEnemies?: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;
   rooms?: Room[];
+  // Spells d'àrea actius (dormir/grasa) i regla de mesura: es reconcilien al STATE
+  // perquè un DELETE_SPELL o un MEASURE de neteja perduts (reconnexió WS) no deixin
+  // l'estat obsolet a la pantalla del jugador (camp pesat: només quan canvia la ref).
+  activeSpells?: Spell[];
+  measure?: { a: Point | null; b: Point | null };
 }
 
 export interface BCStructMessage {
@@ -283,6 +288,8 @@ export interface BCStructMessage {
   libEnemies: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;
   rooms?: Room[];
+  // Spells d'àrea actius: al STRUCT perquè un jugador que es connecta tard els vegi.
+  activeSpells?: Spell[];
   // Punter i regla de mesura del DM: es reenvien al STRUCT perquè una reconnexió
   // del WS (Safari en tablet suspèn el socket sovint) no els perdi.
   measure?: { a: Point | null; b: Point | null };

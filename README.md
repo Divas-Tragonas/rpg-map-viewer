@@ -46,6 +46,12 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.86
+- **Fix: bugs de rendering a la pantalla de jugador (sincronització robusta).**
+  - Els spells d'àrea (dormir/grasa) ara desapareixen del jugador quan el DM els esborra encara que el `DELETE_SPELL` puntual es perdi: `activeSpells` es reconcilia al `STATE`/`STRUCT` (font de veritat del DM). També fa que un jugador que es connecta tard vegi els spells d'àrea ja actius.
+  - La regla de mesura (distàncies) ja no queda encallada al jugador si es perd el `MEASURE` de neteja: `measure` es reconcilia a cada `STATE`.
+  - En generar una nova pantalla de jugador, la resta de pantalles ja no parpellegen ni perden els tokens: el handler de `STRUCT` és ara idempotent (no reconstrueix imatges ni reinicia el suavitzat quan el mapa no ha canviat) i té guarda de reentrada (dos `STRUCT` concurrents ja no es trepitgen).
+
 ### v3.85
 - **Fix definitiu del relay de moviment de tokens** (reset de zoom + enemics que desapareixien). Ara el DM reenvia un missatge dedicat `TOKEN_RELAY` amb només el token mogut, i la pantalla de jugador el **fusiona** dins les seves posicions sense reemplaçar la resta de l'estat ni tocar la càmera. Així la tele rep el moviment en temps real sense perdre enemics/sales ni resetejar el zoom.
 

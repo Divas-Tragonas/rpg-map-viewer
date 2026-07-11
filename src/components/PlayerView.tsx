@@ -141,6 +141,13 @@ export function PlayerView() {
   // de "refresc" visible; amb una firma barata (mida + hash mostrejat) es descarta.
   const bgSigRef = useRef('');
   const bgObjectUrlRef = useRef<string | null>(null);
+  // Guarda de reentrada + firma del mapa per al handler asíncron de STRUCT: el DM
+  // reenvia un STRUCT complet cada cop que es connecta una pantalla nova, i sense
+  // aquestes guardes dos STRUCT concurrents (o un de reenviat idèntic) reconstruïen
+  // les imatges i reiniciaven el suavitzat a TOTES les pantalles alhora → tot
+  // desapareixia i els tokens saltaven. Veure el handler de STRUCT.
+  const structSeqRef = useRef(0);
+  const structMapSigRef = useRef('');
   const _bgChanged = useCallback((buf: ArrayBuffer, mime: string) => {
     const u8 = new Uint8Array(buf);
     let h = 0;
@@ -171,6 +178,19 @@ export function PlayerView() {
     };
     if (withFade && overlay) { overlay.style.opacity = '1'; setTimeout(doLoad, 520); }
     else doLoad();
+  }, []);
+
+  // Reconcilia la llista de spells d'àrea amb la font de veritat del DM (STATE/STRUCT).
+  // Conserva el startTime dels spells ja presents (perquè no reiniciïn l'animació) i
+  // afegeix/treu la resta. Així un SPELL o DELETE_SPELL perdut per la xarxa s'acaba
+  // corregint: els d'àrea (dormir/grasa) desapareixen quan el DM els esborra encara
+  // que el missatge puntual no hagi arribat.
+  const _reconcileSpells = useCallback((incoming: Spell[]) => {
+    const now = performance.now();
+    const cur = new Map(rActiveSpells.current.map(s => [s.id, s]));
+    const next = incoming.map(sp => cur.get(sp.id) ?? { ...sp, startTime: now });
+    rActiveSpells.current = next;
+    setActiveSpells(next);
   }, []);
 
   const triggerBossIntro = useCallback((data: Record<string, unknown>) => {
@@ -411,6 +431,17 @@ export function PlayerView() {
         const url  = URL.createObjectURL(blob);
         _loadBgFromUrl(url, msg.mimeType, !!msg.withFade);
       } else if (msg.type === 'STRUCT') {
+        // Seqüència d'aquesta invocació: si n'arriba una de posterior mentre esperem
+        // la càrrega d'imatges, aquesta s'avorta abans d'escriure res destructiu
+        // (evita que un STRUCT antic i lent trepitgi l'estat d'un de nou).
+        const mySeq = ++structSeqRef.current;
+        // El mapa és "el mateix" si les URLs de les capes no han canviat: llavors el
+        // STRUCT és un simple reenviament (una pantalla nova s'ha connectat) i NO cal
+        // reconstruir imatges ni reiniciar el suavitzat de les pantalles ja hidratades.
+        const urls = msg.layerImageUrls || {};
+        const mapSig = Object.keys(urls).sort().join('|');
+        const sameMap = mapSig === structMapSigRef.current && Object.keys(rLayerImages.current).length > 0;
+
         rStruct.current = msg.struct;
         rVis.current    = msg.vis   || {};
         rPos.current    = msg.pos   || {};
@@ -462,32 +493,42 @@ export function PlayerView() {
           })));
         }
 
-        const urls = msg.layerImageUrls || {};
-        const imgs: Record<number, HTMLCanvasElement> = {};
-        await Promise.all(Object.keys(urls).map(id => new Promise<void>(res => {
-          const img = new Image();
-          img.onload = () => {
-            const oc = document.createElement('canvas');
-            oc.width = img.naturalWidth; oc.height = img.naturalHeight;
-            oc.getContext('2d')!.drawImage(img, 0, 0);
-            imgs[Number(id)] = oc;
-            res();
-          };
-          img.onerror = () => res();
-          img.src = urls[id];
-        })));
-        rLayerImages.current = imgs;
+        if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
 
-        roomAnimRef.current  = {};
-        visualPosRef.current = {};
-        strokeQueueRef.current  = [];
-        activeStrokeAnim.current = null;
-        Object.entries(msg.vis || {}).forEach(([id, active]) => {
-          roomAnimRef.current[id] = active ? 1 : 0;
-        });
-        Object.entries(msg.pos || {}).forEach(([id, p]) => {
-          visualPosRef.current[id] = { ...(p as { x: number; y: number }) };
-        });
+        // Imatges de les capes i reinici del suavitzat: NOMÉS quan el mapa ha canviat.
+        // Si és un reenviament del mateix mapa (una pantalla nova s'ha connectat i el DM
+        // reemet l'estat a totes), es conserven les imatges ja carregades i el suavitzat
+        // dels tokens: així les pantalles ja hidratades no parpellegen ni salten.
+        if (!sameMap) {
+          const imgs: Record<number, HTMLCanvasElement> = {};
+          await Promise.all(Object.keys(urls).map(id => new Promise<void>(res => {
+            const img = new Image();
+            img.onload = () => {
+              const oc = document.createElement('canvas');
+              oc.width = img.naturalWidth; oc.height = img.naturalHeight;
+              oc.getContext('2d')!.drawImage(img, 0, 0);
+              imgs[Number(id)] = oc;
+              res();
+            };
+            img.onerror = () => res();
+            img.src = urls[id];
+          })));
+          // Ha arribat un STRUCT posterior mentre carregàvem: avortar sense escriure res.
+          if (structSeqRef.current !== mySeq) return;
+          rLayerImages.current = imgs;
+          structMapSigRef.current = mapSig;
+
+          roomAnimRef.current  = {};
+          visualPosRef.current = {};
+          strokeQueueRef.current  = [];
+          activeStrokeAnim.current = null;
+          Object.entries(msg.vis || {}).forEach(([id, active]) => {
+            roomAnimRef.current[id] = active ? 1 : 0;
+          });
+          Object.entries(msg.pos || {}).forEach(([id, p]) => {
+            visualPosRef.current[id] = { ...(p as { x: number; y: number }) };
+          });
+        }
 
         if (msg.psdInfo) {
           const oc = drawCanvasRef.current;
@@ -522,6 +563,8 @@ export function PlayerView() {
           rPaintedZones.current = msg.paintedZones;
         }
         if (msg.rooms) rRooms.current = msg.rooms;
+        if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
+        if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
         if (msg.gridSnap      !== undefined) rGridSnap.current      = msg.gridSnap;
@@ -681,7 +724,7 @@ export function PlayerView() {
 
     bc.postMessage({ type: 'PLAYER_READY' });
     return () => bc.close();
-  }, [_loadBgFromUrl, _bgChanged]);
+  }, [_loadBgFromUrl, _bgChanged, _reconcileSpells]);
 
   // ── WebSocket setup (receives same messages as BC, for cross-device iPad) ──
   useEffect(() => {

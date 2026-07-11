@@ -71,7 +71,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current,
+      rooms: rRooms.current, activeSpells: rActiveSpells.current,
     };
   }, []);
 
@@ -89,12 +89,15 @@ export function useDMActions(R: DMRefs, S: Setters) {
       dmPreviewActive: _isDMPrev,
       dmPreviewZoom: rZoom.current * dmLocalZoom.current,
       dmPreviewPan: { x: rPanOffset.current.x + dmLocalPan.current.x, y: rPanOffset.current.y + dmLocalPan.current.y },
+      // La regla de mesura es reconcilia a cada STATE (tiny): recupera un MEASURE de
+      // neteja perdut perquè no quedi una distància obsoleta a la pantalla del jugador.
+      measure: rMeasure.current,
     };
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current,
+      rooms: rRooms.current, activeSpells: rActiveSpells.current,
     };
     for (const k of Object.keys(heavy)) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
@@ -122,6 +125,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       libEnemies: rLibEnemies.current,
       psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current,
+      activeSpells: rActiveSpells.current,
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
     };
