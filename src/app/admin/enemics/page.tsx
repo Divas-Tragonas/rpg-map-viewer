@@ -288,10 +288,6 @@ export default function EnemicsPage() {
                     onChange={e => updateField('R', parseInt(e.target.value) || 8)}
                     style={inputStyle}
                   />
-                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: modal.data.R * 0.4, height: modal.data.R * 0.4, maxWidth: 60, maxHeight: 60, borderRadius: '50%', background: modal.data.color, border: `1px solid ${C.border}` }} />
-                    <span style={{ fontSize: 10, color: C.dim }}>previsualització</span>
-                  </div>
                 </Field>
                 <Field label="Escala (sm) — multiplicador" style={{ flex: 1 }}>
                   <input
@@ -305,6 +301,15 @@ export default function EnemicsPage() {
                   />
                 </Field>
               </div>
+
+              <Field label="Previsualització al grid">
+                <GridTokenPreview
+                  color={modal.data.color}
+                  sm={modal.data.sm}
+                  imageData={modal.data.imageData ?? ''}
+                  name={modal.data.name}
+                />
+              </Field>
 
               <Field label="Imatge (opcional)">
                 <ImageUpload
@@ -421,4 +426,162 @@ function Field({ label, children, style }: { label: string; children: React.Reac
       {children}
     </div>
   );
+}
+
+// Color de referència del token de jugador (Jugador 1 de DEFAULT_PARTY).
+const PLAYER_REF_COLOR = '#4f8fd6';
+
+/**
+ * Previsualitzador del token dins una graella groga de 5 peus. Mostra el token de
+ * l'enemic (color + imatge + inicials) a la seva mida real relativa al grid — el camp
+ * `sm` és el diàmetre del token en caselles (sm=1 → creatura mitjana de 5 peus) — al
+ * costat d'un token de Jugador estàndard (1 casella = 5 peus) per comparar-ne la mida.
+ */
+function GridTokenPreview({ color, sm, imageData, name }: { color: string; sm: number; imageData: string; name: string }) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
+  const [imgTick, setImgTick] = React.useState(0);
+
+  // Carrega la imatge del token (data URL) i força un redibuix quan estigui llesta.
+  // El redibuix quan `imageData` es buida o canvia el cobreix l'efecte de dibuix (que
+  // en depèn); aquí només bumpegem l'estat des dels callbacks async de la imatge.
+  React.useEffect(() => {
+    imgRef.current = null;
+    if (!imageData) return;
+    const img = new Image();
+    let alive = true;
+    img.onload = () => { if (alive) { imgRef.current = img; setImgTick(t => t + 1); } };
+    img.onerror = () => { if (alive) { imgRef.current = null; setImgTick(t => t + 1); } };
+    img.src = imageData;
+    return () => { alive = false; };
+  }, [imageData]);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const cssW = canvas.clientWidth || 360;
+    const cssH = canvas.clientHeight || 176;
+    const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawGridPreview(ctx, cssW, cssH, { color, sm, name, img: imgRef.current });
+  }, [color, sm, name, imageData, imgTick]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ width: '100%', height: 176, display: 'block', borderRadius: 8, border: `1px solid ${C.border}`, background: '#0a0e14' }}
+    />
+  );
+}
+
+function drawGridPreview(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  { color, sm, name, img }: { color: string; sm: number; name: string; img: HTMLImageElement | null },
+) {
+  const TAU = Math.PI * 2;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0e14';
+  ctx.fillRect(0, 0, W, H);
+
+  const pad = 16;
+  const labelH = 26;               // franja inferior per a les etiquetes
+  const smC = Math.max(0.25, Math.min(5, sm || 1));
+  const gapCells = 0.7;            // separació (en caselles) entre enemic i jugador
+  const unitsW = smC + gapCells + 1;
+  const availW = W - pad * 2;
+  const availH = H - pad * 2 - labelH;
+  // Mida de casella que fa cabre l'enemic (smC caselles) i el jugador (1 casella).
+  let cell = Math.min(availW / unitsW, availH / Math.max(smC, 1));
+  cell = Math.max(14, Math.min(56, cell));
+
+  const enemyD = smC * cell;
+  const playerD = cell;
+  const contentW = enemyD + gapCells * cell + playerD;
+  const startX = (W - contentW) / 2;
+  const centerY = pad + availH / 2;
+  const enemyCx = startX + enemyD / 2;
+  const playerCx = startX + enemyD + gapCells * cell + playerD / 2;
+
+  // Graella groga de 5 peus, alineada perquè el jugador ocupi una casella neta.
+  const offX = (((playerCx - cell / 2) % cell) + cell) % cell;
+  const offY = (((centerY - cell / 2) % cell) + cell) % cell;
+  ctx.strokeStyle = 'rgba(255,214,64,0.22)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = offX; x <= W + 0.5; x += cell) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  for (let y = offY; y <= H + 0.5; y += cell) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+
+  // Casella de referència del jugador ressaltada suaument.
+  ctx.fillStyle = 'rgba(255,214,64,0.07)';
+  ctx.fillRect(playerCx - cell / 2, centerY - cell / 2, cell, cell);
+  ctx.strokeStyle = 'rgba(255,214,64,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(playerCx - cell / 2, centerY - cell / 2, cell, cell);
+
+  drawPreviewToken(ctx, TAU, enemyCx, centerY, enemyD / 2, color, img, (name || 'En').slice(0, 2).toUpperCase());
+  drawPreviewToken(ctx, TAU, playerCx, centerY, playerD / 2, PLAYER_REF_COLOR, null, 'PJ');
+
+  // Etiquetes sota cada token.
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const labelY = H - 9;
+  const enemyFt = Math.round(smC * 5);
+  const enemyName = (name || 'Enemic').length > 12 ? (name || 'Enemic').slice(0, 11) + '…' : (name || 'Enemic');
+  ctx.font = 'bold 11px system-ui';
+  ctx.fillStyle = '#e6a0a0';
+  ctx.fillText(enemyName, enemyCx, labelY - 12);
+  ctx.font = '10px system-ui';
+  ctx.fillStyle = '#8b949e';
+  ctx.fillText(`~${enemyFt} peus`, enemyCx, labelY);
+  ctx.font = 'bold 11px system-ui';
+  ctx.fillStyle = '#8fbdf0';
+  ctx.fillText('Jugador', playerCx, labelY - 12);
+  ctx.font = '10px system-ui';
+  ctx.fillStyle = '#8b949e';
+  ctx.fillText('5 peus', playerCx, labelY);
+}
+
+function drawPreviewToken(
+  ctx: CanvasRenderingContext2D,
+  TAU: number,
+  cx: number,
+  cy: number,
+  r: number,
+  fill: string,
+  img: HTMLImageElement | null,
+  initials: string,
+) {
+  ctx.save();
+  // ombra
+  ctx.beginPath(); ctx.arc(cx + 1.5, cy + 2.5, r, 0, TAU);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
+  // base de color
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU);
+  ctx.fillStyle = fill; ctx.fill();
+  // imatge (retallada al cercle) o inicials
+  if (img && img.naturalWidth > 0) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
+    ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.max(9, r * 0.72)}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(initials, cx, cy);
+    ctx.textBaseline = 'alphabetic';
+  }
+  // contorn blanc
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU);
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = Math.max(1.5, r * 0.07);
+  ctx.stroke();
+  ctx.restore();
 }
