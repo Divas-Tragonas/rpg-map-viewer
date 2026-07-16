@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.95
+- **Contracte API per desar partides al servidor (back office).** S'ha definit a `api-spec.txt` el nou recurs `Session` (partida) i els endpoints `GET/POST/PUT/DELETE /sessions` per guardar i carregar l'estat complet d'una partida al servidor, com a alternativa al save/load a `.json` (que es manté per a ús offline). La implementació del frontend queda pendent que la API tingui els endpoints desplegats.
+
 ### v3.94
 - **Nou previsualitzador d'enemics al grid (back office).** Al modal d'editar/crear enemic, el vell punt de color sense referència s'ha substituït per una mini-porció de mapa amb la **graella groga de 5 peus**: mostra com quedaria el token de l'enemic (color + imatge + inicials) a la seva mida real relativa al grid (el camp `sm` és el diàmetre en caselles) al costat d'un **token de Jugador estàndard de 5 peus**, per comparar-ne la mida d'un cop d'ull. Cada token porta la seva etiqueta amb l'equivalència en peus.
 

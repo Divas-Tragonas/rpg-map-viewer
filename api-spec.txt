@@ -18,12 +18,63 @@ WS BASE : substituir http per ws → ws://[host]:3000
 }
 
 
+## TIPUS Session (Partida)
+
+Estat complet d'una partida desat al servidor (back office). Substitueix la
+necessitat del save/load a .json local, però el .json es manté per a ús offline.
+
+Session (resposta completa, GET /sessions/:id):
+{
+  id: string          // generat per la API
+  name: string        // ex: "Sessió 3 — La cripta"
+  data: object         // JSON OPAC amb l'estat complet (veure sota). La API NO
+                       // n'ha de validar l'estructura interna: el tracta com a blob.
+  createdAt: string    // ISO 8601
+  updatedAt: string    // ISO 8601
+  sizeBytes: number    // mida de `data` serialitzat (bytes) — informatiu
+}
+
+SessionMeta (element de la llista, GET /sessions — SENSE el camp pesat `data`):
+{
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+  sizeBytes: number
+}
+
+Sobre `data`: és exactament l'objecte que el frontend ja serialitza avui al
+save .json (camps: version, vis, pos, zoom, panOffset, players, conditions,
+defeated, paintedZones, strokeHistory, grid*, tokenSizeOverride, libEnemies,
+walls, rooms, turn, drawCanvas, i els pesats bgData/bgMimeType, psdStruct,
+psdInfo, layerImageUrls). Pot contenir imatges base64 i, al fons, fins i tot un
+vídeo → el payload pot arribar a desenes de MB. La API l'ha de tractar com a
+blob opac (sense validar-ne els camps) perquè el frontend pugui evolucionar
+l'estat sense tocar la API.
+
+
 ## ENDPOINTS HTTP
 
 GET    /enemies          -> Enemy[]  (200)
 POST   /enemies          -> Enemy    (201)  body: Enemy sense id
 PUT    /enemies/:id      -> Enemy    (200)  body: camps parcials sense id
 DELETE /enemies/:id      -> 204
+
+GET    /sessions         -> SessionMeta[]  (200)   // llista lleugera, SENSE `data`
+GET    /sessions/:id     -> Session        (200)   // partida completa, AMB `data`
+POST   /sessions         -> Session        (201)   body: { name, data }
+PUT    /sessions/:id     -> Session        (200)   body: { name?, data? } (sobreescriu)
+DELETE /sessions/:id     -> 204
+
+Notes /sessions:
+- Auth: igual que /enemies (accessible des de la vista DM sense login; el token
+  admin s'adjunta només si existeix la cookie). Si es volen protegir amb el JWT
+  admin, cal indicar-ho al frontend (ja llegeix la cookie `admin_token`).
+- Límit de body: el body JSON pot ser gran (imatges/PSD/vídeo en base64) → cal
+  apujar el límit del parser (p. ex. express.json({ limit: '80mb' })). Emmagatzematge
+  tolerant a documents grans (GridFS o fitxer + metadades a Mongo si se supera el
+  límit BSON de 16MB amb fons de vídeo).
+- 413 (payload massa gran) si se supera el límit; el frontend ho gestiona.
 
 
 ## ERRORS
