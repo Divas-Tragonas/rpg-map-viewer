@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.93
+- **Nou previsualitzador d'enemics al grid (back office).** Al modal d'editar/crear enemic, el vell punt de color sense referència s'ha substituït per una mini-porció de mapa amb la **graella groga de 5 peus**: mostra com quedaria el token de l'enemic (color + imatge + inicials) a la seva mida real relativa al grid (el camp `sm` és el diàmetre en caselles) al costat d'un **token de Jugador estàndard de 5 peus**, per comparar-ne la mida d'un cop d'ull. Cada token porta la seva etiqueta amb l'equivalència en peus.
+
 ### v3.92
 - **Millores al sistema per torns.** La barra és més gran i llegible. En finalitzar el combat demana **confirmació** (evita clics accidentals). L'aro daurat de torn actiu ara **només** surt als tokens de jugador (els enemics ja no es ressalten en or). Nou **clic dret sobre un token anterior** de la barra → "↩ Recuperar el seu torn" (torna a aquell token amb els peus que li quedaven). **Ctrl+Z** desfà l'últim moviment del torn i retorna els peus gastats — encaminat per eina: amb l'eina de **selecció** funciona el Ctrl+Z de combat; amb una eina de dibuix (pinzell/goma) funciona el de traços. Nou botó **⚙** a la barra que obre un **mode edició** on s'arrosseguen els tokens per canviar l'ordre de torn.
 
