@@ -1,7 +1,7 @@
 import type { Condition, Element } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v3.92';
+export const APP_VERSION = 'v3.93';
 
 export const CONDITIONS: Condition[] = [
   { id: 'grappled',      label: 'Agarrado',     bg: '#6b7280', tint: null      },
@@ -41,12 +41,15 @@ export const PALETTE = [
 // Velocitat de moviment per defecte dels jugadors, en peus (1 casella = 5 ft)
 export const DEFAULT_SPEED_FT = 30;
 
+// Party actual de la campanya. La vida (hpMax) és provisional: els jugadors van
+// pujar de nivell i encara no en tenim els valors reals — s'ajustaran des del
+// PlayersPanel quan es confirmin a la propera sessió.
 export const DEFAULT_PARTY = [
-  { name: 'Jugador 1', color: '#4f8fd6', hpMax: 45, speed: 30 },
-  { name: 'Jugador 2', color: '#e05555', hpMax: 60, speed: 30 },
-  { name: 'Jugador 3', color: '#52b86e', hpMax: 38, speed: 30 },
-  { name: 'Jugador 4', color: '#a366c4', hpMax: 52, speed: 30 },
-  { name: 'Jugador 5', color: '#e08030', hpMax: 42, speed: 30 },
+  { name: 'Jaume III',  color: '#e05555', hpMax: 45, speed: 30 }, // Vermell
+  { name: 'Liriandor',  color: '#4f8fd6', hpMax: 45, speed: 30 }, // Blau
+  { name: 'Yunquerin',  color: '#d4ae38', hpMax: 45, speed: 30 }, // Groc
+  { name: 'Espardeny',  color: '#52b86e', hpMax: 45, speed: 30 }, // Verd
+  { name: 'Cigarramic', color: '#a366c4', hpMax: 45, speed: 30 }, // Lila
 ];
 
 export const ENEMY_TEMPLATES = [

@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.93
+- **Botó de Party actualitzat amb els jugadors actuals.** El botó "Party" ja no genera "Jugador 1–5" genèrics, sinó els cinc personatges de la campanya: **Jaume III** (vermell), **Liriandor** (blau), **Yunquerin** (groc), **Espardeny** (verd) i **Cigarramic** (lila). La vida (hpMax) és provisional (45 a tots) perquè els personatges han pujat de nivell i encara no en tenim els valors reals; s'ajustaran des del panell de jugadors quan es confirmin.
+
 ### v3.92
 - **Millores al sistema per torns.** La barra és més gran i llegible. En finalitzar el combat demana **confirmació** (evita clics accidentals). L'aro daurat de torn actiu ara **només** surt als tokens de jugador (els enemics ja no es ressalten en or). Nou **clic dret sobre un token anterior** de la barra → "↩ Recuperar el seu torn" (torna a aquell token amb els peus que li quedaven). **Ctrl+Z** desfà l'últim moviment del torn i retorna els peus gastats — encaminat per eina: amb l'eina de **selecció** funciona el Ctrl+Z de combat; amb una eina de dibuix (pinzell/goma) funciona el de traços. Nou botó **⚙** a la barra que obre un **mode edició** on s'arrosseguen els tokens per canviar l'ordre de torn.
 
