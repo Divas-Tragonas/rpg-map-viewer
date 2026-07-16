@@ -67,9 +67,11 @@ PUT    /sessions/:id     -> Session        (200)   body: { name?, data? } (sobre
 DELETE /sessions/:id     -> 204
 
 Notes /sessions:
-- Auth: igual que /enemies (accessible des de la vista DM sense login; el token
-  admin s'adjunta només si existeix la cookie). Si es volen protegir amb el JWT
-  admin, cal indicar-ho al frontend (ja llegeix la cookie `admin_token`).
+- Auth: PROTEGIT amb el JWT admin (Authorization: Bearer <token>), igual que les
+  rutes del back office. El frontend adjunta el token des de la cookie `admin_token`
+  (ja el llegeix `src/lib/api.ts`). Sense token vàlid → 401. El DM ha d'estar
+  loguejat al back office perquè el desar/carregar al servidor funcioni; si no ho
+  està, el frontend ho detecta i recorre al save/load a .json (offline).
 - Límit de body: el body JSON pot ser gran (imatges/PSD/vídeo en base64) → cal
   apujar el límit del parser (p. ex. express.json({ limit: '80mb' })). Emmagatzematge
   tolerant a documents grans (GridFS o fitxer + metadades a Mongo si se supera el
