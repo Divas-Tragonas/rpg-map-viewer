@@ -16,9 +16,10 @@ interface Props {
   onSave: () => void;
   onLoad: (file: File) => void;
   onOpenPlayer: () => void;
+  onOpenServer?: () => void;
 }
 
-export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer }: Props) {
+export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer, onOpenServer }: Props) {
   return (
     <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.border}` }}>
       <button onClick={onOpenPlayer}
@@ -44,6 +45,12 @@ export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCoun
           <LoadIcon size={11} /> Cargar
         </label>
       </div>
+      {onOpenServer && (
+        <button onClick={onOpenServer} title="Desar / carregar partides al servidor"
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 10, marginBottom: 8 }}>
+          ☁ Partides al servidor
+        </button>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
         <button onClick={() => onZoomChange(Math.max(0.2, zoom - 0.1))}
           style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer', color: C.dim, padding: '3px 6px', display: 'flex' }}>

@@ -8,6 +8,7 @@ import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room } from '@/types';
+import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 
@@ -400,7 +401,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     wsRef.current?.send(JSON.stringify({ type: 'UNDO_DRAW', strokeHistory: [...hist] }));
   }, []);
 
-  const saveSession = useCallback(() => {
+  // Construeix l'objecte d'estat complet de la partida. Reutilitzat pel desat
+  // a .json (saveSession) i pel desat al servidor (serverSaveSession).
+  const buildSessionState = useCallback(() => {
     const oc = drawCanvasRef.current;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state: Record<string, any> = {
@@ -428,17 +431,22 @@ export function useDMActions(R: DMRefs, S: Setters) {
       state.psdInfo = rPsdInfo.current;
       state.layerImageUrls = rLayerUrls.current;
     }
+    return state;
+  }, []);
+
+  const saveSession = useCallback(() => {
+    const state = buildSessionState();
     const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'sesion-rpg.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, []);
+  }, [buildSessionState]);
 
-  const loadSession = useCallback(async (file: File) => {
+  // Aplica un objecte d'estat (de .json o del servidor) a l'estat viu del DM.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applySessionState = useCallback(async (state: Record<string, any>) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const state: Record<string, any> = JSON.parse(await file.text());
       // Restore BG image
       if (state.bgData) {
         const bin = atob(state.bgData); const arr = new Uint8Array(bin.length);
@@ -505,6 +513,26 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.psdStruct && bcRef.current) setTimeout(() => _sendFullState(), 150);
     } catch (err) { console.error('Error cargando sesión:', err); }
   }, [_broadcastState, _sendFullState, loadBg]);
+
+  const loadSession = useCallback(async (file: File) => {
+    try {
+      const state = JSON.parse(await file.text());
+      await applySessionState(state);
+    } catch (err) { console.error('Error cargando sesión:', err); }
+  }, [applySessionState]);
+
+  // ── Partides al servidor (back office) ──────────────────────────────────
+  // Requereixen NEXT_PUBLIC_API_URL configurat + DM loguejat (cookie admin_token).
+  // Si no, la app segueix usant saveSession/loadSession (.json).
+  const serverSaveSession = useCallback(async (name: string, id?: string) => {
+    const data = buildSessionState();
+    return id ? api.sessions.update(id, { name, data }) : api.sessions.create(name, data);
+  }, [buildSessionState]);
+
+  const serverLoadSession = useCallback(async (id: string) => {
+    const session = await api.sessions.get(id);
+    await applySessionState(session.data);
+  }, [applySessionState]);
 
   const addSpell = useCallback((type: string, points: { x: number; y: number }[], setSpellMenu: (v: null) => void) => {
     const sp = { id: Date.now().toString(), type: type as import('@/types').Spell['type'], points, startTime: performance.now() };
@@ -803,7 +831,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
-    saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
+    saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,

@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.96
+- **Desar/carregar partides al servidor (meitat frontend).** Implementat el costat de l'app del recurs `Session`: nou client HTTP a `src/lib/api.ts` (`api.sessions` list/get/create/update/delete + `isAdminLoggedIn`) i un panell modal («☁ Partides al servidor», a `BottomControls`) per desar la partida actual amb nom, sobreescriure'n una d'existent, carregar-la o eliminar-la. El botó només apareix si `NEXT_PUBLIC_API_URL` està configurat; si el DM no està loguejat al back office, el panell ho indica i l'app continua funcionant amb el save/load a `.json`. Requereix que la API tingui desplegats els endpoints `/sessions` (contracte a `api-spec.txt`) perquè el desat al servidor funcioni de veritat.
+
 ### v3.95
 - **Contracte API per desar partides al servidor (back office).** S'ha definit a `api-spec.txt` el nou recurs `Session` (partida) i els endpoints `GET/POST/PUT/DELETE /sessions` per guardar i carregar l'estat complet d'una partida al servidor, com a alternativa al save/load a `.json` (que es manté per a ús offline). La implementació del frontend queda pendent que la API tingui els endpoints desplegats.
 
