@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.98
+- **Tema dark fantasy, tercera passada: gir cap a Diablo 2 i llegibilitat.** Fora els efectes CRT sobre el contingut (scanlines, vinyeta, glow de fòsfor, franja cromàtica): la tipografia torna a ser nítida i les cantonades ja no queden fosques. Paleta re-feta amb materials medievals: pedra i fusta fosca càlida, text pergamí/os, **or antic apagat** en lloc del groc viu, vermell sang fosc, i sense blaus/violetes cridaners. La font d'UI passa a **serifa de llibre** (Iowan/Palatino/Georgia, sense descàrrega) i els botons són ara **lloses de pedra tallada** (pàtina + bisell suau) en lloc de plaques metàl·liques. Es manté el marc de l'aparell amb cantoneres d'or antic i la blackletter sang-i-or de les benvingudes. Revert: `DARK_FANTASY = false` a `src/theme/index.ts`.
+
 ### v3.97
 - **Estètica dark fantasy, segona passada: canvi radical.** La v3.96 era massa subtil; ara l'app llegeix com un aparell físic: **bisell de ferro** al voltant de tota la pantalla amb cantoneres daurades, **vores bronze** a tots els panells (la vora ja no és gris fosc), **botons com plaques de ferro bisellades** (majúscules, gradient metàl·lic, premuda mecànica), inputs com pous enfonsats, **dithering de pedra** al substrat, **glow de fòsfor** a tot el text, imatges pixelades, scanlines i vinyeta més presents amb parpelleig ocasional del bloom. Pantalles de benvinguda re-fetes amb **blackletter vermell sang i or** (Pirata One, auto-hostatjada) — el "registre alt" només en fragments. Es manté el revert d'una línia: `DARK_FANTASY = false` a `src/theme/index.ts`.
 

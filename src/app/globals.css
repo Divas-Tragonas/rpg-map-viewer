@@ -9,18 +9,13 @@ input[type=color] { cursor: pointer; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
 
 /* ============================================================================
-   TEMA DARK FANTASY — totes les regles van scoped sota html.theme-df.
+   TEMA DARK FANTASY (estil Diablo 2) — regles scoped sota html.theme-df.
    La classe la posa layout.tsx segons DARK_FANTASY (src/theme/index.ts).
    Amb el flag a false, res d'aquest bloc s'aplica i l'app queda com abans.
+   Sense efectes CRT sobre el contingut (llegibilitat primer): només el marc
+   de l'aparell (CRTOverlay) i materials — pedra, pergamí, or antic.
    ========================================================================= */
 
-@font-face {
-  font-family: 'VT323';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/vt323.ttf') format('truetype');
-}
 @font-face {
   font-family: 'Pirata One';
   font-style: normal;
@@ -29,57 +24,49 @@ input[type=color] { cursor: pointer; }
   src: url('/fonts/pirata-one.ttf') format('truetype');
 }
 
-/* Substrat: negre amb dithering de pedra (checkerboard 2px, molt tènue). */
+/* Substrat: pedra fosca amb gra càlid molt tènue. */
 html.theme-df, html.theme-df body {
-  background-color: #060409;
-  background-image: repeating-conic-gradient(rgba(143,123,166,0.05) 0% 25%, transparent 0% 50%);
+  background-color: #0c0a08;
+  background-image: repeating-conic-gradient(rgba(200,170,120,0.035) 0% 25%, transparent 0% 50%);
   background-size: 4px 4px;
 }
 
-/* Font bitmap per defecte a tota l'app + glow de fòsfor heretat pel text.
-   (Les serifs explícites del revelador de text tenen fontFamily inline
-   propi i guanyen igualment.) */
+/* Serifa de llibre a tota l'app (les serifs explícites del revelador de
+   text tenen fontFamily inline propi i guanyen igualment). */
 html.theme-df body {
-  font-family: 'VT323', 'Courier New', ui-monospace, monospace;
-  text-shadow: 0 0 6px rgba(255,176,32,0.22);
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
 }
 
-/* "El grid és el hardware": cap suavitat vectorial — angles rectes pertot.
+/* Cap suavitat vectorial: angles rectes pertot.
    El canvas i els tokens no en tenen (es dibuixen dins del canvas). */
 html.theme-df *:not(canvas) { border-radius: 0 !important; }
 
-/* Els píxels es col·loquen, no es renderitzen. */
-html.theme-df img { image-rendering: pixelated; }
-
-/* Ferro reblat: tots els botons són plaques bisellades. El bisell va per
-   box-shadow (no s'estableix mai inline, així que s'aplica sempre) i el
-   gradient metàl·lic per background-image !important (es superposa al
-   background-color inline de cada botó, també als d'accent àmbar). */
+/* Lloses de pedra tallada: tots els botons. El bisell va per box-shadow
+   (mai s'estableix inline, així que s'aplica sempre) i una pàtina de pedra
+   per background-image !important superposada al color inline de cada botó
+   (els d'or antic queden com a placa daurada envellida). */
 html.theme-df button {
   font-family: inherit;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  background-image: linear-gradient(180deg, rgba(255,240,200,0.10), rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.30)) !important;
+  letter-spacing: 0.05em;
+  background-image: linear-gradient(180deg, rgba(240,225,190,0.08), rgba(0,0,0,0.04) 50%, rgba(0,0,0,0.22)) !important;
   box-shadow:
-    inset 1px 1px 0 rgba(255,225,160,0.22),
-    inset -1px -1px 0 rgba(0,0,0,0.75),
-    0 2px 0 rgba(0,0,0,0.55);
+    inset 1px 1px 0 rgba(240,225,190,0.14),
+    inset -1px -1px 0 rgba(0,0,0,0.65),
+    0 1px 0 rgba(0,0,0,0.5);
 }
-html.theme-df button:active { transform: translateY(1px); box-shadow: inset 1px 1px 0 rgba(0,0,0,0.6); }
+html.theme-df button:active { transform: translateY(1px); box-shadow: inset 1px 1px 2px rgba(0,0,0,0.6); }
 
-/* Inputs i selects: pous foscos enfonsats a la placa. */
+/* Inputs i selects: pous enfonsats a la pedra. */
 html.theme-df input, html.theme-df select, html.theme-df textarea {
   font-family: inherit;
-  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.8), inset -1px -1px 0 rgba(255,225,160,0.08);
+  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.7), inset -1px -1px 0 rgba(240,225,190,0.06);
 }
 
-html.theme-df input[type=range] { accent-color: #ffb020; box-shadow: none; }
-html.theme-df ::selection { background: #ffb020; color: #060409; text-shadow: none; }
+html.theme-df input[type=range] { accent-color: #c7a55a; box-shadow: none; }
+html.theme-df ::selection { background: #c7a55a; color: #0c0a08; }
 
 html.theme-df ::-webkit-scrollbar { width: 8px; height: 8px; }
-html.theme-df ::-webkit-scrollbar-track { background: #060409; }
-html.theme-df ::-webkit-scrollbar-thumb { background: #6b4a24; border-radius: 0; box-shadow: inset 1px 1px 0 rgba(255,225,160,0.25); }
-html.theme-df ::-webkit-scrollbar-thumb:hover { background: #8a6230; }
-
-/* Respiració del fòsfor (usada per CRTOverlay). */
-@keyframes dfPhosphor { 0%,100%{opacity:1} 92%{opacity:1} 94%{opacity:0.86} 96%{opacity:1} }
+html.theme-df ::-webkit-scrollbar-track { background: #0c0a08; }
+html.theme-df ::-webkit-scrollbar-thumb { background: #4a3826; border-radius: 0; box-shadow: inset 1px 1px 0 rgba(240,225,190,0.15); }
+html.theme-df ::-webkit-scrollbar-thumb:hover { background: #5f4a30; }

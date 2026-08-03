@@ -13,20 +13,21 @@ export const DARK_FANTASY = true;
 // tema a globals.css van totes scoped sota `html.theme-df`.
 export const THEME_CLASS = DARK_FANTASY ? 'theme-df' : '';
 
-// Font de la UI. La resta d'estils inline hereten d'aquesta declaració al
-// node arrel de DMView. Les fonts serif explícites (revelador de text)
-// tenen fontFamily inline propi i no es veuen afectades.
+// Font de la UI. Registre "llibre medieval" (Diablo 2): serifa clàssica del
+// sistema, molt llegible a mides petites. La resta d'estils inline hereten
+// d'aquesta declaració al node arrel de DMView. Les fonts serif explícites
+// (revelador de text) tenen fontFamily inline propi i no es veuen afectades.
 export const FONT_UI = DARK_FANTASY
-  ? "'VT323', 'Courier New', ui-monospace, monospace"
+  ? "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif"
   : 'system-ui,sans-serif';
 
 // Blackletter per als fragments de "registre alt" (títols, benvingudes).
 // Només s'usa quan DARK_FANTASY és actiu.
-export const FONT_BLACKLETTER = "'Pirata One', 'VT323', serif";
+export const FONT_BLACKLETTER = "'Pirata One', Georgia, serif";
 
-// Colors del registre alt (fragments): vermell sang i or.
+// Colors del registre alt (fragments): vermell sang i or antic.
 export const DF_BLOOD = '#a01820';
-export const DF_GOLD  = '#e8b84a';
+export const DF_GOLD  = '#c7a55a';
 
 // Paleta original (GitHub-dark). NO TOCAR: és la referència per revertir.
 const C_ORIGINAL = {
@@ -50,28 +51,28 @@ const C_ORIGINAL = {
   enemyHL:     '#ffd200',  // resaltat d'enemics en combat (deliberadament ≠ accent)
 };
 
-// Paleta dark fantasy: negre com a substrat, ombres desplaçades cap a
-// magenta/blau fred, llums cap a groc. Les vores són BRONZE VISIBLE (no
-// gris fosc): cada panell llegeix com a ferro reblat, no com a card web.
+// Paleta dark fantasy estil Diablo 2: pedra i fusta fosca càlida com a
+// substrat, text pergamí/os, or antic APAGAT (mai groc viu), vermell sang
+// fosc, i cap blau/violeta cridaner — tot desaturat i càlid.
 const C_DARK_FANTASY = {
-  bg:          '#060409',
-  panel:       '#191022',
-  dark:        '#030204',
-  border:      '#6b4a24',  // bronze — vores visibles, "apparatus"
-  accent:      '#ffb020',  // àmbar fòsfor viu
-  text:        '#e8d5a0',  // àmbar pergamí
-  bright:      '#fff2c8',
-  dim:         '#8f7ba6',  // violeta fred (ombres cap a magenta)
-  extras:      '#4fc06a',
-  room:        '#4f90d8',
-  enemy:       '#e03828',
-  ok:          '#4fc06a',
-  warn:        '#e0a020',
-  hpHigh:      '#63c95c',
-  hpMid:       '#e6b93f',
-  magic:       '#b45cf0',
-  magicBright: '#d79cff',
-  enemyHL:     '#ffd200',
+  bg:          '#0c0a08',  // pedra fosca
+  panel:       '#1a1410',  // fusta/pedra càlida
+  dark:        '#070503',
+  border:      '#4a3826',  // pedra tallada marró
+  accent:      '#c7a55a',  // or antic (D2 gold)
+  text:        '#d8c8a8',  // pergamí/os
+  bright:      '#f0e6cc',
+  dim:         '#8a7a62',  // marró grisós càlid
+  extras:      '#5a9a5a',
+  room:        '#7590a8',  // blau acer apagat
+  enemy:       '#a02818',  // vermell sang fosc
+  ok:          '#5a9a5a',
+  warn:        '#c08a2a',
+  hpHigh:      '#5aa050',
+  hpMid:       '#c0a040',
+  magic:       '#9a68c8',
+  magicBright: '#c39ae8',
+  enemyHL:     '#e8c04a',  // or de ressaltat (apagat, ≠ groc llampant)
 };
 
 export type Palette = typeof C_ORIGINAL;
