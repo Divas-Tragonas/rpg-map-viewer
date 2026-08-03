@@ -356,6 +356,17 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ---
 
+## Tema visual (dark fantasy) — `src/theme/index.ts`
+
+- **Interruptor únic**: `DARK_FANTASY` (boolean). Amb `false` l'app torna EXACTAMENT a l'estètica original — no cal tocar res més.
+- D'aquest flag pengen: `ACTIVE_PALETTE` (la `C` de `constants/index.ts` ara és un re-export d'aquesta paleta; les dues paletes — original i dark fantasy — viuen a `theme/index.ts`), `FONT_UI` (font de la UI, usada al node arrel de `DMView`), `THEME_CLASS` (`'theme-df'`, classe a `<html>` posada per `layout.tsx`) i el muntatge de `CRTOverlay`.
+- **`CRTOverlay`** (`src/components/CRTOverlay.tsx`): capa fixa `pointer-events: none` (zIndex 9000) amb scanlines, vinyeta, bloom àmbar i franja cromàtica. Sense hooks; retorna `null` si el flag és off.
+- **CSS del tema**: tot scoped sota `html.theme-df` a `globals.css` (fons, scrollbars, `border-radius: 0 !important` a tot excepte canvas, font bitmap al body). `@font-face` VT323 auto-hostatjada a `public/fonts/vt323.ttf`.
+- El canvas agafa la paleta automàticament (les render phases llegeixen `C`).
+- Fora del tema (deliberat): back office `/admin` i tipografia serif del revelador de text.
+
+---
+
 ## Funcionalitats principals
 
 ### PSD Import

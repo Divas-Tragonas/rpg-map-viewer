@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.96
+- **Nova estètica dark fantasy (primera versió, reversible).** Tota l'app es re-tematitza com un "dispositiu d'escodrinyament": substrat negre amb ombres desplaçades cap a magenta/blau fred, accent àmbar fòsfor, font bitmap (VT323, auto-hostatjada a `public/fonts/`), cantonades rectes a tota la UI i overlay CRT (scanlines 1px, vinyeta i bloom àmbar tènue, franja cromàtica als marges). **Revertir és trivial**: posar `DARK_FANTASY = false` a `src/theme/index.ts` retorna el 100% de l'estètica original (paleta, font, overlay i CSS pengen tots d'aquest únic flag). El back office `/admin` i el revelador de text serif queden deliberadament fora del tema.
+
 ### v3.95
 - **Contracte API per desar partides al servidor (back office).** S'ha definit a `api-spec.txt` el nou recurs `Session` (partida) i els endpoints `GET/POST/PUT/DELETE /sessions` per guardar i carregar l'estat complet d'una partida al servidor, com a alternativa al save/load a `.json` (que es manté per a ús offline). La implementació del frontend queda pendent que la API tingui els endpoints desplegats.
 

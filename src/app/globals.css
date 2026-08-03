@@ -7,3 +7,36 @@ input[type=color] { cursor: pointer; }
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #484f58; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* ============================================================================
+   TEMA DARK FANTASY — totes les regles van scoped sota html.theme-df.
+   La classe la posa layout.tsx segons DARK_FANTASY (src/theme/index.ts).
+   Amb el flag a false, res d'aquest bloc s'aplica i l'app queda com abans.
+   ========================================================================= */
+
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/vt323.ttf') format('truetype');
+}
+
+html.theme-df, html.theme-df body { background: #0a0810; }
+html.theme-df input[type=range] { accent-color: #f0a832; }
+html.theme-df ::-webkit-scrollbar-track { background: #0a0810; }
+html.theme-df ::-webkit-scrollbar-thumb { background: #2e2438; border-radius: 0; }
+html.theme-df ::-webkit-scrollbar-thumb:hover { background: #45375a; }
+
+/* "El grid és el hardware": cap suavitat vectorial — angles rectes pertot.
+   El canvas i els tokens no en tenen (es dibuixen dins del canvas). */
+html.theme-df *:not(canvas) { border-radius: 0 !important; }
+
+/* Els form controls no hereten font per defecte; que agafin la bitmap. */
+html.theme-df button, html.theme-df input, html.theme-df select, html.theme-df textarea {
+  font-family: inherit;
+}
+
+/* Font bitmap per defecte a tota l'app (les serifs explícites del revelador
+   de text tenen fontFamily inline propi i guanyen igualment). */
+html.theme-df body { font-family: 'VT323', 'Courier New', ui-monospace, monospace; }
