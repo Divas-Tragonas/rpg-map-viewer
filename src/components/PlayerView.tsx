@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layers } from '@/components/icons';
+import { DARK_FANTASY, FONT_UI, FONT_BLACKLETTER, DF_BLOOD, DF_GOLD } from '@/theme';
 import {
   BC_CHANNEL, TOKEN_LERP, APP_VERSION,
 } from '@/constants';
@@ -997,12 +998,23 @@ export function PlayerView() {
         style={{ position: 'absolute', inset: 0, background: '#000', zIndex: 8, opacity: 0, transition: 'opacity 0.5s ease', pointerEvents: 'none' }}
       />
       {!playerReady && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16 }}>
-          <Layers size={40} color="#21262d" />
-          <div style={{ fontSize: 18, color: '#e6edf3', fontWeight: 600 }}>RPG Map Viewer</div>
-          <div style={{ fontSize: 13 }}>Esperant al Dungeon Master...</div>
-          <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
-        </div>
+        DARK_FANTASY ? (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.92)', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontFamily: FONT_BLACKLETTER, fontSize: 64, lineHeight: 1.05, color: DF_BLOOD, textShadow: '3px 3px 0 #000, 0 0 34px rgba(160,24,32,0.5)' }}>
+              RPG Map Viewer
+            </div>
+            <div style={{ width: 240, height: 3, background: `repeating-linear-gradient(90deg, ${DF_GOLD} 0 6px, transparent 6px 12px)`, opacity: 0.8 }} />
+            <div style={{ fontFamily: FONT_UI, fontSize: 18, marginTop: 10, color: '#8f7ba6', letterSpacing: '0.1em' }}>ESPERANT AL DUNGEON MASTER...</div>
+            <div style={{ fontFamily: FONT_UI, fontSize: 16, marginTop: 8, padding: '2px 12px', color: DF_GOLD, border: '1px solid #6b4a24', letterSpacing: '0.1em', background: 'rgba(0,0,0,0.5)' }}>{APP_VERSION}</div>
+          </div>
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16 }}>
+            <Layers size={40} color="#21262d" />
+            <div style={{ fontSize: 18, color: '#e6edf3', fontWeight: 600 }}>RPG Map Viewer</div>
+            <div style={{ fontSize: 13 }}>Esperant al Dungeon Master...</div>
+            <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
+          </div>
+        )
       )}
 
       {/* Expositor overlay */}

@@ -358,10 +358,12 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ## Tema visual (dark fantasy) — `src/theme/index.ts`
 
-- **Interruptor únic**: `DARK_FANTASY` (boolean). Amb `false` l'app torna EXACTAMENT a l'estètica original — no cal tocar res més.
-- D'aquest flag pengen: `ACTIVE_PALETTE` (la `C` de `constants/index.ts` ara és un re-export d'aquesta paleta; les dues paletes — original i dark fantasy — viuen a `theme/index.ts`), `FONT_UI` (font de la UI, usada al node arrel de `DMView`), `THEME_CLASS` (`'theme-df'`, classe a `<html>` posada per `layout.tsx`) i el muntatge de `CRTOverlay`.
-- **`CRTOverlay`** (`src/components/CRTOverlay.tsx`): capa fixa `pointer-events: none` (zIndex 9000) amb scanlines, vinyeta, bloom àmbar i franja cromàtica. Sense hooks; retorna `null` si el flag és off.
-- **CSS del tema**: tot scoped sota `html.theme-df` a `globals.css` (fons, scrollbars, `border-radius: 0 !important` a tot excepte canvas, font bitmap al body). `@font-face` VT323 auto-hostatjada a `public/fonts/vt323.ttf`.
+- **Interruptor únic**: `DARK_FANTASY` (boolean). Amb `false` l'app torna EXACTAMENT a l'estètica original — no cal tocar res més (les pantalles de benvinguda tenen ternari `DARK_FANTASY ? ... : ...` amb el JSX original a la branca else).
+- D'aquest flag pengen: `ACTIVE_PALETTE` (la `C` de `constants/index.ts` ara és un re-export d'aquesta paleta; les dues paletes — original i dark fantasy — viuen a `theme/index.ts`), `FONT_UI` (font de la UI, usada al node arrel de `DMView`), `FONT_BLACKLETTER` + `DF_BLOOD`/`DF_GOLD` (fragments de registre alt), `THEME_CLASS` (`'theme-df'`, classe a `<html>` posada per `layout.tsx`) i el muntatge de `CRTOverlay`.
+- **Paleta dark fantasy**: substrat quasi negre, panells violeta fosc, **`border` és bronze visible** (`#6b4a24`) — tots els panells llegeixen com a ferro. Accent àmbar fòsfor `#ffb020`.
+- **`CRTOverlay`** (`src/components/CRTOverlay.tsx`): capa fixa `pointer-events: none` (zIndex 9000) amb **bisell de ferro** (marc de 8px + cantoneres daurades), scanlines, vinyeta, bloom àmbar (parpelleig via `@keyframes dfPhosphor` a globals.css) i franja cromàtica. Sense hooks; retorna `null` si el flag és off.
+- **CSS del tema**: tot scoped sota `html.theme-df` a `globals.css`: dithering de pedra al body, glow de fòsfor al text (text-shadow heretat), botons = plaques bisellades (uppercase + box-shadow + `background-image: linear-gradient !important` superposat al color inline), inputs = pous enfonsats, `border-radius: 0 !important` a tot excepte canvas, `image-rendering: pixelated` a `img`, font bitmap al body. Fonts auto-hostatjades a `public/fonts/` (VT323 + Pirata One).
+- **Benvingudes** (`DMView.tsx` `!bgLoaded`, `PlayerView.tsx` `!playerReady`): títol blackletter vermell sang amb ombra dura + regla puntejada d'or + xip de versió daurat.
 - El canvas agafa la paleta automàticament (les render phases llegeixen `C`).
 - Fora del tema (deliberat): back office `/admin` i tipografia serif del revelador de text.
 

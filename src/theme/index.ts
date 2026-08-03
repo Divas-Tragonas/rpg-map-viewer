@@ -2,8 +2,9 @@
 // TEMA VISUAL DE L'APP — interruptor únic
 // ============================================================================
 // Posar DARK_FANTASY a `false` per tornar EXACTAMENT a l'estètica original.
-// Tot el que depèn del tema (paleta C, font d'UI, overlay CRT, CSS global)
-// penja d'aquesta constant. No cal tocar cap altre fitxer per revertir.
+// Tot el que depèn del tema (paleta C, fonts, overlay CRT, CSS global,
+// pantalles de benvinguda) penja d'aquesta constant. No cal tocar cap altre
+// fitxer per revertir.
 // ============================================================================
 
 export const DARK_FANTASY = true;
@@ -18,6 +19,14 @@ export const THEME_CLASS = DARK_FANTASY ? 'theme-df' : '';
 export const FONT_UI = DARK_FANTASY
   ? "'VT323', 'Courier New', ui-monospace, monospace"
   : 'system-ui,sans-serif';
+
+// Blackletter per als fragments de "registre alt" (títols, benvingudes).
+// Només s'usa quan DARK_FANTASY és actiu.
+export const FONT_BLACKLETTER = "'Pirata One', 'VT323', serif";
+
+// Colors del registre alt (fragments): vermell sang i or.
+export const DF_BLOOD = '#a01820';
+export const DF_GOLD  = '#e8b84a';
 
 // Paleta original (GitHub-dark). NO TOCAR: és la referència per revertir.
 const C_ORIGINAL = {
@@ -42,19 +51,20 @@ const C_ORIGINAL = {
 };
 
 // Paleta dark fantasy: negre com a substrat, ombres desplaçades cap a
-// magenta/blau fred, llums cap a groc, accent àmbar fòsfor.
+// magenta/blau fred, llums cap a groc. Les vores són BRONZE VISIBLE (no
+// gris fosc): cada panell llegeix com a ferro reblat, no com a card web.
 const C_DARK_FANTASY = {
-  bg:          '#0a0810',
-  panel:       '#151021',
-  dark:        '#050308',
-  border:      '#2e2438',
-  accent:      '#f0a832',
-  text:        '#d6c39a',
-  bright:      '#ffe9b3',
-  dim:         '#8a7d9e',
+  bg:          '#060409',
+  panel:       '#191022',
+  dark:        '#030204',
+  border:      '#6b4a24',  // bronze — vores visibles, "apparatus"
+  accent:      '#ffb020',  // àmbar fòsfor viu
+  text:        '#e8d5a0',  // àmbar pergamí
+  bright:      '#fff2c8',
+  dim:         '#8f7ba6',  // violeta fred (ombres cap a magenta)
   extras:      '#4fc06a',
-  room:        '#5b9dd8',
-  enemy:       '#e8483a',
+  room:        '#4f90d8',
+  enemy:       '#e03828',
   ok:          '#4fc06a',
   warn:        '#e0a020',
   hpHigh:      '#63c95c',

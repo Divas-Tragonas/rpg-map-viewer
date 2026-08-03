@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.97
+- **Estètica dark fantasy, segona passada: canvi radical.** La v3.96 era massa subtil; ara l'app llegeix com un aparell físic: **bisell de ferro** al voltant de tota la pantalla amb cantoneres daurades, **vores bronze** a tots els panells (la vora ja no és gris fosc), **botons com plaques de ferro bisellades** (majúscules, gradient metàl·lic, premuda mecànica), inputs com pous enfonsats, **dithering de pedra** al substrat, **glow de fòsfor** a tot el text, imatges pixelades, scanlines i vinyeta més presents amb parpelleig ocasional del bloom. Pantalles de benvinguda re-fetes amb **blackletter vermell sang i or** (Pirata One, auto-hostatjada) — el "registre alt" només en fragments. Es manté el revert d'una línia: `DARK_FANTASY = false` a `src/theme/index.ts`.
+
 ### v3.96
 - **Nova estètica dark fantasy (primera versió, reversible).** Tota l'app es re-tematitza com un "dispositiu d'escodrinyament": substrat negre amb ombres desplaçades cap a magenta/blau fred, accent àmbar fòsfor, font bitmap (VT323, auto-hostatjada a `public/fonts/`), cantonades rectes a tota la UI i overlay CRT (scanlines 1px, vinyeta i bloom àmbar tènue, franja cromàtica als marges). **Revertir és trivial**: posar `DARK_FANTASY = false` a `src/theme/index.ts` retorna el 100% de l'estètica original (paleta, font, overlay i CSS pengen tots d'aquest únic flag). El back office `/admin` i el revelador de text serif queden deliberadament fora del tema.
 
