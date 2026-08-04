@@ -370,6 +370,11 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Revert**: `DARK_FANTASY = false` a `src/theme/index.ts` desactiva classe, tokens i overlay i recupera la paleta original (els components reconstruïts amb tokens, però, ja no tenen branca vella).
 - **`CRTOverlay`**: marc físic amb cantoneres (llegeix els tokens via `var(...)`).
 
+### Components reconstruïts (consumeixen `T`/`U`, no `C`)
+
+- **`CreatureCard`** (`src/components/dm/CreatureCard.tsx`) — targeta de criatura de la llista "A l'escena" (`EnemyLibraryPanel`, que li passa la prop `conditions` des de `DMView`). Retrat 64×64 `.bevel-in` amb `<Sprite>` a 2x; nom codificat per amenaça (`threatOf`: `--ok` fàcil < 30 hpMax ≤ `--gold` elit < 100 ≤ `--accent` boss; `--dim` abatut) i `lv{N}` derivat (`levelOf = ceil(hpMax/15)`) — tots dos placeholders fins que el model porti camps reals; vida = ♥ + número + **pips de cor 8×8** (ple/esquerdat/buit, màx. 10, mai barra); **6 ranures fixes** de condició 20×20 amb glyphs 8×8 (`CONDITION_GLYPHS`, les 14 condicions; buides = punt dim; tooltip = `title`). Les condicions transformen el sprite (grayscale/vel verd/rotació 90°/dither 50%/contorn puntejat + 25% opacitat/vel magenta). Espai mort de capçalera = ◆ repetits (`DiamondFill`). Card sencera `.bevel` sobre `--panel`.
+- Patró per a futures reconstruccions: glyphs pixel-art amb `Glyph8` (SVG `crispEdges` de rects 1×1 des de files de text), botons quadrats `.bevel` (`SquareButton`), mides en múltiples de `U`.
+
 ---
 
 ## Funcionalitats principals

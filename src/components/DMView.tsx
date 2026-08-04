@@ -899,6 +899,7 @@ export function DMView() {
             <EnemyLibraryPanel
               libEnemies={libEnemies}
               defeated={defeated}
+              conditions={conditions}
               onAddEnemy={addLibEnemy}
               onAddDbEnemy={addDbEnemy}
               onRemove={removeLibEnemy}

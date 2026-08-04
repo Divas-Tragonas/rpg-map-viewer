@@ -2,7 +2,7 @@ import type { Condition, Element } from '@/types';
 import { ACTIVE_PALETTE } from '@/theme';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v3.99';
+export const APP_VERSION = 'v4.00';
 
 export const CONDITIONS: Condition[] = [
   { id: 'grappled',      label: 'Agarrado',     bg: '#6b7280', tint: null      },
