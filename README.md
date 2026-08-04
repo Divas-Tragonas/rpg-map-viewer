@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99
+- **Fonament del redesign (fase 0 — cap component tocat encara).** Es descarta l'enfocament de restyle i es posa la base per reconstruir components per fases: (1) sistema de color per **tokens CSS** (`--bg`, `--panel`, `--panel-in`, `--bevel-hi/lo`, `--accent`, `--gold`, `--amber`, `--bone`, `--danger`, `--magic`, `--ok`, `--dim`) amb mirall TS (`T` a `src/theme/index.ts`) per al canvas; la `C` vella ara és un adaptador de compatibilitat sobre els tokens. (2) Reset global: `border-radius: 0`, `image-rendering: pixelated` global, tota transició quantitzada a `steps(4, end)`, cap ombra amb blur. (3) Fonts **VT323** (dades/etiquetes, per defecte) i **Pirata One** (només capçaleres) via `next/font` de Google; eliminades les fonts auto-hostatjades i la serifa de sistema. (4) Mòdul de layout `--u: 8px`. (5) Utilitats `.bevel` / `.bevel-in` (bisell dur sense blur). (6) **Sistema de sprites**: `public/sprites/` + manifest `sprites.json` (nom de criatura → fitxer, amb silueta fallback 32×32 generada) i component `<Sprite name size>` que renderitza art font 32×32 a 2x/3x pixelat.
+
 ### v3.98
 - **Tema dark fantasy, tercera passada: gir cap a Diablo 2 i llegibilitat.** Fora els efectes CRT sobre el contingut (scanlines, vinyeta, glow de fòsfor, franja cromàtica): la tipografia torna a ser nítida i les cantonades ja no queden fosques. Paleta re-feta amb materials medievals: pedra i fusta fosca càlida, text pergamí/os, **or antic apagat** en lloc del groc viu, vermell sang fosc, i sense blaus/violetes cridaners. La font d'UI passa a **serifa de llibre** (Iowan/Palatino/Georgia, sense descàrrega) i els botons són ara **lloses de pedra tallada** (pàtina + bisell suau) en lloc de plaques metàl·liques. Es manté el marc de l'aparell amb cantoneres d'or antic i la blackletter sang-i-or de les benvingudes. Revert: `DARK_FANTASY = false` a `src/theme/index.ts`.
 

@@ -1,35 +1,54 @@
 // ============================================================================
-// TEMA VISUAL DE L'APP — interruptor únic
+// FONAMENT DEL REDESIGN — sistema de tokens
 // ============================================================================
-// Posar DARK_FANTASY a `false` per tornar EXACTAMENT a l'estètica original.
-// Tot el que depèn del tema (paleta C, fonts, overlay CRT, CSS global,
-// pantalles de benvinguda) penja d'aquesta constant. No cal tocar cap altre
-// fitxer per revertir.
+// Els tokens CSS (globals.css, scoped a html.theme-df) i aquest mirall TS
+// són la ÚNICA font de color de l'app. El mirall TS existeix perquè el
+// canvas (render phases) no pot llegir CSS custom properties.
+// Posar DARK_FANTASY a `false` desactiva el tema sencer (classe CSS,
+// fonts, overlay) i recupera la paleta original.
 // ============================================================================
 
 export const DARK_FANTASY = true;
 
-// Classe aplicada a <html> quan el tema fosc està actiu. Les regles CSS del
-// tema a globals.css van totes scoped sota `html.theme-df`.
 export const THEME_CLASS = DARK_FANTASY ? 'theme-df' : '';
 
-// Font de la UI. Registre "llibre medieval" (Diablo 2): serifa clàssica del
-// sistema, molt llegible a mides petites. La resta d'estils inline hereten
-// d'aquesta declaració al node arrel de DMView. Les fonts serif explícites
-// (revelador de text) tenen fontFamily inline propi i no es veuen afectades.
+// --------------------------------------------------------------------------
+// TOKENS — mirall exacte de les CSS custom properties de globals.css.
+// --------------------------------------------------------------------------
+export const T = {
+  bg:      '#0A0A0C',
+  panel:   '#14141C',
+  panelIn: '#0D0D14',
+  bevelHi: '#4A4A5A',
+  bevelLo: '#000000',
+  accent:  '#C41E1E',
+  gold:    '#E8B84B',
+  amber:   '#FFAA00',
+  bone:    '#E8E0D0',
+  danger:  '#FF5555',
+  magic:   '#AA00AA',
+  ok:      '#55AA55',
+  dim:     '#5A5A6A',
+} as const;
+
+// Mòdul de layout: tot padding/gap/mida és múltiple d'aquest valor.
+export const U = 8;
+
+// Fonts: VT323 per a dades i etiquetes, Pirata One NOMÉS per a capçaleres.
+// next/font (layout.tsx) genera noms de família hashejats i els exposa a
+// --font-vt323 / --font-pirata; per això les referències van via var().
 export const FONT_UI = DARK_FANTASY
-  ? "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif"
+  ? "var(--font-vt323), 'Courier New', monospace"
   : 'system-ui,sans-serif';
+export const FONT_BLACKLETTER = 'var(--font-pirata), serif';
 
-// Blackletter per als fragments de "registre alt" (títols, benvingudes).
-// Només s'usa quan DARK_FANTASY és actiu.
-export const FONT_BLACKLETTER = "'Pirata One', Georgia, serif";
+// Registre alt (fragments): sang i or.
+export const DF_BLOOD = T.accent;
+export const DF_GOLD  = T.gold;
 
-// Colors del registre alt (fragments): vermell sang i or antic.
-export const DF_BLOOD = '#a01820';
-export const DF_GOLD  = '#c7a55a';
-
-// Paleta original (GitHub-dark). NO TOCAR: és la referència per revertir.
+// --------------------------------------------------------------------------
+// Paleta original (pre-redesign). NO TOCAR: és la referència per revertir.
+// --------------------------------------------------------------------------
 const C_ORIGINAL = {
   bg:          '#0d1117',
   panel:       '#161b22',
@@ -51,30 +70,35 @@ const C_ORIGINAL = {
   enemyHL:     '#ffd200',  // resaltat d'enemics en combat (deliberadament ≠ accent)
 };
 
-// Paleta dark fantasy estil Diablo 2: pedra i fusta fosca càlida com a
-// substrat, text pergamí/os, or antic APAGAT (mai groc viu), vermell sang
-// fosc, i cap blau/violeta cridaner — tot desaturat i càlid.
-const C_DARK_FANTASY = {
-  bg:          '#0c0a08',  // pedra fosca
-  panel:       '#1a1410',  // fusta/pedra càlida
-  dark:        '#070503',
-  border:      '#4a3826',  // pedra tallada marró
-  accent:      '#c7a55a',  // or antic (D2 gold)
-  text:        '#d8c8a8',  // pergamí/os
-  bright:      '#f0e6cc',
-  dim:         '#8a7a62',  // marró grisós càlid
-  extras:      '#5a9a5a',
-  room:        '#7590a8',  // blau acer apagat
-  enemy:       '#a02818',  // vermell sang fosc
-  ok:          '#5a9a5a',
-  warn:        '#c08a2a',
-  hpHigh:      '#5aa050',
-  hpMid:       '#c0a040',
-  magic:       '#9a68c8',
-  magicBright: '#c39ae8',
-  enemyHL:     '#e8c04a',  // or de ressaltat (apagat, ≠ groc llampant)
+// --------------------------------------------------------------------------
+// Adaptador de compatibilitat: els components existents (encara no
+// reconstruïts) i les render phases del canvas consumeixen `C`. Aquest
+// mapa tradueix la interfície vella als tokens nous. Quan un component es
+// reconstrueixi, ha de passar a consumir `T` (o les CSS vars) directament.
+// Els dos únics colors que no són tokens literals (room, magicBright) són
+// brights CGA coherents amb la ficció de paleta de 16 colors.
+// --------------------------------------------------------------------------
+const C_FROM_TOKENS = {
+  bg:          T.bg,
+  panel:       T.panel,
+  dark:        T.panelIn,
+  border:      T.bevelHi,
+  accent:      T.gold,     // l'accent "actiu/ressaltat" de la UI vella és l'or
+  text:        T.bone,
+  bright:      T.bone,
+  dim:         T.dim,
+  extras:      T.ok,
+  room:        '#5555FF',  // CGA bright blue (sales al canvas)
+  enemy:       T.accent,   // vermell sang
+  ok:          T.ok,
+  warn:        T.amber,
+  hpHigh:      T.ok,
+  hpMid:       T.amber,
+  magic:       T.magic,
+  magicBright: '#FF55FF',  // CGA bright magenta
+  enemyHL:     T.amber,
 };
 
 export type Palette = typeof C_ORIGINAL;
 
-export const ACTIVE_PALETTE: Palette = DARK_FANTASY ? C_DARK_FANTASY : C_ORIGINAL;
+export const ACTIVE_PALETTE: Palette = DARK_FANTASY ? C_FROM_TOKENS : C_ORIGINAL;

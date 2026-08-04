@@ -356,17 +356,19 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ---
 
-## Tema visual (dark fantasy) — `src/theme/index.ts`
+## Redesign visual — fonament (`src/theme/index.ts` + `globals.css`)
 
-- **Interruptor únic**: `DARK_FANTASY` (boolean). Amb `false` l'app torna EXACTAMENT a l'estètica original — no cal tocar res més (les pantalles de benvinguda tenen ternari `DARK_FANTASY ? ... : ...` amb el JSX original a la branca else).
-- D'aquest flag pengen: `ACTIVE_PALETTE` (la `C` de `constants/index.ts` ara és un re-export d'aquesta paleta; les dues paletes — original i dark fantasy — viuen a `theme/index.ts`), `FONT_UI` (font de la UI, usada al node arrel de `DMView`), `FONT_BLACKLETTER` + `DF_BLOOD`/`DF_GOLD` (fragments de registre alt), `THEME_CLASS` (`'theme-df'`, classe a `<html>` posada per `layout.tsx`) i el muntatge de `CRTOverlay`.
-- **Estil de referència: Diablo 2.** Llegibilitat primer: CAP efecte CRT sobre el contingut (ni scanlines, ni vinyeta, ni glow al text — es van provar i es van retirar a la v3.98 perquè dificultaven la lectura).
-- **Paleta dark fantasy**: pedra/fusta fosca càlida, text pergamí (`#d8c8a8`), `border` pedra tallada marró (`#4a3826`), accent **or antic apagat** (`#c7a55a`, mai groc viu), enemy vermell sang fosc. Res de blaus/violetes saturats.
-- **`CRTOverlay`** (`src/components/CRTOverlay.tsx`): només el **marc físic** — bisell de pedra/ferro fosc de 6px + cantoneres d'or antic. Capa fixa `pointer-events: none` (zIndex 9000), sense hooks; retorna `null` si el flag és off.
-- **CSS del tema**: tot scoped sota `html.theme-df` a `globals.css`: gra càlid tènue al body, serifa de llibre (Iowan/Palatino/Georgia, stack del sistema — sense fitxer), botons = lloses de pedra (uppercase + box-shadow bisell + `background-image: linear-gradient !important` de pàtina superposat al color inline), inputs = pous enfonsats, `border-radius: 0 !important` a tot excepte canvas. Font auto-hostatjada: `public/fonts/pirata-one.ttf` (blackletter).
-- **Benvingudes** (`DMView.tsx` `!bgLoaded`, `PlayerView.tsx` `!playerReady`): títol blackletter vermell sang amb ombra dura + regla puntejada d'or + xip de versió daurat.
-- El canvas agafa la paleta automàticament (les render phases llegeixen `C`).
-- Fora del tema (deliberat): back office `/admin` i tipografia serif del revelador de text.
+> **És un REDESIGN, no un restyle**: els components s'han de RECONSTRUIR per fases damunt d'aquest fonament. Si un canvi es pot fer només amb variables CSS, no és suficient.
+
+- **Tokens de color** (única font de color): CSS custom properties a `globals.css` scoped sota `html.theme-df` — `--bg #0A0A0C`, `--panel #14141C`, `--panel-in #0D0D14`, `--bevel-hi #4A4A5A`, `--bevel-lo #000000`, `--accent #C41E1E`, `--gold #E8B84B`, `--amber #FFAA00`, `--bone #E8E0D0`, `--danger #FF5555`, `--magic #AA00AA`, `--ok #55AA55`, `--dim #5A5A6A`. Mirall TS exacte: `T` a `src/theme/index.ts` (el canvas no llegeix CSS vars — les render phases usen `T` o `C`).
+- **`C` és un adaptador de compatibilitat**: tradueix la interfície vella als tokens per als components encara no reconstruïts. Quan es reconstrueixi un component, ha de consumir `T` / CSS vars directament, no `C`.
+- **Reset global** (scoped a `html.theme-df`): `border-radius: 0 !important` (excepte canvas), `image-rendering: pixelated` a img/canvas/video, **tota transició amb `steps(4, end)`** (`transition-timing-function` global amb `!important`), cap `box-shadow` amb blur (tercer valor sempre 0).
+- **Fonts**: `VT323` per a TOTES les dades i etiquetes (per defecte a body i form controls), `Pirata One` NOMÉS per a capçaleres (`h1..h6` i classe `.df-header`). Carregades amb `next/font/google` a `layout.tsx`, exposades com `--font-vt323` / `--font-pirata` (next/font hasheja els noms de família: referenciar SEMPRE via `var(...)`, mai pel nom literal). No hi ha cap altra font al projecte.
+- **Mòdul 8px**: `--u: 8px` (mirall TS: `U`). Tot padding, gap i mida en múltiples de `--u` als components reconstruïts.
+- **`.bevel` / `.bevel-in`**: bisell dur reutilitzable (`inset 2px 2px 0 var(--bevel-hi), inset -2px -2px 0 var(--bevel-lo)`; la variant `-in` l'inverteix per a pous).
+- **Sistema de sprites**: `public/sprites/` + `sprites.json` (`{ tile: 32, fallback, creatures: {nom → fitxer} }`; art font 32×32 exactes). Component `<Sprite name size>` (`src/components/Sprite.tsx`): renderitza a 2x o 3x amb `image-rendering: pixelated`; nom desconegut → silueta fallback.
+- **Revert**: `DARK_FANTASY = false` a `src/theme/index.ts` desactiva classe, tokens i overlay i recupera la paleta original (els components reconstruïts amb tokens, però, ja no tenen branca vella).
+- **`CRTOverlay`**: marc físic amb cantoneres (llegeix els tokens via `var(...)`).
 
 ---
 

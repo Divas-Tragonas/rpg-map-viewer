@@ -9,64 +9,71 @@ input[type=color] { cursor: pointer; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
 
 /* ============================================================================
-   TEMA DARK FANTASY (estil Diablo 2) — regles scoped sota html.theme-df.
-   La classe la posa layout.tsx segons DARK_FANTASY (src/theme/index.ts).
-   Amb el flag a false, res d'aquest bloc s'aplica i l'app queda com abans.
-   Sense efectes CRT sobre el contingut (llegibilitat primer): només el marc
-   de l'aparell (CRTOverlay) i materials — pedra, pergamí, or antic.
+   FONAMENT DEL REDESIGN — scoped sota html.theme-df (flag DARK_FANTASY a
+   src/theme/index.ts). Només fonament: tokens, reset, fonts, mòdul 8px,
+   utilitat .bevel. Els components es reconstruiran per fases damunt d'això.
    ========================================================================= */
 
-@font-face {
-  font-family: 'Pirata One';
-  font-style: normal;
+/* 1 — Sistema de color: tokens únics. Mirall TS a src/theme/index.ts (T). */
+html.theme-df {
+  --bg:#0A0A0C;
+  --panel:#14141C;
+  --panel-in:#0D0D14;
+  --bevel-hi:#4A4A5A;
+  --bevel-lo:#000000;
+  --accent:#C41E1E;
+  --gold:#E8B84B;
+  --amber:#FFAA00;
+  --bone:#E8E0D0;
+  --danger:#FF5555;
+  --magic:#AA00AA;
+  --ok:#55AA55;
+  --dim:#5A5A6A;
+
+  /* 4 — Mòdul de layout: tot padding/gap/mida en múltiples de --u. */
+  --u:8px;
+}
+
+html.theme-df, html.theme-df body { background: var(--bg); color: var(--bone); }
+
+/* 3 — Fonts: VT323 per a dades i etiquetes (per defecte a tot arreu),
+   Pirata One NOMÉS per a capçaleres. Carregades de Google Fonts via
+   next/font (layout.tsx), que les exposa a --font-vt323 / --font-pirata. */
+html.theme-df body,
+html.theme-df button, html.theme-df input, html.theme-df select, html.theme-df textarea {
+  font-family: var(--font-vt323), 'Courier New', monospace;
+}
+html.theme-df h1, html.theme-df h2, html.theme-df h3,
+html.theme-df h4, html.theme-df h5, html.theme-df h6,
+html.theme-df .df-header {
+  font-family: var(--font-pirata), serif;
   font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/pirata-one.ttf') format('truetype');
 }
 
-/* Substrat: pedra fosca amb gra càlid molt tènue. */
-html.theme-df, html.theme-df body {
-  background-color: #0c0a08;
-  background-image: repeating-conic-gradient(rgba(200,170,120,0.035) 0% 25%, transparent 0% 50%);
-  background-size: 4px 4px;
-}
-
-/* Serifa de llibre a tota l'app (les serifs explícites del revelador de
-   text tenen fontFamily inline propi i guanyen igualment). */
-html.theme-df body {
-  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-}
-
-/* Cap suavitat vectorial: angles rectes pertot.
-   El canvas i els tokens no en tenen (es dibuixen dins del canvas). */
+/* 2 — Reset global: cap suavitat vectorial ni difuminat.
+   - border-radius 0 pertot (canvas exclòs: els tokens es dibuixen dins).
+   - píxels col·locats, no renderitzats: image-rendering pixelated global.
+   - cap corba ease: tota transició queda quantitzada a steps(4, end). */
 html.theme-df *:not(canvas) { border-radius: 0 !important; }
+html.theme-df * { transition-timing-function: steps(4, end) !important; }
+html.theme-df img, html.theme-df canvas, html.theme-df video { image-rendering: pixelated; }
 
-/* Lloses de pedra tallada: tots els botons. El bisell va per box-shadow
-   (mai s'estableix inline, així que s'aplica sempre) i una pàtina de pedra
-   per background-image !important superposada al color inline de cada botó
-   (els d'or antic queden com a placa daurada envellida). */
-html.theme-df button {
-  font-family: inherit;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background-image: linear-gradient(180deg, rgba(240,225,190,0.08), rgba(0,0,0,0.04) 50%, rgba(0,0,0,0.22)) !important;
-  box-shadow:
-    inset 1px 1px 0 rgba(240,225,190,0.14),
-    inset -1px -1px 0 rgba(0,0,0,0.65),
-    0 1px 0 rgba(0,0,0,0.5);
-}
-html.theme-df button:active { transform: translateY(1px); box-shadow: inset 1px 1px 2px rgba(0,0,0,0.6); }
-
-/* Inputs i selects: pous enfonsats a la pedra. */
-html.theme-df input, html.theme-df select, html.theme-df textarea {
-  font-family: inherit;
-  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.7), inset -1px -1px 0 rgba(240,225,190,0.06);
-}
-
-html.theme-df input[type=range] { accent-color: #c7a55a; box-shadow: none; }
-html.theme-df ::selection { background: #c7a55a; color: #0c0a08; }
+html.theme-df input[type=range] { accent-color: var(--amber); }
+html.theme-df ::selection { background: var(--amber); color: var(--bg); }
 
 html.theme-df ::-webkit-scrollbar { width: 8px; height: 8px; }
-html.theme-df ::-webkit-scrollbar-track { background: #0c0a08; }
-html.theme-df ::-webkit-scrollbar-thumb { background: #4a3826; border-radius: 0; box-shadow: inset 1px 1px 0 rgba(240,225,190,0.15); }
-html.theme-df ::-webkit-scrollbar-thumb:hover { background: #5f4a30; }
+html.theme-df ::-webkit-scrollbar-track { background: var(--panel-in); }
+html.theme-df ::-webkit-scrollbar-thumb { background: var(--bevel-hi); border-radius: 0; }
+html.theme-df ::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* 5 — Bisell reutilitzable: llum dura de dalt-esquerra, ombra dura de
+   baix-dreta. Cap blur enlloc (tercer valor sempre 0). */
+html.theme-df .bevel {
+  box-shadow: inset 2px 2px 0 var(--bevel-hi),
+              inset -2px -2px 0 var(--bevel-lo);
+}
+/* Variant enfonsada (pous: inputs, llistes) — el mateix bisell, invertit. */
+html.theme-df .bevel-in {
+  box-shadow: inset 2px 2px 0 var(--bevel-lo),
+              inset -2px -2px 0 var(--bevel-hi);
+}

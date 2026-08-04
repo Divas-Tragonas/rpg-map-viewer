@@ -6,9 +6,9 @@ import { DARK_FANTASY } from '@/theme';
 // Tot pointer-events: none i estàtic — cost zero per al render loop.
 // Es munta des de layout.tsx només quan DARK_FANTASY és actiu.
 
-const IRON = '#171008';
-const IRON_HI = 'rgba(240,225,190,0.12)';
-const GOLD = '#c7a55a';
+const IRON = 'var(--panel-in)';
+const IRON_HI = 'var(--bevel-hi)';
+const GOLD = 'var(--gold)';
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
   const s: React.CSSProperties = {
