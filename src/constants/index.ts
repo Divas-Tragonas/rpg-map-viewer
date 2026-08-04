@@ -1,8 +1,7 @@
 import type { Condition, Element } from '@/types';
-import { ACTIVE_PALETTE } from '@/theme';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.00';
+export const APP_VERSION = 'v3.95';
 
 export const CONDITIONS: Condition[] = [
   { id: 'grappled',      label: 'Agarrado',     bg: '#6b7280', tint: null      },
@@ -88,9 +87,26 @@ export const AREA_SPELL_DATA: Record<string, { aoeRadiusFt: number; rangeFt: num
   grease: { aoeRadiusFt: 10, rangeFt: 60,  color: '#a3e635', emoji: '🫙' },
 };
 
-// Paleta activa segons el tema (src/theme/index.ts). Les dues paletes
-// (original i dark fantasy) viuen allà; DARK_FANTASY tria quina s'usa.
-export const C = ACTIVE_PALETTE;
+export const C = {
+  bg:          '#0d1117',
+  panel:       '#161b22',
+  dark:        '#080c12',
+  border:      '#21262d',
+  accent:      '#d4a017',
+  text:        '#c9d1d9',
+  bright:      '#e6edf3',
+  dim:         '#8b949e',
+  extras:      '#39d353',
+  room:        '#58a6ff',
+  enemy:       '#f85149',
+  ok:          '#3fb950',
+  warn:        '#d29922',
+  hpHigh:      '#56d364',  // HP > 50% — rgb(86,211,100)
+  hpMid:       '#e3b341',  // HP 25-50%
+  magic:       '#a855f7',  // màgia / cinematica — rgb(168,85,247)
+  magicBright: '#c084fc',  // màgia clara (magic_missile, text cinematica)
+  enemyHL:     '#ffd200',  // resaltat d'enemics en combat (deliberadament ≠ accent)
+} as const;
 
 export const BC_CHANNEL = 'rpg_map_sync_v18';
 export const TOKEN_LERP  = 0.07;

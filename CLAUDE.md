@@ -356,27 +356,6 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ---
 
-## Redesign visual — fonament (`src/theme/index.ts` + `globals.css`)
-
-> **És un REDESIGN, no un restyle**: els components s'han de RECONSTRUIR per fases damunt d'aquest fonament. Si un canvi es pot fer només amb variables CSS, no és suficient.
-
-- **Tokens de color** (única font de color): CSS custom properties a `globals.css` scoped sota `html.theme-df` — `--bg #0A0A0C`, `--panel #14141C`, `--panel-in #0D0D14`, `--bevel-hi #4A4A5A`, `--bevel-lo #000000`, `--accent #C41E1E`, `--gold #E8B84B`, `--amber #FFAA00`, `--bone #E8E0D0`, `--danger #FF5555`, `--magic #AA00AA`, `--ok #55AA55`, `--dim #5A5A6A`. Mirall TS exacte: `T` a `src/theme/index.ts` (el canvas no llegeix CSS vars — les render phases usen `T` o `C`).
-- **`C` és un adaptador de compatibilitat**: tradueix la interfície vella als tokens per als components encara no reconstruïts. Quan es reconstrueixi un component, ha de consumir `T` / CSS vars directament, no `C`.
-- **Reset global** (scoped a `html.theme-df`): `border-radius: 0 !important` (excepte canvas), `image-rendering: pixelated` a img/canvas/video, **tota transició amb `steps(4, end)`** (`transition-timing-function` global amb `!important`), cap `box-shadow` amb blur (tercer valor sempre 0).
-- **Fonts**: `VT323` per a TOTES les dades i etiquetes (per defecte a body i form controls), `Pirata One` NOMÉS per a capçaleres (`h1..h6` i classe `.df-header`). Carregades amb `next/font/google` a `layout.tsx`, exposades com `--font-vt323` / `--font-pirata` (next/font hasheja els noms de família: referenciar SEMPRE via `var(...)`, mai pel nom literal). No hi ha cap altra font al projecte.
-- **Mòdul 8px**: `--u: 8px` (mirall TS: `U`). Tot padding, gap i mida en múltiples de `--u` als components reconstruïts.
-- **`.bevel` / `.bevel-in`**: bisell dur reutilitzable (`inset 2px 2px 0 var(--bevel-hi), inset -2px -2px 0 var(--bevel-lo)`; la variant `-in` l'inverteix per a pous).
-- **Sistema de sprites**: `public/sprites/` + `sprites.json` (`{ tile: 32, fallback, creatures: {nom → fitxer} }`; art font 32×32 exactes). Component `<Sprite name size>` (`src/components/Sprite.tsx`): renderitza a 2x o 3x amb `image-rendering: pixelated`; nom desconegut → silueta fallback.
-- **Revert**: `DARK_FANTASY = false` a `src/theme/index.ts` desactiva classe, tokens i overlay i recupera la paleta original (els components reconstruïts amb tokens, però, ja no tenen branca vella).
-- **`CRTOverlay`**: marc físic amb cantoneres (llegeix els tokens via `var(...)`).
-
-### Components reconstruïts (consumeixen `T`/`U`, no `C`)
-
-- **`CreatureCard`** (`src/components/dm/CreatureCard.tsx`) — targeta de criatura de la llista "A l'escena" (`EnemyLibraryPanel`, que li passa la prop `conditions` des de `DMView`). Retrat 64×64 `.bevel-in` amb `<Sprite>` a 2x; nom codificat per amenaça (`threatOf`: `--ok` fàcil < 30 hpMax ≤ `--gold` elit < 100 ≤ `--accent` boss; `--dim` abatut) i `lv{N}` derivat (`levelOf = ceil(hpMax/15)`) — tots dos placeholders fins que el model porti camps reals; vida = ♥ + número + **pips de cor 8×8** (ple/esquerdat/buit, màx. 10, mai barra); **6 ranures fixes** de condició 20×20 amb glyphs 8×8 (`CONDITION_GLYPHS`, les 14 condicions; buides = punt dim; tooltip = `title`). Les condicions transformen el sprite (grayscale/vel verd/rotació 90°/dither 50%/contorn puntejat + 25% opacitat/vel magenta). Espai mort de capçalera = ◆ repetits (`DiamondFill`). Card sencera `.bevel` sobre `--panel`.
-- Patró per a futures reconstruccions: glyphs pixel-art amb `Glyph8` (SVG `crispEdges` de rects 1×1 des de files de text), botons quadrats `.bevel` (`SquareButton`), mides en múltiples de `U`.
-
----
-
 ## Funcionalitats principals
 
 ### PSD Import

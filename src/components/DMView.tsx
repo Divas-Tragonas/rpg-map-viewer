@@ -1,7 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT } from '@/constants';
-import { FONT_UI, FONT_BLACKLETTER, DARK_FANTASY, DF_BLOOD, DF_GOLD } from '@/theme';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -850,7 +849,7 @@ export function DMView() {
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', height: '100vh', background: C.bg, color: C.text, fontFamily: FONT_UI, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <div style={{ width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
@@ -899,7 +898,6 @@ export function DMView() {
             <EnemyLibraryPanel
               libEnemies={libEnemies}
               defeated={defeated}
-              conditions={conditions}
               onAddEnemy={addLibEnemy}
               onAddDbEnemy={addDbEnemy}
               onRemove={removeLibEnemy}
@@ -1182,24 +1180,12 @@ export function DMView() {
 
         {!bgLoaded && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none' }}>
-            {DARK_FANTASY ? (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontFamily: FONT_BLACKLETTER, fontSize: 58, lineHeight: 1.05, color: DF_BLOOD, textShadow: '3px 3px 0 #000, 0 0 30px rgba(160,24,32,0.5)' }}>
-                  RPG Map Viewer
-                </div>
-                <div style={{ margin: '14px auto 0', width: 220, height: 3, background: `repeating-linear-gradient(90deg, ${DF_GOLD} 0 6px, transparent 6px 12px)`, opacity: 0.8 }} />
-                <div style={{ fontSize: 17, marginTop: 16, color: C.text, letterSpacing: '0.08em' }}>CARREGA UNA IMATGE O VÍDEO DE FONS</div>
-                <div style={{ fontSize: 14, marginTop: 4, color: C.dim }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-                <div style={{ display: 'inline-block', fontSize: 15, marginTop: 16, padding: '2px 12px', color: DF_GOLD, border: `1px solid ${C.border}`, letterSpacing: '0.1em', background: 'rgba(0,0,0,0.5)' }}>{APP_VERSION}</div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', color: C.dim }}>
-                <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
-                <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-                <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
-              </div>
-            )}
+            <div style={{ textAlign: 'center', color: C.dim }}>
+              <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
+              <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
+              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
+            </div>
           </div>
         )}
       </div>
