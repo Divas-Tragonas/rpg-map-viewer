@@ -2,7 +2,7 @@ import type { MutableRefObject } from 'react';
 import type {
   MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, SpellPreview,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData, Point, DrawTool,
-  Wall, Room, TurnState,
+  Wall, Room, Door, TurnState,
 } from '@/types';
 
 export interface GridCalib {
@@ -107,6 +107,9 @@ export interface FrameContext {
   // Parets + sales fosques (eina "Parets")
   rWalls?:            MutableRefObject<Wall[]>;
   rRooms?:            MutableRefObject<Room[]>;
+  rDoors?:            MutableRefObject<Door[]>;
+  rDoorPlacement?:    MutableRefObject<{ roomId: string | null } | null>;
+  rDoorPreview?:      MutableRefObject<{ a: Point; b: Point } | null>;
   rWallPenLast?:      MutableRefObject<Point | null>;
   rWallCursor?:       MutableRefObject<{ x: number; y: number; onVertex: boolean } | null>;
   rHoveredRoomId?:    MutableRefObject<string | null>;

@@ -2,6 +2,7 @@ import type { FrameContext } from './types';
 import type { Room } from '@/types';
 import { C, DEFAULT_VISION_FT } from '@/constants';
 import { visibilityPolygon } from '@/lib/rooms/visibility';
+import { effectiveWalls } from '@/lib/rooms/doors';
 
 const REVEAL_LERP = 0.09;
 
@@ -112,7 +113,8 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   // 2) Capa de foscor amb la llum dels tokens de jugador retallada (línia de visió).
   if (fills.length > 0) {
     const lights = collectLights(fc);
-    const walls = fc.rWalls?.current ?? [];
+    // Parets efectives: amb els trams de porta retallats (la llum passa per les portes).
+    const walls = effectiveWalls(fc.rWalls?.current ?? [], fc.rDoors?.current ?? []);
     if (lights.length === 0) {
       // Sense fonts de llum: pintar la foscor directament (com sempre).
       ctx.save();
@@ -183,11 +185,41 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   }
 }
 
-/** Parets dibuixades pel DM (no es mostren al jugador). Dins de la transformació de mapa. */
+// Marca de porta (només DM): brancals perpendiculars als extrems + línia discontínua al
+// forat. Es dibuixa dins la transformació de mapa; `alpha` permet fer-la servir de preview.
+function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: number }; b: { x: number; y: number } }, sc: number, alpha: number): void {
+  const dx = d.b.x - d.a.x, dy = d.b.y - d.a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return;
+  const nx = -dy / len, ny = dx / len;
+  const j = 7 / sc;  // semi-llargada dels brancals
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = `rgba(63,185,80,${0.95 * alpha})`;
+  ctx.lineWidth = 3.5 / sc;
+  ctx.beginPath();
+  ctx.moveTo(d.a.x - nx * j, d.a.y - ny * j); ctx.lineTo(d.a.x + nx * j, d.a.y + ny * j);
+  ctx.moveTo(d.b.x - nx * j, d.b.y - ny * j); ctx.lineTo(d.b.x + nx * j, d.b.y + ny * j);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(120,220,140,${0.75 * alpha})`;
+  ctx.lineWidth = 2 / sc;
+  ctx.setLineDash([5 / sc, 4 / sc]);
+  ctx.beginPath(); ctx.moveTo(d.a.x, d.a.y); ctx.lineTo(d.b.x, d.b.y); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/**
+ * Parets dibuixades pel DM (no es mostren al jugador). Dins de la transformació de mapa.
+ * El traç sòlid usa les parets EFECTIVES (amb el forat de cada porta retallat) i cada
+ * porta es dibuixa amb la seva marca (brancals verds + línia discontínua).
+ */
 export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const rWalls = fc.rWalls; if (!rWalls) return;
-  const walls = rWalls.current;
-  if (!walls || walls.length === 0) return;
+  const allWalls = rWalls.current;
+  if (!allWalls || allWalls.length === 0) return;
+  const doors = fc.rDoors?.current ?? [];
+  const walls = effectiveWalls(allWalls, doors);
   const { sc } = fc;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -196,14 +228,50 @@ export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   ctx.beginPath();
   for (const w of walls) { ctx.moveTo(w.a.x, w.a.y); ctx.lineTo(w.b.x, w.b.y); }
   ctx.stroke();
-  // Vèrtexs
+  // Vèrtexs (de les parets originals: els extrems de porta no són vèrtexs editables)
   ctx.fillStyle = 'rgba(255,220,90,0.95)';
   const r = 3 / sc;
-  for (const w of walls) {
+  for (const w of allWalls) {
     ctx.beginPath(); ctx.arc(w.a.x, w.a.y, r, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(w.b.x, w.b.y, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
+  for (const d of doors) drawDoorMark(ctx, d, sc, 1);
+}
+
+/**
+ * Mode de col·locació de porta (s'activa sol en tancar una sala): previsualització de la
+ * porta imantada a la paret sota el cursor + rètol d'ajuda. Espai de pantalla (després de
+ * ctx.restore()), com renderWallDraft.
+ */
+export function renderDoorDraft(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+  if (!fc.rDoorPlacement?.current) return;
+  const prev = fc.rDoorPreview?.current ?? null;
+  const { sc, ox, oy } = fc;
+  const pulse = 0.75 + 0.25 * Math.sin(performance.now() / 240);
+  if (prev) {
+    ctx.save();
+    ctx.translate(ox, oy); ctx.scale(sc, sc);
+    drawDoorMark(ctx, prev, sc, pulse);
+    ctx.restore();
+    const mx = ox + ((prev.a.x + prev.b.x) / 2) * sc;
+    const my = oy + ((prev.a.y + prev.b.y) / 2) * sc;
+    ctx.save();
+    ctx.font = 'bold 12px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
+    const ft = Math.round((Math.hypot(prev.b.x - prev.a.x, prev.b.y - prev.a.y) / gs) * 5);
+    const text = `🚪 Porta ${ft} ft · Clic: col·locar · +/−: amplada · Maj+clic: una altra · Esc: ometre`;
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = 'rgba(10,13,18,0.85)';
+    ctx.fillRect(mx - tw / 2 - 8, my - 36, tw + 16, 20);
+    ctx.strokeStyle = 'rgba(63,185,80,0.55)'; ctx.lineWidth = 1;
+    ctx.strokeRect(mx - tw / 2 - 8, my - 36, tw + 16, 20);
+    ctx.fillStyle = '#7ee787';
+    ctx.fillText(text, mx, my - 26);
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.restore();
+  }
 }
 
 /**

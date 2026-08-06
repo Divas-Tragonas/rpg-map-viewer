@@ -5,7 +5,7 @@ import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
-import { renderRooms, renderWalls, renderWallDraft } from '@/lib/render/darkrooms';
+import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft } from '@/lib/render/darkrooms';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
@@ -138,6 +138,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rSpellPreview: R.rSpellPreview,
         rWalls: R.rWalls, rRooms: R.rRooms, rWallPenLast: R.rWallPenLast,
         rWallCursor: R.rWallCursor, rHoveredRoomId: R.rHoveredRoomId, roomRevealAnimRef: R.roomRevealAnimRef,
+        rDoors: R.rDoors, rDoorPlacement: R.rDoorPlacement, rDoorPreview: R.rDoorPreview,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
@@ -237,6 +238,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         }
         renderMeasureRuler(ctx, fc);
         renderWallDraft(ctx, fc);
+        renderDoorDraft(ctx, fc);
         if (tool === 'shape' && R.rCursorScreenPos.current) {
           const { x: cx, y: cy } = R.rCursorScreenPos.current;
           const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);

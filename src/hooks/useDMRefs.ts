@@ -4,7 +4,7 @@ import type {
   MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
   Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
-  Wall, Room, TurnState,
+  Wall, Room, Door, TurnState,
 } from '@/types';
 import type { CinematicTimeline } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
@@ -33,6 +33,13 @@ export function useDMRefs() {
   // sincronitza); rRooms se'n deriva per detecció de cares i sí que viatja al jugador.
   const rWalls          = useRef<Wall[]>([]);
   const rRooms          = useRef<Room[]>([]);
+  // Portes: forats a les parets per on passen llum i moviment. Sincronitzades al jugador.
+  const rDoors          = useRef<Door[]>([]);
+  // Mode de col·locació de porta (s'activa sol en tancar una sala nova; Esc l'omet).
+  const rDoorPlacement  = useRef<{ roomId: string | null } | null>(null);
+  const rDoorPreview    = useRef<{ a: Point; b: Point } | null>(null);
+  // Amplada de la porta en col·locació, en caselles (+/− per canviar-la; es recorda).
+  const rDoorWidthCells = useRef(1);
   const rWallPenLast    = useRef<Point | null>(null);   // últim vèrtex de la cadena activa (null = ploma amunt)
   const rWallChain      = useRef<Wall[]>([]);            // parets afegides a la cadena oberta actual (per cancel·lar amb Esc)
   const rWallCursor     = useRef<{ x: number; y: number; onVertex: boolean } | null>(null); // preview de la paret en curs
@@ -148,7 +155,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview, rDoorWidthCells, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,

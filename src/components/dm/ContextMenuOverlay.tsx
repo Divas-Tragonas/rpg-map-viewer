@@ -46,6 +46,7 @@ interface Props {
   onToggleRoomReveal: (id: string) => void;
   onRenameRoom: (id: string, name: string) => void;
   onDeleteRoom: (id: string) => void;
+  onAddDoor: (id: string) => void;
 }
 
 export function ContextMenuOverlay({
@@ -59,7 +60,7 @@ export function ContextMenuOverlay({
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
   bcRef, wsRef, onTriggerBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor,
 }: Props) {
   useEffect(() => {
     if (!contextMenu) return;
@@ -102,6 +103,10 @@ export function ContextMenuOverlay({
               {revealed ? '🙈 Amagar als jugadors' : '👁 Revelar als jugadors'}
             </button>
           )}
+          <button onMouseDown={e => { e.stopPropagation(); onAddDoor(rid); }}
+            style={{ width: '100%', padding: '7px', borderRadius: 6, border: '1px solid rgba(63,185,80,.45)', background: 'rgba(63,185,80,.12)', color: '#3fb950', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            🚪 Afegir porta (clic sobre una paret)
+          </button>
           <button onMouseDown={e => { e.stopPropagation(); onDeleteRoom(rid); onClose(); }}
             style={{ width: '100%', padding: '7px', borderRadius: 6, background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', color: '#f85149', cursor: 'pointer', fontSize: 12 }}>
             🗑 Eliminar sala (esborra les seves parets)

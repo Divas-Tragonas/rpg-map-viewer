@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useRef } from 'react';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
+import { doorPlacementAt, doorAt, DOOR_WIDTH_FALLBACK } from '@/lib/rooms/doors';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
 
 const AREA_TYPES = new Set(['sleep', 'grease']);
@@ -27,6 +28,8 @@ interface MouseHandlerSetters {
   setWalls: (v: import('@/types').Wall[]) => void;
   setRooms: (v: import('@/types').Room[]) => void;
   redetectRooms: () => void;
+  addDoor: (a: { x: number; y: number }, b: { x: number; y: number }) => void;
+  removeDoor: (id: string) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -155,6 +158,24 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // Eina "Parets": cada clic col·loca un vèrtex i tanca el tram amb l'anterior.
     // En enganxar-se a un vèrtex/aresta existent es tanca la geometria → detecció de sala.
     if (R.rDrawTool.current === 'wall') {
+      // Mode de col·locació de porta (actiu just després de tancar una sala, o des del
+      // menú de sala): el clic col·loca la porta on marca la previsualització i surt.
+      // Maj+clic la col·loca i CONTINUA en mode porta (per posar més entrades seguides).
+      if (R.rDoorPlacement.current) {
+        const gs = R.rGridSize.current;
+        const cells = R.rDoorWidthCells.current;
+        const seg = R.rDoorPreview.current ?? doorPlacementAt(
+          R.rWalls.current, { x: mx, y: my },
+          (gs > 0 ? gs : DOOR_WIDTH_FALLBACK) * cells,
+          gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null,
+        );
+        if (seg) S.addDoor(seg.a, seg.b);
+        if (!(e.shiftKey || R.rShiftHeld.current)) {
+          R.rDoorPlacement.current = null;
+          R.rDoorPreview.current = null;
+        }
+        e.preventDefault(); return;
+      }
       const snap = snapWall(mx, my, sc);
       const p = { x: snap.x, y: snap.y };
       const last = R.rWallPenLast.current;
@@ -162,6 +183,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         if (Math.hypot(p.x - last.x, p.y - last.y) > 0.5) {
           const wall = { a: last, b: p };
           const prevRooms = R.rRooms.current.length;
+          const prevIds = new Set(R.rRooms.current.map(r => r.id));
           R.rWalls.current = [...R.rWalls.current, wall];
           R.rWallChain.current = [...R.rWallChain.current, wall];
           R.rWallPenLast.current = p;
@@ -169,10 +191,15 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
           S.redetectRooms();
           // Si aquest tram ha completat una geometria nova, acabar la cadena: cal
           // tornar a clicar per començar-ne una altra (no encadenar directament).
+          // I obrir el mode de col·locació de porta per a la sala acabada de tancar:
+          // tota sala nova necessita una entrada (Esc l'omet).
           if (R.rRooms.current.length > prevRooms) {
             R.rWallPenLast.current = null;
             R.rWallChain.current = [];
             R.rWallCursor.current = null;
+            const newRoom = R.rRooms.current.find(r => !prevIds.has(r.id));
+            R.rDoorPlacement.current = { roomId: newRoom?.id ?? null };
+            R.rDoorPreview.current = null;
           }
         }
       } else {
@@ -403,6 +430,17 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     // Paret en curs (eina "Parets"): línia elàstica de l'últim vèrtex al cursor amb imant.
     if (R.rDrawTool.current === 'wall') {
+      // Mode porta: la previsualització llisca sempre imantada a la paret més propera.
+      if (R.rDoorPlacement.current) {
+        const gs = R.rGridSize.current;
+        R.rDoorPreview.current = doorPlacementAt(
+          R.rWalls.current, { x: mx, y: my },
+          (gs > 0 ? gs : DOOR_WIDTH_FALLBACK) * R.rDoorWidthCells.current,
+          gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null,
+        );
+        R.rWallCursor.current = null;
+        return;
+      }
       R.rWallCursor.current = snapWall(mx, my, sc);
       return;
     }
@@ -762,6 +800,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     R.rHoveredRoom.current = null;
     R.rHoveredRoomId.current = null;
     R.rWallCursor.current = null;
+    R.rDoorPreview.current = null;
     R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;
     if (R.rDrawTool.current === 'pointer') {
@@ -773,7 +812,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const { mx, my } = mc(e);
+    const { mx, my, sc } = mc(e);
+    // Eina Parets: clic dret sobre una porta l'elimina (la paret es tanca de nou).
+    if (R.rDrawTool.current === 'wall') {
+      const hitDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 10 / sc);
+      if (hitDoor) { S.removeDoor(hitDoor.id); return; }
+    }
     for (let i = R.rActiveSpells.current.length - 1; i >= 0; i--) {
       const sp = R.rActiveSpells.current[i];
       if (!AREA_TYPES.has(sp.type) || !AREA_SETTLED(sp)) continue;

@@ -5,7 +5,7 @@ import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, PsdEnemyOverrides, Wall, Room, TurnState,
+  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, TurnState,
 } from '@/types';
 import { useDMRefs } from '@/hooks/useDMRefs';
 import { useCinematic } from '@/hooks/useCinematic';
@@ -16,6 +16,7 @@ import { useWheelZoom } from '@/hooks/useWheelZoom';
 import { useKeyboardHandlers } from '@/hooks/useKeyboardHandlers';
 import { createSyncSocket } from '@/lib/ws';
 import { computeReachableCells, segmentBlocked } from '@/lib/rooms/pathing';
+import { effectiveWalls } from '@/lib/rooms/doors';
 import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { LayerTree } from '@/components/dm/LayerTree';
@@ -50,6 +51,7 @@ export function DMView() {
   const [paintedZones, setPaintedZones] = useState<PaintedZone[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [, setDoors] = useState<Door[]>([]);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [activeDrag, setActiveDrag] = useState<string | number | null>(null);
@@ -164,7 +166,7 @@ export function DMView() {
     setPaintedZones, setExpanded, setCanUndo, setActiveSpells, setGridSize, setGridSnap,
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
     setWarningsDismissed, setGridVisible, setGridAutoSize,
-    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setTurn,
+    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setTurn,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -176,6 +178,7 @@ export function DMView() {
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
     redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, cancelWallChain,
+    addDoor, removeDoor, startDoorPlacement,
   } = useDMActions(R, S);
 
   // ── Sistema per torns ──────────────────────────────────────────────────────
@@ -279,7 +282,8 @@ export function DMView() {
     if (player?.canMove === false) { bounceBack(); return; }
 
     const turn = R.rTurn.current;
-    const walls = R.rWalls.current;
+    // Parets efectives: els trams de porta no bloquegen (per allà sí que es passa).
+    const walls = effectiveWalls(R.rWalls.current, R.rDoors.current);
     let consumedFt = 0;
     if (turn.active && sid !== String(turn.order[turn.turnIndex])) { bounceBack(); return; }  // no és el seu torn
     const gs = R.rGridSize.current;
@@ -347,6 +351,13 @@ export function DMView() {
     toggleRoomReveal(id);
     setContextMenu(cm => cm && String(cm.id) === id ? { ...cm, roomRevealed: !cm.roomRevealed } : cm);
   }, [toggleRoomReveal]);
+  // "🚪 Afegir porta" del menú de sala: activa l'eina Parets en mode col·locació de porta
+  // (mateix mode que s'obre sol en tancar una sala nova).
+  const handleAddDoorToRoom = useCallback((id: string) => {
+    setDrawTool('wall');
+    startDoorPlacement(id);
+    setContextMenu(null);
+  }, [setDrawTool, startDoorPlacement]);
 
   // ── BC setup (DM only receives PLAYER_READY) ──────────────────────────────
   useEffect(() => {
@@ -458,8 +469,8 @@ export function DMView() {
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
     setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
-    setWalls, setRooms, redetectRooms,
-  }), [redetectRooms]); // eslint-disable-line react-hooks/exhaustive-deps
+    setWalls, setRooms, redetectRooms, addDoor, removeDoor,
+  }), [redetectRooms, addDoor, removeDoor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState);
@@ -1254,6 +1265,7 @@ export function DMView() {
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}
         onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
+        onAddDoor={handleAddDoorToRoom}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

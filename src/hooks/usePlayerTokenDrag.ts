@@ -3,7 +3,8 @@ import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
 import { computeReachableCells, slideAgainstWalls } from '@/lib/rooms/pathing';
-import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Point } from '@/types';
+import { effectiveWalls } from '@/lib/rooms/doors';
+import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 /**
@@ -37,6 +38,8 @@ interface DragState {
   range: MoveRange | null;
   /** Últim centre vàlid (col·lisió incremental amb parets quan no hi ha grid). */
   last: Point;
+  /** Parets efectives (amb els forats de porta retallats), fixades a l'inici del drag. */
+  walls: Wall[];
 }
 
 function getMediaDimensions(media: HTMLElement | null): { mw: number; mh: number } {
@@ -111,6 +114,7 @@ export function usePlayerTokenDrag(
   bcRef: RefObject<BroadcastChannel | null>,
   rTurn: RefObject<TurnState>,
   rWalls: RefObject<Wall[]>,
+  rDoors: RefObject<Door[]>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -147,6 +151,8 @@ export function usePlayerTokenDrag(
     // Rang de moviment en caselles a partir dels peus disponibles (1 casella = 5 ft).
     // El límit només s'aplica a la pantalla de jugador: el DM mou sense restriccions.
     let range: MoveRange | null = null;
+    // Parets efectives: els trams de porta es retallen (per allà sí que es passa).
+    const walls = effectiveWalls(rWalls.current, rDoors.current);
     const gs = rGridSize.current;
     if (gs > 0) {
       const gox = ((rGridOriginX.current % gs) + gs) % gs;
@@ -160,11 +166,12 @@ export function usePlayerTokenDrag(
       };
       // Amb parets, la regió es restringeix a les caselles amb camí (les parets bloquegen;
       // les obertures/portes deixen passar i el desvium es cobra). Sense parets → null.
-      range.reach = computeReachableCells(rWalls.current, range.startCol, range.startRow, range.maxCells, { gs, gox, goy });
+      range.reach = computeReachableCells(walls, range.startCol, range.startRow, range.maxCells, { gs, gox, goy });
     }
     dragRef.current = {
       id: hit.id, ox: hit.ox, oy: hit.oy, R: hit.R, range,
       last: { x: hit.startX + hit.R, y: hit.startY + hit.R },
+      walls,
     };
     pointerIdRef.current = e.pointerId;
     rSelectedToken.current = hit.id;
@@ -200,10 +207,10 @@ export function usePlayerTokenDrag(
         cx = Math.min(Math.max(cx, gox + tcol * gs + 1), gox + (tcol + 1) * gs - 1);
         cy = Math.min(Math.max(cy, goy + trow * gs + 1), goy + (trow + 1) * gs - 1);
       }
-    } else if (rWalls.current.length > 0) {
+    } else if (dragRef.current.walls.length > 0) {
       // Sense grid: col·lisió incremental amb les parets des de l'últim centre vàlid,
       // amb lliscament per eixos (el token "resbala" per la paret en comptes de clavar-se).
-      const to = slideAgainstWalls(dragRef.current.last, { x: cx, y: cy }, rWalls.current);
+      const to = slideAgainstWalls(dragRef.current.last, { x: cx, y: cy }, dragRef.current.walls);
       cx = to.x; cy = to.y;
     }
     dragRef.current.last = { x: cx, y: cy };

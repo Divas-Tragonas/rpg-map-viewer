@@ -99,6 +99,15 @@ export interface Wall {
   b: Point;
 }
 
+// Porta: un tram obert SOBRE una paret (segment a–b alineat amb la paret). Les portes
+// s'exclouen de les "parets efectives" (llum i col·lisió hi passen), però la paret
+// sencera segueix al graf de detecció de sales (la porta no parteix la sala).
+export interface Door {
+  id: string;
+  a: Point;
+  b: Point;
+}
+
 // Sala detectada (una cara tancada del graf de parets). El polígon `points` es recalcula
 // a cada canvi de parets; `dark`/`revealed` els controla el DM.
 export interface Room {
@@ -274,6 +283,8 @@ export interface BCStateMessage {
   // Parets (camp pesat): el jugador NO les dibuixa, però les necessita per a la línia de
   // visió de la llum dels tokens i per a la col·lisió de moviment (no travessar parets).
   walls?: Wall[];
+  // Portes (camp pesat): forats a les parets per on passen la llum i el moviment.
+  doors?: Door[];
   // Spells d'àrea actius (dormir/grasa) i regla de mesura: es reconcilien al STATE
   // perquè un DELETE_SPELL o un MEASURE de neteja perduts (reconnexió WS) no deixin
   // l'estat obsolet a la pantalla del jugador (camp pesat: només quan canvia la ref).
@@ -309,6 +320,7 @@ export interface BCStructMessage {
   psdEnemyOverrides?: PsdEnemyOverrides;
   rooms?: Room[];
   walls?: Wall[];
+  doors?: Door[];
   // Spells d'àrea actius: al STRUCT perquè un jugador que es connecta tard els vegi.
   activeSpells?: Spell[];
   // Punter i regla de mesura del DM: es reenvien al STRUCT perquè una reconnexió

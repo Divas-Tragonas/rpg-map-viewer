@@ -6,8 +6,9 @@ import { buildTree, validateStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
+import { pruneDoors } from '@/lib/rooms/doors';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
-import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room } from '@/types';
+import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point } from '@/types';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 
@@ -44,6 +45,7 @@ interface Setters {
   setPsdEnemyOverrides: (v: PsdEnemyOverrides) => void;
   setWalls: (v: Wall[]) => void;
   setRooms: (v: Room[]) => void;
+  setDoors: (v: Door[]) => void;
   setTurn: (v: import('@/types').TurnState) => void;
 }
 
@@ -58,7 +60,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
-    rMeasure, rPointerPos, rWalls, rRooms, rWallPenLast, rWallChain, rWallCursor, rTurn,
+    rMeasure, rPointerPos, rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview,
+    rWallPenLast, rWallChain, rWallCursor, rTurn,
   } = R;
 
   // Camps pesats del STATE (arrays grans i imatges base64: MBs si hi ha retrats custom).
@@ -72,7 +75,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current, walls: rWalls.current, activeSpells: rActiveSpells.current,
+      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current,
+      activeSpells: rActiveSpells.current,
     };
   }, []);
 
@@ -101,7 +105,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current, walls: rWalls.current, activeSpells: rActiveSpells.current,
+      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current,
+      activeSpells: rActiveSpells.current,
     };
     for (const k of Object.keys(heavy)) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
@@ -130,6 +135,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current,
       walls: rWalls.current,
+      doors: rDoors.current,
       activeSpells: rActiveSpells.current,
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
@@ -420,7 +426,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       gridLineWidth: rGridLineWidth.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
-      walls: rWalls.current, rooms: rRooms.current,
+      walls: rWalls.current, rooms: rRooms.current, doors: rDoors.current,
       turn: rTurn.current,
       drawCanvas: oc && oc.width > 1 ? oc.toDataURL('image/png') : null,
     };
@@ -498,6 +504,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.libEnemies)    { rLibEnemies.current = state.libEnemies; S.setLibEnemies(state.libEnemies); }
       if (state.walls)         { rWalls.current = state.walls; S.setWalls(state.walls); }
       if (state.rooms)         { rRooms.current = state.rooms; S.setRooms(state.rooms); }
+      if (state.doors)         { rDoors.current = state.doors; S.setDoors(state.doors); }
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;
@@ -742,8 +749,32 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const faces = detectRooms(rWalls.current);
     const rooms = reconcileRooms(rRooms.current, faces);
     rRooms.current = rooms; S.setRooms(rooms);
+    // Les portes que han perdut la seva paret (esborrada/modificada) cauen soles.
+    const doors = pruneDoors(rWalls.current, rDoors.current);
+    if (doors !== rDoors.current) { rDoors.current = doors; S.setDoors(doors); }
     _broadcastState({});
   }, [_broadcastState]);
+
+  // ── Portes ──────────────────────────────────────────────────────────────────
+  const addDoor = useCallback((a: Point, b: Point) => {
+    const door: Door = { id: `door_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, a, b };
+    const nd = [...rDoors.current, door];
+    rDoors.current = nd; S.setDoors(nd);
+    _broadcastState({});
+  }, [_broadcastState]);
+
+  const removeDoor = useCallback((id: string) => {
+    const nd = rDoors.current.filter(d => d.id !== id);
+    if (nd.length === rDoors.current.length) return;
+    rDoors.current = nd; S.setDoors(nd);
+    _broadcastState({});
+  }, [_broadcastState]);
+
+  // Activa el mode de col·locació de porta (el mateix que s'obre sol en tancar una sala).
+  const startDoorPlacement = useCallback((roomId: string | null) => {
+    rDoorPlacement.current = { roomId };
+    rDoorPreview.current = null;
+  }, []);
 
   const setRoomDark = useCallback((id: string, dark: boolean) => {
     const nr = rRooms.current.map(r => r.id === id ? { ...r, dark, revealed: dark ? r.revealed : false } : r);
@@ -801,9 +832,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [redetectRooms]);
 
   const clearWalls = useCallback(() => {
-    rWalls.current = []; rRooms.current = []; rWallPenLast.current = null;
+    rWalls.current = []; rRooms.current = []; rDoors.current = []; rWallPenLast.current = null;
     rWallChain.current = []; rWallCursor.current = null;
-    S.setWalls([]); S.setRooms([]);
+    rDoorPlacement.current = null; rDoorPreview.current = null;
+    S.setWalls([]); S.setRooms([]); S.setDoors([]);
     _broadcastState({});
   }, [_broadcastState]);
 
@@ -815,5 +847,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
     redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls, cancelWallChain,
+    addDoor, removeDoor, startDoorPlacement,
   };
 }
