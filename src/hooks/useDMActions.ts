@@ -770,6 +770,13 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState]);
 
+  // Obre/tanca una porta (tancada → bloqueja llum i moviment com la paret sencera).
+  const toggleDoor = useCallback((id: string) => {
+    const nd = rDoors.current.map(d => d.id === id ? { ...d, open: d.open === false } : d);
+    rDoors.current = nd; S.setDoors(nd);
+    _broadcastState({});
+  }, [_broadcastState]);
+
   // Activa el mode de col·locació de porta (el mateix que s'obre sol en tancar una sala).
   const startDoorPlacement = useCallback((roomId: string | null) => {
     rDoorPlacement.current = { roomId };
@@ -847,6 +854,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
     redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls, cancelWallChain,
-    addDoor, removeDoor, startDoorPlacement,
+    addDoor, removeDoor, toggleDoor, startDoorPlacement,
   };
 }

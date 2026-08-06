@@ -30,6 +30,7 @@ interface MouseHandlerSetters {
   redetectRooms: () => void;
   addDoor: (a: { x: number; y: number }, b: { x: number; y: number }) => void;
   removeDoor: (id: string) => void;
+  toggleDoor: (id: string) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -175,6 +176,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
           R.rDoorPreview.current = null;
         }
         e.preventDefault(); return;
+      }
+      // Clic sobre una porta existent (sense cadena de paret en curs): obrir/tancar.
+      if (!R.rWallPenLast.current) {
+        const hitDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 10 / sc);
+        if (hitDoor) { S.toggleDoor(hitDoor.id); e.preventDefault(); return; }
       }
       const snap = snapWall(mx, my, sc);
       const p = { x: snap.x, y: snap.y };

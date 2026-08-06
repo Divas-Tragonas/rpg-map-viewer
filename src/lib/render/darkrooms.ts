@@ -8,6 +8,11 @@ const REVEAL_LERP = 0.09;
 
 // Capa de foscor reutilitzada entre frames (mateixa mida que el canvas principal).
 let _darkCanvas: HTMLCanvasElement | null = null;
+// Capa de llum: s'hi acumulen tots els retalls de llum i es composita amb desenfocament
+// sobre la foscor, perquè els marges de la llum quedin suaus (no un tall dur de polígon).
+let _lightCanvas: HTMLCanvasElement | null = null;
+// Radi del desenfocament dels marges de llum (px de pantalla).
+const LIGHT_BLUR_PX = 8;
 
 interface Light { x: number; y: number; r: number; }
 
@@ -32,26 +37,43 @@ function collectLights(fc: FrameContext): Light[] {
 }
 
 // Esborra de la capa de foscor la zona il·luminada per cada llum: el polígon de
-// visibilitat (les parets bloquegen la llum; s'escola per les obertures/portes) retallat
-// amb un gradient radial perquè la sala "es vagi il·luminant" gradualment amb la distància.
+// visibilitat (les parets bloquegen la llum; s'escola per les obertures/portes obertes)
+// retallat amb un gradient radial perquè la sala "es vagi il·luminant" amb la distància.
+// Totes les llums es pinten primer a una capa pròpia i es compositen amb `filter: blur`
+// (si el navegador el suporta al canvas — iOS Safari vell no) perquè els marges dels
+// polígons de visibilitat quedin difuminats en lloc d'un tall dur.
 function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a: { x: number; y: number }; b: { x: number; y: number } }[]): void {
-  octx.globalCompositeOperation = 'destination-out';
+  const off = octx.canvas;
+  if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
+  const lc = _lightCanvas;
+  if (lc.width !== off.width || lc.height !== off.height) { lc.width = off.width; lc.height = off.height; }
+  const lctx = lc.getContext('2d')!;
+  lctx.setTransform(1, 0, 0, 1, 0, 0);
+  lctx.clearRect(0, 0, lc.width, lc.height);
+  lctx.setTransform(octx.getTransform());
   for (const li of lights) {
     const poly = visibilityPolygon({ x: li.x, y: li.y }, walls, li.r);
     if (poly.length < 3) continue;
-    octx.save();
-    octx.beginPath();
-    poly.forEach((p, i) => i === 0 ? octx.moveTo(p.x, p.y) : octx.lineTo(p.x, p.y));
-    octx.closePath();
-    octx.clip();
-    const g = octx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
+    lctx.save();
+    lctx.beginPath();
+    poly.forEach((p, i) => i === 0 ? lctx.moveTo(p.x, p.y) : lctx.lineTo(p.x, p.y));
+    lctx.closePath();
+    lctx.clip();
+    const g = lctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
     g.addColorStop(0, 'rgba(0,0,0,1)');
     g.addColorStop(0.55, 'rgba(0,0,0,0.92)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
-    octx.fillStyle = g;
-    octx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
-    octx.restore();
+    lctx.fillStyle = g;
+    lctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
+    lctx.restore();
   }
+  octx.save();
+  octx.globalCompositeOperation = 'destination-out';
+  octx.setTransform(1, 0, 0, 1, 0, 0);
+  if ('filter' in octx) octx.filter = `blur(${LIGHT_BLUR_PX}px)`;
+  octx.drawImage(lc, 0, 0);
+  if ('filter' in octx) octx.filter = 'none';
+  octx.restore();
   octx.globalCompositeOperation = 'source-over';
 }
 
@@ -185,34 +207,36 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   }
 }
 
-// Marca de porta (només DM): brancals perpendiculars als extrems + línia discontínua al
-// forat. Es dibuixa dins la transformació de mapa; `alpha` permet fer-la servir de preview.
-function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: number }; b: { x: number; y: number } }, sc: number, alpha: number): void {
+// Marca de porta (només DM): rectangle groc de traç gruixut i BUIT per dins, muntat
+// sobre la paret (una mica més ample que el traç de paret). Amb la porta oberta el forat
+// de la paret es veu a dins del rectangle; amb la tancada la línia de paret el travessa
+// (les parets efectives la mantenen sencera) i s'hi afegeix un farciment tènue.
+// Es dibuixa dins la transformació de mapa; `alpha` permet fer-la servir de preview.
+function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: number }; b: { x: number; y: number } }, sc: number, alpha: number, open: boolean): void {
   const dx = d.b.x - d.a.x, dy = d.b.y - d.a.y;
   const len = Math.hypot(dx, dy);
   if (len < 1e-6) return;
   const nx = -dy / len, ny = dx / len;
-  const j = 7 / sc;  // semi-llargada dels brancals
+  const h = 7 / sc;  // semi-gruix del rectangle (perpendicular a la paret)
   ctx.save();
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = `rgba(63,185,80,${0.95 * alpha})`;
-  ctx.lineWidth = 3.5 / sc;
+  ctx.lineJoin = 'miter';
   ctx.beginPath();
-  ctx.moveTo(d.a.x - nx * j, d.a.y - ny * j); ctx.lineTo(d.a.x + nx * j, d.a.y + ny * j);
-  ctx.moveTo(d.b.x - nx * j, d.b.y - ny * j); ctx.lineTo(d.b.x + nx * j, d.b.y + ny * j);
+  ctx.moveTo(d.a.x + nx * h, d.a.y + ny * h);
+  ctx.lineTo(d.b.x + nx * h, d.b.y + ny * h);
+  ctx.lineTo(d.b.x - nx * h, d.b.y - ny * h);
+  ctx.lineTo(d.a.x - nx * h, d.a.y - ny * h);
+  ctx.closePath();
+  if (!open) { ctx.fillStyle = `rgba(214,160,23,${0.28 * alpha})`; ctx.fill(); }
+  ctx.strokeStyle = `rgba(255,220,60,${0.95 * alpha})`;
+  ctx.lineWidth = 3 / sc;
   ctx.stroke();
-  ctx.strokeStyle = `rgba(120,220,140,${0.75 * alpha})`;
-  ctx.lineWidth = 2 / sc;
-  ctx.setLineDash([5 / sc, 4 / sc]);
-  ctx.beginPath(); ctx.moveTo(d.a.x, d.a.y); ctx.lineTo(d.b.x, d.b.y); ctx.stroke();
-  ctx.setLineDash([]);
   ctx.restore();
 }
 
 /**
  * Parets dibuixades pel DM (no es mostren al jugador). Dins de la transformació de mapa.
  * El traç sòlid usa les parets EFECTIVES (amb el forat de cada porta retallat) i cada
- * porta es dibuixa amb la seva marca (brancals verds + línia discontínua).
+ * porta es dibuixa amb la seva marca (rectangle groc buit; tancada → farciment tènue).
  */
 export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const rWalls = fc.rWalls; if (!rWalls) return;
@@ -236,7 +260,7 @@ export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
     ctx.beginPath(); ctx.arc(w.b.x, w.b.y, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
-  for (const d of doors) drawDoorMark(ctx, d, sc, 1);
+  for (const d of doors) drawDoorMark(ctx, d, sc, 1, d.open !== false);
 }
 
 /**
@@ -252,7 +276,7 @@ export function renderDoorDraft(ctx: CanvasRenderingContext2D, fc: FrameContext)
   if (prev) {
     ctx.save();
     ctx.translate(ox, oy); ctx.scale(sc, sc);
-    drawDoorMark(ctx, prev, sc, pulse);
+    drawDoorMark(ctx, prev, sc, pulse, true);
     ctx.restore();
     const mx = ox + ((prev.a.x + prev.b.x) / 2) * sc;
     const my = oy + ((prev.a.y + prev.b.y) / 2) * sc;

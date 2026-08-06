@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.98
+- **Obrir i tancar portes.** Amb l'eina Parets, un **clic sobre una porta** la commuta: tancada torna a bloquejar la llum i el moviment (com si la paret fos sencera); oberta hi deixa passar tot. Les portes noves neixen obertes.
+- **Nou aspecte de les portes.** Cada porta es mostra com un **rectangle groc de traç gruixut i buit per dins**, muntat sobre la paret (estil plànol). Amb la porta oberta, el forat de la paret es veu dins del rectangle; amb la tancada, la línia de paret el travessa i el rectangle queda lleugerament farcit.
+- **Marges de llum difuminats.** La llum dels tokens a les sales fosques ja no acaba amb un tall dur: les vores del con de llum i de les ombres es **difuminen** suaument (blur en la composició de la capa de llum).
+
 ### v3.97
 - **Portes explícites a les parets.** En tancar una sala nova amb l'eina Parets s'obre automàticament el **mode de col·locació de porta**: la previsualització llisca sempre **imantada a la paret** més propera sota el cursor (amb snap a caselles exactes quan hi ha grid) i un clic la col·loca; **Esc** l'omet. La porta obre un forat real a la paret: **la llum i el moviment hi passen**, i el forat es veu al traç de la paret (marca verda amb brancals).
 - **Múltiples entrades i mides de porta.** Durant la col·locació, **+/−** canvia l'amplada de la porta (1–10 caselles; l'amplada es recorda i el rètol la mostra en peus) i **Maj+clic** col·loca la porta i continua en mode porta per posar-ne més seguides. També es poden afegir portes en qualsevol moment des del menú contextual de sala ("🚪 Afegir porta") i esborrar-les amb **clic dret** a sobre (eina Parets). Si s'esborra la paret, la porta cau sola. Les portes es sincronitzen al jugador i persisteixen a la sessió.

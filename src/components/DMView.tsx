@@ -178,7 +178,7 @@ export function DMView() {
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
     redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, cancelWallChain,
-    addDoor, removeDoor, startDoorPlacement,
+    addDoor, removeDoor, toggleDoor, startDoorPlacement,
   } = useDMActions(R, S);
 
   // ── Sistema per torns ──────────────────────────────────────────────────────
@@ -469,8 +469,8 @@ export function DMView() {
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
     setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
-    setWalls, setRooms, redetectRooms, addDoor, removeDoor,
-  }), [redetectRooms, addDoor, removeDoor]); // eslint-disable-line react-hooks/exhaustive-deps
+    setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
+  }), [redetectRooms, addDoor, removeDoor, toggleDoor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState);

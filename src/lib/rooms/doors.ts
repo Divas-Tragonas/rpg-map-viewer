@@ -28,11 +28,13 @@ function doorSpanOnWall(d: Door, f: WallFrame): [number, number] | null {
 }
 
 /**
- * Parets "efectives" per a llum i col·lisió: les parets amb els trams de porta retallats.
- * La detecció de sales continua usant les parets senceres (una porta no parteix la sala).
- * Sense portes retorna el mateix array (zero cost).
+ * Parets "efectives" per a llum i col·lisió: les parets amb els trams de porta OBERTA
+ * retallats (una porta tancada deixa la paret sencera i torna a bloquejar). La detecció
+ * de sales continua usant les parets senceres (una porta no parteix la sala).
+ * Sense portes obertes retorna el mateix array (zero cost).
  */
-export function effectiveWalls(walls: Wall[], doors: Door[]): Wall[] {
+export function effectiveWalls(walls: Wall[], allDoors: Door[]): Wall[] {
+  const doors = allDoors.filter(d => d.open !== false);
   if (doors.length === 0) return walls;
   const out: Wall[] = [];
   for (const w of walls) {

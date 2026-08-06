@@ -99,13 +99,16 @@ export interface Wall {
   b: Point;
 }
 
-// Porta: un tram obert SOBRE una paret (segment a–b alineat amb la paret). Les portes
-// s'exclouen de les "parets efectives" (llum i col·lisió hi passen), però la paret
-// sencera segueix al graf de detecció de sales (la porta no parteix la sala).
+// Porta: un tram SOBRE una paret (segment a–b alineat amb la paret). Una porta OBERTA
+// s'exclou de les "parets efectives" (llum i col·lisió hi passen); una porta TANCADA
+// deixa la paret sencera (torna a bloquejar). La paret sencera segueix sempre al graf
+// de detecció de sales (la porta no parteix la sala).
 export interface Door {
   id: string;
   a: Point;
   b: Point;
+  /** false → porta tancada (bloqueja llum i moviment). Absent → oberta. */
+  open?: boolean;
 }
 
 // Sala detectada (una cara tancada del graf de parets). El polígon `points` es recalcula
