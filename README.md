@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.96
+- **Sistema d'il·luminació a les sales fosques.** Cada token de jugador emet llum dins del seu **radi de visió** (`Visió a les fosques`, configurable per jugador al panell, per defecte 30 ft; 0 = sense llum). En entrar en una sala fosca, la foscor s'esvaeix gradualment al voltant del token (gradient radial) i **les parets bloquegen la llum** (línia de visió per raycasting): la llum s'escola per les obertures/portes però no travessa les parets. El DM veu els mateixos forats de llum sobre el seu overlay semitransparent, per saber exactament què veuen els jugadors.
+- **Col·lisions de moviment amb les parets.** Els tokens de jugador ja no poden travessar parets des de la pantalla de jugador: per anar d'una sala a una altra cal passar per una obertura (porta). Amb grid, el disc de moviment (velocitat o peus restants en combat) queda restringit a les caselles amb **camí transitable** (Dijkstra que no creua parets) i **el desvium es cobra**: vorejar una paret per la porta costa el camí sencer, no la línia recta — la pintura groga i el clamp del drag ho mostren igual; sense grid, el token **llisca** per la paret. El DM valida cada `TOKEN_MOVE` amb la mateixa lògica (rebot amb `TOKEN_RELAY` si no hi ha camí) i el DM segueix movent sense cap límit.
+- Les parets ara es sincronitzen a la pantalla de jugador (camp pesat `walls` a `STATE`/`STRUCT`) per a la llum i les col·lisions; continuen sense dibuixar-s'hi.
+
 ### v3.95
 - **Contracte API per desar partides al servidor (back office).** S'ha definit a `api-spec.txt` el nou recurs `Session` (partida) i els endpoints `GET/POST/PUT/DELETE /sessions` per guardar i carregar l'estat complet d'una partida al servidor, com a alternativa al save/load a `.json` (que es manté per a ús offline). La implementació del frontend queda pendent que la API tingui els endpoints desplegats.
 

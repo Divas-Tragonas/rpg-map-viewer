@@ -2,7 +2,8 @@
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
-import type { PosMap, Player, TokenSizeMap, TurnState } from '@/types';
+import { computeReachableCells, slideAgainstWalls } from '@/lib/rooms/pathing';
+import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Point } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 /**
@@ -11,6 +12,10 @@ import type { SyncSocket } from '@/lib/ws';
  * una casella (dc, dr) és abastable si `dc² + dr² ≤ (maxCells + 0.5)²`.
  * Per tant la regió abastable és un **disc rasteritzat** (cercle pixelat), no un
  * quadrat ni un rombe — la forma coherent de moviment.
+ *
+ * Amb parets (`reach`), la regió passa a ser les caselles amb camí transitable des de
+ * l'origen (Dijkstra que no travessa parets, cost de camí real): les parets bloquegen
+ * el pas i cal passar per una obertura (porta), i el desvium es cobra.
  */
 export interface MoveRange {
   startCol: number;
@@ -19,6 +24,8 @@ export interface MoveRange {
   gs: number;
   gox: number;
   goy: number;
+  /** "dc,dr" → cost del camí en caselles (amb parets); null → disc pur (sense parets). */
+  reach: Map<string, number> | null;
 }
 
 interface DragState {
@@ -28,6 +35,8 @@ interface DragState {
   R: number;
   /** null → sense límit de moviment (grid invàlid) */
   range: MoveRange | null;
+  /** Últim centre vàlid (col·lisió incremental amb parets quan no hi ha grid). */
+  last: Point;
 }
 
 function getMediaDimensions(media: HTMLElement | null): { mw: number; mh: number } {
@@ -101,6 +110,7 @@ export function usePlayerTokenDrag(
   wsRef: RefObject<SyncSocket | null>,
   bcRef: RefObject<BroadcastChannel | null>,
   rTurn: RefObject<TurnState>,
+  rWalls: RefObject<Wall[]>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -146,9 +156,16 @@ export function usePlayerTokenDrag(
         startRow: Math.floor((hit.startY + hit.R - goy) / gs),
         maxCells: Math.max(0, Math.floor(speedFt / 5)),
         gs, gox, goy,
+        reach: null,
       };
+      // Amb parets, la regió es restringeix a les caselles amb camí (les parets bloquegen;
+      // les obertures/portes deixen passar i el desvium es cobra). Sense parets → null.
+      range.reach = computeReachableCells(rWalls.current, range.startCol, range.startRow, range.maxCells, { gs, gox, goy });
     }
-    dragRef.current = { id: hit.id, ox: hit.ox, oy: hit.oy, R: hit.R, range };
+    dragRef.current = {
+      id: hit.id, ox: hit.ox, oy: hit.oy, R: hit.R, range,
+      last: { x: hit.startX + hit.R, y: hit.startY + hit.R },
+    };
     pointerIdRef.current = e.pointerId;
     rSelectedToken.current = hit.id;
     // Captura: el drag continua encara que el dit surti del canvas
@@ -163,16 +180,18 @@ export function usePlayerTokenDrag(
     const { id, ox, oy, R, range } = dragRef.current;
     let cx = mx - ox + R, cy = my - oy + R;
     if (range) {
-      // Clamp del centre dins del cercle de caselles abastables (distància euclidiana).
-      const { startCol, startRow, maxCells, gs, gox, goy } = range;
+      // Clamp del centre dins de les caselles abastables: el disc euclidià, restringit
+      // a `reach` (camí sense travessar parets) quan hi ha parets.
+      const { startCol, startRow, maxCells, gs, gox, goy, reach } = range;
       const r2 = (maxCells + 0.5) * (maxCells + 0.5);
+      const inRange = (c: number, r: number) => reach ? reach.has(`${c},${r}`) : c * c + r * r <= r2;
       const col = Math.floor((cx - gox) / gs);
       const row = Math.floor((cy - goy) / gs);
       let dc = col - startCol, dr = row - startRow;
-      if (dc * dc + dr * dr > r2) {
-        // Caminem la casella cap endins fins entrar al disc, reduint primer l'eix dominant
+      if (!inRange(dc, dr)) {
+        // Caminem la casella cap endins fins entrar a la regió, reduint primer l'eix dominant
         // (així la casella final sempre és una de les pintades i segueix la direcció del punter).
-        while (dc * dc + dr * dr > r2) {
+        while (!inRange(dc, dr) && (dc !== 0 || dr !== 0)) {
           if (Math.abs(dc) >= Math.abs(dr)) dc -= Math.sign(dc);
           else dr -= Math.sign(dr);
         }
@@ -181,7 +200,13 @@ export function usePlayerTokenDrag(
         cx = Math.min(Math.max(cx, gox + tcol * gs + 1), gox + (tcol + 1) * gs - 1);
         cy = Math.min(Math.max(cy, goy + trow * gs + 1), goy + (trow + 1) * gs - 1);
       }
+    } else if (rWalls.current.length > 0) {
+      // Sense grid: col·lisió incremental amb les parets des de l'últim centre vàlid,
+      // amb lliscament per eixos (el token "resbala" per la paret en comptes de clavar-se).
+      const to = slideAgainstWalls(dragRef.current.last, { x: cx, y: cy }, rWalls.current);
+      cx = to.x; cy = to.y;
     }
+    dragRef.current.last = { x: cx, y: cy };
     const np = snapPos({ x: cx - R, y: cy - R }, id);
     rPos.current = { ...rPos.current, [id]: np };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

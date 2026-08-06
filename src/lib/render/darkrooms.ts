@@ -1,8 +1,58 @@
 import type { FrameContext } from './types';
 import type { Room } from '@/types';
-import { C } from '@/constants';
+import { C, DEFAULT_VISION_FT } from '@/constants';
+import { visibilityPolygon } from '@/lib/rooms/visibility';
 
 const REVEAL_LERP = 0.09;
+
+// Capa de foscor reutilitzada entre frames (mateixa mida que el canvas principal).
+let _darkCanvas: HTMLCanvasElement | null = null;
+
+interface Light { x: number; y: number; r: number; }
+
+// Fonts de llum: cada token de jugador visible i no derrotat emet llum dins del seu radi
+// de visió (`Player.visionFt`, per defecte DEFAULT_VISION_FT; 0 = sense llum). El centre
+// segueix la posició suavitzada (LERP) perquè la llum es mogui fluida amb el token.
+function collectLights(fc: FrameContext): Light[] {
+  const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
+  const lights: Light[] = [];
+  for (const pl of fc.rPlayers.current) {
+    if (!pl.visible) continue;
+    const key = `pl_${pl.id}`;
+    if (fc.rDefeated.current[key]) continue;
+    const visionFt = pl.visionFt ?? DEFAULT_VISION_FT;
+    if (visionFt <= 0) continue;
+    const R = fc.rTokenSizeOverride.current[key] ?? 22;
+    const pos = fc.visualPosRef.current[key] ?? fc.pp[key];
+    if (!pos) continue;
+    lights.push({ x: pos.x + R, y: pos.y + R, r: (visionFt / 5) * gs });
+  }
+  return lights;
+}
+
+// Esborra de la capa de foscor la zona il·luminada per cada llum: el polígon de
+// visibilitat (les parets bloquegen la llum; s'escola per les obertures/portes) retallat
+// amb un gradient radial perquè la sala "es vagi il·luminant" gradualment amb la distància.
+function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a: { x: number; y: number }; b: { x: number; y: number } }[]): void {
+  octx.globalCompositeOperation = 'destination-out';
+  for (const li of lights) {
+    const poly = visibilityPolygon({ x: li.x, y: li.y }, walls, li.r);
+    if (poly.length < 3) continue;
+    octx.save();
+    octx.beginPath();
+    poly.forEach((p, i) => i === 0 ? octx.moveTo(p.x, p.y) : octx.lineTo(p.x, p.y));
+    octx.closePath();
+    octx.clip();
+    const g = octx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(0.55, 'rgba(0,0,0,0.92)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    octx.fillStyle = g;
+    octx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
+    octx.restore();
+  }
+  octx.globalCompositeOperation = 'source-over';
+}
 
 function roomPath(ctx: CanvasRenderingContext2D, room: Room): void {
   ctx.beginPath();
@@ -42,40 +92,70 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   const anim = fc.roomRevealAnimRef?.current ?? {};
   const hovId = fc.rHoveredRoomId?.current ?? null;
 
+  // Farcir amb el polígon exacte + contorn del mateix color eixampla la foscor uns
+  // píxels cap enfora, de manera que dues sales contigües se solapin i no quedi cap
+  // fil visible del mapa a la paret compartida.
+  const seamW = Math.max(2, 2.5 / sc);
+
+  // 1) Actualitzar l'animació de revelat i recollir la foscor a pintar de cada sala.
+  const fills: { room: Room; alpha: number }[] = [];
+  const animOut: Record<string, number> = fc.roomRevealAnimRef ? fc.roomRevealAnimRef.current : {};
   for (const room of rooms) {
     const tgt = room.dark && !room.revealed ? 1 : 0;
     const prev = anim[room.id] ?? tgt;
     const next = prev + (tgt - prev) * REVEAL_LERP;
-    if (fc.roomRevealAnimRef) fc.roomRevealAnimRef.current[room.id] = Math.abs(next - tgt) < 0.004 ? tgt : next;
-    const a = fc.roomRevealAnimRef ? fc.roomRevealAnimRef.current[room.id] : tgt;
+    animOut[room.id] = Math.abs(next - tgt) < 0.004 ? tgt : next;
+    const a = animOut[room.id] ?? tgt;
+    if (room.dark && a > 0.004) fills.push({ room, alpha: isDM ? 0.14 + a * 0.5 : a });
+  }
 
-    // Farcir amb el polígon exacte + contorn del mateix color eixampla la foscor uns
-    // píxels cap enfora, de manera que dues sales contigües se solapin i no quedi cap
-    // fil visible del mapa a la paret compartida.
-    const seamW = Math.max(2, 2.5 / sc);
-
-    if (!isDM) {
-      // Jugador: només importa la foscor de les sales fosques.
-      if (room.dark && a > 0.004) {
-        ctx.save();
-        ctx.fillStyle = `rgba(3,4,7,${a})`;
-        ctx.strokeStyle = `rgba(3,4,7,${a})`;
-        ctx.lineJoin = 'round'; ctx.lineWidth = seamW; ctx.setLineDash([]);
-        roomPath(ctx, room); ctx.fill(); ctx.stroke();
-        ctx.restore();
+  // 2) Capa de foscor amb la llum dels tokens de jugador retallada (línia de visió).
+  if (fills.length > 0) {
+    const lights = collectLights(fc);
+    const walls = fc.rWalls?.current ?? [];
+    if (lights.length === 0) {
+      // Sense fonts de llum: pintar la foscor directament (com sempre).
+      ctx.save();
+      ctx.lineJoin = 'round'; ctx.lineWidth = seamW; ctx.setLineDash([]);
+      for (const f of fills) {
+        ctx.fillStyle = `rgba(3,4,7,${f.alpha})`;
+        ctx.strokeStyle = `rgba(3,4,7,${f.alpha})`;
+        roomPath(ctx, f.room); ctx.fill(); ctx.stroke();
       }
-      continue;
+      ctx.restore();
+    } else {
+      // Amb llums: la foscor es pinta en una capa fora de pantalla, s'hi esborren les
+      // zones il·luminades (destination-out) i es composita el resultat sobre el mapa.
+      const main = ctx.canvas;
+      if (!_darkCanvas) _darkCanvas = document.createElement('canvas');
+      const off = _darkCanvas;
+      if (off.width !== main.width || off.height !== main.height) { off.width = main.width; off.height = main.height; }
+      const octx = off.getContext('2d')!;
+      octx.setTransform(1, 0, 0, 1, 0, 0);
+      octx.clearRect(0, 0, off.width, off.height);
+      octx.setTransform(ctx.getTransform());
+      octx.lineJoin = 'round'; octx.lineWidth = seamW; octx.setLineDash([]);
+      for (const f of fills) {
+        octx.fillStyle = `rgba(3,4,7,${f.alpha})`;
+        octx.strokeStyle = `rgba(3,4,7,${f.alpha})`;
+        roomPath(octx, f.room); octx.fill(); octx.stroke();
+      }
+      carveLights(octx, lights, walls);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(off, 0, 0);
+      ctx.restore();
     }
+  }
 
-    // DM
+  if (!isDM) return;
+
+  // 3) DM: contorns, noms i ull per sobre de la foscor.
+  for (const room of rooms) {
+    const tgt = room.dark && !room.revealed ? 1 : 0;
+    const a = animOut[room.id] ?? tgt;
     const isHov = hovId === room.id;
     if (room.dark) {
-      ctx.save();
-      ctx.fillStyle = `rgba(3,4,7,${0.14 + a * 0.5})`;
-      ctx.strokeStyle = `rgba(3,4,7,${0.14 + a * 0.5})`;
-      ctx.lineJoin = 'round'; ctx.lineWidth = seamW; ctx.setLineDash([]);
-      roomPath(ctx, room); ctx.fill(); ctx.stroke();
-      ctx.restore();
       roomPath(ctx, room);
       ctx.strokeStyle = isHov ? 'rgba(255,255,255,0.85)' : `rgba(88,166,255,${0.55 + a * 0.25})`;
       ctx.lineWidth = (isHov ? 2.4 : 1.6) / sc; ctx.setLineDash([]);

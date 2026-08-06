@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { UserPlus, X, GearIcon } from '@/components/icons';
-import { C, PALETTE, DEFAULT_SPEED_FT } from '@/constants';
+import { C, PALETTE, DEFAULT_SPEED_FT, DEFAULT_VISION_FT } from '@/constants';
 import type { Player } from '@/types';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   onAdjustHp: (id: number, delta: number) => void;
   onSetHpMax: (id: number, hpMax: number) => void;
   onSetSpeed: (id: number, speed: number) => void;
+  onSetVision: (id: number, visionFt: number) => void;
   onSetCanMove: (id: number, canMove: boolean) => void;
   onRename: (id: number, name: string) => void;
   onLoadParty: () => void;
@@ -42,7 +43,7 @@ function CfgRow({ label, children }: { label: string; children: React.ReactNode 
   );
 }
 
-function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSetHpMax, onSetSpeed, onSetCanMove, onRename }: {
+function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSetHpMax, onSetSpeed, onSetVision, onSetCanMove, onRename }: {
   pl: Player;
   openConfig: boolean;
   onToggleConfig: () => void;
@@ -50,6 +51,7 @@ function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSe
   onAdjustHp: (id: number, delta: number) => void;
   onSetHpMax: (id: number, hpMax: number) => void;
   onSetSpeed: (id: number, speed: number) => void;
+  onSetVision: (id: number, visionFt: number) => void;
   onSetCanMove: (id: number, canMove: boolean) => void;
   onRename: (id: number, name: string) => void;
 }) {
@@ -57,6 +59,7 @@ function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSe
   const ratio = pl.hpMax > 0 ? Math.max(0, hp / pl.hpMax) : 1;
   const hpCol = ratio > 0.5 ? C.hpHigh : ratio > 0.25 ? C.hpMid : C.enemy;
   const speed = pl.speed ?? DEFAULT_SPEED_FT;
+  const vision = pl.visionFt ?? DEFAULT_VISION_FT;
   const canMove = pl.canMove !== false;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const hpBtn = (delta: number, col: string, bg: string, sign: string) => (
@@ -118,6 +121,12 @@ function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSe
                 onChange={e => onSetSpeed(pl.id, parseInt(e.target.value) || 0)}
                 style={{ ...cfgInputStyle, color: '#d4ae38' }} />
             </CfgRow>
+            <CfgRow label={`Visió a les fosques (peus)${vision <= 0 ? ' · sense llum' : ''}`}>
+              <input type="number" min={0} max={995} step={5} value={vision}
+                title="Radi de llum que emet el token dins de sales fosques (0 = sense llum)"
+                onChange={e => onSetVision(pl.id, parseInt(e.target.value) || 0)}
+                style={{ ...cfgInputStyle, color: '#e8c86a' }} />
+            </CfgRow>
             <CfgRow label="Moviment des de la pantalla de jugador">
               <Toggle on={canMove} onClick={() => onSetCanMove(pl.id, !canMove)}
                 title={canMove ? 'Desactivar moviment del jugador' : 'Activar moviment del jugador'} />
@@ -129,7 +138,7 @@ function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSe
   );
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onSetSpeed, onSetCanMove, onRename, onLoadParty }: Props) {
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onSetSpeed, onSetVision, onSetCanMove, onRename, onLoadParty }: Props) {
   const [openConfigId, setOpenConfigId] = useState<number | null>(null);
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, padding: '8px 10px' }}>
@@ -164,7 +173,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
             openConfig={openConfigId === pl.id}
             onToggleConfig={() => setOpenConfigId(openConfigId === pl.id ? null : pl.id)}
             onRemove={onRemove} onAdjustHp={onAdjustHp} onSetHpMax={onSetHpMax}
-            onSetSpeed={onSetSpeed} onSetCanMove={onSetCanMove} onRename={onRename} />
+            onSetSpeed={onSetSpeed} onSetVision={onSetVision} onSetCanMove={onSetCanMove} onRename={onRename} />
         ))}
       </div>
     </div>

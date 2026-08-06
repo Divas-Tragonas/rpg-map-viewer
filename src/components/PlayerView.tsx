@@ -16,7 +16,7 @@ import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cine
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, TurnState } from '@/types';
+import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, TurnState } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 export function PlayerView() {
@@ -39,6 +39,9 @@ export function PlayerView() {
   const rDefeated    = useRef<DefeatedMap>({});
   const rPaintedZones = useRef<PaintedZone[]>([]);
   const rRooms        = useRef<Room[]>([]);
+  // Parets: no es dibuixen al jugador, però calen per a la línia de visió de la llum
+  // dels tokens (sales fosques) i per a la col·lisió de moviment del drag local.
+  const rWalls        = useRef<Wall[]>([]);
   const roomRevealAnimRef = useRef<Record<string, number>>({});
   const rActiveSpells = useRef<Spell[]>([]);
   const rGridVisible  = useRef(false);
@@ -417,6 +420,7 @@ export function PlayerView() {
     wsRef,
     bcRef,
     rTurn,
+    rWalls,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
@@ -459,6 +463,7 @@ export function PlayerView() {
           for (const rm of msg.rooms as Room[]) anim[rm.id] = rm.dark && !rm.revealed ? 1 : 0;
           roomRevealAnimRef.current = anim;
         }
+        if (msg.walls) rWalls.current = msg.walls;
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
@@ -566,6 +571,7 @@ export function PlayerView() {
           rPaintedZones.current = msg.paintedZones;
         }
         if (msg.rooms) rRooms.current = msg.rooms;
+        if (msg.walls) rWalls.current = msg.walls;
         if (msg.turn) rTurn.current = msg.turn;
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
@@ -887,7 +893,7 @@ export function PlayerView() {
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
-        rRooms, roomRevealAnimRef,
+        rRooms, rWalls, roomRevealAnimRef,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);

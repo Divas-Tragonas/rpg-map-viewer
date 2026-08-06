@@ -15,6 +15,7 @@ import { useMouseHandlers } from '@/hooks/useMouseHandlers';
 import { useWheelZoom } from '@/hooks/useWheelZoom';
 import { useKeyboardHandlers } from '@/hooks/useKeyboardHandlers';
 import { createSyncSocket } from '@/lib/ws';
+import { computeReachableCells, segmentBlocked } from '@/lib/rooms/pathing';
 import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { LayerTree } from '@/components/dm/LayerTree';
@@ -169,7 +170,7 @@ export function DMView() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
@@ -274,24 +275,43 @@ export function DMView() {
       R.bcRef.current?.postMessage(back);
       R.wsRef.current?.send(JSON.stringify(back));
     };
-    if (R.rPlayers.current.find(p => `pl_${p.id}` === sid)?.canMove === false) { bounceBack(); return; }
+    const player = R.rPlayers.current.find(p => `pl_${p.id}` === sid);
+    if (player?.canMove === false) { bounceBack(); return; }
 
     const turn = R.rTurn.current;
+    const walls = R.rWalls.current;
     let consumedFt = 0;
-    if (turn.active) {
-      if (sid !== String(turn.order[turn.turnIndex])) { bounceBack(); return; }  // no és el seu torn
-      const gs = R.rGridSize.current;
-      if (gs > 0) {
-        const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
-        const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
-        const Rv = R.rTokenSizeOverride.current[id] ?? 22;
-        const cur = R.rPos.current[id] ?? { x, y };
-        const col = (px: number) => Math.floor((px + Rv - gox) / gs);
-        const row = (py: number) => Math.floor((py + Rv - goy) / gs);
+    if (turn.active && sid !== String(turn.order[turn.turnIndex])) { bounceBack(); return; }  // no és el seu torn
+    const gs = R.rGridSize.current;
+    if (gs > 0) {
+      const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
+      const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
+      const Rv = R.rTokenSizeOverride.current[id] ?? 22;
+      const cur = R.rPos.current[id] ?? { x, y };
+      const col = (px: number) => Math.floor((px + Rv - gox) / gs);
+      const row = (py: number) => Math.floor((py + Rv - goy) / gs);
+      if (turn.active) {
         const cells = Math.max(0, Math.ceil(Math.hypot(col(x) - col(cur.x), row(y) - row(cur.y)) - 0.5));
         consumedFt = cells * 5;
         if (consumedFt > turn.activeRemainingFt + 0.001) { bounceBack(); return; }
       }
+      // Parets: la casella de destí ha de tenir camí transitable des de l'origen (mateix
+      // Dijkstra que el clamp/pintura del drag: no es travessa cap paret, cal una porta).
+      // En combat, el cost passa a ser el del CAMÍ (vorejar una paret cobra el desvium).
+      if (walls.length > 0) {
+        const budgetFt = turn.active ? turn.activeRemainingFt : (player?.speed ?? DEFAULT_SPEED_FT);
+        const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy });
+        if (reach) {
+          const pathCost = reach.get(`${col(x) - col(cur.x)},${row(y) - row(cur.y)}`);
+          if (pathCost === undefined) { bounceBack(); return; }
+          if (turn.active) consumedFt = Math.max(0, Math.ceil(pathCost - 0.5)) * 5;
+        }
+      }
+    } else if (walls.length > 0) {
+      // Sense grid: el tram directe entre centres no pot creuar cap paret.
+      const Rv = R.rTokenSizeOverride.current[id] ?? 22;
+      const cur = R.rPos.current[id] ?? { x, y };
+      if (segmentBlocked({ x: cur.x + Rv, y: cur.y + Rv }, { x: x + Rv, y: y + Rv }, walls)) { bounceBack(); return; }
     }
 
     if (turn.active) {
@@ -890,7 +910,7 @@ export function DMView() {
                 newPColor={newPColor} setNewPColor={setNewPColor}
                 newPHpMax={newPHpMax} setNewPHpMax={setNewPHpMax}
                 onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
-                onRemove={removePlayer} onAdjustHp={adjustPlayerHp} onSetHpMax={setPlayerHpMax} onSetSpeed={setPlayerSpeed} onSetCanMove={setPlayerCanMove} onRename={renamePlayer} onLoadParty={loadParty}
+                onRemove={removePlayer} onAdjustHp={adjustPlayerHp} onSetHpMax={setPlayerHpMax} onSetSpeed={setPlayerSpeed} onSetVision={setPlayerVision} onSetCanMove={setPlayerCanMove} onRename={renamePlayer} onLoadParty={loadParty}
               />
             </>
           )}

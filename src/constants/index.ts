@@ -1,7 +1,7 @@
 import type { Condition, Element } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v3.95';
+export const APP_VERSION = 'v3.96';
 
 export const CONDITIONS: Condition[] = [
   { id: 'grappled',      label: 'Agarrado',     bg: '#6b7280', tint: null      },
@@ -40,6 +40,9 @@ export const PALETTE = [
 
 // Velocitat de moviment per defecte dels jugadors, en peus (1 casella = 5 ft)
 export const DEFAULT_SPEED_FT = 30;
+
+// Radi de visió per defecte dins de sales fosques, en peus (llum que emet cada token de jugador)
+export const DEFAULT_VISION_FT = 30;
 
 // Party actual de la campanya. La vida (hpMax) és provisional: els jugadors van
 // pujar de nivell i encara no en tenim els valors reals — s'ajustaran des del

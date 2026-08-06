@@ -72,7 +72,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current, activeSpells: rActiveSpells.current,
+      rooms: rRooms.current, walls: rWalls.current, activeSpells: rActiveSpells.current,
     };
   }, []);
 
@@ -101,7 +101,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current, activeSpells: rActiveSpells.current,
+      rooms: rRooms.current, walls: rWalls.current, activeSpells: rActiveSpells.current,
     };
     for (const k of Object.keys(heavy)) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
@@ -129,6 +129,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       libEnemies: rLibEnemies.current,
       psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current,
+      walls: rWalls.current,
       activeSpells: rActiveSpells.current,
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
@@ -337,6 +338,12 @@ export function useDMActions(R: DMRefs, S: Setters) {
   const setPlayerSpeed = useCallback((id: number, speed: number) => {
     const sp = Math.max(0, Math.min(995, Math.round(speed) || 0));
     const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, speed: sp } : pl);
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
+  const setPlayerVision = useCallback((id: number, visionFt: number) => {
+    const v = Math.max(0, Math.min(995, Math.round(visionFt) || 0));
+    const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, visionFt: v } : pl);
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
@@ -802,7 +809,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,

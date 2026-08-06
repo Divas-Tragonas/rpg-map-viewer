@@ -66,6 +66,8 @@ export interface Player {
   speed?: number;
   /** false → el token no es pot moure des de /player (el DM sempre pot). Absent → true. */
   canMove?: boolean;
+  /** Radi de visió en peus dins de sales fosques (llum que emet el token). Absent → DEFAULT_VISION_FT; 0 → sense llum. */
+  visionFt?: number;
 }
 
 export interface Point {
@@ -269,6 +271,9 @@ export interface BCStateMessage {
   libEnemies?: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;
   rooms?: Room[];
+  // Parets (camp pesat): el jugador NO les dibuixa, però les necessita per a la línia de
+  // visió de la llum dels tokens i per a la col·lisió de moviment (no travessar parets).
+  walls?: Wall[];
   // Spells d'àrea actius (dormir/grasa) i regla de mesura: es reconcilien al STATE
   // perquè un DELETE_SPELL o un MEASURE de neteja perduts (reconnexió WS) no deixin
   // l'estat obsolet a la pantalla del jugador (camp pesat: només quan canvia la ref).
@@ -303,6 +308,7 @@ export interface BCStructMessage {
   libEnemies: LibEnemy[];
   psdEnemyOverrides?: PsdEnemyOverrides;
   rooms?: Room[];
+  walls?: Wall[];
   // Spells d'àrea actius: al STRUCT perquè un jugador que es connecta tard els vegi.
   activeSpells?: Spell[];
   // Punter i regla de mesura del DM: es reenvien al STRUCT perquè una reconnexió
