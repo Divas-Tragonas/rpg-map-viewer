@@ -756,8 +756,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   // ── Portes ──────────────────────────────────────────────────────────────────
+  // Les portes noves neixen TANCADES (bloquegen llum i moviment fins que el DM les obre
+  // amb un clic en mode selecció).
   const addDoor = useCallback((a: Point, b: Point) => {
-    const door: Door = { id: `door_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, a, b };
+    const door: Door = { id: `door_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, a, b, open: false };
     const nd = [...rDoors.current, door];
     rDoors.current = nd; S.setDoors(nd);
     _broadcastState({});

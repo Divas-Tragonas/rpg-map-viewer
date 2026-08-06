@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99
+- **Portes tancades per defecte i toggle amb el cursor normal.** Les portes noves neixen **tancades** (bloquegen llum i moviment fins que s'obren). Per obrir-les o tancar-les ja no cal cap eina: amb el **cursor de selecció normal**, en passar per sobre d'una porta aquesta es **destaca** (traç brillant + halo, cursor en forma de mà, com un botó web) i un **clic la commuta**.
+- **Colors unificats.** La porta usa el mateix daurat que les parets. **Tancada → l'interior del rectangle es pinta**; **oberta → buit per dins** (com fins ara). La previsualització de col·locació ja es mostra tancada.
+
 ### v3.98
 - **Obrir i tancar portes.** Amb l'eina Parets, un **clic sobre una porta** la commuta: tancada torna a bloquejar la llum i el moviment (com si la paret fos sencera); oberta hi deixa passar tot. Les portes noves neixen obertes.
 - **Nou aspecte de les portes.** Cada porta es mostra com un **rectangle groc de traç gruixut i buit per dins**, muntat sobre la paret (estil plànol). Amb la porta oberta, el forat de la paret es veu dins del rectangle; amb la tancada, la línia de paret el travessa i el rectangle queda lleugerament farcit.

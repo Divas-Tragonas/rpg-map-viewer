@@ -110,6 +110,7 @@ export interface FrameContext {
   rDoors?:            MutableRefObject<Door[]>;
   rDoorPlacement?:    MutableRefObject<{ roomId: string | null } | null>;
   rDoorPreview?:      MutableRefObject<{ a: Point; b: Point } | null>;
+  rHoveredDoorId?:    MutableRefObject<string | null>;
   rWallPenLast?:      MutableRefObject<Point | null>;
   rWallCursor?:       MutableRefObject<{ x: number; y: number; onVertex: boolean } | null>;
   rHoveredRoomId?:    MutableRefObject<string | null>;

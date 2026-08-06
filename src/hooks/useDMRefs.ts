@@ -40,6 +40,8 @@ export function useDMRefs() {
   const rDoorPreview    = useRef<{ a: Point; b: Point } | null>(null);
   // Amplada de la porta en col·locació, en caselles (+/− per canviar-la; es recorda).
   const rDoorWidthCells = useRef(1);
+  // Porta sota el cursor en mode selecció (hover reactiu; clic = obrir/tancar).
+  const rHoveredDoorId  = useRef<string | null>(null);
   const rWallPenLast    = useRef<Point | null>(null);   // últim vèrtex de la cadena activa (null = ploma amunt)
   const rWallChain      = useRef<Wall[]>([]);            // parets afegides a la cadena oberta actual (per cancel·lar amb Esc)
   const rWallCursor     = useRef<{ x: number; y: number; onVertex: boolean } | null>(null); // preview de la paret en curs
@@ -155,7 +157,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview, rDoorWidthCells, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,

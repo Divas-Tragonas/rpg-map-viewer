@@ -177,11 +177,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
         e.preventDefault(); return;
       }
-      // Clic sobre una porta existent (sense cadena de paret en curs): obrir/tancar.
-      if (!R.rWallPenLast.current) {
-        const hitDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 10 / sc);
-        if (hitDoor) { S.toggleDoor(hitDoor.id); e.preventDefault(); return; }
-      }
       const snap = snapWall(mx, my, sc);
       const p = { x: snap.x, y: snap.y };
       const last = R.rWallPenLast.current;
@@ -373,6 +368,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     S.setSelectedToken(null); R.rSelectedToken.current = null;
     R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
 
+    // Clic sobre una porta (cursor normal, mode selecció) = obrir/tancar-la.
+    if (R.rDrawTool.current === 'none') {
+      const hitDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 9 / sc);
+      if (hitDoor) { S.toggleDoor(hitDoor.id); e.preventDefault(); return; }
+    }
+
     // Clic sobre una sala fosca (mode selecció) = revelar-la. Per tornar-la a amagar
     // cal tenir el mode SHIFT actiu (evita re-enfosquir-la sense voler), igual que les
     // sales PSD. El clic sempre es consumeix.
@@ -508,6 +509,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         if (rm.dark && pointInPolygon(mx, my, rm.points)) { hovRoom = rm.id; break; }
       }
       R.rHoveredRoomId.current = hovRoom;
+      // Porta sota el cursor: es destaca (com un botó) i el cursor passa a "pointer".
+      const prevHovDoor = R.rHoveredDoorId.current;
+      const hovDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 9 / sc)?.id ?? null;
+      R.rHoveredDoorId.current = hovDoor;
+      if (hovDoor !== prevHovDoor) S.setCanvasCursor(hovDoor ? 'pointer' : 'default');
     }
 
     if (tool === 'pen' || tool === 'eraser' || tool === 'shape') {
@@ -807,6 +813,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     R.rHoveredRoomId.current = null;
     R.rWallCursor.current = null;
     R.rDoorPreview.current = null;
+    R.rHoveredDoorId.current = null;
     R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;
     if (R.rDrawTool.current === 'pointer') {

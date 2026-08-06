@@ -207,12 +207,12 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   }
 }
 
-// Marca de porta (només DM): rectangle groc de traç gruixut i BUIT per dins, muntat
-// sobre la paret (una mica més ample que el traç de paret). Amb la porta oberta el forat
-// de la paret es veu a dins del rectangle; amb la tancada la línia de paret el travessa
-// (les parets efectives la mantenen sencera) i s'hi afegeix un farciment tènue.
-// Es dibuixa dins la transformació de mapa; `alpha` permet fer-la servir de preview.
-function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: number }; b: { x: number; y: number } }, sc: number, alpha: number, open: boolean): void {
+// Marca de porta (només DM): rectangle de traç gruixut muntat sobre la paret, amb el
+// MATEIX daurat que les parets. Oberta → buit per dins (el forat de la paret es veu a
+// dins del rectangle); tancada → l'interior es pinta ple. En hover (mode selecció) es
+// ressalta com un botó (traç més brillant i gruixut + halo), perquè es vegi que és
+// clicable. Es dibuixa dins la transformació de mapa; `alpha` permet fer-la de preview.
+function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: number }; b: { x: number; y: number } }, sc: number, alpha: number, open: boolean, hovered = false): void {
   const dx = d.b.x - d.a.x, dy = d.b.y - d.a.y;
   const len = Math.hypot(dx, dy);
   if (len < 1e-6) return;
@@ -226,9 +226,18 @@ function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: num
   ctx.lineTo(d.b.x - nx * h, d.b.y - ny * h);
   ctx.lineTo(d.a.x - nx * h, d.a.y - ny * h);
   ctx.closePath();
-  if (!open) { ctx.fillStyle = `rgba(214,160,23,${0.28 * alpha})`; ctx.fill(); }
-  ctx.strokeStyle = `rgba(255,220,60,${0.95 * alpha})`;
-  ctx.lineWidth = 3 / sc;
+  if (hovered) {
+    // Halo exterior (reactiu de cursor, com un botó web)
+    ctx.strokeStyle = 'rgba(255,220,90,0.35)';
+    ctx.lineWidth = 9 / sc;
+    ctx.stroke();
+  }
+  if (!open) {
+    ctx.fillStyle = hovered ? 'rgba(240,190,50,0.72)' : `rgba(214,160,23,${0.55 * alpha})`;
+    ctx.fill();
+  }
+  ctx.strokeStyle = hovered ? 'rgba(255,224,102,1)' : `rgba(214,160,23,${0.9 * alpha})`;
+  ctx.lineWidth = (hovered ? 4 : 3) / sc;
   ctx.stroke();
   ctx.restore();
 }
@@ -260,7 +269,8 @@ export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
     ctx.beginPath(); ctx.arc(w.b.x, w.b.y, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
-  for (const d of doors) drawDoorMark(ctx, d, sc, 1, d.open !== false);
+  const hovDoor = fc.rHoveredDoorId?.current ?? null;
+  for (const d of doors) drawDoorMark(ctx, d, sc, 1, d.open !== false, d.id === hovDoor);
 }
 
 /**
@@ -276,7 +286,8 @@ export function renderDoorDraft(ctx: CanvasRenderingContext2D, fc: FrameContext)
   if (prev) {
     ctx.save();
     ctx.translate(ox, oy); ctx.scale(sc, sc);
-    drawDoorMark(ctx, prev, sc, pulse, true);
+    // Les portes noves neixen tancades: la preview ja es mostra amb l'interior pintat.
+    drawDoorMark(ctx, prev, sc, pulse, false);
     ctx.restore();
     const mx = ox + ((prev.a.x + prev.b.x) / 2) * sc;
     const my = oy + ((prev.a.y + prev.b.y) / 2) * sc;
