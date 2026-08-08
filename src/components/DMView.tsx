@@ -295,6 +295,9 @@ export function DMView() {
     };
     const player = R.rPlayers.current.find(p => `pl_${p.id}` === sid);
     if (player?.canMove === false) { bounceBack(); return; }
+    // A 0 de vida el jugador no pot moure el token (fins recuperar-ne). El DM sí que pot
+    // (el seu drag no passa per aquesta via).
+    if (player && player.hpMax > 0 && player.hp <= 0) { bounceBack(); return; }
 
     const turn = R.rTurn.current;
     // Parets efectives: els trams de porta no bloquegen (per allà sí que es passa).

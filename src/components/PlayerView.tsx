@@ -942,12 +942,6 @@ export function PlayerView() {
         }
       }
 
-      // Caselles disponibles per moure's (drag local de token de jugador), sota els tokens
-      {
-        const drag = tokenDragRef.current;
-        if (drag?.range) renderMoveRange(ctx, drag.range, mw, mh, sc);
-      }
-
       renderEnemyTokens(ctx, fc);
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
@@ -957,9 +951,13 @@ export function PlayerView() {
       // dibuix o spell dins d'una sala fosca queda amagat als jugadors (fog of war).
       renderRooms(ctx, fc);
 
-      // El ghost del destí del drag es pinta SOBRE la foscor: el token real es queda quiet
-      // i no il·lumina, però el jugador ha de veure on deixarà anar encara que el destí
-      // encara no estigui il·luminat.
+      // Les caselles de moviment (groc) i el ghost del destí es pinten SOBRE la foscor: el
+      // jugador ha de veure el seu abast i on deixarà anar encara que el destí no estigui
+      // il·luminat (i el token real es queda quiet, sense il·luminar, fins deixar anar).
+      {
+        const drag = tokenDragRef.current;
+        if (drag?.range) renderMoveRange(ctx, drag.range, mw, mh, sc);
+      }
       renderDragGhost(ctx, fc);
 
       ctx.restore();

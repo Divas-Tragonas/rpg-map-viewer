@@ -46,6 +46,13 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 3
+- **L'abast de moviment (groc) es veu sobre les sales fosques.** Les caselles disponibles i el ghost del drag es pinten DAMUNT de la foscor, així es veuen encara que hi hagi una sala fosca a sobre.
+- **A 0 de vida el jugador no pot moure el seu token** fins que recuperi vida (el DM sempre pot). Es bloqueja tant al drag des de `/player` com a la validació del DM.
+- **Ajust de distàncies de llum.** El radi de llum es redueix en 1 casella (`visionFt/5 − 1`, mínim 1): es veu una mica menys.
+- **El cegament (blinded) redueix la visió al mínim** (1 casella, 5 ft) mentre dura la condició.
+- **Animacions de llum suavitzades**: (1) en morir un token, primer es veu l'animació de la X i després la llum s'esvaeix fins a 0; (2) els canvis de distància de visió (radi) s'animen suaument; (3) obrir/tancar una porta fa que la llum s'escoli/talli gradualment (obertura animada només per a la llum; la col·lisió segueix sent instantània).
+
 ### v3.99 pre-release 2
 - **Previsualització del moviment de tokens (pantalla de jugador).** En arrossegar un token des de `/player`, ara es mostra un **ghost semitransparent** al destí mentre el token real es queda quiet: **cap sala s'il·lumina durant el drag** (el token encara no s'ha mogut). En deixar anar, el token fa l'**animació de desplaçament** (LERP) fins a la posició final i és llavors quan la llum es mou. El ghost es pinta fins i tot sobre la foscor perquè el jugador vegi on deixarà anar.
 - **Control d'opacitat del fons (DM).** Nou control lliscant al panell inferior del DM per **abaixar l'opacitat del mapa de fons** només a la seva pantalla (ajuda per veure més clar sales, tokens i màgies quan hi ha molta informació). No afecta el que veuen els jugadors.

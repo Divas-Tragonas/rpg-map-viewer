@@ -86,6 +86,7 @@ function hitTest(
   for (let i = players.length - 1; i >= 0; i--) {
     const pl = players[i];
     if (pl.canMove === false) continue; // moviment desactivat pel DM
+    if (pl.hpMax > 0 && pl.hp <= 0) continue; // a 0 de vida no es pot moure (fins recuperar-ne)
     const pos = rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
     if (Math.hypot(mx - (pos.x + R), my - (pos.y + R)) <= R + slop)

@@ -59,6 +59,43 @@ export function effectiveWalls(walls: Wall[], allDoors: Door[]): Wall[] {
 }
 
 /**
+ * Com `effectiveWalls` però amb l'obertura de cada porta ANIMADA (fracció 0..1): el forat
+ * de la porta es retalla només `frac × amplada` centrat, així la llum s'escola per una
+ * obertura que creix (obrint) o s'estreny (tancant) suaument. NOMÉS per a la llum; la
+ * col·lisió de moviment segueix usant `effectiveWalls` (binari). frac 0 = tancada (bloqueja).
+ */
+export function effectiveWallsAnimated(walls: Wall[], allDoors: Door[], frac: (id: string) => number): Wall[] {
+  const active = allDoors
+    .map(d => ({ d, f: Math.max(0, Math.min(1, frac(d.id))) }))
+    .filter(x => x.f > 0.001);
+  if (active.length === 0) return walls;
+  const out: Wall[] = [];
+  for (const w of walls) {
+    const wf = frame(w);
+    if (!wf) { out.push(w); continue; }
+    const spans: [number, number][] = [];
+    for (const { d, f: openF } of active) {
+      const sp = doorSpanOnWall(d, wf);
+      if (!sp) continue;
+      const [s0, s1] = sp;
+      const c = (s0 + s1) / 2, half = ((s1 - s0) / 2) * openF;
+      if (half > 0.5) spans.push([c - half, c + half]);
+    }
+    if (spans.length === 0) { out.push(w); continue; }
+    spans.sort((p, q) => p[0] - q[0]);
+    let cur = 0;
+    const at = (s: number): Point => ({ x: w.a.x + wf.ux * s, y: w.a.y + wf.uy * s });
+    for (const [s0, s1] of spans) {
+      const a0 = Math.max(0, s0), a1 = Math.min(wf.len, s1);
+      if (a0 - cur > 1) out.push({ a: at(cur), b: at(a0) });
+      cur = Math.max(cur, a1);
+    }
+    if (wf.len - cur > 1) out.push({ a: at(cur), b: w.b });
+  }
+  return out;
+}
+
+/**
  * Col·locació de porta amb imant: projecta el cursor sobre la paret més propera i
  * retorna el segment de porta centrat a la projecció, sempre enganxat a la paret
  * ("snap" continu mentre llisques). Amb grid, el centre s'imanta a més al centre de

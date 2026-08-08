@@ -2,7 +2,7 @@ import type { FrameContext } from './types';
 import type { Room } from '@/types';
 import { C, DEFAULT_VISION_FT } from '@/constants';
 import { visibilityPolygon } from '@/lib/rooms/visibility';
-import { effectiveWalls } from '@/lib/rooms/doors';
+import { effectiveWalls, effectiveWallsAnimated } from '@/lib/rooms/doors';
 
 const REVEAL_LERP = 0.09;
 
@@ -14,26 +14,76 @@ let _lightCanvas: HTMLCanvasElement | null = null;
 // Radi del desenfocament dels marges de llum (px de pantalla).
 const LIGHT_BLUR_PX = 8;
 
-interface Light { x: number; y: number; r: number; }
+interface Light { x: number; y: number; r: number; intensity: number; }
 
-// Fonts de llum: cada token de jugador visible i no derrotat emet llum dins del seu radi
-// de visió (`Player.visionFt`, per defecte DEFAULT_VISION_FT; 0 = sense llum). El centre
-// segueix la posició suavitzada (LERP) perquè la llum es mogui fluida amb el token.
+// Estat animat de cada llum (radi + intensitat), per suavitzar canvis de distància de
+// visió i l'esvaïment de la llum en morir. Clau = id del token (pl_*). Mòdul-level com
+// _darkCanvas (només corre una vista — DM o jugador — per finestra).
+const _lightAnim = new Map<string, { r: number; i: number }>();
+const LIGHT_R_LERP = 0.14;   // suavitzat del radi (canvi de visió)
+const LIGHT_I_LERP = 0.09;   // suavitzat de la intensitat (esvaïment en morir)
+// Obertura animada de cada porta (0 tancada … 1 oberta) NOMÉS per a la llum.
+const _doorAnim = new Map<string, number>();
+const DOOR_LERP = 0.16;
+
+// Fonts de llum: cada token de jugador visible emet llum dins del seu radi de visió
+// (`Player.visionFt`, per defecte DEFAULT_VISION_FT; 0 = sense llum). El radi és el de
+// visió menys 1 casella (es veu una mica menys); el cegament el redueix a 1 casella. El
+// centre segueix la posició suavitzada (LERP). En morir, la llum s'esvaeix a 0 DESPRÉS de
+// l'animació de la X (defeatedAnimRef). Radi i intensitat s'animen suaument.
 function collectLights(fc: FrameContext): Light[] {
   const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
   const lights: Light[] = [];
+  const seen = new Set<string>();
   for (const pl of fc.rPlayers.current) {
     if (!pl.visible) continue;
     const key = `pl_${pl.id}`;
-    if (fc.rDefeated.current[key]) continue;
     const visionFt = pl.visionFt ?? DEFAULT_VISION_FT;
     if (visionFt <= 0) continue;
     const R = fc.rTokenSizeOverride.current[key] ?? 22;
     const pos = fc.visualPosRef.current[key] ?? fc.pp[key];
     if (!pos) continue;
-    lights.push({ x: pos.x + R, y: pos.y + R, r: (visionFt / 5) * gs });
+    const blinded = (fc.rConditions.current[key] || []).includes('blinded');
+    // Radi objectiu: cegat → 1 casella; si no, visionFt/5 − 1 casella (mínim 1).
+    const targetCells = blinded ? 1 : Math.max(1, visionFt / 5 - 1);
+    const targetR = targetCells * gs;
+    // Intensitat objectiu: derrotat → es manté a 1 mentre dura la X (defeatedAnimRef 0→1) i
+    // després baixa a 0 (la llum s'esvaeix); viu → 1.
+    const isDefeated = !!fc.rDefeated.current[key];
+    const deathProg = fc.defeatedAnimRef.current[key] ?? (isDefeated ? 1 : 0);
+    const targetI = isDefeated ? (deathProg >= 0.999 ? 0 : 1) : 1;
+    let a = _lightAnim.get(key);
+    if (!a) { a = { r: targetR, i: targetI }; _lightAnim.set(key, a); }
+    a.r += (targetR - a.r) * LIGHT_R_LERP;
+    a.i += (targetI - a.i) * LIGHT_I_LERP;
+    if (Math.abs(targetR - a.r) < 0.5) a.r = targetR;
+    if (Math.abs(targetI - a.i) < 0.004) a.i = targetI;
+    seen.add(key);
+    if (a.i <= 0.01) continue; // llum apagada del tot
+    lights.push({ x: pos.x + R, y: pos.y + R, r: a.r, intensity: a.i });
   }
+  for (const k of _lightAnim.keys()) if (!seen.has(k)) _lightAnim.delete(k);
   return lights;
+}
+
+// Fa avançar l'obertura animada de les portes cap al seu estat (obert/tancat) i retorna
+// les parets efectives per a la LLUM (forats de porta animats). La col·lisió usa a part la
+// versió binària (effectiveWalls).
+function lightWalls(fc: FrameContext): { a: { x: number; y: number }; b: { x: number; y: number } }[] {
+  const allWalls = fc.rWalls?.current ?? [];
+  const allDoors = fc.rDoors?.current ?? [];
+  const present = new Set<string>();
+  for (const d of allDoors) {
+    present.add(d.id);
+    const tgt = d.open !== false ? 1 : 0;
+    let f = _doorAnim.get(d.id);
+    if (f === undefined) f = tgt;
+    f += (tgt - f) * DOOR_LERP;
+    if (Math.abs(tgt - f) < 0.01) f = tgt;
+    _doorAnim.set(d.id, f);
+  }
+  for (const k of _doorAnim.keys()) if (!present.has(k)) _doorAnim.delete(k);
+  return effectiveWallsAnimated(allWalls, allDoors, id => _doorAnim.get(id) ?? 0);
 }
 
 // Esborra de la capa de foscor la zona il·luminada per cada llum: el polígon de
@@ -62,9 +112,11 @@ function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a
     if (poly.length < 3) continue;
     const g = lctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
     // Plena brillantor fins al 80% del radi i esvaïment només a l'últim tram: així una sala
-    // més petita que el radi queda del tot il·luminada fins a les seves parets.
-    g.addColorStop(0, 'rgba(0,0,0,1)');
-    g.addColorStop(0.8, 'rgba(0,0,0,1)');
+    // més petita que el radi queda del tot il·luminada fins a les seves parets. La
+    // intensitat (0..1) escala l'esborrat: <1 → la llum baixa (esvaïment en morir).
+    const iv = li.intensity;
+    g.addColorStop(0, `rgba(0,0,0,${iv})`);
+    g.addColorStop(0.8, `rgba(0,0,0,${iv})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     lctx.save();
     lctx.beginPath();
@@ -149,8 +201,8 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   // 2) Capa de foscor amb la llum dels tokens de jugador retallada (línia de visió).
   if (fills.length > 0) {
     const lights = collectLights(fc);
-    // Parets efectives: amb els trams de porta retallats (la llum passa per les portes).
-    const walls = effectiveWalls(fc.rWalls?.current ?? [], fc.rDoors?.current ?? []);
+    // Parets efectives per a la llum: amb els forats de porta ANIMATS (obrir/tancar suau).
+    const walls = lights.length > 0 ? lightWalls(fc) : [];
     if (lights.length === 0) {
       // Sense fonts de llum: pintar la foscor directament (com sempre).
       ctx.save();
