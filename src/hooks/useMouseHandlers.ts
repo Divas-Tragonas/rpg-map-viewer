@@ -165,7 +165,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       // Maj+2n clic la col·loca i CONTINUA en mode porta (per posar més entrades seguides).
       if (R.rDoorPlacement.current) {
         const gs = R.rGridSize.current;
-        const grid = gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null;
+        // Snap només si el grid-snap està actiu (si no, la porta es col·loca lliure).
+        const grid = (gs > 0 && R.rGridSnap.current) ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null;
         const dp = R.rDoorPlacement.current;
         if (!dp.anchor) {
           // Primer clic: fixar l'inici imantat a la paret més propera.
@@ -455,7 +456,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       // fixat, la previsualització és el segment de porta de l'inici al cursor projectat.
       if (R.rDoorPlacement.current) {
         const gs = R.rGridSize.current;
-        const grid = gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null;
+        // Snap només si el grid-snap està actiu (si no, la porta es col·loca lliure).
+        const grid = (gs > 0 && R.rGridSnap.current) ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null;
         const dp = R.rDoorPlacement.current;
         if (!dp.anchor) {
           const hit = nearestWallHit(R.rWalls.current, { x: mx, y: my }, grid);

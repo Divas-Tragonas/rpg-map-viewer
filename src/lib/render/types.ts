@@ -80,9 +80,10 @@ export interface FrameContext {
   // { id, x, y } (cantonada sup-esq, com rPos). El token real es queda quiet fins a deixar
   // anar; mentrestant es pinta un ghost semitransparent a aquesta posició.
   rDragPreview?:    MutableRefObject<{ id: string; x: number; y: number } | null>;
-  // Camí de moviment pendent per token (pantalla de jugador): llista de punts (cantonada
-  // sup-esq) que el token recorre vorejant les parets (forma d'L) en lloc de línia recta.
-  rMovePath?:       MutableRefObject<Record<string, { x: number; y: number }[]>>;
+  // Camí de moviment pendent per token (pantalla de jugador): polilínia (cantonada sup-esq,
+  // origen inclòs com a `pts[0]`) que el token recorre vorejant les parets (forma d'L) amb
+  // progrés per longitud d'arc `t` (ease-out), en lloc de línia recta.
+  rMovePath?:       MutableRefObject<Record<string, { pts: { x: number; y: number }[]; t: number }>>;
 
   rGridVisible:     MutableRefObject<boolean>;
   rGridSize:        MutableRefObject<number>;
@@ -122,4 +123,7 @@ export interface FrameContext {
   rWallCursor?:       MutableRefObject<{ x: number; y: number; onVertex: boolean } | null>;
   rHoveredRoomId?:    MutableRefObject<string | null>;
   roomRevealAnimRef?: MutableRefObject<Record<string, number>>;
+  // Mode boira "explorada" (AoE): les zones ja vistes es mantenen amb foscor més clara.
+  // Per defecte actiu; el DM el commuta i se sincronitza al jugador.
+  rFogExplored?:      MutableRefObject<boolean>;
 }

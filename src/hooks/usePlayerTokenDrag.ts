@@ -120,8 +120,8 @@ export function usePlayerTokenDrag(
   // s'hi escriu { id, x, y } i es pinta un ghost. En deixar anar, es confirma a rPos i
   // el token fa l'animació de desplaçament (LERP/camí) fins al destí.
   rDragPreview: RefObject<{ id: string; x: number; y: number } | null>,
-  // Camí de moviment pendent per token (vorejant parets, forma d'L).
-  rMovePath: RefObject<Record<string, { x: number; y: number }[]>>,
+  // Camí de moviment pendent per token (vorejant parets, forma d'L; ease-out per arc).
+  rMovePath: RefObject<Record<string, { pts: { x: number; y: number }[]; t: number }>>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -238,9 +238,11 @@ export function usePlayerTokenDrag(
       // Camí en L: si hi ha grid+parets, el token recorre el camí real (vorejant parets)
       // en lloc de la línia recta, així la seva llum no talla per sales fosques que no
       // travessa. `range` porta l'origen del drag; el destí és la previsualització.
+      const origin = rPos.current[id]; // posició abans de moure (origen del camí)
       const range = dragRef.current.range;
       const walls = dragRef.current.walls;
-      if (range && walls.length > 0) {
+      delete rMovePath.current[id];
+      if (origin && range && walls.length > 0) {
         const { startCol, startRow, maxCells, gs, gox, goy } = range;
         const R = dragRef.current.R;
         const dCol = Math.floor((preview.x + R - gox) / gs);
@@ -249,12 +251,8 @@ export function usePlayerTokenDrag(
         if (pts && pts.length >= 2) {
           const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
           wp[wp.length - 1] = { x: preview.x, y: preview.y };
-          rMovePath.current[id] = wp;
-        } else {
-          delete rMovePath.current[id];
+          rMovePath.current[id] = { pts: [origin, ...wp], t: 0 };
         }
-      } else {
-        delete rMovePath.current[id];
       }
       rPos.current = { ...rPos.current, [id]: { x: preview.x, y: preview.y } };
       const moveMsg = { type: 'TOKEN_MOVE', id, x: preview.x, y: preview.y };

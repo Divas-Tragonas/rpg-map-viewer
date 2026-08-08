@@ -63,8 +63,8 @@ export function PlayerView() {
   const rMultiSelected = useRef<Set<number | string>>(new Set());
   // Previsualització del destí durant el drag d'un token de jugador (ghost).
   const rDragPreview   = useRef<{ id: string; x: number; y: number } | null>(null);
-  // Camí de moviment pendent per token (vorejant parets, forma d'L).
-  const rMovePath      = useRef<Record<string, { x: number; y: number }[]>>({});
+  // Camí de moviment pendent per token (vorejant parets, forma d'L; ease-out per arc).
+  const rMovePath      = useRef<Record<string, { pts: { x: number; y: number }[]; t: number }>>({});
   const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
@@ -86,6 +86,7 @@ export function PlayerView() {
   const highlightStartRef = useRef<number | null>(null);
   const rGridCalibrating  = useRef(false);
   const rGridDmAlpha      = useRef(0);
+  const rFogExplored      = useRef(true);
   const gridCalibRef      = useRef(null);
   const gridCalibCurrRef  = useRef(null);
   const gridCalibHoverRef = useRef(null);
@@ -226,7 +227,7 @@ export function PlayerView() {
     if (!pts || pts.length < 2) { delete rMovePath.current[id]; return; }
     const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
     wp[wp.length - 1] = { x: to.x, y: to.y }; // acabar exacte al destí
-    rMovePath.current[id] = wp;
+    rMovePath.current[id] = { pts: [from, ...wp], t: 0 };
   }, []);
 
   const triggerBossIntro = useCallback((data: Record<string, unknown>) => {
@@ -518,6 +519,7 @@ export function PlayerView() {
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.turn) rTurn.current = msg.turn;
+        if (msg.fogExplored !== undefined) rFogExplored.current = msg.fogExplored;
         if (msg.psdEnemyOverrides) {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
@@ -624,6 +626,7 @@ export function PlayerView() {
         if (msg.walls) rWalls.current = msg.walls;
         if (msg.doors) rDoors.current = msg.doors;
         if (msg.turn) rTurn.current = msg.turn;
+        if (msg.fogExplored !== undefined) rFogExplored.current = msg.fogExplored;
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
@@ -948,7 +951,7 @@ export function PlayerView() {
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
-        rRooms, rWalls, rDoors, roomRevealAnimRef,
+        rRooms, rWalls, rDoors, roomRevealAnimRef, rFogExplored,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);

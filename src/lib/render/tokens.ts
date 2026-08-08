@@ -432,21 +432,34 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       // Drag local a la pantalla de jugador: el token segueix el dit sense LERP
       else if (rSelectedToken.current === key) { vp.x = rawPos.x; vp.y = rawPos.y; ppos = vp; }
       else {
-        // Camí de moviment pendent (vorejant parets, forma d'L): el token es desplaça a
-        // velocitat CONSTANT pels punts del camí perquè la llum no talli per sales fosques
-        // que no recorre. Sense camí, LERP suau cap a la posició final (com sempre).
-        const path = fc.rMovePath?.current[key];
-        if (path && path.length > 0) {
-          const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
-          const step = Math.max(4, gs * 0.16);
-          let budget = step;
-          while (budget > 0 && path.length > 0) {
-            const t = path[0];
-            const dx = t.x - vp.x, dy = t.y - vp.y, d = Math.hypot(dx, dy);
-            if (d <= budget) { vp.x = t.x; vp.y = t.y; path.shift(); budget -= d; }
-            else { vp.x += (dx / d) * budget; vp.y += (dy / d) * budget; budget = 0; }
+        // Camí de moviment pendent (vorejant parets, forma d'L): el token es desplaça
+        // seguint la polilínia amb el MATEIX ease-out que el LERP recte (progrés per
+        // longitud d'arc, `t += (total − t) · TOKEN_LERP`), així un moviment de diverses
+        // caselles és igual de lent i suau que abans però resseguint la L. Sense camí, LERP
+        // recte de sempre. Així la llum no talla per sales fosques que el token no travessa.
+        const mp = fc.rMovePath?.current[key];
+        if (mp && mp.pts.length >= 2) {
+          const pts = mp.pts;
+          let total = 0;
+          for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+          mp.t += (total - mp.t) * TOKEN_LERP;
+          if (total - mp.t < 0.5) {
+            vp.x = pts[pts.length - 1].x; vp.y = pts[pts.length - 1].y;
+            if (fc.rMovePath) delete fc.rMovePath.current[key];
+          } else {
+            let acc = 0, px = pts[0].x, py = pts[0].y;
+            for (let i = 1; i < pts.length; i++) {
+              const seg = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+              if (acc + seg >= mp.t) {
+                const f = seg > 0 ? (mp.t - acc) / seg : 0;
+                px = pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f;
+                py = pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f;
+                break;
+              }
+              acc += seg; px = pts[i].x; py = pts[i].y;
+            }
+            vp.x = px; vp.y = py;
           }
-          if (path.length === 0 && fc.rMovePath) delete fc.rMovePath.current[key];
           ppos = vp;
         } else {
           vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp;

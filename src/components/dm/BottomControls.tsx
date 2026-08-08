@@ -19,9 +19,11 @@ interface Props {
   onOpenServer?: () => void;
   bgOpacity: number;
   onBgOpacityChange: (v: number) => void;
+  fogExplored: boolean;
+  onToggleFog: () => void;
 }
 
-export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer, onOpenServer, bgOpacity, onBgOpacityChange }: Props) {
+export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer, onOpenServer, bgOpacity, onBgOpacityChange, fogExplored, onToggleFog }: Props) {
   return (
     <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.border}` }}>
       <button onClick={onOpenPlayer}
@@ -72,6 +74,10 @@ export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCoun
           style={{ flex: 1, accentColor: C.accent }} />
         <span style={{ color: C.dim, fontSize: 12, minWidth: 34, textAlign: 'right' }}>{Math.round(bgOpacity * 100)}%</span>
       </div>
+      <button onClick={onToggleFog} title="Boira explorada: les zones ja vistes es mantenen amb foscor més clara (saps el terreny, però no hi veus enemics)"
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px', borderRadius: 6, border: `1px solid ${fogExplored ? C.accent : C.border}`, background: fogExplored ? `${C.accent}22` : 'transparent', cursor: 'pointer', color: fogExplored ? C.accent : C.dim, fontSize: 10, marginBottom: 8 }}>
+        🌫️ Boira explorada: {fogExplored ? 'ON' : 'OFF'}
+      </button>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {psdInfo && <Chip>{psdInfo.width}×{psdInfo.height}</Chip>}
         {struct && <Chip col={C.enemy}>{activeCount} activos</Chip>}

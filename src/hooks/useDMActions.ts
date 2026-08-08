@@ -62,7 +62,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
     rMeasure, rPointerPos, rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview,
-    rWallPenLast, rWallChain, rWallCursor, rTurn,
+    rWallPenLast, rWallChain, rWallCursor, rTurn, rFogExplored,
   } = R;
 
   // Camps pesats del STATE (arrays grans i imatges base64: MBs si hi ha retrats custom).
@@ -101,6 +101,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // Estat per torns (petit): s'envia sempre perquè el jugador limiti el moviment
       // del token actiu segons el saldo restant.
       turn: rTurn.current,
+      // Mode boira explorada (petit): sempre enviat.
+      fogExplored: rFogExplored.current,
     };
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
@@ -141,6 +143,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
       turn: rTurn.current,
+      fogExplored: rFogExplored.current,
       // Historial de traços de dibuix: perquè el jugador reconstrueixi el drawCanvas en
       // connectar-se (late join) o en carregar una partida (els STROKE són incrementals i
       // un jugador que no hi era quan es van dibuixar no els tenia).

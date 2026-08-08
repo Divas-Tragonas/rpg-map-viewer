@@ -145,6 +145,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rWallCursor: R.rWallCursor, rHoveredRoomId: R.rHoveredRoomId, roomRevealAnimRef: R.roomRevealAnimRef,
         rDoors: R.rDoors, rDoorPlacement: R.rDoorPlacement, rDoorPreview: R.rDoorPreview,
         rHoveredDoorId: R.rHoveredDoorId,
+        rFogExplored: R.rFogExplored,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);

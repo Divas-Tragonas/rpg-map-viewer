@@ -8,11 +8,53 @@ const REVEAL_LERP = 0.09;
 
 // Capa de foscor reutilitzada entre frames (mateixa mida que el canvas principal).
 let _darkCanvas: HTMLCanvasElement | null = null;
-// Capa de llum: s'hi acumulen tots els retalls de llum i es composita amb desenfocament
-// sobre la foscor, perquè els marges de la llum quedin suaus (no un tall dur de polígon).
+// Capa de llum: s'hi acumulen tots els retalls de llum abans de compositar-los sobre la
+// foscor amb `destination-out`.
 let _lightCanvas: HTMLCanvasElement | null = null;
-// Radi del desenfocament dels marges de llum (px de pantalla).
-const LIGHT_BLUR_PX = 8;
+
+// ── Boira de guerra "explorada" (estil Age of Empires) ─────────────────────────────
+// Màscara en coords de MAP (a resolució reduïda) que acumula tot el que s'ha vist. Les
+// zones explorades però no il·luminades ara es pinten amb una foscor MÉS CLARA (saps el
+// terreny però no hi veus enemics). Persisteix per mapa (es reinicia quan canvia la mida).
+let _exploredCanvas: HTMLCanvasElement | null = null;
+let _exploredSig = '';
+let _exploredScale = 1;
+const EXPLORED_MAX = 1400;    // costat màxim (px) del canvas d'explorat
+// Color (OPAC) de la foscor a les zones explorades: més clar que el negre gairebé pur de
+// les no explorades, però igualment opac perquè NO es vegin els tokens/enemics per sota
+// (només saps el terreny que hi ha, no si hi ha enemics).
+const EXPLORED_COLOR = 'rgba(32,36,46,1)';
+
+function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; scale: number } {
+  const scale = Math.min(1, EXPLORED_MAX / Math.max(mw, mh, 1));
+  const w = Math.max(1, Math.round(mw * scale)), h = Math.max(1, Math.round(mh * scale));
+  const sig = `${w}x${h}`;
+  if (!_exploredCanvas || _exploredSig !== sig) {
+    _exploredCanvas = _exploredCanvas ?? document.createElement('canvas');
+    _exploredCanvas.width = w; _exploredCanvas.height = h;
+    _exploredCanvas.getContext('2d')!.clearRect(0, 0, w, h);
+    _exploredSig = sig; _exploredScale = scale;
+  }
+  return { canvas: _exploredCanvas, ctx: _exploredCanvas.getContext('2d')!, scale: _exploredScale };
+}
+
+// Acumula els polígons de visibilitat actuals a la màscara d'explorat (coords de map).
+function accumulateExplored(polys: { poly: { x: number; y: number }[] }[], mw: number, mh: number): void {
+  const ex = ensureExplored(mw, mh);
+  const ectx = ex.ctx;
+  ectx.save();
+  ectx.setTransform(ex.scale, 0, 0, ex.scale, 0, 0);
+  // La màscara guarda directament el color (opac) de la foscor explorada, així en
+  // compositar amb `source-atop` només cal dibuixar-la sobre les sales fosques.
+  ectx.fillStyle = EXPLORED_COLOR;
+  for (const { poly } of polys) {
+    if (poly.length < 3) continue;
+    ectx.beginPath();
+    poly.forEach((p, i) => i === 0 ? ectx.moveTo(p.x, p.y) : ectx.lineTo(p.x, p.y));
+    ectx.closePath(); ectx.fill();
+  }
+  ectx.restore();
+}
 
 interface Light { x: number; y: number; r: number; intensity: number; }
 
@@ -89,10 +131,10 @@ function lightWalls(fc: FrameContext): { a: { x: number; y: number }; b: { x: nu
 // Esborra de la capa de foscor la zona il·luminada per cada llum: el polígon de
 // visibilitat (les parets bloquegen la llum; s'escola per les obertures/portes obertes)
 // retallat amb un gradient radial perquè la sala "es vagi il·luminant" amb la distància.
-// Totes les llums es pinten primer a una capa pròpia i es compositen amb `filter: blur`
-// (si el navegador el suporta al canvas — iOS Safari vell no) perquè els marges dels
-// polígons de visibilitat quedin difuminats en lloc d'un tall dur.
-function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a: { x: number; y: number }; b: { x: number; y: number } }[], sc: number): void {
+// La llum s'atura EXACTAMENT a les parets (el polígon les respecta): res de blur ni
+// d'engreix, que feien vessar un marge de llum a la sala del costat. El gradient radial ja
+// dóna la vora exterior suau al radi de visió.
+function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: { x: number; y: number }[] }[]): void {
   const off = octx.canvas;
   if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
   const lc = _lightCanvas;
@@ -101,33 +143,19 @@ function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a
   lctx.setTransform(1, 0, 0, 1, 0, 0);
   lctx.clearRect(0, 0, lc.width, lc.height);
   lctx.setTransform(octx.getTransform());
-  // Amplada d'engreix del polígon de llum, en unitats de mapa: contraresta el blur (px de
-  // pantalla) del compositat perquè, prop d'una paret que cau DINS del radi, la llum arribi
-  // fins a la paret i no hi quedi un marge fosc (el midpoint del blur cau més enllà de la
-  // paret). Als marges exteriors (radi de visió) el gradient ja s'esvaeix, així que el traç
-  // amb el mateix gradient hi és ~transparent i la vora exterior es manté suau.
-  const fatten = (LIGHT_BLUR_PX * 2) / (sc > 0 ? sc : 1);
-  for (const li of lights) {
-    const poly = visibilityPolygon({ x: li.x, y: li.y }, walls, li.r);
-    if (poly.length < 3) continue;
+  for (const { li, poly } of polys) {
     const g = lctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
-    // Plena brillantor fins al 80% del radi i esvaïment només a l'últim tram: així una sala
+    // Plena brillantor fins al 82% del radi i esvaïment només a l'últim tram: així una sala
     // més petita que el radi queda del tot il·luminada fins a les seves parets. La
     // intensitat (0..1) escala l'esborrat: <1 → la llum baixa (esvaïment en morir).
     const iv = li.intensity;
     g.addColorStop(0, `rgba(0,0,0,${iv})`);
-    g.addColorStop(0.8, `rgba(0,0,0,${iv})`);
+    g.addColorStop(0.82, `rgba(0,0,0,${iv})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     lctx.save();
     lctx.beginPath();
     poly.forEach((p, i) => i === 0 ? lctx.moveTo(p.x, p.y) : lctx.lineTo(p.x, p.y));
     lctx.closePath();
-    // Engreixar la vora del polígon cap enfora amb el mateix gradient (opac prop de les
-    // parets, transparent al radi) abans de retallar amb el clip per al farciment.
-    lctx.strokeStyle = g;
-    lctx.lineJoin = 'round';
-    lctx.lineWidth = fatten;
-    lctx.stroke();
     lctx.clip();
     lctx.fillStyle = g;
     lctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
@@ -136,9 +164,7 @@ function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a
   octx.save();
   octx.globalCompositeOperation = 'destination-out';
   octx.setTransform(1, 0, 0, 1, 0, 0);
-  if ('filter' in octx) octx.filter = `blur(${LIGHT_BLUR_PX}px)`;
   octx.drawImage(lc, 0, 0);
-  if ('filter' in octx) octx.filter = 'none';
   octx.restore();
   octx.globalCompositeOperation = 'source-over';
 }
@@ -230,7 +256,30 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         octx.strokeStyle = `rgba(3,4,7,${f.alpha})`;
         roomPath(octx, f.room); octx.fill(); octx.stroke();
       }
-      carveLights(octx, lights, walls, sc);
+      // Polígons de visibilitat de cada llum (calculats un cop: per esborrar i per acumular
+      // l'explorat).
+      const polys: { li: Light; poly: { x: number; y: number }[] }[] = [];
+      for (const li of lights) {
+        const poly = visibilityPolygon({ x: li.x, y: li.y }, walls, li.r);
+        if (poly.length >= 3) polys.push({ li, poly });
+      }
+      // Mode explorat (per defecte actiu): les zones ja vistes es repinten amb una foscor
+      // MÉS CLARA però OPACA (source-atop → només dins de les sales fosques ja pintades; no
+      // revela tokens per sota). La llum actual s'esborrarà després (destination-out), així
+      // que les zones il·luminades ara es veuen en viu igualment.
+      const fogOn = fc.rFogExplored ? fc.rFogExplored.current !== false : true;
+      if (fogOn && polys.length > 0) {
+        const ex = ensureExplored(fc.mw, fc.mh);
+        octx.save();
+        octx.globalCompositeOperation = 'source-atop';
+        octx.drawImage(ex.canvas, 0, 0, fc.mw, fc.mh);
+        octx.restore();
+        octx.globalCompositeOperation = 'source-over';
+      }
+      // Esborra la llum actual del tot (línia de visió), sense blur ni vessament.
+      carveLights(octx, polys);
+      // Acumula el que s'ha vist ara a la màscara d'explorat (per als frames següents).
+      if (fogOn && polys.length > 0) accumulateExplored(polys, fc.mw, fc.mh);
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(off, 0, 0);
