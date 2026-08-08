@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 4
+- **Moviment de tokens vorejant les parets (forma d'L).** En deixar anar un token, ara recorre el **camí real** calculat (voreja les parets, passa per les portes) en lloc de la línia recta, de manera que la seva llum ja **no talla per sales fosques que no travessa**. Es calcula amb Dijkstra (`computePath`), s'anima a velocitat constant i acaba exacte al destí; sense grid/parets manté el moviment recte de sempre. S'aplica a la pantalla del qui mou i, via `TOKEN_RELAY` (ara enviat també en combat, abans del `STATE`), a la resta de pantalles de jugador.
+
 ### v3.99 pre-release 3
 - **L'abast de moviment (groc) es veu sobre les sales fosques.** Les caselles disponibles i el ghost del drag es pinten DAMUNT de la foscor, així es veuen encara que hi hagi una sala fosca a sobre.
 - **A 0 de vida el jugador no pot moure el seu token** fins que recuperi vida (el DM sempre pot). Es bloqueja tant al drag des de `/player` com a la validació del DM.

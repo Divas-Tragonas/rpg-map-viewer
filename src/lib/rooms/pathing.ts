@@ -139,3 +139,111 @@ export function computeReachableCells(
   }
   return reach;
 }
+
+/**
+ * Camí més curt (Dijkstra 8-dir amb cost real, mateixes regles de paret que
+ * `computeReachableCells`) de la casella d'origen a la de destí. Retorna la llista de
+ * **centres de casella** (coords de mapa) des del primer pas fins al destí (exclou
+ * l'origen), o `null` si no hi ha parets, no hi ha moviment, o el destí no és abastable.
+ * S'usa per animar el moviment del token **vorejant les parets** (forma d'L) en lloc de
+ * la línia recta, que travessaria sales fosques que el token no recorre de veritat.
+ */
+export function computePath(
+  walls: Wall[],
+  startCol: number, startRow: number,
+  destCol: number, destRow: number,
+  grid: CellGridInfo,
+  maxCells: number,
+): Point[] | null {
+  if (walls.length === 0) return null;
+  const ddc = destCol - startCol, ddr = destRow - startRow;
+  if (ddc === 0 && ddr === 0) return null;
+  const mc = Math.min(Math.max(0, maxCells), MAX_CELLS_CAP);
+  const budget = mc + 0.5;
+  const { gs, gox, goy } = grid;
+  const center = (dc: number, dr: number): Point => ({
+    x: gox + (startCol + dc + 0.5) * gs,
+    y: goy + (startRow + dr + 0.5) * gs,
+  });
+  const index = new Map<string, Wall[]>();
+  for (const w of walls) {
+    const c0 = Math.floor((Math.min(w.a.x, w.b.x) - gox) / gs) - 1;
+    const c1 = Math.floor((Math.max(w.a.x, w.b.x) - gox) / gs) + 1;
+    const r0 = Math.floor((Math.min(w.a.y, w.b.y) - goy) / gs) - 1;
+    const r1 = Math.floor((Math.max(w.a.y, w.b.y) - goy) / gs) + 1;
+    for (let c = c0; c <= c1; c++) for (let r = r0; r <= r1; r++) {
+      const k = `${c},${r}`;
+      const arr = index.get(k);
+      if (arr) arr.push(w); else index.set(k, [w]);
+    }
+  }
+  const localBlocked = (a: Point, b: Point, dc: number, dr: number): boolean => {
+    const nearby = index.get(`${startCol + dc},${startRow + dr}`);
+    if (!nearby) return false;
+    for (const w of nearby) if (segmentsIntersect(a, b, w.a, w.b)) return true;
+    return false;
+  };
+  const stepBlocked = (dc: number, dr: number, ndc: number, ndr: number): boolean =>
+    localBlocked(center(dc, dr), center(ndc, ndr), dc, dr);
+
+  const SQRT2 = Math.SQRT2;
+  const dist = new Map<string, number>([['0,0', 0]]);
+  const prev = new Map<string, string>();
+  const heap: [number, number, number][] = [[0, 0, 0]];
+  const heapPush = (item: [number, number, number]) => {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
+  };
+  const heapPop = (): [number, number, number] => {
+    const top = heap[0], last = heap.pop()!;
+    if (heap.length) {
+      heap[0] = last; let i = 0;
+      for (;;) {
+        const l = i * 2 + 1, r = l + 1; let m = i;
+        if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
+        if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+        if (m === i) break;
+        [heap[m], heap[i]] = [heap[i], heap[m]]; i = m;
+      }
+    }
+    return top;
+  };
+  const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  const destKey = `${ddc},${ddr}`;
+  while (heap.length) {
+    const [cost, dc, dr] = heapPop();
+    if (cost > (dist.get(`${dc},${dr}`) ?? Infinity)) continue;
+    if (dc === ddc && dr === ddr) break;
+    for (const [sx, sy] of DIRS) {
+      const ndc = dc + sx, ndr = dr + sy;
+      const diag = sx !== 0 && sy !== 0;
+      const ncost = cost + (diag ? SQRT2 : 1);
+      if (ncost > budget) continue;
+      const k = `${ndc},${ndr}`;
+      if (ncost >= (dist.get(k) ?? Infinity)) continue;
+      if (stepBlocked(dc, dr, ndc, ndr)) continue;
+      if (diag) {
+        const viaX = !stepBlocked(dc, dr, dc + sx, dr) && !stepBlocked(dc + sx, dr, ndc, ndr);
+        const viaY = !stepBlocked(dc, dr, dc, dr + sy) && !stepBlocked(dc, dr + sy, ndc, ndr);
+        if (!viaX && !viaY) continue;
+      }
+      dist.set(k, ncost);
+      prev.set(k, `${dc},${dr}`);
+      heapPush([ncost, ndc, ndr]);
+    }
+  }
+  if (!dist.has(destKey)) return null;
+  const cells: [number, number][] = [];
+  let cur = destKey;
+  while (cur !== '0,0') {
+    const [c, r] = cur.split(',').map(Number);
+    cells.push([c, r]);
+    const p = prev.get(cur);
+    if (p === undefined) break;
+    cur = p;
+  }
+  cells.reverse();
+  if (cells.length === 0) return null;
+  return cells.map(([c, r]) => center(c, r));
+}

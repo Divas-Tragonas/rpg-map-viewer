@@ -16,6 +16,8 @@ import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cine
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
+import { computePath } from '@/lib/rooms/pathing';
+import { effectiveWalls } from '@/lib/rooms/doors';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
@@ -61,6 +63,8 @@ export function PlayerView() {
   const rMultiSelected = useRef<Set<number | string>>(new Set());
   // Previsualització del destí durant el drag d'un token de jugador (ghost).
   const rDragPreview   = useRef<{ id: string; x: number; y: number } | null>(null);
+  // Camí de moviment pendent per token (vorejant parets, forma d'L).
+  const rMovePath      = useRef<Record<string, { x: number; y: number }[]>>({});
   const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
@@ -199,6 +203,30 @@ export function PlayerView() {
     const next = incoming.map(sp => cur.get(sp.id) ?? { ...sp, startTime: now });
     rActiveSpells.current = next;
     setActiveSpells(next);
+  }, []);
+
+  // Calcula i desa el camí (vorejant parets, forma d'L) que ha de recórrer un token de
+  // jugador de `from` a `to`, perquè la seva llum no talli per sales fosques que no
+  // travessa. Sense grid/parets o si són adjacents, no desa camí (moviment recte).
+  const _setMovePath = useCallback((id: string, from: { x: number; y: number } | undefined, to: { x: number; y: number }) => {
+    if (!from) return;
+    const gs = rGridSize.current;
+    if (gs <= 0) { delete rMovePath.current[id]; return; }
+    const walls = effectiveWalls(rWalls.current, rDoors.current);
+    if (walls.length === 0) { delete rMovePath.current[id]; return; }
+    const gox = ((rGridOriginX.current % gs) + gs) % gs;
+    const goy = ((rGridOriginY.current % gs) + gs) % gs;
+    const R = rTokenSizeOverride.current[id] ?? 22;
+    const sCol = Math.floor((from.x + R - gox) / gs), sRow = Math.floor((from.y + R - goy) / gs);
+    const dCol = Math.floor((to.x + R - gox) / gs), dRow = Math.floor((to.y + R - goy) / gs);
+    // Mateixa casella (p. ex. l'eco del relay del propi token que ja s'ha mogut): no-op,
+    // no esborrar un camí ja fixat en deixar anar.
+    if (sCol === dCol && sRow === dRow) return;
+    const pts = computePath(walls, sCol, sRow, dCol, dRow, { gs, gox, goy }, 260);
+    if (!pts || pts.length < 2) { delete rMovePath.current[id]; return; }
+    const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
+    wp[wp.length - 1] = { x: to.x, y: to.y }; // acabar exacte al destí
+    rMovePath.current[id] = wp;
   }, []);
 
   const triggerBossIntro = useCallback((data: Record<string, unknown>) => {
@@ -427,6 +455,7 @@ export function PlayerView() {
     rWalls,
     rDoors,
     rDragPreview,
+    rMovePath,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
@@ -641,6 +670,10 @@ export function PlayerView() {
         // mateix token, es conserva la posició local perquè no salti a mig drag.
         const drag = tokenDragRef.current;
         if (!(drag && String(drag.id) === String(msg.id))) {
+          const idStr = String(msg.id);
+          // Token de jugador mogut per una altra pantalla: anima'l vorejant les parets
+          // (forma d'L) des de la posició actual fins a la nova, no en línia recta.
+          if (idStr.startsWith('pl_')) _setMovePath(idStr, rPos.current[msg.id], { x: msg.x, y: msg.y });
           rPos.current = { ...rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         }
       } else if (msg.type === 'STROKE') {
@@ -909,7 +942,7 @@ export function PlayerView() {
         rConditions, rDefeated, rDeathCanvas,
         defeatedAnimRef, invisAlphaRef,
         rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
-        visualPosRef, rPlayers, rTokenSizeOverride, rDragPreview,
+        visualPosRef, rPlayers, rTokenSizeOverride, rDragPreview, rMovePath,
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,

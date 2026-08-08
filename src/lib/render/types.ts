@@ -80,6 +80,9 @@ export interface FrameContext {
   // { id, x, y } (cantonada sup-esq, com rPos). El token real es queda quiet fins a deixar
   // anar; mentrestant es pinta un ghost semitransparent a aquesta posició.
   rDragPreview?:    MutableRefObject<{ id: string; x: number; y: number } | null>;
+  // Camí de moviment pendent per token (pantalla de jugador): llista de punts (cantonada
+  // sup-esq) que el token recorre vorejant les parets (forma d'L) en lloc de línia recta.
+  rMovePath?:       MutableRefObject<Record<string, { x: number; y: number }[]>>;
 
   rGridVisible:     MutableRefObject<boolean>;
   rGridSize:        MutableRefObject<number>;

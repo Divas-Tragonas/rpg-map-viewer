@@ -344,6 +344,14 @@ export function DMView() {
     const np = { ...R.rPos.current, [id]: { x, y } };
     R.rPos.current = np; setPos(np);
 
+    // Relay d'un sol token a la resta de pantalles de jugador: s'envia SEMPRE (també en
+    // combat) i ABANS del STATE, perquè cada pantalla animi el token vorejant les parets
+    // (forma d'L) des de la posició antiga. El STATE (en combat) reajusta rPos/saldo però
+    // no toca el camí ja fixat.
+    const relay = { type: 'TOKEN_RELAY', id, x, y };
+    R.bcRef.current?.postMessage(relay);
+    R.wsRef.current?.send(JSON.stringify(relay));
+
     if (turn.active) {
       // Descompta el saldo i propaga pos + saldo a totes les pantalles amb un STATE
       // (la font autoritzada de rPos, així el disc del jugador s'encongeix i res salta).
@@ -352,11 +360,6 @@ export function DMView() {
         R.rTurn.current = nt; setTurn(nt);
       }
       _broadcastState({});
-    } else {
-      // Fora de combat: relay d'un sol token (sense reset de càmera ni de la resta de tokens).
-      const relay = { type: 'TOKEN_RELAY', id, x, y };
-      R.bcRef.current?.postMessage(relay);
-      R.wsRef.current?.send(JSON.stringify(relay));
     }
   }, [R, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 

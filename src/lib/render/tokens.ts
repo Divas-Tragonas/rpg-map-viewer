@@ -431,7 +431,27 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       if (!vp) { visualPosRef.current[key] = { ...rawPos }; ppos = rawPos; }
       // Drag local a la pantalla de jugador: el token segueix el dit sense LERP
       else if (rSelectedToken.current === key) { vp.x = rawPos.x; vp.y = rawPos.y; ppos = vp; }
-      else { vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp; }
+      else {
+        // Camí de moviment pendent (vorejant parets, forma d'L): el token es desplaça a
+        // velocitat CONSTANT pels punts del camí perquè la llum no talli per sales fosques
+        // que no recorre. Sense camí, LERP suau cap a la posició final (com sempre).
+        const path = fc.rMovePath?.current[key];
+        if (path && path.length > 0) {
+          const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
+          const step = Math.max(4, gs * 0.16);
+          let budget = step;
+          while (budget > 0 && path.length > 0) {
+            const t = path[0];
+            const dx = t.x - vp.x, dy = t.y - vp.y, d = Math.hypot(dx, dy);
+            if (d <= budget) { vp.x = t.x; vp.y = t.y; path.shift(); budget -= d; }
+            else { vp.x += (dx / d) * budget; vp.y += (dy / d) * budget; budget = 0; }
+          }
+          if (path.length === 0 && fc.rMovePath) delete fc.rMovePath.current[key];
+          ppos = vp;
+        } else {
+          vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp;
+        }
+      }
       const cx = ppos.x + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
       const cy = ppos.y + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
       const hiddenByRoom = s.roomLayers.some(zl => {

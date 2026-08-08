@@ -2,7 +2,7 @@
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
-import { computeReachableCells, slideAgainstWalls } from '@/lib/rooms/pathing';
+import { computeReachableCells, computePath, slideAgainstWalls } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
@@ -118,8 +118,10 @@ export function usePlayerTokenDrag(
   rDoors: RefObject<Door[]>,
   // Previsualització del destí: durant el drag el token REAL no es mou (no il·lumina);
   // s'hi escriu { id, x, y } i es pinta un ghost. En deixar anar, es confirma a rPos i
-  // el token fa l'animació de desplaçament (LERP) fins al destí.
+  // el token fa l'animació de desplaçament (LERP/camí) fins al destí.
   rDragPreview: RefObject<{ id: string; x: number; y: number } | null>,
+  // Camí de moviment pendent per token (vorejant parets, forma d'L).
+  rMovePath: RefObject<Record<string, { x: number; y: number }[]>>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -233,6 +235,27 @@ export function usePlayerTokenDrag(
     // de desplaçament via LERP) i s'envia el moviment al DM. Sense preview (tap sense
     // arrossegar) no es mou res.
     if (preview && preview.id === id) {
+      // Camí en L: si hi ha grid+parets, el token recorre el camí real (vorejant parets)
+      // en lloc de la línia recta, així la seva llum no talla per sales fosques que no
+      // travessa. `range` porta l'origen del drag; el destí és la previsualització.
+      const range = dragRef.current.range;
+      const walls = dragRef.current.walls;
+      if (range && walls.length > 0) {
+        const { startCol, startRow, maxCells, gs, gox, goy } = range;
+        const R = dragRef.current.R;
+        const dCol = Math.floor((preview.x + R - gox) / gs);
+        const dRow = Math.floor((preview.y + R - goy) / gs);
+        const pts = computePath(walls, startCol, startRow, dCol, dRow, { gs, gox, goy }, maxCells);
+        if (pts && pts.length >= 2) {
+          const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
+          wp[wp.length - 1] = { x: preview.x, y: preview.y };
+          rMovePath.current[id] = wp;
+        } else {
+          delete rMovePath.current[id];
+        }
+      } else {
+        delete rMovePath.current[id];
+      }
       rPos.current = { ...rPos.current, [id]: { x: preview.x, y: preview.y } };
       const moveMsg = { type: 'TOKEN_MOVE', id, x: preview.x, y: preview.y };
       bcRef.current?.postMessage(moveMsg);
