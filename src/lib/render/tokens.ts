@@ -390,6 +390,31 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
   });
 }
 
+// Ghost semitransparent de la destinació del drag (pantalla de jugador). Es pinta sobre
+// els tokens però sota la foscor de sales: mostra ON anirà el token sense moure'l encara
+// (el token real es queda quiet i no il·lumina fins que es deixa anar).
+export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+  const prev = fc.rDragPreview?.current;
+  if (!prev) return;
+  const { sc, rPlayers, rTokenSizeOverride } = fc;
+  const pl = rPlayers.current.find(p => `pl_${p.id}` === prev.id);
+  if (!pl) return;
+  const R = rTokenSizeOverride.current[prev.id] ?? 22;
+  const cx = prev.x + R, cy = prev.y + R;
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  ctx.fillStyle = pl.color;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2 / sc; ctx.setLineDash([5 / sc, 3 / sc]);
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = `bold ${13 / sc}px system-ui`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(pl.name.slice(0, 2).toUpperCase(), cx, cy);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.restore();
+}
+
 export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride,

@@ -17,9 +17,11 @@ interface Props {
   onLoad: (file: File) => void;
   onOpenPlayer: () => void;
   onOpenServer?: () => void;
+  bgOpacity: number;
+  onBgOpacityChange: (v: number) => void;
 }
 
-export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer, onOpenServer }: Props) {
+export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer, onOpenServer, bgOpacity, onBgOpacityChange }: Props) {
   return (
     <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.border}` }}>
       <button onClick={onOpenPlayer}
@@ -63,6 +65,12 @@ export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCoun
           <ZoomIn size={11} />
         </button>
         <span style={{ color: C.dim, fontSize: 12, minWidth: 34, textAlign: 'right' }}>{Math.round(zoom * 100)}%</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }} title="Opacitat del fons (només a la teva pantalla; els jugadors el veuen sempre opac)">
+        <span style={{ color: C.dim, fontSize: 12, minWidth: 16, textAlign: 'center' }}>🗺️</span>
+        <input type="range" min={0.1} max={1} step={0.05} value={bgOpacity} onChange={e => onBgOpacityChange(parseFloat(e.target.value))}
+          style={{ flex: 1, accentColor: C.accent }} />
+        <span style={{ color: C.dim, fontSize: 12, minWidth: 34, textAlign: 'right' }}>{Math.round(bgOpacity * 100)}%</span>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {psdInfo && <Chip>{psdInfo.width}×{psdInfo.height}</Chip>}

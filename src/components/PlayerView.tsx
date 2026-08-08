@@ -10,7 +10,7 @@ import {
 import { renderRooms } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
-import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
+import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
 import { createSyncSocket } from '@/lib/ws';
@@ -59,6 +59,8 @@ export function PlayerView() {
   const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
   const rMultiSelected = useRef<Set<number | string>>(new Set());
+  // Previsualització del destí durant el drag d'un token de jugador (ghost).
+  const rDragPreview   = useRef<{ id: string; x: number; y: number } | null>(null);
   const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
@@ -424,6 +426,7 @@ export function PlayerView() {
     rTurn,
     rWalls,
     rDoors,
+    rDragPreview,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
@@ -546,6 +549,20 @@ export function PlayerView() {
           const oc = drawCanvasRef.current;
           if (oc && (oc.width !== msg.psdInfo.width || oc.height !== msg.psdInfo.height)) {
             oc.width = msg.psdInfo.width; oc.height = msg.psdInfo.height;
+          }
+        }
+        // Reconstruir el dibuix a ploma des de l'historial (late join / càrrega de partida):
+        // els STROKE són incrementals, així que sense això una pantalla que no hi era quan
+        // es van dibuixar els traços (o després de carregar una partida) no els veu.
+        if (msg.strokeHistory) {
+          const oc = drawCanvasRef.current;
+          if (oc) {
+            const ctx2 = oc.getContext('2d');
+            if (ctx2) {
+              strokeQueueRef.current = []; activeStrokeAnim.current = null;
+              ctx2.clearRect(0, 0, oc.width, oc.height);
+              for (const stroke of msg.strokeHistory) _replayStroke(ctx2, stroke);
+            }
           }
         }
         setPlayerReady(true);
@@ -892,7 +909,7 @@ export function PlayerView() {
         rConditions, rDefeated, rDeathCanvas,
         defeatedAnimRef, invisAlphaRef,
         rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
-        visualPosRef, rPlayers, rTokenSizeOverride,
+        visualPosRef, rPlayers, rTokenSizeOverride, rDragPreview,
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
@@ -939,6 +956,11 @@ export function PlayerView() {
       // La foscor de les sales fosques es pinta DAMUNT de tot: així qualsevol token,
       // dibuix o spell dins d'una sala fosca queda amagat als jugadors (fog of war).
       renderRooms(ctx, fc);
+
+      // El ghost del destí del drag es pinta SOBRE la foscor: el token real es queda quiet
+      // i no il·lumina, però el jugador ha de veure on deixarà anar encara que el destí
+      // encara no estigui il·luminat.
+      renderDragGhost(ctx, fc);
 
       ctx.restore();
 

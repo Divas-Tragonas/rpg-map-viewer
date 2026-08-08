@@ -96,34 +96,18 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         R.wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: null, b: null }));
         return;
       }
-      // Eina Parets: Esc omet primer la col·locació de porta pendent (si n'hi ha);
-      // després cancel·la tota la cadena de parets a mig fer (geometria no
-      // completada); Backspace/Delete desfà només l'última paret.
+      // Eina Parets: Esc en mode porta. Si ja s'ha fet el primer clic (inici marcat),
+      // el desfà per tornar a triar-lo; si no, omet la col·locació de porta pendent.
+      // (Després, Esc cancel·la la cadena de parets; Backspace/Delete desfà l'última paret.)
       if (e.key === 'Escape' && R.rDoorPlacement.current) {
-        R.rDoorPlacement.current = null;
-        R.rDoorPreview.current = null;
-        return;
-      }
-      // Mode porta: +/− canvia l'amplada (en caselles). El valor es recorda per a la
-      // següent porta. La previsualització s'escala al moment al voltant del seu centre
-      // (el següent mousemove ja la recol·loca amb l'imant i el clamp exactes).
-      if (R.rDoorPlacement.current && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_')) {
-        const delta = (e.key === '+' || e.key === '=') ? 1 : -1;
-        R.rDoorWidthCells.current = Math.max(1, Math.min(10, R.rDoorWidthCells.current + delta));
-        const prev = R.rDoorPreview.current;
-        if (prev) {
-          const gs = R.rGridSize.current;
-          const w = (gs > 0 ? gs : 60) * R.rDoorWidthCells.current;
-          const cx = (prev.a.x + prev.b.x) / 2, cy = (prev.a.y + prev.b.y) / 2;
-          const dx = prev.b.x - prev.a.x, dy = prev.b.y - prev.a.y;
-          const len = Math.hypot(dx, dy) || 1;
-          const ux = dx / len, uy = dy / len;
-          R.rDoorPreview.current = {
-            a: { x: cx - ux * w / 2, y: cy - uy * w / 2 },
-            b: { x: cx + ux * w / 2, y: cy + uy * w / 2 },
-          };
+        const dp = R.rDoorPlacement.current;
+        if (dp.anchor) {
+          R.rDoorPlacement.current = { roomId: dp.roomId };
+          R.rDoorPreview.current = null;
+        } else {
+          R.rDoorPlacement.current = null;
+          R.rDoorPreview.current = null;
         }
-        e.preventDefault();
         return;
       }
       if (e.key === 'Escape' && R.rDrawTool.current === 'wall' && (R.rWallPenLast.current || R.rWallChain.current.length > 0 || R.rWallCursor.current)) {

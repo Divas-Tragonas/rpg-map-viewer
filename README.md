@@ -46,6 +46,13 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 2
+- **Previsualització del moviment de tokens (pantalla de jugador).** En arrossegar un token des de `/player`, ara es mostra un **ghost semitransparent** al destí mentre el token real es queda quiet: **cap sala s'il·lumina durant el drag** (el token encara no s'ha mogut). En deixar anar, el token fa l'**animació de desplaçament** (LERP) fins a la posició final i és llavors quan la llum es mou. El ghost es pinta fins i tot sobre la foscor perquè el jugador vegi on deixarà anar.
+- **Control d'opacitat del fons (DM).** Nou control lliscant al panell inferior del DM per **abaixar l'opacitat del mapa de fons** només a la seva pantalla (ajuda per veure més clar sales, tokens i màgies quan hi ha molta informació). No afecta el que veuen els jugadors.
+- **Correcció d'il·luminació de sales fosques.** Els marges de la sala ja no es veien foscos tot i tenir el token dins del radi de llum: el gradient manté la brillantor plena fins al 80% del radi i el polígon de llum s'engreixa cap enfora amb el mateix gradient per compensar el desenfocament dels marges, de manera que la llum arriba fins a les parets.
+- **Portes amb dos clics.** Nou sistema de col·locació de portes: **primer clic** marca l'inici de la porta sobre la paret; **segon clic** en fixa el final (l'amplada). Substitueix l'amplada fixa amb `+/−`. Maj+2n clic per col·locar-ne una altra seguida; Esc desfà el primer clic o omet.
+- **Els dibuixos a ploma ara es veuen al jugador en carregar una partida** (i en connectar-se tard). El missatge `STRUCT` porta l'historial de traços (`strokeHistory`) i el jugador reconstrueix el `drawCanvas`; abans els traços només es propagaven de manera incremental i una pantalla que no hi era quan es van dibuixar (o després de carregar una partida) no els veia.
+
 ### v3.99 pre-release 1
 - **Desar/carregar partides al servidor (meitat frontend, PRE-RELEASE).** Implementat el costat de l'app del recurs `Session`: nou client HTTP a `src/lib/api.ts` (`api.sessions` list/get/create/update/delete + `isAdminLoggedIn`) i un panell modal («☁ Partides al servidor», a `BottomControls`) per desar la partida actual amb nom, sobreescriure'n una d'existent, carregar-la o eliminar-la. El botó només apareix si `NEXT_PUBLIC_API_URL` està configurat; si el DM no està loguejat al back office, el panell ho indica i l'app continua funcionant amb el save/load a `.json`. Marcat com a **pre-release**: requereix que la API tingui desplegats els endpoints `/sessions` (contracte a `api-spec.txt`) perquè el desat al servidor funcioni de veritat. La versió es mantindrà com a pre-release fins que el circuit complet estigui verificat en producció.
 

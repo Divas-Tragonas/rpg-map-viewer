@@ -36,7 +36,9 @@ export function useDMRefs() {
   // Portes: forats a les parets per on passen llum i moviment. Sincronitzades al jugador.
   const rDoors          = useRef<Door[]>([]);
   // Mode de col·locació de porta (s'activa sol en tancar una sala nova; Esc l'omet).
-  const rDoorPlacement  = useRef<{ roomId: string | null } | null>(null);
+  // `anchor` = primer clic (inici de la porta) sobre una paret; el segon clic en fixa
+  // l'amplada. Sense anchor, el proper clic marca l'inici.
+  const rDoorPlacement  = useRef<{ roomId: string | null; anchor?: { wall: Wall; s: number } } | null>(null);
   const rDoorPreview    = useRef<{ a: Point; b: Point } | null>(null);
   // Amplada de la porta en col·locació, en caselles (+/− per canviar-la; es recorda).
   const rDoorWidthCells = useRef(1);
@@ -77,6 +79,9 @@ export function useDMRefs() {
   const pendingDeselectRef = useRef<{ id: number | string; mx: number; my: number } | null>(null);
   const rHighlightAlpha  = useRef(0);
   const rGridDmAlpha     = useRef(0);
+  // Opacitat del mapa de fons NOMÉS a la pantalla del DM (ajuda visual per veure millor
+  // sales/tokens/màgies; no afecta el que veuen els jugadors). 1 = opac.
+  const rBgDmOpacity     = useRef(1);
   const rActiveSpells    = useRef<Spell[]>([]);
   const rPsdInfo         = useRef<PSDInfo | null>(null);
   const rDMPreviewActive = useRef(false);
@@ -160,7 +165,7 @@ export function useDMRefs() {
     rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,

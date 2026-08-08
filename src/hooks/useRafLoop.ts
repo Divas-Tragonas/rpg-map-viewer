@@ -24,6 +24,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
     let alive = true;
     let prevBgStyle = '';
     let prevBgEl: HTMLElement | null = null;
+    let prevBgOpacity = -1;
     const txCache: Record<string, HTMLCanvasElement> = {};
 
     const tick = () => {
@@ -90,7 +91,11 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
           media.style.left = bgL + 'px'; media.style.top = bgT + 'px';
           prevBgStyle = ns;
           prevBgEl = media;
+          prevBgOpacity = -1; // un fons nou neix sense estil: cal reaplicar l'opacitat
         }
+        // Opacitat del fons NOMÉS al DM (ajuda visual; els jugadors el veuen sempre opac).
+        const bgOp = R.rBgDmOpacity.current;
+        if (bgOp !== prevBgOpacity) { media.style.opacity = String(bgOp); prevBgOpacity = bgOp; }
       }
 
       if (!s) {

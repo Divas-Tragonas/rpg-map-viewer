@@ -141,6 +141,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
       turn: rTurn.current,
+      // Historial de traços de dibuix: perquè el jugador reconstrueixi el drawCanvas en
+      // connectar-se (late join) o en carregar una partida (els STROKE són incrementals i
+      // un jugador que no hi era quan es van dibuixar no els tenia).
+      strokeHistory: strokeHistoryRef.current,
     };
     bcRef.current?.postMessage(structMsg);
     wsRef.current?.send(JSON.stringify(structMsg));

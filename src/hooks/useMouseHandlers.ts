@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useRef } from 'react';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
-import { doorPlacementAt, doorAt, DOOR_WIDTH_FALLBACK } from '@/lib/rooms/doors';
+import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
 
 const AREA_TYPES = new Set(['sleep', 'grease']);
@@ -160,21 +160,34 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // En enganxar-se a un vèrtex/aresta existent es tanca la geometria → detecció de sala.
     if (R.rDrawTool.current === 'wall') {
       // Mode de col·locació de porta (actiu just després de tancar una sala, o des del
-      // menú de sala): el clic col·loca la porta on marca la previsualització i surt.
-      // Maj+clic la col·loca i CONTINUA en mode porta (per posar més entrades seguides).
+      // menú de sala): DOS clics. Primer clic → marca l'inici de la porta sobre la paret
+      // més propera; segon clic → en fixa el final (l'amplada) sobre la mateixa paret.
+      // Maj+2n clic la col·loca i CONTINUA en mode porta (per posar més entrades seguides).
       if (R.rDoorPlacement.current) {
         const gs = R.rGridSize.current;
-        const cells = R.rDoorWidthCells.current;
-        const seg = R.rDoorPreview.current ?? doorPlacementAt(
-          R.rWalls.current, { x: mx, y: my },
-          (gs > 0 ? gs : DOOR_WIDTH_FALLBACK) * cells,
-          gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null,
-        );
-        if (seg) S.addDoor(seg.a, seg.b);
-        if (!(e.shiftKey || R.rShiftHeld.current)) {
-          R.rDoorPlacement.current = null;
-          R.rDoorPreview.current = null;
+        const grid = gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null;
+        const dp = R.rDoorPlacement.current;
+        if (!dp.anchor) {
+          // Primer clic: fixar l'inici imantat a la paret més propera.
+          const hit = nearestWallHit(R.rWalls.current, { x: mx, y: my }, grid);
+          if (hit) R.rDoorPlacement.current = { roomId: dp.roomId, anchor: { wall: hit.wall, s: hit.s } };
+          e.preventDefault(); return;
         }
+        // Segon clic: fixar el final sobre la mateixa paret i crear la porta.
+        const end = doorEndOnWall(dp.anchor.wall, { x: mx, y: my }, grid);
+        if (end) {
+          const s0 = Math.min(dp.anchor.s, end.s), s1 = Math.max(dp.anchor.s, end.s);
+          if (s1 - s0 > 1) {
+            const at = (t: number) => ({ x: dp.anchor!.wall.a.x + end.ux * t, y: dp.anchor!.wall.a.y + end.uy * t });
+            S.addDoor(at(s0), at(s1));
+          }
+        }
+        if (e.shiftKey || R.rShiftHeld.current) {
+          R.rDoorPlacement.current = { roomId: dp.roomId }; // continua: nou inici
+        } else {
+          R.rDoorPlacement.current = null;
+        }
+        R.rDoorPreview.current = null;
         e.preventDefault(); return;
       }
       const snap = snapWall(mx, my, sc);
@@ -437,14 +450,24 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     // Paret en curs (eina "Parets"): línia elàstica de l'últim vèrtex al cursor amb imant.
     if (R.rDrawTool.current === 'wall') {
-      // Mode porta: la previsualització llisca sempre imantada a la paret més propera.
+      // Mode porta (dos clics): sense inici encara, la previsualització és el punt d'inici
+      // imantat a la paret més propera (segment degenerat = marca de punt). Amb inici
+      // fixat, la previsualització és el segment de porta de l'inici al cursor projectat.
       if (R.rDoorPlacement.current) {
         const gs = R.rGridSize.current;
-        R.rDoorPreview.current = doorPlacementAt(
-          R.rWalls.current, { x: mx, y: my },
-          (gs > 0 ? gs : DOOR_WIDTH_FALLBACK) * R.rDoorWidthCells.current,
-          gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null,
-        );
+        const grid = gs > 0 ? { gs, gox: ((R.rGridOriginX.current % gs) + gs) % gs, goy: ((R.rGridOriginY.current % gs) + gs) % gs } : null;
+        const dp = R.rDoorPlacement.current;
+        if (!dp.anchor) {
+          const hit = nearestWallHit(R.rWalls.current, { x: mx, y: my }, grid);
+          R.rDoorPreview.current = hit ? { a: hit.point, b: hit.point } : null;
+        } else {
+          const end = doorEndOnWall(dp.anchor.wall, { x: mx, y: my }, grid);
+          if (end) {
+            const s0 = Math.min(dp.anchor.s, end.s), s1 = Math.max(dp.anchor.s, end.s);
+            const at = (t: number) => ({ x: dp.anchor!.wall.a.x + end.ux * t, y: dp.anchor!.wall.a.y + end.uy * t });
+            R.rDoorPreview.current = { a: at(s0), b: at(s1) };
+          }
+        }
         R.rWallCursor.current = null;
         return;
       }

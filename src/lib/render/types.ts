@@ -76,6 +76,10 @@ export interface FrameContext {
   visualPosRef:     MutableRefObject<PosMap>;
   rPlayers:         MutableRefObject<Player[]>;
   rTokenSizeOverride: MutableRefObject<TokenSizeMap>;
+  // Previsualització del moviment del token de jugador durant el drag (pantalla de jugador):
+  // { id, x, y } (cantonada sup-esq, com rPos). El token real es queda quiet fins a deixar
+  // anar; mentrestant es pinta un ghost semitransparent a aquesta posició.
+  rDragPreview?:    MutableRefObject<{ id: string; x: number; y: number } | null>;
 
   rGridVisible:     MutableRefObject<boolean>;
   rGridSize:        MutableRefObject<number>;
@@ -108,7 +112,7 @@ export interface FrameContext {
   rWalls?:            MutableRefObject<Wall[]>;
   rRooms?:            MutableRefObject<Room[]>;
   rDoors?:            MutableRefObject<Door[]>;
-  rDoorPlacement?:    MutableRefObject<{ roomId: string | null } | null>;
+  rDoorPlacement?:    MutableRefObject<{ roomId: string | null; anchor?: { wall: Wall; s: number } } | null>;
   rDoorPreview?:      MutableRefObject<{ a: Point; b: Point } | null>;
   rHoveredDoorId?:    MutableRefObject<string | null>;
   rWallPenLast?:      MutableRefObject<Point | null>;

@@ -115,6 +115,10 @@ export function usePlayerTokenDrag(
   rTurn: RefObject<TurnState>,
   rWalls: RefObject<Wall[]>,
   rDoors: RefObject<Door[]>,
+  // Previsualització del destí: durant el drag el token REAL no es mou (no il·lumina);
+  // s'hi escriu { id, x, y } i es pinta un ghost. En deixar anar, es confirma a rPos i
+  // el token fa l'animació de desplaçament (LERP) fins al destí.
+  rDragPreview: RefObject<{ id: string; x: number; y: number } | null>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -215,20 +219,25 @@ export function usePlayerTokenDrag(
     }
     dragRef.current.last = { x: cx, y: cy };
     const np = snapPos({ x: cx - R, y: cy - R }, id);
-    rPos.current = { ...rPos.current, [id]: np };
+    // NO es toca rPos: el token real es queda quiet (i no il·lumina). Només s'actualitza
+    // la previsualització, que es pinta com un ghost.
+    rDragPreview.current = { id, x: np.x, y: np.y };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!dragRef.current || e.pointerId !== pointerIdRef.current) return;
     const { id } = dragRef.current;
-    const pos = rPos.current[id];
-    if (pos) {
-      // També per BroadcastChannel: en el setup de dues finestres al mateix ordinador
-      // (sense servidor WS) el moviment ha d'arribar igualment al DM.
-      const moveMsg = { type: 'TOKEN_MOVE', id, x: pos.x, y: pos.y };
+    const preview = rDragPreview.current;
+    // En deixar anar, confirmar el destí: ara sí que es mou rPos (el token fa l'animació
+    // de desplaçament via LERP) i s'envia el moviment al DM. Sense preview (tap sense
+    // arrossegar) no es mou res.
+    if (preview && preview.id === id) {
+      rPos.current = { ...rPos.current, [id]: { x: preview.x, y: preview.y } };
+      const moveMsg = { type: 'TOKEN_MOVE', id, x: preview.x, y: preview.y };
       bcRef.current?.postMessage(moveMsg);
       wsRef.current?.send(JSON.stringify(moveMsg));
     }
+    rDragPreview.current = null;
     dragRef.current = null;
     pointerIdRef.current = null;
     rSelectedToken.current = null;

@@ -115,6 +115,9 @@ export function DMView() {
   const [showServerSessions, setShowServerSessions] = useState(false);
   const serverSessionsEnabled = useMemo(() => isApiConfigured(), []);
 
+  // ── Opacitat del fons (només DM) ─────────────────────────────────────────────
+  const [bgOpacity, setBgOpacity] = useState(1);
+
   // ── Revelador de text ──────────────────────────────────────────────────────
   const [textRevealOpen, setTextRevealOpen] = useState(false);
   const [textRevealActive, setTextRevealActive] = useState(false);
@@ -150,6 +153,12 @@ export function DMView() {
 
   // ── Cinematic ─────────────────────────────────────────────────────────────
   const { triggerBossIntro, skipBossIntro } = useCinematic(R);
+
+  // Opacitat del fons (només DM): actualitza estat + ref mirall que llegeix el tick.
+  const onBgOpacityChange = useCallback((v: number) => {
+    setBgOpacity(v);
+    R.rBgDmOpacity.current = v;
+  }, [R]);
 
   // ── setDrawTool wrapper (updates ref + state synchronously) ───────────────
   const setDrawTool = useCallback((fn: DrawTool | ((t: DrawTool) => DrawTool)) => {
@@ -949,6 +958,7 @@ export function DMView() {
           activeCount={activeCount} layerImagesCount={Object.keys(layerImages).length}
           onSave={saveSession} onLoad={loadSession} onOpenPlayer={openPlayerWindow}
           onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
+          bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
         />
       </div>
 

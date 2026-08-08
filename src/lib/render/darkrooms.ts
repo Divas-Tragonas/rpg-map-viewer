@@ -42,7 +42,7 @@ function collectLights(fc: FrameContext): Light[] {
 // Totes les llums es pinten primer a una capa pròpia i es compositen amb `filter: blur`
 // (si el navegador el suporta al canvas — iOS Safari vell no) perquè els marges dels
 // polígons de visibilitat quedin difuminats en lloc d'un tall dur.
-function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a: { x: number; y: number }; b: { x: number; y: number } }[]): void {
+function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a: { x: number; y: number }; b: { x: number; y: number } }[], sc: number): void {
   const off = octx.canvas;
   if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
   const lc = _lightCanvas;
@@ -51,18 +51,32 @@ function carveLights(octx: CanvasRenderingContext2D, lights: Light[], walls: { a
   lctx.setTransform(1, 0, 0, 1, 0, 0);
   lctx.clearRect(0, 0, lc.width, lc.height);
   lctx.setTransform(octx.getTransform());
+  // Amplada d'engreix del polígon de llum, en unitats de mapa: contraresta el blur (px de
+  // pantalla) del compositat perquè, prop d'una paret que cau DINS del radi, la llum arribi
+  // fins a la paret i no hi quedi un marge fosc (el midpoint del blur cau més enllà de la
+  // paret). Als marges exteriors (radi de visió) el gradient ja s'esvaeix, així que el traç
+  // amb el mateix gradient hi és ~transparent i la vora exterior es manté suau.
+  const fatten = (LIGHT_BLUR_PX * 2) / (sc > 0 ? sc : 1);
   for (const li of lights) {
     const poly = visibilityPolygon({ x: li.x, y: li.y }, walls, li.r);
     if (poly.length < 3) continue;
+    const g = lctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
+    // Plena brillantor fins al 80% del radi i esvaïment només a l'últim tram: així una sala
+    // més petita que el radi queda del tot il·luminada fins a les seves parets.
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(0.8, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
     lctx.save();
     lctx.beginPath();
     poly.forEach((p, i) => i === 0 ? lctx.moveTo(p.x, p.y) : lctx.lineTo(p.x, p.y));
     lctx.closePath();
+    // Engreixar la vora del polígon cap enfora amb el mateix gradient (opac prop de les
+    // parets, transparent al radi) abans de retallar amb el clip per al farciment.
+    lctx.strokeStyle = g;
+    lctx.lineJoin = 'round';
+    lctx.lineWidth = fatten;
+    lctx.stroke();
     lctx.clip();
-    const g = lctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
-    g.addColorStop(0, 'rgba(0,0,0,1)');
-    g.addColorStop(0.55, 'rgba(0,0,0,0.92)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
     lctx.fillStyle = g;
     lctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
     lctx.restore();
@@ -164,7 +178,7 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         octx.strokeStyle = `rgba(3,4,7,${f.alpha})`;
         roomPath(octx, f.room); octx.fill(); octx.stroke();
       }
-      carveLights(octx, lights, walls);
+      carveLights(octx, lights, walls, sc);
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(off, 0, 0);
@@ -279,34 +293,48 @@ export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
  * ctx.restore()), com renderWallDraft.
  */
 export function renderDoorDraft(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  if (!fc.rDoorPlacement?.current) return;
+  const placement = fc.rDoorPlacement?.current;
+  if (!placement) return;
   const prev = fc.rDoorPreview?.current ?? null;
+  if (!prev) return;
   const { sc, ox, oy } = fc;
   const pulse = 0.75 + 0.25 * Math.sin(performance.now() / 240);
-  if (prev) {
-    ctx.save();
-    ctx.translate(ox, oy); ctx.scale(sc, sc);
-    // Les portes noves neixen tancades: la preview ja es mostra amb l'interior pintat.
+  const hasAnchor = !!placement.anchor;
+  const len = Math.hypot(prev.b.x - prev.a.x, prev.b.y - prev.a.y);
+
+  ctx.save();
+  ctx.translate(ox, oy); ctx.scale(sc, sc);
+  if (hasAnchor && len > 1e-3) {
+    // Segon pas: previsualització del segment de porta (interior pintat = tancada).
     drawDoorMark(ctx, prev, sc, pulse, false);
-    ctx.restore();
-    const mx = ox + ((prev.a.x + prev.b.x) / 2) * sc;
-    const my = oy + ((prev.a.y + prev.b.y) / 2) * sc;
-    ctx.save();
-    ctx.font = 'bold 12px system-ui';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
-    const ft = Math.round((Math.hypot(prev.b.x - prev.a.x, prev.b.y - prev.a.y) / gs) * 5);
-    const text = `🚪 Porta ${ft} ft · Clic: col·locar · +/−: amplada · Maj+clic: una altra · Esc: ometre`;
-    const tw = ctx.measureText(text).width;
-    ctx.fillStyle = 'rgba(10,13,18,0.85)';
-    ctx.fillRect(mx - tw / 2 - 8, my - 36, tw + 16, 20);
-    ctx.strokeStyle = 'rgba(63,185,80,0.55)'; ctx.lineWidth = 1;
-    ctx.strokeRect(mx - tw / 2 - 8, my - 36, tw + 16, 20);
-    ctx.fillStyle = '#7ee787';
-    ctx.fillText(text, mx, my - 26);
-    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-    ctx.restore();
+  } else {
+    // Primer pas: marca del punt d'inici imantat a la paret.
+    ctx.fillStyle = `rgba(255,220,90,${0.85 * pulse})`;
+    ctx.beginPath(); ctx.arc(prev.a.x, prev.a.y, 5 / sc, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(214,160,23,0.9)'; ctx.lineWidth = 2 / sc;
+    ctx.beginPath(); ctx.arc(prev.a.x, prev.a.y, 10 / sc, 0, Math.PI * 2); ctx.stroke();
   }
+  ctx.restore();
+
+  const mx = ox + ((prev.a.x + prev.b.x) / 2) * sc;
+  const my = oy + ((prev.a.y + prev.b.y) / 2) * sc;
+  ctx.save();
+  ctx.font = 'bold 12px system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
+  const ft = Math.round((len / gs) * 5);
+  const text = hasAnchor
+    ? `🚪 Porta ${ft} ft · Clic: fixa el final · Maj+clic: una altra · Esc: desfés l'inici`
+    : `🚪 Clic: marca l'inici de la porta · Esc: ometre`;
+  const tw = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(10,13,18,0.85)';
+  ctx.fillRect(mx - tw / 2 - 8, my - 36, tw + 16, 20);
+  ctx.strokeStyle = 'rgba(63,185,80,0.55)'; ctx.lineWidth = 1;
+  ctx.strokeRect(mx - tw / 2 - 8, my - 36, tw + 16, 20);
+  ctx.fillStyle = '#7ee787';
+  ctx.fillText(text, mx, my - 26);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.restore();
 }
 
 /**

@@ -103,6 +103,66 @@ export function doorPlacementAt(
   return { a: at(s - dw / 2), b: at(s + dw / 2) };
 }
 
+// Projecció d'un paràmetre s (distància des de wall.a) a la graella: imanta el punt a la
+// línia de graella més propera al llarg de l'eix dominant de la paret (perquè els extrems
+// de la porta caiguin a fronteres de casella a les parets alineades amb el grid).
+function snapSToGrid(f: WallFrame, s: number, grid: { gs: number; gox: number; goy: number } | null): number {
+  if (!grid || grid.gs <= 0) return s;
+  const p = { x: f.w.a.x + f.ux * s, y: f.w.a.y + f.uy * s };
+  let sn = s;
+  if (Math.abs(f.ux) >= Math.abs(f.uy)) {
+    const gx = Math.round((p.x - grid.gox) / grid.gs) * grid.gs + grid.gox;
+    if (Math.abs(f.ux) > 1e-6) sn = (gx - f.w.a.x) / f.ux;
+  } else {
+    const gy = Math.round((p.y - grid.goy) / grid.gs) * grid.gs + grid.goy;
+    if (Math.abs(f.uy) > 1e-6) sn = (gy - f.w.a.y) / f.uy;
+  }
+  return Math.max(0, Math.min(f.len, sn));
+}
+
+/**
+ * Col·locació de porta amb DOS clics: el primer marca l'inici (imantat a la paret més
+ * propera), el segon en fixa l'amplada (projectat sobre la MATEIXA paret). Aquesta funció
+ * retorna el punt sobre la paret més propera al cursor (per al primer clic i la seva
+ * previsualització): { wall, s, point } amb s ja imantat a la graella.
+ */
+export function nearestWallHit(
+  walls: Wall[],
+  cursor: Point,
+  grid: { gs: number; gox: number; goy: number } | null,
+): { wall: Wall; s: number; point: Point } | null {
+  let best: WallFrame | null = null, bestS = 0, bestD = Infinity;
+  for (const w of walls) {
+    const f = frame(w);
+    if (!f) continue;
+    let s = (cursor.x - w.a.x) * f.ux + (cursor.y - w.a.y) * f.uy;
+    s = Math.max(0, Math.min(f.len, s));
+    const px = w.a.x + f.ux * s, py = w.a.y + f.uy * s;
+    const d = Math.hypot(cursor.x - px, cursor.y - py);
+    if (d < bestD) { bestD = d; best = f; bestS = s; }
+  }
+  if (!best) return null;
+  const s = snapSToGrid(best, bestS, grid);
+  return { wall: best.w, s, point: { x: best.w.a.x + best.ux * s, y: best.w.a.y + best.uy * s } };
+}
+
+/**
+ * Segon clic: projecta el cursor sobre una paret concreta (la de l'inici) i retorna el
+ * paràmetre s (imantat a la graella), amb els vectors de la paret per construir el segment.
+ */
+export function doorEndOnWall(
+  wall: Wall,
+  cursor: Point,
+  grid: { gs: number; gox: number; goy: number } | null,
+): { s: number; ux: number; uy: number } | null {
+  const f = frame(wall);
+  if (!f) return null;
+  let s = (cursor.x - wall.a.x) * f.ux + (cursor.y - wall.a.y) * f.uy;
+  s = Math.max(0, Math.min(f.len, s));
+  s = snapSToGrid(f, s, grid);
+  return { s, ux: f.ux, uy: f.uy };
+}
+
 /** Poda: conserva només les portes que segueixen recolzades sobre alguna paret. */
 export function pruneDoors(walls: Wall[], doors: Door[]): Door[] {
   if (doors.length === 0) return doors;
