@@ -30,6 +30,8 @@ import { ShapeMenuOverlay } from '@/components/dm/ShapeMenuOverlay';
 import { ContextMenuOverlay } from '@/components/dm/ContextMenuOverlay';
 import { SceneConfigOverlay } from '@/components/dm/SceneConfigOverlay';
 import { TurnTracker } from '@/components/dm/TurnTracker';
+import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
+import { isApiConfigured } from '@/lib/api';
 
 export function DMView() {
   // ── State ────────────────────────────────────────────────────────────────
@@ -109,6 +111,10 @@ export function DMView() {
   const expositorInnerRef = React.useRef<HTMLDivElement | null>(null);
   const expositorPreviewRef = React.useRef<HTMLDivElement | null>(null);
 
+  // ── Partides al servidor ────────────────────────────────────────────────────
+  const [showServerSessions, setShowServerSessions] = useState(false);
+  const serverSessionsEnabled = useMemo(() => isApiConfigured(), []);
+
   // ── Revelador de text ──────────────────────────────────────────────────────
   const [textRevealOpen, setTextRevealOpen] = useState(false);
   const [textRevealActive, setTextRevealActive] = useState(false);
@@ -173,7 +179,7 @@ export function DMView() {
   const {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
-    saveSession, loadSession, addSpell, deleteLayer, toggleVis, resetToken,
+    saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
@@ -942,6 +948,7 @@ export function DMView() {
           zoom={zoom} onZoomChange={onZoomChange} psdInfo={psdInfo} struct={struct}
           activeCount={activeCount} layerImagesCount={Object.keys(layerImages).length}
           onSave={saveSession} onLoad={loadSession} onOpenPlayer={openPlayerWindow}
+          onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
         />
       </div>
 
@@ -1277,6 +1284,15 @@ export function DMView() {
         setPsdEnemyProps={setPsdEnemyProps}
         setLibEnemyProps={setLibEnemyProps}
       />
+
+      {showServerSessions && (
+        <ServerSessionsPanel
+          onClose={() => setShowServerSessions(false)}
+          onSaveNew={name => serverSaveSession(name)}
+          onOverwrite={(id, name) => serverSaveSession(name, id)}
+          onLoad={serverLoadSession}
+        />
+      )}
 
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}`}</style>
     </div>

@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 1
+- **Desar/carregar partides al servidor (meitat frontend, PRE-RELEASE).** Implementat el costat de l'app del recurs `Session`: nou client HTTP a `src/lib/api.ts` (`api.sessions` list/get/create/update/delete + `isAdminLoggedIn`) i un panell modal («☁ Partides al servidor», a `BottomControls`) per desar la partida actual amb nom, sobreescriure'n una d'existent, carregar-la o eliminar-la. El botó només apareix si `NEXT_PUBLIC_API_URL` està configurat; si el DM no està loguejat al back office, el panell ho indica i l'app continua funcionant amb el save/load a `.json`. Marcat com a **pre-release**: requereix que la API tingui desplegats els endpoints `/sessions` (contracte a `api-spec.txt`) perquè el desat al servidor funcioni de veritat. La versió es mantindrà com a pre-release fins que el circuit complet estigui verificat en producció.
+
 ### v3.99
 - **Portes tancades per defecte i toggle amb el cursor normal.** Les portes noves neixen **tancades** (bloquegen llum i moviment fins que s'obren). Per obrir-les o tancar-les ja no cal cap eina: amb el **cursor de selecció normal**, en passar per sobre d'una porta aquesta es **destaca** (traç brillant + halo, cursor en forma de mà, com un botó web) i un **clic la commuta**.
 - **Colors unificats.** La porta usa el mateix daurat que les parets. **Tancada → l'interior del rectangle es pinta**; **oberta → buit per dins** (com fins ara). La previsualització de col·locació ja es mostra tancada.
