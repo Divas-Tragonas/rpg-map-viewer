@@ -123,7 +123,4 @@ export interface FrameContext {
   rWallCursor?:       MutableRefObject<{ x: number; y: number; onVertex: boolean } | null>;
   rHoveredRoomId?:    MutableRefObject<string | null>;
   roomRevealAnimRef?: MutableRefObject<Record<string, number>>;
-  // Mode boira "explorada" (AoE): les zones ja vistes es mantenen amb foscor més clara.
-  // Per defecte actiu; el DM el commuta i se sincronitza al jugador.
-  rFogExplored?:      MutableRefObject<boolean>;
 }

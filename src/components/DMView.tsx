@@ -118,9 +118,6 @@ export function DMView() {
   // ── Opacitat del fons (només DM) ─────────────────────────────────────────────
   const [bgOpacity, setBgOpacity] = useState(1);
 
-  // ── Boira explorada (AoE) ────────────────────────────────────────────────────
-  const [fogExplored, setFogExplored] = useState(true);
-
   // ── Revelador de text ──────────────────────────────────────────────────────
   const [textRevealOpen, setTextRevealOpen] = useState(false);
   const [textRevealActive, setTextRevealActive] = useState(false);
@@ -199,12 +196,6 @@ export function DMView() {
     addDoor, removeDoor, toggleDoor, startDoorPlacement,
   } = useDMActions(R, S);
 
-  // Boira explorada: commuta el mode (ref + estat) i el sincronitza al jugador.
-  const onToggleFog = useCallback(() => {
-    const v = !R.rFogExplored.current;
-    R.rFogExplored.current = v; setFogExplored(v);
-    _broadcastState({});
-  }, [R, _broadcastState]);
 
   // ── Sistema per torns ──────────────────────────────────────────────────────
   // Peus amb què arrenca un token en agafar el torn: la velocitat del jugador. Els
@@ -975,7 +966,6 @@ export function DMView() {
           onSave={saveSession} onLoad={loadSession} onOpenPlayer={openPlayerWindow}
           onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
           bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
-          fogExplored={fogExplored} onToggleFog={onToggleFog}
         />
       </div>
 

@@ -2,6 +2,11 @@ import type { FrameContext } from './types';
 import { TOKEN_LERP, CONDITIONS_BY_ID, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
 
+// Moviment del token seguint el camí (forma d'L): velocitat de creuer lenta (fracció de la
+// mida de casella per frame) + frenada suau (ease-out) al final. Valors baixos = molt lent.
+const PATH_CRUISE = 0.04;  // ~2.4 caselles/s a 60fps (gs·0.04 px/frame)
+const PATH_BRAKE  = 0.14;  // ease-out de frenada a prop del destí
+
 const _tokenImgCache = new Map<string, HTMLImageElement>();
 function getTokenImg(src: string): HTMLImageElement {
   let img = _tokenImgCache.get(src);
@@ -433,16 +438,21 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       else if (rSelectedToken.current === key) { vp.x = rawPos.x; vp.y = rawPos.y; ppos = vp; }
       else {
         // Camí de moviment pendent (vorejant parets, forma d'L): el token es desplaça
-        // seguint la polilínia amb el MATEIX ease-out que el LERP recte (progrés per
-        // longitud d'arc, `t += (total − t) · TOKEN_LERP`), així un moviment de diverses
-        // caselles és igual de lent i suau que abans però resseguint la L. Sense camí, LERP
-        // recte de sempre. Així la llum no talla per sales fosques que el token no travessa.
+        // seguint la polilínia a **velocitat de creuer lenta i constant** (px de mapa per
+        // frame, escalada amb la mida de casella) amb una **frenada suau** al final. Molt més
+        // lent i cinematogràfic que un LERP. Sense camí, LERP recte de sempre. Així la llum
+        // no talla per sales fosques que el token no travessa.
         const mp = fc.rMovePath?.current[key];
         if (mp && mp.pts.length >= 2) {
           const pts = mp.pts;
           let total = 0;
           for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-          mp.t += (total - mp.t) * TOKEN_LERP;
+          const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
+          const cruise = gs * PATH_CRUISE;       // velocitat constant (lenta)
+          const remaining = total - mp.t;
+          // min(creuer, frenada): cruise mana la major part; a prop del final la frenada
+          // (ease-out) fa que s'aturi suau en lloc d'un tall sec.
+          mp.t += Math.min(cruise, remaining * PATH_BRAKE);
           if (total - mp.t < 0.5) {
             vp.x = pts[pts.length - 1].x; vp.y = pts[pts.length - 1].y;
             if (fc.rMovePath) delete fc.rMovePath.current[key];

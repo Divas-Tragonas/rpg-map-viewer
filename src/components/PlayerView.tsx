@@ -86,7 +86,6 @@ export function PlayerView() {
   const highlightStartRef = useRef<number | null>(null);
   const rGridCalibrating  = useRef(false);
   const rGridDmAlpha      = useRef(0);
-  const rFogExplored      = useRef(true);
   const gridCalibRef      = useRef(null);
   const gridCalibCurrRef  = useRef(null);
   const gridCalibHoverRef = useRef(null);
@@ -519,7 +518,6 @@ export function PlayerView() {
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.turn) rTurn.current = msg.turn;
-        if (msg.fogExplored !== undefined) rFogExplored.current = msg.fogExplored;
         if (msg.psdEnemyOverrides) {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
@@ -626,7 +624,6 @@ export function PlayerView() {
         if (msg.walls) rWalls.current = msg.walls;
         if (msg.doors) rDoors.current = msg.doors;
         if (msg.turn) rTurn.current = msg.turn;
-        if (msg.fogExplored !== undefined) rFogExplored.current = msg.fogExplored;
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
@@ -951,7 +948,7 @@ export function PlayerView() {
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
-        rRooms, rWalls, rDoors, roomRevealAnimRef, rFogExplored,
+        rRooms, rWalls, rDoors, roomRevealAnimRef,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);

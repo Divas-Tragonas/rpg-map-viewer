@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 6
+- **Eliminada la boira "explorada" (AoE)** — no acabava de funcionar; s'ha tret del tot (codi i botó).
+- **Moviment del token seguint el camí (forma d'L) MOLT més lent i suau**: velocitat de creuer lenta i constant amb frenada suau al final, en lloc del desplaçament massa ràpid.
+- **Corregides les línies negres als bordes de sala il·luminada**: el gradient manté la brillantor plena fins al 90% del radi i s'afegeix un traç interior retallat que segella la vora arran de paret, sense tornar a vessar llum a la sala del costat.
+
 ### v3.99 pre-release 5
 - **Mode boira "explorada" (estil Age of Empires).** Les zones fosques que ja s'han vist es mantenen amb una **foscor més clara** (saps el terreny però no hi veus enemics) en lloc de tornar-se negre del tot. S'acumula el que s'ha vist en una màscara en coords de mapa. Nou botó al panell del DM «🌫️ Boira explorada: ON/OFF» (per defecte **ON**), sincronitzat als jugadors.
 - **Correcció de fuga de llum als bordes de sales adjacents.** La llum ja no vessa un marge il·luminat a la sala del costat quan hi ets a prop però fora: s'ha tret el blur i l'engreix del polígon de llum, així la llum s'atura **exactament a les parets** (la vora exterior suau la manté el gradient radial).

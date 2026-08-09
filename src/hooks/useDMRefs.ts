@@ -82,9 +82,6 @@ export function useDMRefs() {
   // Opacitat del mapa de fons NOMÉS a la pantalla del DM (ajuda visual per veure millor
   // sales/tokens/màgies; no afecta el que veuen els jugadors). 1 = opac.
   const rBgDmOpacity     = useRef(1);
-  // Mode boira "explorada" (AoE): les zones ja vistes queden amb foscor més clara. Default
-  // actiu; se sincronitza al jugador.
-  const rFogExplored     = useRef(true);
   const rActiveSpells    = useRef<Spell[]>([]);
   const rPsdInfo         = useRef<PSDInfo | null>(null);
   const rDMPreviewActive = useRef(false);
@@ -168,7 +165,7 @@ export function useDMRefs() {
     rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rFogExplored, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,
