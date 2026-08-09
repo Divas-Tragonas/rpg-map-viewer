@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 7
+- **Boira "explorada" (Age of Empires) recuperada i ben feta.** A les zones fosques ja vistes però ARA no il·luminades es mostra el **mapa de fons atenuat** (saps el terreny que hi ha), però **NO els tokens/enemics** (queden amagats sota la foscor). Les zones no explorades es mantenen negres i la zona il·luminada actual es veu en viu. La memòria (`_exploredCanvas`) acumula el que s'ha vist; es composita el terreny atenuat només a `explorat ∩ fosc-no-il·luminat`.
+- **Moviment del token més ràpid (com abans) i més realista.** S'ha restaurat la velocitat i s'ha afegit suavitzat de camí (Chaikin): el recorregut vorejant parets és una **corba natural** en lloc d'una escala esglaonada. La velocitat és un sol paràmetre (`PATH_CRUISE`).
+
 ### v3.99 pre-release 6
 - **Eliminada la boira "explorada" (AoE)** — no acabava de funcionar; s'ha tret del tot (codi i botó).
 - **Moviment del token seguint el camí (forma d'L) MOLT més lent i suau**: velocitat de creuer lenta i constant amb frenada suau al final, en lloc del desplaçament massa ràpid.

@@ -16,7 +16,7 @@ import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cine
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
-import { computePath } from '@/lib/rooms/pathing';
+import { computePath, smoothPath } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
@@ -226,7 +226,7 @@ export function PlayerView() {
     if (!pts || pts.length < 2) { delete rMovePath.current[id]; return; }
     const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
     wp[wp.length - 1] = { x: to.x, y: to.y }; // acabar exacte al destí
-    rMovePath.current[id] = { pts: [from, ...wp], t: 0 };
+    rMovePath.current[id] = { pts: smoothPath([from, ...wp], 2), t: 0 };
   }, []);
 
   const triggerBossIntro = useCallback((data: Record<string, unknown>) => {
@@ -949,6 +949,7 @@ export function PlayerView() {
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
         rRooms, rWalls, rDoors, roomRevealAnimRef,
+        mediaEl: media,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);

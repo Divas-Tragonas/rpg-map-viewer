@@ -12,6 +12,47 @@ let _darkCanvas: HTMLCanvasElement | null = null;
 // foscor amb `destination-out`.
 let _lightCanvas: HTMLCanvasElement | null = null;
 
+// ── Boira "explorada" (estil Age of Empires) ───────────────────────────────────────
+// Màscara (alpha) en coords de MAP a resolució reduïda que acumula tot el que s'ha vist.
+// A les zones explorades però no il·luminades ARA es mostra el mapa de fons ATENUAT (saps
+// el terreny que hi ha) però NO els tokens (queden amagats sota la foscor). Persisteix per
+// mapa (es reinicia quan canvia la mida). Local a cada pantalla.
+let _exploredCanvas: HTMLCanvasElement | null = null;
+let _exploredSig = '';
+let _exploredScale = 1;
+let _memCanvas: HTMLCanvasElement | null = null;
+const EXPLORED_MAX = 1600;   // costat màxim (px) de la màscara d'explorat
+const MEM_DIM = 0.38;        // brillantor del terreny memoritzat (0..1)
+
+function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; scale: number } {
+  const scale = Math.min(1, EXPLORED_MAX / Math.max(mw, mh, 1));
+  const w = Math.max(1, Math.round(mw * scale)), h = Math.max(1, Math.round(mh * scale));
+  const sig = `${w}x${h}`;
+  if (!_exploredCanvas || _exploredSig !== sig) {
+    _exploredCanvas = _exploredCanvas ?? document.createElement('canvas');
+    _exploredCanvas.width = w; _exploredCanvas.height = h;
+    _exploredCanvas.getContext('2d')!.clearRect(0, 0, w, h);
+    _exploredSig = sig; _exploredScale = scale;
+  }
+  return { canvas: _exploredCanvas, scale: _exploredScale };
+}
+
+// Acumula els polígons de visibilitat actuals a la màscara d'explorat (alpha opac).
+function accumulateExplored(polys: { poly: { x: number; y: number }[] }[], mw: number, mh: number): void {
+  const ex = ensureExplored(mw, mh);
+  const ectx = ex.canvas.getContext('2d')!;
+  ectx.save();
+  ectx.setTransform(ex.scale, 0, 0, ex.scale, 0, 0);
+  ectx.fillStyle = 'rgba(255,255,255,1)';
+  for (const { poly } of polys) {
+    if (poly.length < 3) continue;
+    ectx.beginPath();
+    poly.forEach((p, i) => i === 0 ? ectx.moveTo(p.x, p.y) : ectx.lineTo(p.x, p.y));
+    ectx.closePath(); ectx.fill();
+  }
+  ectx.restore();
+}
+
 interface Light { x: number; y: number; r: number; intensity: number; }
 
 // Estat animat de cada llum (radi + intensitat), per suavitzar canvis de distància de
@@ -233,6 +274,43 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(off, 0, 0);
       ctx.restore();
+
+      // ── Terra explorada (memòria estil AoE) ──────────────────────────────────────
+      // A les zones ja vistes però ARA fosques (no il·luminades) es mostra el mapa de fons
+      // ATENUAT: saps el terreny, però els tokens (dibuixats sota la foscor opaca) queden
+      // amagats. Regió = explorat ∩ fosc-no-il·luminat (= on `off` encara té alpha). Les
+      // zones no explorades es queden negres; les il·luminades ara es veuen en viu.
+      const media = fc.mediaEl;
+      const mediaReady = !!media && ((media.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth > 0) || (media.tagName === 'VIDEO' && (media as HTMLVideoElement).videoWidth > 0));
+      if (media && mediaReady && polys.length > 0) {
+        accumulateExplored(polys, fc.mw, fc.mh);
+        const ex = ensureExplored(fc.mw, fc.mh);
+        if (!_memCanvas) _memCanvas = document.createElement('canvas');
+        const mem = _memCanvas;
+        if (mem.width !== main.width || mem.height !== main.height) { mem.width = main.width; mem.height = main.height; }
+        const mctx = mem.getContext('2d')!;
+        mctx.setTransform(1, 0, 0, 1, 0, 0);
+        mctx.clearRect(0, 0, mem.width, mem.height);
+        mctx.globalCompositeOperation = 'source-over';
+        // 1) el terreny (mapa de fons) en coords de map
+        mctx.setTransform(ctx.getTransform());
+        mctx.drawImage(media, 0, 0, fc.mw, fc.mh);
+        // 2) retallar-lo a les zones explorades
+        mctx.globalCompositeOperation = 'destination-in';
+        mctx.setTransform(ctx.getTransform());
+        mctx.drawImage(ex.canvas, 0, 0, fc.mw, fc.mh);
+        // 3) i a les que encara són fosques ara (alpha de `off` post-carve = fosc-no-lluminat)
+        mctx.globalCompositeOperation = 'destination-in';
+        mctx.setTransform(1, 0, 0, 1, 0, 0);
+        mctx.drawImage(off, 0, 0);
+        mctx.globalCompositeOperation = 'source-over';
+        // Composita el terreny memoritzat, atenuat, damunt de la foscor (amaga els tokens).
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = MEM_DIM;
+        ctx.drawImage(mem, 0, 0);
+        ctx.restore();
+      }
     }
   }
 

@@ -2,9 +2,10 @@ import type { FrameContext } from './types';
 import { TOKEN_LERP, CONDITIONS_BY_ID, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
 
-// Moviment del token seguint el camí (forma d'L): velocitat de creuer lenta (fracció de la
-// mida de casella per frame) + frenada suau (ease-out) al final. Valors baixos = molt lent.
-const PATH_CRUISE = 0.04;  // ~2.4 caselles/s a 60fps (gs·0.04 px/frame)
+// Moviment del token seguint el camí (corba suau de Chaikin): velocitat de creuer (fracció
+// de la mida de casella per frame) + frenada suau (ease-out) al final. Ajusta PATH_CRUISE
+// per fer-lo més ràpid/lent.
+const PATH_CRUISE = 0.08;  // ~4.8 caselles/s a 60fps (gs·0.08 px/frame)
 const PATH_BRAKE  = 0.14;  // ease-out de frenada a prop del destí
 
 const _tokenImgCache = new Map<string, HTMLImageElement>();

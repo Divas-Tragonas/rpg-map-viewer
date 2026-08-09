@@ -141,6 +141,28 @@ export function computeReachableCells(
 }
 
 /**
+ * Suavitza una polilínia amb corner-cutting de Chaikin (manté els extrems): converteix
+ * l'escala esglaonada del camí per caselles en una corba natural i realista. 2 iteracions
+ * arrodoneixen prou les cantonades sense allunyar-se gaire del camí (queda dins ~¼ casella,
+ * lluny de les parets, que són a la vora de casella).
+ */
+export function smoothPath(pts: Point[], iterations = 2): Point[] {
+  if (pts.length <= 2) return pts;
+  let cur = pts;
+  for (let it = 0; it < iterations; it++) {
+    const out: Point[] = [cur[0]];
+    for (let i = 0; i < cur.length - 1; i++) {
+      const p = cur[i], q = cur[i + 1];
+      out.push({ x: p.x * 0.75 + q.x * 0.25, y: p.y * 0.75 + q.y * 0.25 });
+      out.push({ x: p.x * 0.25 + q.x * 0.75, y: p.y * 0.25 + q.y * 0.75 });
+    }
+    out.push(cur[cur.length - 1]);
+    cur = out;
+  }
+  return cur;
+}
+
+/**
  * Camí més curt (Dijkstra 8-dir amb cost real, mateixes regles de paret que
  * `computeReachableCells`) de la casella d'origen a la de destí. Retorna la llista de
  * **centres de casella** (coords de mapa) des del primer pas fins al destí (exclou

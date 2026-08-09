@@ -123,4 +123,6 @@ export interface FrameContext {
   rWallCursor?:       MutableRefObject<{ x: number; y: number; onVertex: boolean } | null>;
   rHoveredRoomId?:    MutableRefObject<string | null>;
   roomRevealAnimRef?: MutableRefObject<Record<string, number>>;
+  // Element de fons (mapa) per pintar el terreny memoritzat a les zones explorades.
+  mediaEl?:           HTMLImageElement | HTMLVideoElement | null;
 }

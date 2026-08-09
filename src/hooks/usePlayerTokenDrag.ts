@@ -2,7 +2,7 @@
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
-import { computeReachableCells, computePath, slideAgainstWalls } from '@/lib/rooms/pathing';
+import { computeReachableCells, computePath, smoothPath, slideAgainstWalls } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
@@ -251,7 +251,7 @@ export function usePlayerTokenDrag(
         if (pts && pts.length >= 2) {
           const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
           wp[wp.length - 1] = { x: preview.x, y: preview.y };
-          rMovePath.current[id] = { pts: [origin, ...wp], t: 0 };
+          rMovePath.current[id] = { pts: smoothPath([origin, ...wp], 2), t: 0 };
         }
       }
       rPos.current = { ...rPos.current, [id]: { x: preview.x, y: preview.y } };
