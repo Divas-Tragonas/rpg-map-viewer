@@ -42,18 +42,43 @@ function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; sc
   return { canvas: _exploredCanvas, scale: _exploredScale };
 }
 
-// Acumula els polígons de visibilitat actuals a la màscara d'explorat (alpha opac).
-function accumulateExplored(polys: { poly: { x: number; y: number }[] }[], mw: number, mh: number): void {
+// Acumula a la màscara d'explorat NOMÉS la llum que cau DINS de sales fosques i dins del
+// radi. Així una zona oberta (encara sense sala) que un token il·lumina NO queda marcada
+// com explorada: quan després s'hi crea una sala fosca, surt negra fins que s'hi entra.
+function accumulateExplored(
+  polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[],
+  darkRoomPolys: { x: number; y: number }[][],
+  mw: number, mh: number,
+): void {
+  if (darkRoomPolys.length === 0) return;
   const ex = ensureExplored(mw, mh);
   const ectx = ex.canvas.getContext('2d')!;
   ectx.save();
   ectx.setTransform(ex.scale, 0, 0, ex.scale, 0, 0);
+  // Retall a la unió de sales fosques.
+  ectx.beginPath();
+  for (const rp of darkRoomPolys) {
+    if (rp.length < 3) continue;
+    rp.forEach((p, i) => i === 0 ? ectx.moveTo(p.x, p.y) : ectx.lineTo(p.x, p.y));
+    ectx.closePath();
+  }
+  ectx.clip();
   ectx.fillStyle = 'rgba(255,255,255,1)';
-  for (const { poly } of polys) {
-    if (poly.length < 3) continue;
-    ectx.beginPath();
-    poly.forEach((p, i) => i === 0 ? ectx.moveTo(p.x, p.y) : ectx.lineTo(p.x, p.y));
-    ectx.closePath(); ectx.fill();
+  for (const { li, poly, roomPts } of polys) {
+    ectx.save();
+    // ...i al radi de visió (perquè no marqui explorada la sala sencera més enllà del radi).
+    ectx.beginPath(); ectx.arc(li.x, li.y, li.r, 0, Math.PI * 2); ectx.clip();
+    if (poly.length >= 3) {
+      ectx.beginPath();
+      poly.forEach((p, i) => i === 0 ? ectx.moveTo(p.x, p.y) : ectx.lineTo(p.x, p.y));
+      ectx.closePath(); ectx.fill();
+    }
+    if (roomPts && roomPts.length >= 3) {
+      ectx.beginPath();
+      roomPts.forEach((p, i) => i === 0 ? ectx.moveTo(p.x, p.y) : ectx.lineTo(p.x, p.y));
+      ectx.closePath(); ectx.fill();
+    }
+    ectx.restore();
   }
   ectx.restore();
 }
@@ -307,7 +332,8 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       const media = fc.mediaEl;
       const mediaReady = !!media && ((media.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth > 0) || (media.tagName === 'VIDEO' && (media as HTMLVideoElement).videoWidth > 0));
       if (media && mediaReady && polys.length > 0) {
-        accumulateExplored(polys, fc.mw, fc.mh);
+        // Acumula l'explorat NOMÉS dins de sales fosques (fills) i dins del radi.
+        accumulateExplored(polys, fills.map(f => f.room.points), fc.mw, fc.mh);
         const ex = ensureExplored(fc.mw, fc.mh);
         if (!_memCanvas) _memCanvas = document.createElement('canvas');
         const mem = _memCanvas;

@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 9
+- **Les sales noves neixen FOSQUES per defecte** (ja no cal activar-ho amb clic dret).
+- **Fix boira "explorada": ja no surten zones explorades sense haver-hi entrat.** La memòria d'explorat ara només s'acumula **dins de sales fosques** i **dins del radi de visió** d'un token. Abans, qualsevol terra oberta que un token il·luminava quedava marcada; en crear-hi després una sala, sortia ja explorada. Ara una sala nova surt negra fins que un token hi entra i la veu.
+- La zona de la teva pròpia sala que il·lumines (fins al radi) també queda marcada com explorada, així que no queden forats negres darrere d'estructures dins del radi.
+
 ### v3.99 pre-release 8
 - **La llum il·lumina del tot la sala on és el token.** Dins de la teva sala veus **tot el radi de visió**, sense ombres internes de mobles, murs o estructures: l'oclusió (raycasting) només s'aplica per a la llum que s'escola cap a **altres sales** per portes i obertures. Abans, una paret o estructura dins de la sala projectava una ombra dins la mateixa sala (falca fosca dins del radi), que era el bug que es veia.
 - **Mode debug de llum (tecla `L`)**: dibuixa les parets efectives (magenta), el polígon de visió (cian) i el radi (groc) per diagnosticar la il·luminació.

@@ -146,7 +146,8 @@ export function reconcileRooms(prev: Room[], faces: Point[][]): Room[] {
       out.push({ ...prev[match], points: poly, bbox });
     } else {
       const n = ++roomSeq;
-      out.push({ id: `room_${Date.now()}_${n.toString(36)}`, points: poly, bbox, name: `Sala ${n}`, dark: false, revealed: false });
+      // Les sales noves neixen FOSQUES per defecte (no cal activar-ho amb clic dret).
+      out.push({ id: `room_${Date.now()}_${n.toString(36)}`, points: poly, bbox, name: `Sala ${n}`, dark: true, revealed: false });
     }
   }
   return out;
