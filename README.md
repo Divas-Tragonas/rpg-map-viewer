@@ -46,6 +46,9 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 11
+- **Smooth interior a la vora de la llum: la llum ja no vessa ~1px passada la paret.** L'antialiàsing de la vora del farciment deixava d'esborrar foscor ~1px més enllà de la paret, i quan un token s'hi acostava es pintava un fil de llum a la sala del costat. Ara s'aplica una **erosió morfològica** (~1px cap endins) a la màscara de llum, així la llum s'atura una mica ABANS de la paret (per dins) i no toca la sala veïna.
+
 ### v3.99 pre-release 10
 - **Fix del gradient de llum destruït a la zona de solapament.** Abans es pintava dues vegades la mateixa zona (farciment de la sala + polígon de visió), i on se superposaven l'alfa se sumava → aquella part sortia a plena brillantor i es "menjava" el gradient. Ara es calcula la **unió** (sala pròpia + vessament per portes) i s'aplica el gradient radial **una sola vegada** sobre aquesta unió (màscara + `source-in`). Les parets internes ja no fan ombra dins la sala; el raycasting només afecta el vessament cap a altres sales.
 - **Tret el traç que il·luminava la vora exterior de les parets** (el smooth exterior). La llum s'atura net a la paret.

@@ -16,9 +16,11 @@ let _darkCanvas: HTMLCanvasElement | null = null;
 // Capa de llum: s'hi acumulen tots els retalls de llum abans de compositar-los sobre la
 // foscor amb `destination-out`.
 let _lightCanvas: HTMLCanvasElement | null = null;
-// Canvas temporal per construir la màscara d'UNIÓ (sala ∪ vessament) de cada llum abans
+// Canvas temporals per construir la màscara d'UNIÓ (sala ∪ vessament) de cada llum abans
 // d'aplicar-hi el gradient una sola vegada (evita doblar l'alfa a la zona de solapament).
+// _lightTmp2 és una còpia per fer l'erosió morfològica (smooth interior a la vora).
 let _lightTmp: HTMLCanvasElement | null = null;
+let _lightTmp2: HTMLCanvasElement | null = null;
 
 // ── Boira "explorada" (estil Age of Empires) ───────────────────────────────────────
 // Màscara (alpha) en coords de MAP a resolució reduïda que acumula tot el que s'ha vist.
@@ -187,6 +189,10 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
   const tmp = _lightTmp;
   if (tmp.width !== off.width || tmp.height !== off.height) { tmp.width = off.width; tmp.height = off.height; }
   const tctx = tmp.getContext('2d')!;
+  if (!_lightTmp2) _lightTmp2 = document.createElement('canvas');
+  const tmp2 = _lightTmp2;
+  if (tmp2.width !== off.width || tmp2.height !== off.height) { tmp2.width = off.width; tmp2.height = off.height; }
+  const t2ctx = tmp2.getContext('2d')!;
   const T = octx.getTransform();
   const addPath = (c: CanvasRenderingContext2D, pts: { x: number; y: number }[]) => {
     c.beginPath();
@@ -204,6 +210,20 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
     tctx.fillStyle = '#fff';
     if (roomPts && roomPts.length >= 3) { addPath(tctx, roomPts); tctx.fill(); }
     addPath(tctx, poly); tctx.fill();
+    // 1b) Erosió morfològica ~1px cap endins (smooth INTERIOR): la vora de la màscara
+    //     s'endinsa 1px, així la llum s'atura ABANS de la paret i NO es pinta cap fil a la
+    //     sala del costat (l'antialiàsing deixava d'esborrar foscor ~1px passada la paret).
+    //     S'interseca la màscara amb ella mateixa desplaçada ±1px (destination-in); es fa
+    //     amb una còpia (tmp2) per no llegir i escriure el mateix canvas alhora.
+    t2ctx.setTransform(1, 0, 0, 1, 0, 0);
+    t2ctx.clearRect(0, 0, tmp2.width, tmp2.height);
+    t2ctx.drawImage(tmp, 0, 0);
+    tctx.setTransform(1, 0, 0, 1, 0, 0);
+    tctx.globalCompositeOperation = 'destination-in';
+    tctx.drawImage(tmp2, 1, 0); tctx.drawImage(tmp2, -1, 0);
+    tctx.drawImage(tmp2, 0, 1); tctx.drawImage(tmp2, 0, -1);
+    tctx.globalCompositeOperation = 'source-over';
+    tctx.setTransform(T);
     // 2) Aplicar el gradient radial UNA vegada sobre la unió (source-in).
     const g = tctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
     const iv = li.intensity;
