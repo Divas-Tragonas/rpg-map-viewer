@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 8
+- **La llum il·lumina del tot la sala on és el token.** Dins de la teva sala veus **tot el radi de visió**, sense ombres internes de mobles, murs o estructures: l'oclusió (raycasting) només s'aplica per a la llum que s'escola cap a **altres sales** per portes i obertures. Abans, una paret o estructura dins de la sala projectava una ombra dins la mateixa sala (falca fosca dins del radi), que era el bug que es veia.
+- **Mode debug de llum (tecla `L`)**: dibuixa les parets efectives (magenta), el polígon de visió (cian) i el radi (groc) per diagnosticar la il·luminació.
+
 ### v3.99 pre-release 7
 - **Boira "explorada" (Age of Empires) recuperada i ben feta.** A les zones fosques ja vistes però ARA no il·luminades es mostra el **mapa de fons atenuat** (saps el terreny que hi ha), però **NO els tokens/enemics** (queden amagats sota la foscor). Les zones no explorades es mantenen negres i la zona il·luminada actual es veu en viu. La memòria (`_exploredCanvas`) acumula el que s'ha vist; es composita el terreny atenuat només a `explorat ∩ fosc-no-il·luminat`.
 - **Moviment del token més ràpid (com abans) i més realista.** S'ha restaurat la velocitat i s'ha afegit suavitzat de camí (Chaikin): el recorregut vorejant parets és una **corba natural** en lloc d'una escala esglaonada. La velocitat és un sol paràmetre (`PATH_CRUISE`).

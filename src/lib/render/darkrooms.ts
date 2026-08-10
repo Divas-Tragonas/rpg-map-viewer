@@ -130,13 +130,24 @@ function lightWalls(fc: FrameContext): { a: { x: number; y: number }; b: { x: nu
   return effectiveWallsAnimated(allWalls, allDoors, id => _doorAnim.get(id) ?? 0);
 }
 
-// Esborra de la capa de foscor la zona il·luminada per cada llum: el polígon de
-// visibilitat (les parets bloquegen la llum; s'escola per les obertures/portes obertes)
-// retallat amb un gradient radial perquè la sala "es vagi il·luminant" amb la distància.
-// La llum s'atura EXACTAMENT a les parets (el polígon les respecta): res de blur ni
-// d'engreix, que feien vessar un marge de llum a la sala del costat. El gradient radial ja
-// dóna la vora exterior suau al radi de visió.
-function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: { x: number; y: number }[] }[], sc: number): void {
+// Punt dins d'un polígon (ray casting parell/senar).
+function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+// Esborra de la capa de foscor la zona il·luminada per cada llum. La llum és la UNIÓ de:
+//  (a) la SALA on és el token, retallada al radi (dins de la teva sala veus tot el radi,
+//      sense ombres internes de mobles/murs/estructures — l'oclusió només compta per passar
+//      a ALTRES sales), i
+//  (b) el polígon de visibilitat (raycasting) per a la llum que s'escola per portes i
+//      obertures cap a les sales del costat (allà sí que les parets fan ombra).
+// Tot amb un gradient radial (esvaïment al radi). La llum s'atura EXACTAMENT a les parets.
+function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[], sc: number): void {
   const off = octx.canvas;
   if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
   const lc = _lightCanvas;
@@ -147,7 +158,22 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
   lctx.setTransform(octx.getTransform());
   // Gruix (px de pantalla → unitats de mapa) del traç interior que segella la vora.
   const edge = 5 / (sc > 0 ? sc : 1);
-  for (const { li, poly } of polys) {
+  const fillClip = (pts: { x: number; y: number }[], g: CanvasGradient, li: Light, stroke: boolean) => {
+    lctx.save();
+    lctx.beginPath();
+    pts.forEach((p, i) => i === 0 ? lctx.moveTo(p.x, p.y) : lctx.lineTo(p.x, p.y));
+    lctx.closePath();
+    lctx.clip();
+    lctx.fillStyle = g;
+    lctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
+    if (stroke) {
+      // Traç de la vora RETALLAT a l'interior (clip actiu): esborra el fil fosc arran de
+      // paret SENSE vessar cap enfora (la meitat exterior del traç queda fora del clip).
+      lctx.strokeStyle = g; lctx.lineJoin = 'round'; lctx.lineWidth = edge; lctx.stroke();
+    }
+    lctx.restore();
+  };
+  for (const { li, poly, roomPts } of polys) {
     const g = lctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
     // Plena brillantor fins al 90% del radi i esvaïment només a l'últim tram: així una sala
     // més petita que el radi queda del tot il·luminada fins a les seves parets, sense un
@@ -156,21 +182,11 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
     g.addColorStop(0, `rgba(0,0,0,${iv})`);
     g.addColorStop(0.9, `rgba(0,0,0,${iv})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
-    lctx.save();
-    lctx.beginPath();
-    poly.forEach((p, i) => i === 0 ? lctx.moveTo(p.x, p.y) : lctx.lineTo(p.x, p.y));
-    lctx.closePath();
-    lctx.clip();
-    lctx.fillStyle = g;
-    lctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
-    // Traç de la vora del polígon RETALLAT a l'interior (el clip encara és actiu): esborra
-    // el fil fosc que quedava arran de paret (el polígon queda un pèl per dins) SENSE vessar
-    // cap enfora — la meitat exterior del traç queda fora del clip i es descarta.
-    lctx.strokeStyle = g;
-    lctx.lineJoin = 'round';
-    lctx.lineWidth = edge;
-    lctx.stroke();
-    lctx.restore();
+    // (a) La sala on és el token, retallada al radi: dins de la teva sala veus TOT el radi
+    //     (cap ombra interna de mobles/murs). Unió amb...
+    if (roomPts && roomPts.length >= 3) fillClip(roomPts, g, li, true);
+    // (b) ...el polígon de visibilitat (raycasting) per a la llum que s'escola a altres sales.
+    fillClip(poly, g, li, true);
   }
   octx.save();
   octx.globalCompositeOperation = 'destination-out';
@@ -267,11 +283,14 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         octx.strokeStyle = `rgba(3,4,7,${f.alpha})`;
         roomPath(octx, f.room); octx.fill(); octx.stroke();
       }
-      // Polígons de visibilitat de cada llum (calculats un cop).
-      const polys: { li: Light; poly: { x: number; y: number }[] }[] = [];
+      // Polígons de visibilitat de cada llum + la sala que conté el token (perquè dins de la
+      // seva sala vegi tot el radi, sense ombres internes).
+      const polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[] = [];
       for (const li of lights) {
         const poly = visibilityPolygon({ x: li.x, y: li.y }, walls, li.r);
-        if (poly.length >= 3) polys.push({ li, poly });
+        if (poly.length < 3) continue;
+        const room = rooms.find(rm => rm.points.length >= 3 && pointInPoly(li.x, li.y, rm.points));
+        polys.push({ li, poly, roomPts: room?.points });
       }
       // Esborra la llum actual del tot (línia de visió), sense vessament fora de les parets.
       carveLights(octx, polys, sc);
