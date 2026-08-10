@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 10
+- **Fix del gradient de llum destruït a la zona de solapament.** Abans es pintava dues vegades la mateixa zona (farciment de la sala + polígon de visió), i on se superposaven l'alfa se sumava → aquella part sortia a plena brillantor i es "menjava" el gradient. Ara es calcula la **unió** (sala pròpia + vessament per portes) i s'aplica el gradient radial **una sola vegada** sobre aquesta unió (màscara + `source-in`). Les parets internes ja no fan ombra dins la sala; el raycasting només afecta el vessament cap a altres sales.
+- **Tret el traç que il·luminava la vora exterior de les parets** (el smooth exterior). La llum s'atura net a la paret.
+
 ### v3.99 pre-release 9
 - **Les sales noves neixen FOSQUES per defecte** (ja no cal activar-ho amb clic dret).
 - **Fix boira "explorada": ja no surten zones explorades sense haver-hi entrat.** La memòria d'explorat ara només s'acumula **dins de sales fosques** i **dins del radi de visió** d'un token. Abans, qualsevol terra oberta que un token il·luminava quedava marcada; en crear-hi després una sala, sortia ja explorada. Ara una sala nova surt negra fins que un token hi entra i la veu.

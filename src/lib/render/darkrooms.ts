@@ -16,6 +16,9 @@ let _darkCanvas: HTMLCanvasElement | null = null;
 // Capa de llum: s'hi acumulen tots els retalls de llum abans de compositar-los sobre la
 // foscor amb `destination-out`.
 let _lightCanvas: HTMLCanvasElement | null = null;
+// Canvas temporal per construir la màscara d'UNIÓ (sala ∪ vessament) de cada llum abans
+// d'aplicar-hi el gradient una sola vegada (evita doblar l'alfa a la zona de solapament).
+let _lightTmp: HTMLCanvasElement | null = null;
 
 // ── Boira "explorada" (estil Age of Empires) ───────────────────────────────────────
 // Màscara (alpha) en coords de MAP a resolució reduïda que acumula tot el que s'ha vist.
@@ -171,8 +174,8 @@ function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): b
 //      a ALTRES sales), i
 //  (b) el polígon de visibilitat (raycasting) per a la llum que s'escola per portes i
 //      obertures cap a les sales del costat (allà sí que les parets fan ombra).
-// Tot amb un gradient radial (esvaïment al radi). La llum s'atura EXACTAMENT a les parets.
-function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[], sc: number): void {
+// Gradient radial (esvaïment al radi), aplicat UNA sola vegada sobre la unió.
+function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[]): void {
   const off = octx.canvas;
   if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
   const lc = _lightCanvas;
@@ -180,38 +183,40 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
   const lctx = lc.getContext('2d')!;
   lctx.setTransform(1, 0, 0, 1, 0, 0);
   lctx.clearRect(0, 0, lc.width, lc.height);
-  lctx.setTransform(octx.getTransform());
-  // Gruix (px de pantalla → unitats de mapa) del traç interior que segella la vora.
-  const edge = 5 / (sc > 0 ? sc : 1);
-  const fillClip = (pts: { x: number; y: number }[], g: CanvasGradient, li: Light, stroke: boolean) => {
-    lctx.save();
-    lctx.beginPath();
-    pts.forEach((p, i) => i === 0 ? lctx.moveTo(p.x, p.y) : lctx.lineTo(p.x, p.y));
-    lctx.closePath();
-    lctx.clip();
-    lctx.fillStyle = g;
-    lctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
-    if (stroke) {
-      // Traç de la vora RETALLAT a l'interior (clip actiu): esborra el fil fosc arran de
-      // paret SENSE vessar cap enfora (la meitat exterior del traç queda fora del clip).
-      lctx.strokeStyle = g; lctx.lineJoin = 'round'; lctx.lineWidth = edge; lctx.stroke();
-    }
-    lctx.restore();
+  if (!_lightTmp) _lightTmp = document.createElement('canvas');
+  const tmp = _lightTmp;
+  if (tmp.width !== off.width || tmp.height !== off.height) { tmp.width = off.width; tmp.height = off.height; }
+  const tctx = tmp.getContext('2d')!;
+  const T = octx.getTransform();
+  const addPath = (c: CanvasRenderingContext2D, pts: { x: number; y: number }[]) => {
+    c.beginPath();
+    pts.forEach((p, i) => i === 0 ? c.moveTo(p.x, p.y) : c.lineTo(p.x, p.y));
+    c.closePath();
   };
   for (const { li, poly, roomPts } of polys) {
-    const g = lctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
-    // Plena brillantor fins al 90% del radi i esvaïment només a l'últim tram: així una sala
-    // més petita que el radi queda del tot il·luminada fins a les seves parets, sense un
-    // marge fosc arran de paret. La intensitat (0..1) escala l'esborrat (esvaïment en morir).
+    // 1) Màscara d'UNIÓ (sala ∪ vessament per portes), plana i opaca. Pintar blanc sobre
+    //    blanc NO dobla l'alfa a la zona de solapament → un sol "total" (clau per no
+    //    destruir el gradient allà on la sala i el polígon de visió coincideixen).
+    tctx.setTransform(1, 0, 0, 1, 0, 0);
+    tctx.clearRect(0, 0, tmp.width, tmp.height);
+    tctx.setTransform(T);
+    tctx.globalCompositeOperation = 'source-over';
+    tctx.fillStyle = '#fff';
+    if (roomPts && roomPts.length >= 3) { addPath(tctx, roomPts); tctx.fill(); }
+    addPath(tctx, poly); tctx.fill();
+    // 2) Aplicar el gradient radial UNA vegada sobre la unió (source-in).
+    const g = tctx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
     const iv = li.intensity;
     g.addColorStop(0, `rgba(0,0,0,${iv})`);
     g.addColorStop(0.9, `rgba(0,0,0,${iv})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
-    // (a) La sala on és el token, retallada al radi: dins de la teva sala veus TOT el radi
-    //     (cap ombra interna de mobles/murs). Unió amb...
-    if (roomPts && roomPts.length >= 3) fillClip(roomPts, g, li, true);
-    // (b) ...el polígon de visibilitat (raycasting) per a la llum que s'escola a altres sales.
-    fillClip(poly, g, li, true);
+    tctx.globalCompositeOperation = 'source-in';
+    tctx.fillStyle = g;
+    tctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
+    tctx.globalCompositeOperation = 'source-over';
+    // 3) Acumular aquesta llum a la capa de llum.
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.drawImage(tmp, 0, 0);
   }
   octx.save();
   octx.globalCompositeOperation = 'destination-out';
@@ -317,8 +322,8 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         const room = rooms.find(rm => rm.points.length >= 3 && pointInPoly(li.x, li.y, rm.points));
         polys.push({ li, poly, roomPts: room?.points });
       }
-      // Esborra la llum actual del tot (línia de visió), sense vessament fora de les parets.
-      carveLights(octx, polys, sc);
+      // Esborra la llum actual del tot: unió de la sala pròpia + vessament per portes.
+      carveLights(octx, polys);
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(off, 0, 0);
