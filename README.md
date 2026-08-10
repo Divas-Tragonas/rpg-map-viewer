@@ -46,6 +46,16 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4 — Sales fosques, llum dinàmica i fog of war (oficial)
+Primera versió estable de tot el cicle `v3.99 pre-release`. Novetats principals:
+- **Parets → sales fosques**: el DM dibuixa parets (eina Parets, `5`) i les sales es deriven automàticament. Neixen fosques per defecte; es poden revelar/amagar (ull) i reanomenar.
+- **Portes**: entitats sobre les parets (dos clics d'amplada), obrir/tancar amb un clic; la llum i el moviment hi passen quan són obertes.
+- **Il·luminació dinàmica (fog of war)**: cada token de jugador emet llum dins del seu radi de visió; il·lumina del tot la seva sala i s'escola per portes/obertures cap a les del costat (raycasting). Les parets bloquegen la llum; s'atura net a la paret.
+- **Punts de llum (torxes/llànties)**: l'eina Llums (`6`) col·loca fonts de llum que s'encenen quan un token entra a la sala (radi regulable, només el DM veu el marcador).
+- **Memòria d'explorat (estil Age of Empires)**: les zones ja vistes es recorden amb el terreny atenuat (sense tokens); botó per **resetejar l'explorat** d'una sala.
+- **Moviment de tokens des de la pantalla de jugador**: drag amb ghost, límit per velocitat, col·lisió amb parets i camí vorejant-les (forma d'L suavitzada), amb sistema per torns.
+- **Extres**: opacitat del fons només al DM, control de visió/velocitat/bloqueig per jugador al PlayersPanel.
+
 ### v3.99 pre-release 12
 - **Punts de llum (torxes/llànties).** Nova eina "Llums" (tecla `6`) a la barra flotant: clica dins d'una sala per posar-hi una font de llum (un solet groc que **només veu el DM**). La llum **s'encén només quan un token de jugador és dins de la mateixa sala**; llavors els jugadors veuen la zona il·luminada (i el DM la veu igual). En sortir el token, la zona queda **explorada** (terreny memoritzat atenuat) però deixa de veure's. El **radi és regulable** amb el flyout (5–60 ft); seleccionant una llum el slider n'edita el radi. Arrossega una llum per moure-la, clic dret per eliminar-la. Sincronitzades al jugador i persistides a la partida.
 - **Resetejar l'explorat d'una sala.** Nou botó al menú contextual d'una sala fosca ("🌑 Resetejar explorat"): esborra la memòria del que s'hi havia vist i la sala torna a ser **negra del tot** (fog of war), sincronitzat als jugadors.
