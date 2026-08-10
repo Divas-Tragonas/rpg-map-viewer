@@ -47,6 +47,7 @@ interface Setters {
   setWalls: (v: Wall[]) => void;
   setRooms: (v: Room[]) => void;
   setDoors: (v: Door[]) => void;
+  setLights: (v: import('@/types').LightSource[]) => void;
   setTurn: (v: import('@/types').TurnState) => void;
 }
 
@@ -61,7 +62,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
-    rMeasure, rPointerPos, rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview,
+    rMeasure, rPointerPos, rWalls, rRooms, rDoors, rLights, rDoorPlacement, rDoorPreview,
     rWallPenLast, rWallChain, rWallCursor, rTurn,
   } = R;
 
@@ -76,7 +77,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current,
+      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
       activeSpells: rActiveSpells.current,
     };
   }, []);
@@ -106,7 +107,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
-      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current,
+      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
       activeSpells: rActiveSpells.current,
     };
     for (const k of Object.keys(heavy)) {
@@ -137,6 +138,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       rooms: rRooms.current,
       walls: rWalls.current,
       doors: rDoors.current,
+      lights: rLights.current,
       activeSpells: rActiveSpells.current,
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
@@ -433,7 +435,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       gridLineWidth: rGridLineWidth.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
-      walls: rWalls.current, rooms: rRooms.current, doors: rDoors.current,
+      walls: rWalls.current, rooms: rRooms.current, doors: rDoors.current, lights: rLights.current,
       turn: rTurn.current,
       drawCanvas: oc && oc.width > 1 ? oc.toDataURL('image/png') : null,
     };
@@ -517,6 +519,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.walls)         { rWalls.current = state.walls; S.setWalls(state.walls); }
       if (state.rooms)         { rRooms.current = state.rooms; S.setRooms(state.rooms); }
       if (state.doors)         { rDoors.current = state.doors; S.setDoors(state.doors); }
+      if (state.lights)        { rLights.current = state.lights; S.setLights(state.lights); }
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;

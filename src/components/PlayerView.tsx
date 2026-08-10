@@ -7,7 +7,7 @@ import {
 import {
   renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
-import { renderRooms } from '@/lib/render/darkrooms';
+import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
@@ -46,6 +46,8 @@ export function PlayerView() {
   const rWalls        = useRef<Wall[]>([]);
   // Portes: forats a les parets per on passen la llum i el moviment.
   const rDoors        = useRef<Door[]>([]);
+  // Punts de llum (torxes): il·luminen la seva sala quan hi ha un token de jugador dins.
+  const rLights       = useRef<import('@/types').LightSource[]>([]);
   const roomRevealAnimRef = useRef<Record<string, number>>({});
   const rActiveSpells = useRef<Spell[]>([]);
   const rGridVisible  = useRef(false);
@@ -500,6 +502,7 @@ export function PlayerView() {
         }
         if (msg.walls) rWalls.current = msg.walls;
         if (msg.doors) rDoors.current = msg.doors;
+        if (msg.lights) rLights.current = msg.lights;
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
@@ -623,6 +626,7 @@ export function PlayerView() {
         if (msg.rooms) rRooms.current = msg.rooms;
         if (msg.walls) rWalls.current = msg.walls;
         if (msg.doors) rDoors.current = msg.doors;
+        if (msg.lights) rLights.current = msg.lights;
         if (msg.turn) rTurn.current = msg.turn;
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
@@ -676,6 +680,9 @@ export function PlayerView() {
           if (idStr.startsWith('pl_')) _setMovePath(idStr, rPos.current[msg.id], { x: msg.x, y: msg.y });
           rPos.current = { ...rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         }
+      } else if (msg.type === 'RESET_EXPLORED') {
+        // El DM ha resetejat l'explorat d'una sala: torna a ser negra del tot.
+        clearExploredAt(msg.points);
       } else if (msg.type === 'STROKE') {
         const pts = msg.points;
         if (pts && pts.length > 1) {
@@ -948,7 +955,7 @@ export function PlayerView() {
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
-        rRooms, rWalls, rDoors, roomRevealAnimRef,
+        rRooms, rWalls, rDoors, rLights, roomRevealAnimRef,
         mediaEl: media,
       };
 

@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v3.99 pre-release 12
+- **Punts de llum (torxes/llànties).** Nova eina "Llums" (tecla `6`) a la barra flotant: clica dins d'una sala per posar-hi una font de llum (un solet groc que **només veu el DM**). La llum **s'encén només quan un token de jugador és dins de la mateixa sala**; llavors els jugadors veuen la zona il·luminada (i el DM la veu igual). En sortir el token, la zona queda **explorada** (terreny memoritzat atenuat) però deixa de veure's. El **radi és regulable** amb el flyout (5–60 ft); seleccionant una llum el slider n'edita el radi. Arrossega una llum per moure-la, clic dret per eliminar-la. Sincronitzades al jugador i persistides a la partida.
+- **Resetejar l'explorat d'una sala.** Nou botó al menú contextual d'una sala fosca ("🌑 Resetejar explorat"): esborra la memòria del que s'hi havia vist i la sala torna a ser **negra del tot** (fog of war), sincronitzat als jugadors.
+
 ### v3.99 pre-release 11
 - **Smooth interior a la vora de la llum: la llum ja no vessa ~1px passada la paret.** L'antialiàsing de la vora del farciment deixava d'esborrar foscor ~1px més enllà de la paret, i quan un token s'hi acostava es pintava un fil de llum a la sala del costat. Ara s'aplica una **erosió morfològica** (~1px cap endins) a la màscara de llum, així la llum s'atura una mica ABANS de la paret (per dins) i no toca la sala veïna.
 

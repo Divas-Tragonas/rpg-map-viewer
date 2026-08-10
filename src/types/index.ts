@@ -140,7 +140,16 @@ export interface AreaSpellPending {
   origin: Point;
 }
 
-export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall';
+export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light';
+
+// Punt de llum (torxa/llàntia) col·locat pel DM dins d'una sala. Només s'activa (i els
+// jugadors veuen la seva zona) si un token de jugador és dins de la mateixa sala.
+export interface LightSource {
+  id: string;
+  x: number;
+  y: number;
+  radiusFt: number;
+}
 
 export interface StrokeData {
   points: Point[];
@@ -288,6 +297,8 @@ export interface BCStateMessage {
   walls?: Wall[];
   // Portes (camp pesat): forats a les parets per on passen la llum i el moviment.
   doors?: Door[];
+  // Punts de llum (camp pesat): torxes/llànties col·locades pel DM dins de sales.
+  lights?: LightSource[];
   // Spells d'àrea actius (dormir/grasa) i regla de mesura: es reconcilien al STATE
   // perquè un DELETE_SPELL o un MEASURE de neteja perduts (reconnexió WS) no deixin
   // l'estat obsolet a la pantalla del jugador (camp pesat: només quan canvia la ref).
@@ -324,6 +335,7 @@ export interface BCStructMessage {
   rooms?: Room[];
   walls?: Wall[];
   doors?: Door[];
+  lights?: LightSource[];
   // Spells d'àrea actius: al STRUCT perquè un jugador que es connecta tard els vegi.
   activeSpells?: Spell[];
   // Punter i regla de mesura del DM: es reenvien al STRUCT perquè una reconnexió
@@ -355,5 +367,7 @@ export type BCMessage =
   | { type: 'TEXTREVEAL_SYNC'; pos: number; cps: number; fadeMs: number }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number }
   | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number }
+  // Reset de la memòria d'explorat d'una sala: torna a ser negra del tot (fog of war).
+  | { type: 'RESET_EXPLORED'; points: Point[] }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }
   | { type: 'EXPOSITOR_SHOW_META'; mimeType: string };

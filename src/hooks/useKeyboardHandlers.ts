@@ -141,6 +141,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         return nt;
       });
       else if (e.key === '5') setDrawTool(t => t === 'wall' ? 'none' : 'wall');
+      else if (e.key === '6') setDrawTool(t => t === 'light' ? 'none' : 'light');
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);

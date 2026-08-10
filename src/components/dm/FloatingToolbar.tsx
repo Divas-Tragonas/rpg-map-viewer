@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon } from '@/components/icons';
+import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon } from '@/components/icons';
 import { C, PALETTE } from '@/constants';
 import { GridPanel } from '@/components/dm/GridPanel';
 import type { DrawTool, PaintedZone, TokenSizeMap } from '@/types';
@@ -41,6 +41,9 @@ interface Props {
   onClearPaintedZones: () => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<SyncSocket | null>;
+  lightRadiusFt: number;
+  lightSelected: boolean;
+  onSetLightRadius: (ft: number) => void;
   grid: GridProps;
 }
 
@@ -51,6 +54,7 @@ const TOOLS: [DrawTool, string, React.ReactNode][] = [
   ['shape',   'Màgies (3)',     <TriangleIcon key="shape" size={15} />],
   ['pointer', 'Senyal (4)',     <CrosshairIcon key="pointer" size={15} />],
   ['wall',    'Parets (5)',     <WallIcon key="wall" size={15} />],
+  ['light',   'Llums (6)',      <SunIcon key="light" size={15} />],
 ];
 
 const btnBase: React.CSSProperties = {
@@ -58,9 +62,9 @@ const btnBase: React.CSSProperties = {
   borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer',
 };
 
-export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef, grid }: Props) {
+export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones, onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef, lightRadiusFt, lightSelected, onSetLightRadius, grid }: Props) {
   const [gridOpen, setGridOpen] = React.useState(false);
-  const showDrawFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer' || drawTool === 'wall';
+  const showDrawFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'pointer' || drawTool === 'wall' || drawTool === 'light';
 
   const selectTool = (t: DrawTool) => onSetDrawTool(dt => {
     const nt = dt === t ? 'none' : t;
@@ -84,7 +88,8 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
           const isPtr = t === 'pointer';
           const isNone = t === 'none';
           const isWall = t === 'wall';
-          const col = isWall ? C.accent : isPtr ? '#58a6ff' : isNone ? C.accent : drawColor;
+          const isLight = t === 'light';
+          const col = isLight ? '#ffcc33' : isWall ? C.accent : isPtr ? '#58a6ff' : isNone ? C.accent : drawColor;
           const active = drawTool === t;
           return (
             <button key={t} onClick={() => selectTool(t)} title={label}
@@ -143,6 +148,21 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
               🧱 <b style={{ color: C.text }}>Parets:</b> clica per anar posant parets; s&apos;enganxen a línies i vèrtexs existents. En tancar una geometria es crea una sala automàticament. Clic dret sobre la sala → marcar-la <b style={{ color: C.text }}>fosca</b>; l&apos;ull la revela.
               <div style={{ marginTop: 4, color: C.dim }}>Backspace = desfà l&apos;última · Esc = cancel·la la cadena{grid.gridSnap ? ' · snap a graella' : ''}</div>
               <div style={{ marginTop: 2, color: C.dim }}>Amagar una sala revelada: activa <b style={{ color: C.text }}>Shift</b> i clica-la.</div>
+            </div>
+          )}
+          {drawTool === 'light' && (
+            <div style={{ maxWidth: 230 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <span style={{ color: C.dim, fontSize: 10, flexShrink: 0 }}>Radi</span>
+                <input type="range" min={5} max={60} step={5} value={lightRadiusFt}
+                  onChange={e => onSetLightRadius(parseInt(e.target.value))}
+                  style={{ flex: 1, minWidth: 80, accentColor: '#ffcc33' }} />
+                <span style={{ color: '#ffcc33', fontSize: 10, minWidth: 30, flexShrink: 0, fontWeight: 700 }}>{lightRadiusFt}ft</span>
+              </div>
+              <div style={{ fontSize: 9.5, color: C.dim, lineHeight: 1.5 }}>
+                ☀️ <b style={{ color: C.text }}>Llums:</b> clica dins una sala per posar una torxa/llàntia. {lightSelected ? <b style={{ color: '#ffcc33' }}>El radi edita la llum seleccionada.</b> : "Selecciona'n una per canviar-ne el radi."} Arrossega per moure-la · clic dret per eliminar-la.
+                <div style={{ marginTop: 3 }}>Els jugadors només veuen la zona il·luminada quan un token és dins de la sala.</div>
+              </div>
             </div>
           )}
         </div>

@@ -31,6 +31,10 @@ interface MouseHandlerSetters {
   addDoor: (a: { x: number; y: number }, b: { x: number; y: number }) => void;
   removeDoor: (id: string) => void;
   toggleDoor: (id: string) => void;
+  addLight: (x: number, y: number) => void;
+  removeLight: (id: string) => void;
+  selectLight: (id: string | null) => void;
+  setLights: (v: import('@/types').LightSource[]) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -222,6 +226,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.rWallChain.current = [];
         R.rWallCursor.current = { x: p.x, y: p.y, onVertex: snap.onVertex };
       }
+      e.preventDefault(); return;
+    }
+
+    // Eina "Llums": clic sobre una llum existent la selecciona (i arma un drag per moure-la);
+    // clic en buit col·loca una llum nova amb el radi per defecte.
+    if (R.rDrawTool.current === 'light') {
+      const gs = R.rGridSize.current > 0 ? R.rGridSize.current : 70;
+      const hitR = Math.max(gs * 0.3, 14 / sc);
+      for (let i = R.rLights.current.length - 1; i >= 0; i--) {
+        const ls = R.rLights.current[i];
+        if (Math.hypot(mx - ls.x, my - ls.y) <= hitR) {
+          S.selectLight(ls.id);
+          R.rLightDrag.current = { id: ls.id, ox: mx - ls.x, oy: my - ls.y };
+          e.preventDefault(); return;
+        }
+      }
+      S.addLight(mx, my);
       e.preventDefault(); return;
     }
 
@@ -477,6 +498,15 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       return;
     }
 
+    // Moure una llum (eina "Llums"): reposiciona-la sota el cursor i propaga throttled.
+    if (R.rLightDrag.current) {
+      const d = R.rLightDrag.current;
+      R.rLights.current = R.rLights.current.map(l => l.id === d.id ? { ...l, x: mx - d.ox, y: my - d.oy } : l);
+      const now = Date.now();
+      if (now - R.dmPreviewBcastRef.current > 48) { R.dmPreviewBcastRef.current = now; _broadcastState({}); }
+      return;
+    }
+
     // Update marquee selection rectangle
     if (R.rAreaSelectRect.current) {
       R.rAreaSelectRect.current = { ...R.rAreaSelectRect.current, x1: mx, y1: my };
@@ -687,6 +717,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   ) => {
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
 
+    // Finalize light drag: sync React state + broadcast final position.
+    if (R.rLightDrag.current) {
+      R.rLightDrag.current = null;
+      S.setLights([...R.rLights.current]);
+      _broadcastState({});
+      return;
+    }
+
     // Finalize marquee (area) selection — collect every token whose center is inside the box
     if (R.rAreaSelectRect.current) {
       const rect = R.rAreaSelectRect.current;
@@ -855,6 +893,16 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.rDrawTool.current === 'wall') {
       const hitDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 10 / sc);
       if (hitDoor) { S.removeDoor(hitDoor.id); return; }
+    }
+    // Eina "Llums": clic dret sobre una llum l'elimina.
+    if (R.rDrawTool.current === 'light') {
+      const gs = R.rGridSize.current > 0 ? R.rGridSize.current : 70;
+      const hitR = Math.max(gs * 0.3, 14 / sc);
+      for (let i = R.rLights.current.length - 1; i >= 0; i--) {
+        const ls = R.rLights.current[i];
+        if (Math.hypot(mx - ls.x, my - ls.y) <= hitR) { S.removeLight(ls.id); return; }
+      }
+      return;
     }
     for (let i = R.rActiveSpells.current.length - 1; i >= 0; i--) {
       const sp = R.rActiveSpells.current[i];

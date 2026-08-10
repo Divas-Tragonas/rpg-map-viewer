@@ -123,6 +123,9 @@ export interface FrameContext {
   rWallCursor?:       MutableRefObject<{ x: number; y: number; onVertex: boolean } | null>;
   rHoveredRoomId?:    MutableRefObject<string | null>;
   roomRevealAnimRef?: MutableRefObject<Record<string, number>>;
+  // Punts de llum (torxes) col·locats pel DM; il·luminen la seva sala quan hi ha un token dins.
+  rLights?:           MutableRefObject<import('@/types').LightSource[]>;
+  rLightSelected?:    MutableRefObject<string | null>;
   // Element de fons (mapa) per pintar el terreny memoritzat a les zones explorades.
   mediaEl?:           HTMLImageElement | HTMLVideoElement | null;
 }

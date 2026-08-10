@@ -35,6 +35,12 @@ export function useDMRefs() {
   const rRooms          = useRef<Room[]>([]);
   // Portes: forats a les parets per on passen llum i moviment. Sincronitzades al jugador.
   const rDoors          = useRef<Door[]>([]);
+  // Punts de llum (torxes/llànties) col·locats pel DM. S'activen quan un token de jugador
+  // és dins de la mateixa sala. Sincronitzats al jugador i persistits.
+  const rLights         = useRef<import('@/types').LightSource[]>([]);
+  const rLightSelected  = useRef<string | null>(null);   // llum seleccionada (per editar-ne el radi)
+  const rNewLightRadiusFt = useRef(15);                  // radi per defecte de les llums noves (peus)
+  const rLightDrag      = useRef<{ id: string; ox: number; oy: number } | null>(null); // drag d'una llum
   // Mode de col·locació de porta (s'activa sol en tancar una sala nova; Esc l'omet).
   // `anchor` = primer clic (inici de la porta) sobre una paret; el segon clic en fixa
   // l'amplada. Sense anchor, el proper clic marca l'inici.
@@ -162,7 +168,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rDoors, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,

@@ -5,8 +5,9 @@ import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, TurnState,
+  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, LightSource, TurnState,
 } from '@/types';
+import { clearExploredAt } from '@/lib/render/darkrooms';
 import { useDMRefs } from '@/hooks/useDMRefs';
 import { useCinematic } from '@/hooks/useCinematic';
 import { useDMActions } from '@/hooks/useDMActions';
@@ -54,6 +55,9 @@ export function DMView() {
   const [walls, setWalls] = useState<Wall[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [, setDoors] = useState<Door[]>([]);
+  const [lights, setLights] = useState<LightSource[]>([]);
+  const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
+  const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [activeDrag, setActiveDrag] = useState<string | number | null>(null);
@@ -167,8 +171,9 @@ export function DMView() {
       R.rDrawTool.current = next;
       if (prev === 'pointer' && next !== 'pointer') { R.rPointerPos.current = null; R.rMeasure.current = { a: null, b: null }; }
       if (prev === 'wall' && next !== 'wall') { R.rWallPenLast.current = null; R.rWallChain.current = []; R.rWallCursor.current = null; R.rHoveredRoomId.current = null; }
+      if (prev === 'light' && next !== 'light') { R.rLightSelected.current = null; setLightSelectedId(null); R.rLightDrag.current = null; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
-      else if (next === 'wall') setCanvasCursor('crosshair');
+      else if (next === 'wall' || next === 'light') setCanvasCursor('crosshair');
       else if (next === 'none') setCanvasCursor('default');
       return next;
     });
@@ -181,7 +186,7 @@ export function DMView() {
     setPaintedZones, setExpanded, setCanUndo, setActiveSpells, setGridSize, setGridSnap,
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
     setWarningsDismissed, setGridVisible, setGridAutoSize,
-    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setTurn,
+    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setLights, setTurn,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -381,6 +386,54 @@ export function DMView() {
     setContextMenu(null);
   }, [setDrawTool, startDoorPlacement]);
 
+  // ── Punts de llum (torxes/llànties) ──────────────────────────────────────────
+  const addLight = useCallback((x: number, y: number) => {
+    const id = `light_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const nl = [...R.rLights.current, { id, x, y, radiusFt: R.rNewLightRadiusFt.current }];
+    R.rLights.current = nl; setLights(nl);
+    R.rLightSelected.current = id; setLightSelectedId(id);
+    _broadcastState({});
+  }, [R, _broadcastState]);
+
+  const removeLight = useCallback((id: string) => {
+    const nl = R.rLights.current.filter(l => l.id !== id);
+    if (nl.length === R.rLights.current.length) return;
+    R.rLights.current = nl; setLights(nl);
+    if (R.rLightSelected.current === id) { R.rLightSelected.current = null; setLightSelectedId(null); }
+    _broadcastState({});
+  }, [R, _broadcastState]);
+
+  const selectLight = useCallback((id: string | null) => {
+    R.rLightSelected.current = id; setLightSelectedId(id);
+    // El slider del radi reflecteix la llum seleccionada.
+    const ls = id ? R.rLights.current.find(l => l.id === id) : null;
+    if (ls) { R.rNewLightRadiusFt.current = ls.radiusFt; setNewLightRadiusFt(ls.radiusFt); }
+  }, [R]);
+
+  // Slider del radi: edita la llum seleccionada si n'hi ha, i sempre el valor per defecte
+  // de les llums noves.
+  const setLightRadius = useCallback((ft: number) => {
+    R.rNewLightRadiusFt.current = ft; setNewLightRadiusFt(ft);
+    const sel = R.rLightSelected.current;
+    if (sel) {
+      const nl = R.rLights.current.map(l => l.id === sel ? { ...l, radiusFt: ft } : l);
+      R.rLights.current = nl; setLights(nl);
+      _broadcastState({});
+    }
+  }, [R, _broadcastState]);
+
+  // ── Reset de l'explorat d'una sala ────────────────────────────────────────────
+  // Torna a fer negra del tot una sala ja explorada (fog of war): esborra la memòria
+  // localment (DM) i avisa els jugadors perquè esborrin la seva (RESET_EXPLORED).
+  const onResetExplored = useCallback((id: string) => {
+    const room = R.rRooms.current.find(r => r.id === id);
+    if (!room) { setContextMenu(null); return; }
+    clearExploredAt(room.points);
+    R.bcRef.current?.postMessage({ type: 'RESET_EXPLORED', points: room.points });
+    R.wsRef.current?.send(JSON.stringify({ type: 'RESET_EXPLORED', points: room.points }));
+    setContextMenu(null);
+  }, [R]);
+
   // ── BC setup (DM only receives PLAYER_READY) ──────────────────────────────
   useEffect(() => {
     const bc = new BroadcastChannel(BC_CHANNEL);
@@ -440,7 +493,7 @@ export function DMView() {
     R.rPlayers.current = players; R.rLibEnemies.current = libEnemies;
     R.rDrawColor.current = drawColor; R.rDrawSize.current = drawSize;
     R.rConditions.current = conditions; R.rPaintedZones.current = paintedZones;
-    R.rWalls.current = walls; R.rRooms.current = rooms;
+    R.rWalls.current = walls; R.rRooms.current = rooms; R.rLights.current = lights;
     R.rDefeated.current = defeated;
     R.rGridVisible.current = gridVisible; R.rGridSize.current = gridSize;
     R.rGridSnap.current = gridSnap; R.rGridAutoSize.current = gridAutoSize;
@@ -453,7 +506,7 @@ export function DMView() {
     R.rPsdEnemyOverrides.current = psdEnemyOverrides;
   }, [
     struct, vis, pos, zoom, players, libEnemies, drawColor, drawSize, conditions, paintedZones,
-    walls, rooms,
+    walls, rooms, lights,
     defeated, gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride,
     gridLineWidth, gridOriginX, gridOriginY, gridCalibrating, enemyHighlight, highlightLocked,
     selectedToken, layerImages, contextMenu, activeSpells, psdEnemyOverrides,
@@ -492,7 +545,8 @@ export function DMView() {
     setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
-  }), [redetectRooms, addDoor, removeDoor, toggleDoor]); // eslint-disable-line react-hooks/exhaustive-deps
+    addLight, removeLight, selectLight, setLights,
+  }), [redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState);
@@ -974,7 +1028,7 @@ export function DMView() {
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : (areaSelectMode || drawToolState === 'wall') ? 'crosshair' : canvasCursor }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : (areaSelectMode || drawToolState === 'wall' || drawToolState === 'light') ? 'crosshair' : canvasCursor }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={handleMouseUp}
@@ -997,6 +1051,7 @@ export function DMView() {
           onSetDrawTool={setDrawTool} onUndo={undoStroke}
           onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
           bcRef={R.bcRef} wsRef={R.wsRef}
+          lightRadiusFt={newLightRadiusFt} lightSelected={lightSelectedId !== null} onSetLightRadius={setLightRadius}
           grid={{
             gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
             rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridSnap: R.rGridSnap,
@@ -1290,6 +1345,7 @@ export function DMView() {
         onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
         onAddDoor={handleAddDoorToRoom}
+        onResetExplored={onResetExplored}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

@@ -136,8 +136,64 @@ function collectLights(fc: FrameContext): Light[] {
     if (a.i <= 0.01) continue; // llum apagada del tot
     lights.push({ x: pos.x + R, y: pos.y + R, r: a.r, intensity: a.i });
   }
+
+  // Punts de llum (torxes/llànties): NOMÉS s'encenen si un token de jugador VISIBLE i no
+  // derrotat és dins de la MATEIXA sala que la llum. Així una sala fosca sense ningú a dins
+  // queda negra encara que hi hagi torxes; en entrar-hi un token, la seva zona s'il·lumina.
+  const rooms = fc.rRooms?.current ?? [];
+  const sources = fc.rLights?.current ?? [];
+  if (sources.length > 0 && rooms.length > 0) {
+    // Centres dels tokens de jugador visibles i vius (per comprovar "és dins de la sala").
+    const tokenCenters: { x: number; y: number }[] = [];
+    for (const pl of fc.rPlayers.current) {
+      if (!pl.visible) continue;
+      const key = `pl_${pl.id}`;
+      if (fc.rDefeated.current[key]) continue;
+      const R = fc.rTokenSizeOverride.current[key] ?? 22;
+      const pos = fc.visualPosRef.current[key] ?? fc.pp[key];
+      if (!pos) continue;
+      tokenCenters.push({ x: pos.x + R, y: pos.y + R });
+    }
+    for (const ls of sources) {
+      const key = `light_${ls.id}`;
+      const room = rooms.find(rm => rm.points.length >= 3 && pointInPoly(ls.x, ls.y, rm.points));
+      let active = false;
+      if (room) {
+        for (const t of tokenCenters) { if (pointInPoly(t.x, t.y, room.points)) { active = true; break; } }
+      }
+      const targetI = active ? 1 : 0;
+      const targetR = Math.max(1, ls.radiusFt / 5) * gs;
+      let a = _lightAnim.get(key);
+      if (!a) { a = { r: targetR, i: targetI }; _lightAnim.set(key, a); }
+      a.r += (targetR - a.r) * LIGHT_R_LERP;
+      a.i += (targetI - a.i) * LIGHT_I_LERP;
+      if (Math.abs(targetR - a.r) < 0.5) a.r = targetR;
+      if (Math.abs(targetI - a.i) < 0.004) a.i = targetI;
+      seen.add(key);
+      if (a.i <= 0.01) continue;
+      lights.push({ x: ls.x, y: ls.y, r: a.r, intensity: a.i });
+    }
+  }
+
   for (const k of _lightAnim.keys()) if (!seen.has(k)) _lightAnim.delete(k);
   return lights;
+}
+
+// Esborra de la memòria d'explorat el polígon d'una sala: torna a ser negra del tot (com si
+// mai s'hi hagués entrat). Es crida al DM (localment) i al jugador (via RESET_EXPLORED).
+export function clearExploredAt(points: { x: number; y: number }[]): void {
+  if (!_exploredCanvas || points.length < 3) return;
+  const ectx = _exploredCanvas.getContext('2d')!;
+  ectx.save();
+  ectx.setTransform(_exploredScale, 0, 0, _exploredScale, 0, 0);
+  ectx.globalCompositeOperation = 'destination-out';
+  ectx.beginPath();
+  points.forEach((p, i) => i === 0 ? ectx.moveTo(p.x, p.y) : ectx.lineTo(p.x, p.y));
+  ectx.closePath();
+  ectx.fill();
+  // Un traç ample per esborrar també qualsevol vora fina que quedi arran de paret.
+  ectx.lineJoin = 'round'; ectx.lineWidth = 6; ectx.strokeStyle = '#000'; ectx.stroke();
+  ectx.restore();
 }
 
 // Fa avançar l'obertura animada de les portes cap al seu estat (obert/tancat) i retorna
@@ -558,6 +614,55 @@ export function renderDoorDraft(ctx: CanvasRenderingContext2D, fc: FrameContext)
   ctx.fillText(text, mx, my - 26);
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   ctx.restore();
+}
+
+/**
+ * Punts de llum (torxes/llànties) — NOMÉS al DM. Un solet groc de mida < mitja casella
+ * amb un anell tènue que mostra el radi que il·lumina. El jugador no veu el marcador (només
+ * la zona il·luminada, gestionada a renderRooms). La llum seleccionada es ressalta.
+ * Es dibuixa dins la transformació de mapa (ctx ja translladat/escalat).
+ */
+export function renderLightSources(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+  const rLights = fc.rLights; if (!rLights) return;
+  const lights = rLights.current;
+  if (!lights || lights.length === 0) return;
+  const { sc } = fc;
+  const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
+  const selId = fc.rLightSelected?.current ?? null;
+  const rad = gs * 0.22;            // mida del solet: menys de mitja casella
+  const ray = gs * 0.34;            // llargada dels raigs
+  for (const ls of lights) {
+    const sel = ls.id === selId;
+    // Anell tènue del radi d'il·luminació (referència pel DM).
+    ctx.save();
+    ctx.setLineDash([6 / sc, 5 / sc]);
+    ctx.strokeStyle = sel ? 'rgba(255,210,80,0.55)' : 'rgba(255,210,80,0.28)';
+    ctx.lineWidth = 1.4 / sc;
+    ctx.beginPath(); ctx.arc(ls.x, ls.y, Math.max(1, ls.radiusFt / 5) * gs, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    // Raigs del sol.
+    ctx.save();
+    ctx.strokeStyle = sel ? '#ffe066' : 'rgba(255,200,50,0.95)';
+    ctx.lineWidth = 2 / sc; ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const c = Math.cos(ang), s = Math.sin(ang);
+      ctx.beginPath();
+      ctx.moveTo(ls.x + c * rad * 1.15, ls.y + s * rad * 1.15);
+      ctx.lineTo(ls.x + c * ray, ls.y + s * ray);
+      ctx.stroke();
+    }
+    // Disc central.
+    const g = ctx.createRadialGradient(ls.x, ls.y, 0, ls.x, ls.y, rad);
+    g.addColorStop(0, '#fff4c0'); g.addColorStop(0.6, '#ffd24a'); g.addColorStop(1, '#f2a900');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(ls.x, ls.y, rad, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = sel ? '#ffffff' : 'rgba(180,120,0,0.9)';
+    ctx.lineWidth = (sel ? 2.2 : 1.4) / sc;
+    ctx.beginPath(); ctx.arc(ls.x, ls.y, rad, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
 }
 
 /**

@@ -5,7 +5,7 @@ import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
-import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft } from '@/lib/render/darkrooms';
+import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
@@ -145,6 +145,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rWallCursor: R.rWallCursor, rHoveredRoomId: R.rHoveredRoomId, roomRevealAnimRef: R.roomRevealAnimRef,
         rDoors: R.rDoors, rDoorPlacement: R.rDoorPlacement, rDoorPreview: R.rDoorPreview,
         rHoveredDoorId: R.rHoveredDoorId,
+        rLights: R.rLights, rLightSelected: R.rLightSelected,
         mediaEl: media as HTMLImageElement | HTMLVideoElement | null,
       };
 
@@ -152,6 +153,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderRoomOverlays(ctx, fc);
       renderRooms(ctx, fc);
       renderWalls(ctx, fc);
+      renderLightSources(ctx, fc);
       renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);

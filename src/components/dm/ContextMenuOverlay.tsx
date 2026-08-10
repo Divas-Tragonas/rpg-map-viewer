@@ -47,6 +47,7 @@ interface Props {
   onRenameRoom: (id: string, name: string) => void;
   onDeleteRoom: (id: string) => void;
   onAddDoor: (id: string) => void;
+  onResetExplored: (id: string) => void;
 }
 
 export function ContextMenuOverlay({
@@ -60,7 +61,7 @@ export function ContextMenuOverlay({
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
   bcRef, wsRef, onTriggerBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored,
 }: Props) {
   useEffect(() => {
     if (!contextMenu) return;
@@ -107,6 +108,12 @@ export function ContextMenuOverlay({
             style={{ width: '100%', padding: '7px', borderRadius: 6, border: '1px solid rgba(63,185,80,.45)', background: 'rgba(63,185,80,.12)', color: '#3fb950', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
             🚪 Afegir porta (clic sobre una paret)
           </button>
+          {dark && (
+            <button onMouseDown={e => { e.stopPropagation(); onResetExplored(rid); }}
+              style={{ width: '100%', padding: '7px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              🌑 Resetejar explorat (torna a negra)
+            </button>
+          )}
           <button onMouseDown={e => { e.stopPropagation(); onDeleteRoom(rid); onClose(); }}
             style={{ width: '100%', padding: '7px', borderRadius: 6, background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', color: '#f85149', cursor: 'pointer', fontSize: 12 }}>
             🗑 Eliminar sala (esborra les seves parets)
