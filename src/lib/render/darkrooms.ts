@@ -6,6 +6,11 @@ import { effectiveWalls, effectiveWallsAnimated } from '@/lib/rooms/doors';
 
 const REVEAL_LERP = 0.09;
 
+// DEBUG de llum (tecla L): dibuixa les parets efectives que veu la llum (magenta) + el
+// polígon de visió exacte (cian) + el radi (groc), per diagnosticar ombres "estranyes".
+let _lightDebug = false;
+export function toggleLightDebug(): boolean { _lightDebug = !_lightDebug; return _lightDebug; }
+
 // Capa de foscor reutilitzada entre frames (mateixa mida que el canvas principal).
 let _darkCanvas: HTMLCanvasElement | null = null;
 // Capa de llum: s'hi acumulen tots els retalls de llum abans de compositar-los sobre la
@@ -309,6 +314,26 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = MEM_DIM;
         ctx.drawImage(mem, 0, 0);
+        ctx.restore();
+      }
+
+      // DEBUG (tecla L): parets efectives (magenta) + polígon de visió (cian) + radi (groc).
+      if (_lightDebug) {
+        ctx.save();
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(255,0,255,0.95)'; ctx.lineWidth = Math.max(2 / sc, 4 / sc);
+        ctx.beginPath();
+        for (const w of walls) { ctx.moveTo(w.a.x, w.a.y); ctx.lineTo(w.b.x, w.b.y); }
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,255,255,0.9)'; ctx.lineWidth = 1.5 / sc; ctx.setLineDash([6 / sc, 4 / sc]);
+        for (const { poly } of polys) {
+          ctx.beginPath();
+          poly.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+          ctx.closePath(); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(255,255,0,0.5)'; ctx.lineWidth = 1.5 / sc;
+        for (const { li } of polys) { ctx.beginPath(); ctx.arc(li.x, li.y, li.r, 0, Math.PI * 2); ctx.stroke(); }
         ctx.restore();
       }
     }

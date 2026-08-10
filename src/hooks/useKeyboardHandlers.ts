@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import type { DrawTool } from '@/types';
 import type { DMRefs } from './useDMRefs';
+import { toggleLightDebug } from '@/lib/render/darkrooms';
 
 interface KBOpts {
   setDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
@@ -126,6 +127,8 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         if (!next) R.rAreaSelectRect.current = null;
         return;
       }
+      // Tecla L: mode debug de llum (parets efectives + polígon de visió + radi).
+      if (e.key === 'l' || e.key === 'L') { toggleLightDebug(); return; }
       if (e.key === '1') setDrawTool(t => t === 'pen' ? 'none' : 'pen');
       else if (e.key === '2') setDrawTool(t => t === 'eraser' ? 'none' : 'eraser');
       else if (e.key === '3') setDrawTool(t => t === 'shape' ? 'none' : 'shape');
