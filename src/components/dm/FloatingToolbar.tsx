@@ -145,7 +145,8 @@ export function FloatingToolbar({ drawTool, drawColor, setDrawColor, drawSize, s
           )}
           {drawTool === 'wall' && (
             <div style={{ fontSize: 9.5, color: C.dim, lineHeight: 1.5, maxWidth: 230 }}>
-              🧱 <b style={{ color: C.text }}>Parets:</b> clica per anar posant parets; s&apos;enganxen a línies i vèrtexs existents. En tancar una geometria es crea una sala automàticament. Clic dret sobre la sala → marcar-la <b style={{ color: C.text }}>fosca</b>; l&apos;ull la revela.
+              🧱 <b style={{ color: C.text }}>Parets:</b> clica per anar posant parets <b style={{ color: C.text }}>on vulguis</b>; si t&apos;acostes a una paret o vèrtex que ja hi ha, l&apos;extrem s&apos;hi <b style={{ color: C.text }}>auto-enganxa</b> (snap). En tancar una geometria es crea una sala automàticament, ja marcada com a <b style={{ color: C.text }}>fosca</b>.
+              <div style={{ marginTop: 4, color: C.dim }}>Clic dret sobre una sala → més opcions: reanomenar, treure/posar la foscor, revelar o amagar, afegir porta, resetejar l&apos;explorat i eliminar.</div>
               <div style={{ marginTop: 4, color: C.dim }}>Backspace = desfà l&apos;última · Esc = cancel·la la cadena{grid.gridSnap ? ' · snap a graella' : ''}</div>
               <div style={{ marginTop: 2, color: C.dim }}>Amagar una sala revelada: activa <b style={{ color: C.text }}>Shift</b> i clica-la.</div>
             </div>

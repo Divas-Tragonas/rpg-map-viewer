@@ -1,5 +1,5 @@
 import type { FrameContext } from './types';
-import type { Room } from '@/types';
+import type { Room, Wall, Door, Point } from '@/types';
 import { C, DEFAULT_VISION_FT } from '@/constants';
 import { visibilityPolygon } from '@/lib/rooms/visibility';
 import { effectiveWalls, effectiveWallsAnimated } from '@/lib/rooms/doors';
@@ -43,6 +43,8 @@ function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; sc
     _exploredCanvas.width = w; _exploredCanvas.height = h;
     _exploredCanvas.getContext('2d')!.clearRect(0, 0, w, h);
     _exploredSig = sig; _exploredScale = scale;
+    // La màscara s'ha reiniciat (mapa nou): cal tornar a acumular encara que res s'hagi mogut.
+    _exploredDirty = true;
   }
   return { canvas: _exploredCanvas, scale: _exploredScale };
 }
@@ -51,7 +53,7 @@ function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; sc
 // radi. Així una zona oberta (encara sense sala) que un token il·lumina NO queda marcada
 // com explorada: quan després s'hi crea una sala fosca, surt negra fins que s'hi entra.
 function accumulateExplored(
-  polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[],
+  polys: LightPoly[],
   darkRoomPolys: { x: number; y: number }[][],
   mw: number, mh: number,
 ): void {
@@ -88,7 +90,8 @@ function accumulateExplored(
   ectx.restore();
 }
 
-interface Light { x: number; y: number; r: number; intensity: number; }
+interface Light { key: string; x: number; y: number; r: number; intensity: number; }
+interface LightPoly { li: Light; poly: Point[]; roomPts?: Point[] }
 
 // Estat animat de cada llum (radi + intensitat), per suavitzar canvis de distància de
 // visió i l'esvaïment de la llum en morir. Clau = id del token (pl_*). Mòdul-level com
@@ -134,7 +137,7 @@ function collectLights(fc: FrameContext): Light[] {
     if (Math.abs(targetI - a.i) < 0.004) a.i = targetI;
     seen.add(key);
     if (a.i <= 0.01) continue; // llum apagada del tot
-    lights.push({ x: pos.x + R, y: pos.y + R, r: a.r, intensity: a.i });
+    lights.push({ key, x: pos.x + R, y: pos.y + R, r: a.r, intensity: a.i });
   }
 
   // Punts de llum (torxes/llànties): NOMÉS s'encenen si un token de jugador VISIBLE i no
@@ -171,7 +174,7 @@ function collectLights(fc: FrameContext): Light[] {
       if (Math.abs(targetI - a.i) < 0.004) a.i = targetI;
       seen.add(key);
       if (a.i <= 0.01) continue;
-      lights.push({ x: ls.x, y: ls.y, r: a.r, intensity: a.i });
+      lights.push({ key, x: ls.x, y: ls.y, r: a.r, intensity: a.i });
     }
   }
 
@@ -182,6 +185,9 @@ function collectLights(fc: FrameContext): Light[] {
 // Esborra de la memòria d'explorat el polígon d'una sala: torna a ser negra del tot (com si
 // mai s'hi hagués entrat). Es crida al DM (localment) i al jugador (via RESET_EXPLORED).
 export function clearExploredAt(points: { x: number; y: number }[]): void {
+  // Força una acumulació d'explorat al proper frame encara que res no s'hagi mogut (si no,
+  // la zona il·luminada ARA no es tornaria a memoritzar fins que algú es mogués).
+  _exploredDirty = true;
   if (!_exploredCanvas || points.length < 3) return;
   const ectx = _exploredCanvas.getContext('2d')!;
   ectx.save();
@@ -196,13 +202,31 @@ export function clearExploredAt(points: { x: number; y: number }[]): void {
   ectx.restore();
 }
 
+// Versions de les geometries d'entrada: les mutacions de parets/portes sempre creen arrays
+// NOUS (convenció del projecte), així que comparar la referència n'hi ha prou per saber si
+// la geometria ha canviat. Serveix per a la signatura de la memòria cau de visibilitat.
+let _wallsArrSeen: Wall[] | null = null;
+let _wallsVer = 0;
+let _doorsArrSeen: Door[] | null = null;
+let _doorsVer = 0;
+let _effWallsCache: { sig: string; walls: Wall[] } | null = null;
+// Quantització de l'obertura animada de porta (passos per a l'animació completa): amb un
+// valor continu, les parets efectives canviarien cada frame i la memòria cau de visibilitat
+// no encertaria mai. 24 passos són prou suaus a ull nu.
+const DOOR_STEPS = 24;
+
 // Fa avançar l'obertura animada de les portes cap al seu estat (obert/tancat) i retorna
-// les parets efectives per a la LLUM (forats de porta animats). La col·lisió usa a part la
-// versió binària (effectiveWalls).
-function lightWalls(fc: FrameContext): { a: { x: number; y: number }; b: { x: number; y: number } }[] {
+// les parets efectives per a la LLUM (forats de porta animats) + una signatura que canvia
+// només quan aquestes parets canvien de veritat. La col·lisió usa a part la versió binària
+// (effectiveWalls).
+function lightWalls(fc: FrameContext): { walls: Wall[]; sig: string } {
   const allWalls = fc.rWalls?.current ?? [];
   const allDoors = fc.rDoors?.current ?? [];
+  if (allWalls !== _wallsArrSeen) { _wallsArrSeen = allWalls; _wallsVer++; }
+  if (allDoors !== _doorsArrSeen) { _doorsArrSeen = allDoors; _doorsVer++; }
   const present = new Set<string>();
+  const quant = new Map<string, number>();
+  let animKey = '';
   for (const d of allDoors) {
     present.add(d.id);
     const tgt = d.open !== false ? 1 : 0;
@@ -211,10 +235,23 @@ function lightWalls(fc: FrameContext): { a: { x: number; y: number }; b: { x: nu
     f += (tgt - f) * DOOR_LERP;
     if (Math.abs(tgt - f) < 0.01) f = tgt;
     _doorAnim.set(d.id, f);
+    const q = Math.round(f * DOOR_STEPS);
+    quant.set(d.id, q / DOOR_STEPS);
+    animKey += `${d.id}:${q};`;
   }
   for (const k of _doorAnim.keys()) if (!present.has(k)) _doorAnim.delete(k);
-  return effectiveWallsAnimated(allWalls, allDoors, id => _doorAnim.get(id) ?? 0);
+  const sig = `${_wallsVer}/${_doorsVer}/${animKey}`;
+  if (_effWallsCache && _effWallsCache.sig === sig) return { walls: _effWallsCache.walls, sig };
+  const walls = effectiveWallsAnimated(allWalls, allDoors, id => quant.get(id) ?? 0);
+  _effWallsCache = { sig, walls };
+  return { walls, sig };
 }
+
+// Memòria cau del polígon de visibilitat per llum: el raycasting és O(vèrtexs × parets) i
+// es feia per llum i per frame, encara que ni la llum ni les parets s'haguessin mogut (el
+// cas normal entre moviments). Amb molts tokens de jugador això era el pic de CPU.
+const _visCache = new Map<string, { sig: string; poly: Point[] }>();
+let _exploredDirty = false;
 
 // Punt dins d'un polígon (ray casting parell/senar).
 function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): boolean {
@@ -233,7 +270,12 @@ function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): b
 //  (b) el polígon de visibilitat (raycasting) per a la llum que s'escola per portes i
 //      obertures cap a les sales del costat (allà sí que les parets fan ombra).
 // Gradient radial (esvaïment al radi), aplicat UNA sola vegada sobre la unió.
-function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[]): void {
+//
+// RENDIMENT: cada llum només toca el seu propi rectangle de pantalla (retall + rects
+// explícits als drawImage). Abans cada llum feia ~7 operacions sobre el canvas SENCER
+// (clear, còpia, 4 desplaçaments d'erosió i acumulació), de manera que el cost creixia amb
+// el nombre de tokens × l'àrea de la finestra — el motiu del lag amb molts jugadors.
+function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[]): void {
   const off = octx.canvas;
   if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
   const lc = _lightCanvas;
@@ -256,11 +298,23 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
     c.closePath();
   };
   for (const { li, poly, roomPts } of polys) {
+    // 0) Rectangle de pantalla que ocupa aquesta llum (el gradient ja la retalla al radi,
+    //    així que res del que es pinti fora d'aquí sobreviuria al `source-in`).
+    const cx = T.a * li.x + T.c * li.y + T.e;
+    const cy = T.b * li.x + T.d * li.y + T.f;
+    const rr = li.r * Math.abs(T.a) + 3;   // +3px de marge per a l'erosió i l'antialiàsing
+    const bx = Math.max(0, Math.floor(cx - rr)), by = Math.max(0, Math.floor(cy - rr));
+    const bw = Math.min(off.width, Math.ceil(cx + rr)) - bx;
+    const bh = Math.min(off.height, Math.ceil(cy + rr)) - by;
+    if (bw <= 0 || bh <= 0) continue;      // llum completament fora de pantalla
+
     // 1) Màscara d'UNIÓ (sala ∪ vessament per portes), plana i opaca. Pintar blanc sobre
     //    blanc NO dobla l'alfa a la zona de solapament → un sol "total" (clau per no
     //    destruir el gradient allà on la sala i el polígon de visió coincideixen).
     tctx.setTransform(1, 0, 0, 1, 0, 0);
-    tctx.clearRect(0, 0, tmp.width, tmp.height);
+    tctx.clearRect(bx, by, bw, bh);
+    tctx.save();
+    tctx.beginPath(); tctx.rect(bx, by, bw, bh); tctx.clip();
     tctx.setTransform(T);
     tctx.globalCompositeOperation = 'source-over';
     tctx.fillStyle = '#fff';
@@ -272,12 +326,14 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
     //     S'interseca la màscara amb ella mateixa desplaçada ±1px (destination-in); es fa
     //     amb una còpia (tmp2) per no llegir i escriure el mateix canvas alhora.
     t2ctx.setTransform(1, 0, 0, 1, 0, 0);
-    t2ctx.clearRect(0, 0, tmp2.width, tmp2.height);
-    t2ctx.drawImage(tmp, 0, 0);
+    t2ctx.clearRect(bx, by, bw, bh);
+    t2ctx.drawImage(tmp, bx, by, bw, bh, bx, by, bw, bh);
     tctx.setTransform(1, 0, 0, 1, 0, 0);
     tctx.globalCompositeOperation = 'destination-in';
-    tctx.drawImage(tmp2, 1, 0); tctx.drawImage(tmp2, -1, 0);
-    tctx.drawImage(tmp2, 0, 1); tctx.drawImage(tmp2, 0, -1);
+    tctx.drawImage(tmp2, bx, by, bw, bh, bx + 1, by, bw, bh);
+    tctx.drawImage(tmp2, bx, by, bw, bh, bx - 1, by, bw, bh);
+    tctx.drawImage(tmp2, bx, by, bw, bh, bx, by + 1, bw, bh);
+    tctx.drawImage(tmp2, bx, by, bw, bh, bx, by - 1, bw, bh);
     tctx.globalCompositeOperation = 'source-over';
     tctx.setTransform(T);
     // 2) Aplicar el gradient radial UNA vegada sobre la unió (source-in).
@@ -290,9 +346,11 @@ function carveLights(octx: CanvasRenderingContext2D, polys: { li: Light; poly: {
     tctx.fillStyle = g;
     tctx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
     tctx.globalCompositeOperation = 'source-over';
-    // 3) Acumular aquesta llum a la capa de llum.
+    tctx.restore();   // treu el retall
+    // 3) Acumular aquesta llum a la capa de llum (només el seu rectangle: així el que hi
+    //    hagi deixat una altra llum fora d'aquest rectangle no s'hi torna a sumar).
     lctx.setTransform(1, 0, 0, 1, 0, 0);
-    lctx.drawImage(tmp, 0, 0);
+    lctx.drawImage(tmp, bx, by, bw, bh, bx, by, bw, bh);
   }
   octx.save();
   octx.globalCompositeOperation = 'destination-out';
@@ -361,7 +419,8 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   if (fills.length > 0) {
     const lights = collectLights(fc);
     // Parets efectives per a la llum: amb els forats de porta ANIMATS (obrir/tancar suau).
-    const walls = lights.length > 0 ? lightWalls(fc) : [];
+    const lw = lights.length > 0 ? lightWalls(fc) : null;
+    const walls = lw?.walls ?? [];
     if (lights.length === 0) {
       // Sense fonts de llum: pintar la foscor directament (com sempre).
       ctx.save();
@@ -391,13 +450,27 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       }
       // Polígons de visibilitat de cada llum + la sala que conté el token (perquè dins de la
       // seva sala vegi tot el radi, sense ombres internes).
-      const polys: { li: Light; poly: { x: number; y: number }[]; roomPts?: { x: number; y: number }[] }[] = [];
+      // El polígon de cada llum es recalcula NOMÉS si la llum s'ha mogut / ha canviat de
+      // radi o si les parets efectives han canviat; si no, es reutilitza el de la memòria
+      // cau (cas normal: entre moviments res no canvia i el raycasting era gratuït).
+      const polys: LightPoly[] = [];
+      const wallsSig = lw!.sig;
+      let anyRecomputed = false;
+      const seenVis = new Set<string>();
       for (const li of lights) {
-        const poly = visibilityPolygon({ x: li.x, y: li.y }, walls, li.r);
-        if (poly.length < 3) continue;
+        seenVis.add(li.key);
+        const vsig = `${wallsSig}|${Math.round(li.x)},${Math.round(li.y)},${Math.round(li.r)}`;
+        let ent = _visCache.get(li.key);
+        if (!ent || ent.sig !== vsig) {
+          ent = { sig: vsig, poly: visibilityPolygon({ x: li.x, y: li.y }, walls, li.r) };
+          _visCache.set(li.key, ent);
+          anyRecomputed = true;
+        }
+        if (ent.poly.length < 3) continue;
         const room = rooms.find(rm => rm.points.length >= 3 && pointInPoly(li.x, li.y, rm.points));
-        polys.push({ li, poly, roomPts: room?.points });
+        polys.push({ li, poly: ent.poly, roomPts: room?.points });
       }
+      for (const k of _visCache.keys()) if (!seenVis.has(k)) { _visCache.delete(k); anyRecomputed = true; }
       // Esborra la llum actual del tot: unió de la sala pròpia + vessament per portes.
       carveLights(octx, polys);
       ctx.save();
@@ -413,8 +486,13 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       const media = fc.mediaEl;
       const mediaReady = !!media && ((media.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth > 0) || (media.tagName === 'VIDEO' && (media as HTMLVideoElement).videoWidth > 0));
       if (media && mediaReady && polys.length > 0) {
-        // Acumula l'explorat NOMÉS dins de sales fosques (fills) i dins del radi.
-        accumulateExplored(polys, fills.map(f => f.room.points), fc.mw, fc.mh);
+        // Acumula l'explorat NOMÉS dins de sales fosques (fills) i dins del radi. Si cap
+        // polígon de visió ha canviat, la màscara ja conté exactament el mateix: saltar-ho
+        // estalvia un clip + fill per llum a cada frame quiet.
+        if (anyRecomputed || _exploredDirty) {
+          _exploredDirty = false;
+          accumulateExplored(polys, fills.map(f => f.room.points), fc.mw, fc.mh);
+        }
         const ex = ensureExplored(fc.mw, fc.mh);
         if (!_memCanvas) _memCanvas = document.createElement('canvas');
         const mem = _memCanvas;

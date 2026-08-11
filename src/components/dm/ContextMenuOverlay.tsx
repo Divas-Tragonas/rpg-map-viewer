@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from '@/components/icons';
 import { CONDITIONS } from '@/constants';
 import { C } from '@/constants';
@@ -63,6 +63,12 @@ export function ContextMenuOverlay({
   onCreateGroup, onDissolveGroup, onLeaveGroup,
   onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored,
 }: Props) {
+  // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
+  // així que el botó demana confirmació en dos passos (com el ✕ del TurnTracker). Es desa
+  // l'id de la sala en comptes d'un booleà: així obrir el menú d'una altra sala ja no arriba
+  // confirmat, sense necessitat d'un efecte que reiniciï l'estat.
+  const [confirmDelRoomId, setConfirmDelRoomId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!contextMenu) return;
     const close = (e: MouseEvent) => { if (!(e.target as Element).closest?.('[data-ctxmenu]')) onClose(); };
@@ -114,10 +120,27 @@ export function ContextMenuOverlay({
               🌑 Resetejar explorat (torna a negra)
             </button>
           )}
-          <button onMouseDown={e => { e.stopPropagation(); onDeleteRoom(rid); onClose(); }}
-            style={{ width: '100%', padding: '7px', borderRadius: 6, background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', color: '#f85149', cursor: 'pointer', fontSize: 12 }}>
-            🗑 Eliminar sala (esborra les seves parets)
-          </button>
+          {confirmDelRoomId === rid ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '7px 8px', borderRadius: 6, background: 'rgba(248,81,73,.10)', border: '1px solid rgba(248,81,73,.35)' }}>
+              <span style={{ color: '#f85149', fontSize: 11, fontWeight: 700 }}>Eliminar «{contextMenu.name}»?</span>
+              <span style={{ color: C.dim, fontSize: 10, lineHeight: 1.35 }}>També s&apos;esborraran les parets que només pertanyen a aquesta sala.</span>
+              <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                <button onMouseDown={e => { e.stopPropagation(); onDeleteRoom(rid); onClose(); }}
+                  style={{ flex: 1, padding: '6px', borderRadius: 6, border: 'none', background: '#f85149', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                  Sí, eliminar
+                </button>
+                <button onMouseDown={e => { e.stopPropagation(); setConfirmDelRoomId(null); }}
+                  style={{ flex: 1, padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                  Cancel·la
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onMouseDown={e => { e.stopPropagation(); setConfirmDelRoomId(rid); }}
+              style={{ width: '100%', padding: '7px', borderRadius: 6, background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', color: '#f85149', cursor: 'pointer', fontSize: 12 }}>
+              🗑 Eliminar sala (esborra les seves parets)
+            </button>
+          )}
         </div>
       </div>
     );

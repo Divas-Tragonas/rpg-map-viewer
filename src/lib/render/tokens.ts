@@ -51,8 +51,10 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     sc, pp, isDM, s, v, rLayerImages, rConditions, rDefeated,
     defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha,
     rHighlightLocked, highlightStartRef, visualPosRef, rTokenSizeOverride, rSelectedToken, rMultiSelected,
-    rPsdEnemyOverrides, rPsdEnemyImgCache,
+    rPsdEnemyOverrides, rPsdEnemyImgCache, rTurn,
   } = fc;
+  const _turn = rTurn?.current;
+  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
 
   s.enemyRooms.forEach(room => room.enemies.forEach(en => {
     const rawPos = pp[en.id];
@@ -206,6 +208,12 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.restore();
     }
 
+    // Aro daurat del torn actiu (també per als enemics: el DM ha de veure d'un cop d'ull
+    // a qui li toca moure, no només a la barra d'iniciativa).
+    if (_activeId != null && _activeId === en.id && !isDefeated && enAlpha > 0.3) {
+      drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
+    }
+
     if (isDM && (rSelectedToken.current === en.id || rMultiSelected.current.has(en.id))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
@@ -219,8 +227,10 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
-    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha,
+    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha, rTurn,
   } = fc;
+  const _turn = rTurn?.current;
+  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
 
   rLibEnemies.current.forEach(en => {
     const rawEp = (pp[`lib_${en.id}`] as { x: number; y: number } | undefined) || { x: 0, y: 0 };
@@ -384,6 +394,11 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
         ctx.setLineDash([]);
       }
       ctx.restore();
+    }
+
+    // Aro daurat del torn actiu (veure renderEnemyTokens).
+    if (_activeId != null && _activeId === `lib_${en.id}` && !isDefeated && enAlpha > 0.3) {
+      drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
     }
 
     if (isDM && (rSelectedToken.current === `lib_${en.id}` || rMultiSelected.current.has(`lib_${en.id}`))) {

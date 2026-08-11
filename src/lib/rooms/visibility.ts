@@ -43,9 +43,19 @@ export function visibilityPolygon(origin: Point, walls: Wall[], maxR: number): P
   segs.push({ ax: L, ay: B, bx: L, by: T });
 
   // Angles candidats: tots els extrems de segment (± epsilon per doblegar cantonades).
+  // Els vèrtexs compartits entre parets (a les sales, cada cantonada la toquen 2 parets) es
+  // dedupliquen aquí. El bucle de rajos ja saltava els angles repetits després d'ordenar, o
+  // sigui que el resultat és idèntic: el que s'estalvia és construir i ordenar un array
+  // gairebé del doble de llarg a cada càlcul.
   const angles: number[] = [];
+  const seenV = new Set<number>();
   for (const s of segs) {
     for (const [px, py] of [[s.ax, s.ay], [s.bx, s.by]] as const) {
+      // Clau del vèrtex a resolució de ½ px (els extrems compartits coincideixen exactament,
+      // però el marge evita rajos duplicats per vèrtexs pràcticament iguals).
+      const vk = (Math.round(px * 2) << 16) ^ Math.round(py * 2);
+      if (seenV.has(vk)) continue;
+      seenV.add(vk);
       const a = Math.atan2(py - oy, px - ox);
       angles.push(a - EPS_ANGLE, a, a + EPS_ANGLE);
     }

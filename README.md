@@ -46,6 +46,15 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.1
+- **Rendiment de la llum amb molts tokens.** Amb una party gran l'app s'encallava calculant la il·luminació a cada frame. Dos colls d'ampolla arreglats:
+  - **Composició per llum limitada al seu rectangle.** Cada llum feia ~7 operacions sobre el canvas SENCER (netejar, copiar, els 4 desplaçaments de l'erosió i acumular), o sigui que el cost creixia amb *nombre de tokens × àrea de la finestra*. Ara cada llum només toca el rectangle de pantalla que ocupa. El resultat és **pixel a pixel idèntic** (verificat comparant les dues versions) i, en una mesura amb 6 llums a 2560×1440, la composició baixa de ~507 ms a ~62 ms per frame.
+  - **Memòria cau del polígon de visibilitat.** El raycasting contra les parets es refeia per llum i per frame encara que ni la llum ni les parets s'haguessin mogut (el cas normal entre moviments). Ara es recalcula només quan la llum canvia de posició/radi o quan canvien les parets efectives (amb l'obertura animada de porta quantitzada perquè la memòria cau encerti). La memòria d'"explorat" també s'estalvia quan cap polígon ha canviat.
+  - Els vèrtexs compartits entre parets ja no generen rajos duplicats a l'array d'angles.
+- **Els enemics ja es ressalten quan els toca moure.** L'aro daurat del torn actiu només es pintava als tokens de jugador; ara també als enemics (PSD i biblioteca), així es veu al mapa a qui li toca i no només a la barra d'iniciativa.
+- **Confirmació abans d'eliminar una sala.** El botó del menú contextual demana confirmació en dos passos (avisa que també s'esborraran les parets exclusives de la sala).
+- **Text d'ajuda de l'eina Parets corregit.** Deia que les parets "s'enganxen a línies i vèrtexs existents" i que calia clic dret per marcar la sala com a fosca; en realitat es poden posar parets on es vulgui (l'snap és una ajuda quan t'hi acostes) i les sales neixen fosques automàticament. S'hi afegeix que amb clic dret sobre una sala es despleguen la resta d'opcions.
+
 ### v4 — Sales fosques, llum dinàmica i fog of war (oficial)
 Primera versió estable de tot el cicle `v3.99 pre-release`. Novetats principals:
 - **Parets → sales fosques**: el DM dibuixa parets (eina Parets, `5`) i les sales es deriven automàticament. Neixen fosques per defecte; es poden revelar/amagar (ull) i reanomenar.
