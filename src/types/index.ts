@@ -37,6 +37,14 @@ export interface MapStructure {
   extras: PSDLayer & { children: PSDLayer[]; isGroup: true };
   roomLayers: PSDLayer[];
   enemyRooms: EnemyRoom[];
+  /**
+   * true → estructura buida creada per l'app (mapa només amb imatge de fons, sense PSD).
+   * El render loop necessita un `struct` per sortir del `if (!s) return`; amb aquesta
+   * estructura sintètica el grid, les sales, les parets, les llums i els tokens funcionen
+   * només amb la imatge. La UI que és exclusiva del PSD (arbre de capes, "Resaltar
+   * enemics", comptador d'actius) s'amaga quan és sintètica.
+   */
+  synthetic?: boolean;
 }
 
 export interface PSDInfo {

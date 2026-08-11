@@ -46,6 +46,14 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.1 — El PSD passa a ser opcional (mapa només amb imatge)
+- **Un mapa només amb la imatge de fons ja és jugable.** Fins ara, sense un arxiu de Photoshop el canvas no dibuixava res: el render loop sortia aviat (`if (!s) return`) perquè no hi havia estructura de capes. Ara, en carregar una imatge o un vídeo sense PSD es crea una **estructura buida sintètica** i tot funciona amb la imatge sola: **grid** (activar, calibrar, snap, autosize), **parets → sales fosques**, **portes**, **punts de llum** i **fog of war**, **tokens** de jugador i de biblioteca, **dibuix a ploma**, **zones màgiques**, **spells**, **regla de mesura**, **sistema per torns** i la **sincronització amb la pantalla de jugador** (STRUCT + BG).
+- **Nou panell "Sales"** al sidebar (pestanya Mapa): l'equivalent de l'arbre de capes per a un mapa dibuixat a l'app. Llista les sales detectades amb el commutador de sala fosca, l'ull de revelar/amagar, reanomenar en línia i un desplegable amb afegir porta, resetejar explorat i eliminar (amb confirmació). Passar el ratolí per una fila la ressalta al mapa. A sota, la llista de **punts de llum** amb el seu radi. Accessos directes a les eines 🧱 Parets i 🔆 Llums.
+- **La UI exclusiva del PSD s'amaga** quan no n'hi ha (arbre de capes, "Resaltar enemics", comptador d'actius i les dimensions a la caixa del PSD), en lloc de sortir buida.
+- **Un PSD il·legible ja no deixa el mapa bloquejat**: si la lectura falla es torna al mapa només amb imatge en comptes de quedar-se sense res dibuixat.
+- **Fix**: el clic dret sobre una sala detectada no obria el menú contextual si no hi havia cap PSD carregat (es sortia abans d'arribar-hi).
+- Les partides desades sense PSD es tornen a carregar igual (la marca d'estructura sintètica es conserva al fitxer de sessió).
+
 ### v4 — Sales fosques, llum dinàmica i fog of war (oficial)
 Primera versió estable de tot el cicle `v3.99 pre-release`. Novetats principals:
 - **Parets → sales fosques**: el DM dibuixa parets (eina Parets, `5`) i les sales es deriven automàticament. Neixen fosques per defecte; es poden revelar/amagar (ull) i reanomenar. Eliminar-ne una **demana confirmació** (també s'esborren les parets exclusives de la sala).

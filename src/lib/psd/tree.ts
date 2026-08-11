@@ -19,6 +19,23 @@ export function buildTree(flat: PSDLayer[]): PSDLayer[] {
   return roots;
 }
 
+/**
+ * Estructura buida per a un mapa fet només amb la imatge de fons (sense PSD).
+ * Té la mateixa forma que la d'un PSD però sense cap capa, així totes les render phases
+ * i els hit-tests hi funcionen sense branques especials: només no hi ha res del PSD.
+ */
+export function emptyStructure(): MapStructure {
+  return {
+    extras: {
+      id: -1, name: 'EXTRAS', top: 0, left: 0, bottom: 0, right: 0, w: 0, h: 0,
+      visible: true, opacity: 255, secType: 3, channelInfo: [], children: [], isGroup: true,
+    },
+    roomLayers: [],
+    enemyRooms: [],
+    synthetic: true,
+  };
+}
+
 export function validateStructure(tree: PSDLayer[]): { warnings: string[]; structure: MapStructure } {
   const fg = (n: string) => tree.find(x => x.isGroup && x.name.trim().toUpperCase() === n);
   const findBG = (ns: PSDLayer[]): PSDLayer | null => {

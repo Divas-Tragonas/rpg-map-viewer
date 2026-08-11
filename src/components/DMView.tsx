@@ -21,6 +21,7 @@ import { effectiveWalls } from '@/lib/rooms/doors';
 import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { LayerTree } from '@/components/dm/LayerTree';
+import { RoomsPanel } from '@/components/dm/RoomsPanel';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
 import { FloatingToolbar } from '@/components/dm/FloatingToolbar';
 import { EnemyLibraryPanel } from '@/components/dm/EnemyLibraryPanel';
@@ -950,8 +951,12 @@ export function DMView() {
   }, [textRevealOpen, trNextSentence, trPlay, trPause, trPrevSentence, trReset]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
-  const activeCount = struct
-    ? struct.enemyRooms.reduce((n, z) => n + z.enemies.filter(e => vis[e.id]).length, 0)
+  // `struct` també existeix en un mapa fet només amb la imatge de fons (estructura buida
+  // sintètica que desbloqueja el render loop). `psdStruct` és el PSD real: la UI que
+  // només té sentit amb capes de Photoshop es penja d'aquest, no de `struct`.
+  const psdStruct = struct && !struct.synthetic ? struct : null;
+  const activeCount = psdStruct
+    ? psdStruct.enemyRooms.reduce((n, z) => n + z.enemies.filter(e => vis[e.id]).length, 0)
     : 0;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
@@ -961,8 +966,8 @@ export function DMView() {
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <div style={{ width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
         <ImportPanel
-          bgLoaded={bgLoaded} bgName={bgName} parsing={parsing} struct={struct}
-          psdInfo={psdInfo} parseError={parseError} warnings={warnings}
+          bgLoaded={bgLoaded} bgName={bgName} parsing={parsing} struct={psdStruct}
+          psdInfo={psdStruct ? psdInfo : null} parseError={parseError} warnings={warnings}
           warningsDismissed={warningsDismissed} setWarningsDismissed={setWarningsDismissed}
           onLoadBg={loadBg} onLoadPSD={loadPSD} onLoadDemo={loadDemo}
         />
@@ -981,15 +986,29 @@ export function DMView() {
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {sidebarTab === 'mapa' && (
             <>
-              {struct && (
+              {psdStruct && (
                 <LayerTree
-                  struct={struct} vis={vis} expanded={expanded}
+                  struct={psdStruct} vis={vis} expanded={expanded}
                   activeDrag={activeDrag} selectedToken={selectedToken}
                   psdEnemyOverrides={psdEnemyOverrides} defeated={defeated}
                   setExpanded={setExpanded} setSelectedToken={setSelectedToken}
                   rSelectedToken={R.rSelectedToken}
                   onToggleVis={toggleVis} onDeleteLayer={deleteLayer} onResetToken={resetToken}
                   onAdjustPsdHp={adjustPsdEnemyHp}
+                />
+              )}
+              {bgLoaded && (
+                <RoomsPanel
+                  rooms={rooms} lights={lights} wallsCount={walls.length}
+                  wallToolActive={drawToolState === 'wall'}
+                  selectedLightId={lightSelectedId}
+                  hoveredRoomRef={R.rHoveredRoomId}
+                  onActivateWallTool={() => setDrawTool(drawToolState === 'wall' ? 'none' : 'wall')}
+                  onActivateLightTool={() => setDrawTool(drawToolState === 'light' ? 'none' : 'light')}
+                  onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
+                  onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
+                  onAddDoor={handleAddDoorToRoom} onResetExplored={onResetExplored}
+                  onSelectLight={selectLight} onRemoveLight={removeLight}
                 />
               )}
               <PlayersPanel
@@ -1015,7 +1034,7 @@ export function DMView() {
         </div>
 
         <BottomControls
-          zoom={zoom} onZoomChange={onZoomChange} psdInfo={psdInfo} struct={struct}
+          zoom={zoom} onZoomChange={onZoomChange} psdInfo={psdInfo} struct={psdStruct}
           activeCount={activeCount} layerImagesCount={Object.keys(layerImages).length}
           onSave={saveSession} onLoad={loadSession} onOpenPlayer={openPlayerWindow}
           onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
@@ -1037,7 +1056,7 @@ export function DMView() {
           onDoubleClick={onDoubleClick}
         />
         <CanvasHUD
-          ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode} struct={struct} vis={vis}
+          ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode} struct={psdStruct} vis={vis}
           enemyHighlight={enemyHighlight}
           highlightLocked={highlightLocked} gridCalibrating={gridCalibrating}
           onResetView={onResetView} onResetPrivate={onResetPrivate}
@@ -1067,7 +1086,7 @@ export function DMView() {
           turn={turn}
           players={players}
           libEnemies={libEnemies}
-          struct={struct}
+          struct={psdStruct}
           psdEnemyOverrides={psdEnemyOverrides}
           vis={vis}
           tokenGroupsRef={R.rTokenGroups}
@@ -1294,6 +1313,7 @@ export function DMView() {
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
+              <div style={{ fontSize: 11, marginTop: 6, opacity: 0.5 }}>Amb la imatge n&apos;hi ha prou: grid, sales, parets, llums i tokens<br />funcionen sense cap arxiu de Photoshop (el PSD és opcional)</div>
               <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
             </div>
           </div>

@@ -365,6 +365,21 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Arbre de capes: `buildTree` + `validateStructure` → `MapStructure`
 - Grups esperats al PSD: `zones`, `enemies`, `extras`
 
+### Mapa només amb imatge (el PSD és OPCIONAL)
+- **Problema que resol**: `tick()` (DM i jugador) surt aviat amb `if (!s) return` quan no hi ha `MapStructure`. Sense PSD no es dibuixava **res**: ni grid, ni sales, ni tokens.
+- **Solució**: en carregar un fons sense PSD es crea una **estructura buida sintètica** (`emptyStructure()` a `src/lib/psd/tree.ts` → `MapStructure` amb `extras.children: []`, `roomLayers: []`, `enemyRooms: []` i **`synthetic: true`**). Totes les render phases hi passen sense branques especials (simplement no hi ha capes de PSD a pintar) i funcionen grid, parets/sales/portes, llums i fog of war, tokens, dibuix, zones màgiques, spells, torns i el sync amb el jugador.
+- **On es crea** (`_applyImageOnlyStruct` a `useDMActions.ts`): al `load`/`loadedmetadata` del mèdia dins de `loadBg` (amb `psdInfo` = dimensions reals de la imatge) i com a fallback si `loadPSD` falla. **Mai substitueix un PSD real**: es comprova `rStruct.current && !rStruct.current.synthetic`. Envia `_sendStructState()` perquè el jugador surti també del seu `if (!s) return`.
+- **UI**: `DMView` deriva `psdStruct = struct && !struct.synthetic ? struct : null` i passa **`psdStruct`** (no `struct`) a tot el que és exclusiu del PSD: `ImportPanel`, `LayerTree`, `CanvasHUD` (botó "Resaltar"), `BottomControls` i `TurnTracker`. El render loop segueix llegint `rStruct` (la sintètica inclosa).
+- **Sessió**: `synthetic` es desa dins de `psdStruct` i es restaura a `applySessionState` (si es perdés, la UI del PSD tornaria a sortir buida en carregar la partida).
+- **Regla**: qualsevol codi nou que es pengi de `struct` ha de decidir explícitament si vol *"hi ha mapa"* (`struct`) o *"hi ha PSD"* (`psdStruct` / `!struct.synthetic`).
+
+### Panell de sales (`src/components/dm/RoomsPanel.tsx`)
+- Arbre de "capes" d'un mapa dibuixat a l'app: substitueix el `LayerTree` quan no hi ha PSD (i conviu amb ell quan n'hi ha). Es mostra sempre que `bgLoaded`.
+- Llista les **sales detectades** (`rRooms`): commutador 🌑 de sala fosca, ull de revelar/amagar (només si és fosca), nom editable en línia i desplegable amb "Afegir porta", "Resetejar explorat" (només si és fosca) i "Eliminar sala" amb **confirmació en dos passos** (es desa l'`id` pendent, no un booleà — mateix criteri que `ContextMenuOverlay`).
+- Hover d'una fila → escriu a `R.rHoveredRoomId` (ref llegida per `renderRooms`), així la sala es ressalta al canvas.
+- Secció de **punts de llum** (`rLights`): radi en peus, selecció (sincronitza el slider del flyout) i eliminar.
+- Botons d'accés directe a les eines 🧱 Parets (`5`) i 🔆 Llums (`6`).
+
 ### Eines de dibuix (barra flotant)
 - `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral).
 - Botons apilats: Selecció (`none`), Ploma, Goma, Màgies, Senyal, separador, Desfer, Esborrar tot i (condicional) Esborrar zones màgiques.
@@ -522,3 +537,4 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | `setState` sense ref mirall | UI actualitzada, render no | Actualitzar sempre `setState` + `rX.current` |
 | Nou estat no afegit a STRUCT | Jugador no rep l'estat en connectar | Afegir a `BCStructMessage`, `_sendFullState` i al seu handler |
 | `'use client'` oblidat | Error de hidratació | Tots els components amb hooks o events necessiten `'use client'` |
+| Codi nou penjat de `struct` | Apareix UI de PSD en un mapa només amb imatge (o a l'inrevés) | Usar `psdStruct` (o `!struct.synthetic`) per al que és exclusiu del PSD; `struct` només vol dir "hi ha mapa" |

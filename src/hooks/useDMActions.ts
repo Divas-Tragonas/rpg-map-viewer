@@ -2,7 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { parsePSDStructure } from '@/lib/psd/parser';
 import { extractLayerImages } from '@/lib/psd/extractor';
-import { buildTree, validateStructure } from '@/lib/psd/tree';
+import { buildTree, validateStructure, emptyStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
@@ -163,6 +163,27 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _sendStructState();
   }, [_sendStructState]);
 
+  // ── Mapa només amb imatge (sense PSD) ───────────────────────────────────────
+  // El render loop (DM i jugador) surt aviat amb `if (!s) return` quan no hi ha
+  // estructura, i sense ell no es veu ni el grid ni les sales ni els tokens. Amb un fons
+  // carregat i cap PSD es crea una estructura BUIDA sintètica: totes les render phases
+  // hi passen (no hi ha capes de PSD a pintar) i grid, parets/sales, portes, llums,
+  // tokens de jugador i de biblioteca, dibuix i màgies funcionen només amb la imatge.
+  const _applyImageOnlyStruct = useCallback(() => {
+    const m = mediaRef.current; if (!m) return;
+    const w = m.tagName === 'VIDEO' ? (m as HTMLVideoElement).videoWidth : (m as HTMLImageElement).naturalWidth;
+    const h = m.tagName === 'VIDEO' ? (m as HTMLVideoElement).videoHeight : (m as HTMLImageElement).naturalHeight;
+    if (w > 1 && h > 1) {
+      const info = { width: w, height: h };
+      rPsdInfo.current = info; S.setPsdInfo(info);
+    }
+    // Es reutilitza la sintètica existent si ja n'hi havia (mateixa referència → cap
+    // re-render ni STRUCT innecessari a cada canvi de fons).
+    const empty = rStruct.current?.synthetic ? rStruct.current : emptyStructure();
+    rStruct.current = empty; rStruct2.current = empty; S.setStruct(empty);
+    _sendStructState();
+  }, [_sendStructState]);
+
   const loadBg = useCallback(async (file: File) => {
     if (!file) return;
     const buf = await file.arrayBuffer();
@@ -178,21 +199,26 @@ export function useDMActions(R: DMRefs, S: Setters) {
     (el as HTMLImageElement).src = url;
     stage.appendChild(el);
     (mediaRef as React.MutableRefObject<HTMLImageElement | HTMLVideoElement | null>).current = el;
-    // Resize draw canvas to match BG dimensions
-    const resizeDrawCanvas = () => {
-      const oc = drawCanvasRef.current; if (!oc) return;
+    // Resize draw canvas to match BG dimensions + estructura sintètica si no hi ha PSD
+    const onMediaReady = () => {
+      const oc = drawCanvasRef.current;
       const w = isVid ? (el as HTMLVideoElement).videoWidth : (el as HTMLImageElement).naturalWidth;
       const h = isVid ? (el as HTMLVideoElement).videoHeight : (el as HTMLImageElement).naturalHeight;
-      if (w > 1 && h > 1 && (oc.width !== w || oc.height !== h)) { oc.width = w; oc.height = h; }
+      if (oc && w > 1 && h > 1 && (oc.width !== w || oc.height !== h)) { oc.width = w; oc.height = h; }
+      // Un fons més nou ja l'ha substituït: aquest `load` és obsolet.
+      if (mediaRef.current !== el) return;
+      // Amb un PSD real carregat manen les seves dimensions i la seva estructura.
+      if (rStruct.current && !rStruct.current.synthetic) return;
+      _applyImageOnlyStruct();
     };
-    if (isVid) { (el as HTMLVideoElement).addEventListener('loadedmetadata', resizeDrawCanvas, { once: true }); }
-    else { (el as HTMLImageElement).addEventListener('load', resizeDrawCanvas, { once: true }); }
+    if (isVid) { (el as HTMLVideoElement).addEventListener('loadedmetadata', onMediaReady, { once: true }); }
+    else { (el as HTMLImageElement).addEventListener('load', onMediaReady, { once: true }); }
     S.setBgLoaded(true); S.setBgName(file.name);
     _broadcastState({});
     bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: file.type, withFade: true });
     wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: file.type, withFade: true }));
     wsRef.current?.sendBinary(buf);
-  }, [_broadcastState]);
+  }, [_broadcastState, _applyImageOnlyStruct]);
 
   const loadPSD = useCallback(async (file: File) => {
     S.setParsing(true); S.setParseError(null); S.setStruct(null); S.setWarnings([]); S.setLayerImages({}); S.setWarningsDismissed(false);
@@ -200,7 +226,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       const buf = await file.arrayBuffer();
       const parsed = parsePSDStructure(buf);
       const { error, width, height, layers } = parsed;
-      if (error && layers.length === 0) { S.setParseError(error); S.setParsing(false); return; }
+      // PSD il·legible: es torna al mapa només amb imatge en lloc de deixar el mapa
+      // bloquejat (sense estructura no es renderitza res).
+      if (error && layers.length === 0) { S.setParseError(error); S.setParsing(false); _applyImageOnlyStruct(); return; }
       if (error) S.setParseError(`Aviso: ${error}`);
       const tree = buildTree(layers);
       const { warnings: w, structure: s } = validateStructure(tree);
@@ -231,9 +259,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       }
       rStruct.current = s; rStruct2.current = s;
       setTimeout(() => _sendFullState(), 100);
-    } catch (err) { S.setParseError((err as Error).message); }
+    } catch (err) { S.setParseError((err as Error).message); _applyImageOnlyStruct(); }
     S.setParsing(false);
-  }, [_sendFullState]);
+  }, [_sendFullState, _applyImageOnlyStruct]);
 
   const loadDemo = useCallback(async () => {
     try {
@@ -480,6 +508,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
           extras: rawStruct.extras,
           roomLayers: rawStruct.roomLayers ?? rawStruct.zonasLayers ?? [],
           enemyRooms: rawStruct.enemyRooms ?? rawStruct.enemyZones ?? [],
+          // Partida guardada sense PSD (només imatge): es conserva la marca perquè la UI
+          // exclusiva del PSD segueixi amagada en tornar a carregar-la.
+          synthetic: rawStruct.synthetic,
         };
         rStruct.current = psdStruct; rStruct2.current = psdStruct;
         S.setStruct(psdStruct);

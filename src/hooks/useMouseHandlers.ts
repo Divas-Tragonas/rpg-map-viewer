@@ -964,8 +964,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(`pl_${pl.id}`) }); return;
       }
     }
-    const s2 = R.rStruct.current; if (!s2) return;
-    for (const room of s2.enemyRooms) {
+    // Enemics del PSD (si n'hi ha): sense estructura es continua avall — les sales
+    // detectades han de tenir menú contextual també en un mapa només amb imatge.
+    const s2 = R.rStruct.current;
+    if (s2) for (const room of s2.enemyRooms) {
       for (let i = room.enemies.length - 1; i >= 0; i--) {
         const en = room.enemies[i];
         const ep = R.rPos.current[en.id]; if (!ep) continue;
