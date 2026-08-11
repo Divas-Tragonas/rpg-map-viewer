@@ -46,23 +46,18 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
-### v4.1
-- **Rendiment de la llum amb molts tokens.** Amb una party gran l'app s'encallava calculant la il·luminació a cada frame. Dos colls d'ampolla arreglats:
-  - **Composició per llum limitada al seu rectangle.** Cada llum feia ~7 operacions sobre el canvas SENCER (netejar, copiar, els 4 desplaçaments de l'erosió i acumular), o sigui que el cost creixia amb *nombre de tokens × àrea de la finestra*. Ara cada llum només toca el rectangle de pantalla que ocupa. El resultat és **pixel a pixel idèntic** (verificat comparant les dues versions) i, en una mesura amb 6 llums a 2560×1440, la composició baixa de ~507 ms a ~62 ms per frame.
-  - **Memòria cau del polígon de visibilitat.** El raycasting contra les parets es refeia per llum i per frame encara que ni la llum ni les parets s'haguessin mogut (el cas normal entre moviments). Ara es recalcula només quan la llum canvia de posició/radi o quan canvien les parets efectives (amb l'obertura animada de porta quantitzada perquè la memòria cau encerti). La memòria d'"explorat" també s'estalvia quan cap polígon ha canviat.
-  - Els vèrtexs compartits entre parets ja no generen rajos duplicats a l'array d'angles.
-- **Els enemics ja es ressalten quan els toca moure.** L'aro daurat del torn actiu només es pintava als tokens de jugador; ara també als enemics (PSD i biblioteca), així es veu al mapa a qui li toca i no només a la barra d'iniciativa.
-- **Confirmació abans d'eliminar una sala.** El botó del menú contextual demana confirmació en dos passos (avisa que també s'esborraran les parets exclusives de la sala).
-- **Text d'ajuda de l'eina Parets corregit.** Deia que les parets "s'enganxen a línies i vèrtexs existents" i que calia clic dret per marcar la sala com a fosca; en realitat es poden posar parets on es vulgui (l'snap és una ajuda quan t'hi acostes) i les sales neixen fosques automàticament. S'hi afegeix que amb clic dret sobre una sala es despleguen la resta d'opcions.
-
 ### v4 — Sales fosques, llum dinàmica i fog of war (oficial)
 Primera versió estable de tot el cicle `v3.99 pre-release`. Novetats principals:
-- **Parets → sales fosques**: el DM dibuixa parets (eina Parets, `5`) i les sales es deriven automàticament. Neixen fosques per defecte; es poden revelar/amagar (ull) i reanomenar.
+- **Parets → sales fosques**: el DM dibuixa parets (eina Parets, `5`) i les sales es deriven automàticament. Neixen fosques per defecte; es poden revelar/amagar (ull) i reanomenar. Eliminar-ne una **demana confirmació** (també s'esborren les parets exclusives de la sala).
 - **Portes**: entitats sobre les parets (dos clics d'amplada), obrir/tancar amb un clic; la llum i el moviment hi passen quan són obertes.
 - **Il·luminació dinàmica (fog of war)**: cada token de jugador emet llum dins del seu radi de visió; il·lumina del tot la seva sala i s'escola per portes/obertures cap a les del costat (raycasting). Les parets bloquegen la llum; s'atura net a la paret.
 - **Punts de llum (torxes/llànties)**: l'eina Llums (`6`) col·loca fonts de llum que s'encenen quan un token entra a la sala (radi regulable, només el DM veu el marcador).
 - **Memòria d'explorat (estil Age of Empires)**: les zones ja vistes es recorden amb el terreny atenuat (sense tokens); botó per **resetejar l'explorat** d'una sala.
 - **Moviment de tokens des de la pantalla de jugador**: drag amb ghost, límit per velocitat, col·lisió amb parets i camí vorejant-les (forma d'L suavitzada), amb sistema per torns.
+- **Rendiment de la llum amb molts tokens**: la il·luminació escalava amb *nombre de tokens × àrea de la finestra* i saturava l'app amb una party gran. Dos colls d'ampolla resolts:
+  - **Composició per llum limitada al seu rectangle.** Cada llum feia ~7 operacions sobre el canvas SENCER (netejar, copiar, els 4 desplaçaments de l'erosió i acumular); ara només toca el rectangle de pantalla que ocupa. El resultat és **pixel a pixel idèntic** (verificat comparant les dues versions) i, en una mesura amb 6 llums a 2560×1440, la composició baixa de ~507 ms a ~62 ms per frame.
+  - **Memòria cau del polígon de visibilitat.** El raycasting contra les parets es refeia per llum i per frame encara que ni la llum ni les parets s'haguessin mogut (el cas normal entre moviments). Ara es recalcula només quan la llum canvia de posició/radi o quan canvien les parets efectives (amb l'obertura animada de porta quantitzada perquè la memòria cau encerti). La memòria d'"explorat" també s'estalvia els frames sense canvis, i els vèrtexs compartits entre parets ja no generen rajos duplicats.
+- **Sistema per torns**: aro daurat al token que té el torn, pintat a **totes** les famílies de tokens (jugadors i enemics PSD i de biblioteca), perquè al mapa es vegi a qui li toca moure sense mirar la barra d'iniciativa.
 - **Extres**: opacitat del fons només al DM, control de visió/velocitat/bloqueig per jugador al PlayersPanel.
 
 ### v3.99 pre-release 12
