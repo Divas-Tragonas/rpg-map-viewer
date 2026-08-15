@@ -46,6 +46,15 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.2 — La pantalla de jugador va molt més fluida amb sales fosques
+- **Memòria cau del rasteritzat de cada llum** (`_maskCache` a `render/darkrooms.ts`). Calcular la llum d'un token (màscara sala ∪ visió → erosió → gradient) és el gruix del cost del frame, i es refeia per a **totes** les llums a cada frame encara que només se n'hagués mogut una. Ara cada llum es reutilitza mentre no canviï res que en determini els píxels (parets/portes, càmera, posició/radi/intensitat). Movent un token amb una party de 5: **98 ms → 52 ms per frame**; amb 8 jugadors: **133 ms → 51 ms** (el cost ja gairebé no depèn de la mida del grup). Amb tothom quiet: **94 ms → 45 ms**.
+- **`_lightCanvas` només es neteja i es composita a la finestra que ocupen les llums**, en lloc de dues passades de pantalla completa per frame.
+- **Culling de les sales fora de pantalla**: les sales fosques que no es veuen ja no es tracen (farciment + contorn al jugador; contorns, noms i ull al DM). La memòria d'explorat continua fent servir *totes* les sales, perquè el que s'explora fora de càmera ha de quedar memoritzat igual.
+- **El terreny memoritzat (fog explorat) es composita només al rectangle de les sales fosques visibles**, no a tota la pantalla.
+- **`accumulateExplored`** construeix el retall de sales per llum (només les que toquen el seu cercle) en lloc d'unir els polígons de totes les sales del mapa a cada frame.
+- Cerca de la sala que conté un punt amb descart previ per bbox (`roomAt`).
+- Sense canvis visuals: el resultat és el mateix píxel a píxel.
+
 ### v4.1 — El PSD passa a ser opcional (mapa només amb imatge)
 - **Un mapa només amb la imatge de fons ja és jugable.** Fins ara, sense un arxiu de Photoshop el canvas no dibuixava res: el render loop sortia aviat (`if (!s) return`) perquè no hi havia estructura de capes. Ara, en carregar una imatge o un vídeo sense PSD es crea una **estructura buida sintètica** i tot funciona amb la imatge sola: **grid** (activar, calibrar, snap, autosize), **parets → sales fosques**, **portes**, **punts de llum** i **fog of war**, **tokens** de jugador i de biblioteca, **dibuix a ploma**, **zones màgiques**, **spells**, **regla de mesura**, **sistema per torns** i la **sincronització amb la pantalla de jugador** (STRUCT + BG).
 - **Nou panell "Sales"** al sidebar (pestanya Mapa): l'equivalent de l'arbre de capes per a un mapa dibuixat a l'app. Llista les sales detectades amb el commutador de sala fosca, l'ull de revelar/amagar, reanomenar en línia i un desplegable amb afegir porta, resetejar explorat i eliminar (amb confirmació). Passar el ratolí per una fila la ressalta al mapa. A sota, la llista de **punts de llum** amb el seu radi. Accessos directes a les eines 🧱 Parets i 🔆 Llums.
