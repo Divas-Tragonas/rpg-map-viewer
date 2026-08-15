@@ -39,10 +39,15 @@ function ScreensChip({ playerScreens, camAr }: { playerScreens: Props['playerScr
   const worst = rows.reduce((m, r) => Math.max(m, r.ex ? r.ex.pct : 0), 0);
   const none = ids.length === 0;
   const col = none ? C.dim : worst >= 15 ? '#e3b341' : '#4ade80';
+  // Les pantalles del mateix PC arriben pel BroadcastChannel; les de fora (tablet per
+  // wifi) només si la API reenvia el missatge VIEWPORT. Es diu explícitament perquè un
+  // recompte curt no es llegeixi com "no hi ha ningú més connectat".
+  const NOTE = 'Les pantalles del mateix ordinador es detecten sempre; les de fora (tablet per wifi) només si la API reenvia el missatge VIEWPORT.';
   const title = none
-    ? 'Cap pantalla de jugador connectada (o són una versió antiga que no reporta la mida).'
-    : rows.map(r => `${r.s.w}×${r.s.h} (${r.ar.toFixed(2)}:1)` + (r.ex ? ` · veu un ${r.ex.pct}% més d'${r.ex.axis === 'w' ? 'amplada' : 'alçada'}` : '')).join('\n')
-      + '\n\nTots els jugadors veuen com a mínim tot el teu enquadrament.';
+    ? `Cap pantalla de jugador detectada.\n\n${NOTE}`
+    : rows.map(r => `${r.s.w}×${r.s.h} (${r.ar.toFixed(2)}:1) · veu un ${r.ex ? r.ex.pct : 0}% més d'${r.ex && r.ex.axis === 'w' ? 'amplada' : 'alçada'}`).join('\n')
+      + '\n\nTots els jugadors veuen com a mínim tot el teu enquadrament.'
+      + `\n${NOTE}`;
   return (
     <div title={title}
       style={{ background: 'rgba(10,13,18,.92)', border: `1px solid ${col}55`, borderRadius: 6, padding: '5px 9px', fontSize: 10, color: col, fontWeight: 700, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 5, cursor: 'help' }}>
