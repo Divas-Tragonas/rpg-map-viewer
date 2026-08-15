@@ -151,18 +151,16 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | PLAYER_READY | —                                              | Client connectat, sol·licita STRUCT |
 | VIEWPORT     | { id: string, w: number, h: number }           | Mida del canvas d'aquella pantalla  |
 
-⚠️ PENDENT AL SERVIDOR (no bloqueja res). `VIEWPORT` l'envia cada client en
-connectar, en redimensionar la finestra i cada 15s (heartbeat). El DM en fa la
-llista de pantalles connectades del seu HUD i hi calcula quant de mapa veu de
-més cadascuna. Entre finestres del MATEIX ordinador viatja pel BroadcastChannel
-i ja funciona sense tocar la API; les pantalles de fora (tablet per wifi) només
-hi surten quan el servidor el reenviï al rol=dm com qualsevol altre missatge
-client→dm (si el relay ja és genèric, no cal cap canvi; si filtra per tipus,
-afegir-hi `VIEWPORT`). Mentrestant el frontend degrada sol: el xip del HUD
-compta les pantalles que sí que detecta i ho diu al seu tooltip.
+`VIEWPORT` l'envia cada client en connectar, en redimensionar la finestra i cada
+15s (heartbeat). El servidor el reenvia al rol=dm com qualsevol altre missatge
+client→dm. El DM en fa la llista de pantalles connectades del seu HUD i hi
+calcula quant de mapa veu de més cadascuna. Entre finestres del MATEIX ordinador
+viatja pel BroadcastChannel, així que el xip funciona igualment sense la API.
 
-La resta del canvi de càmera (camp `cam` a STATE/STRUCT) NO necessita cap canvi
-a la API: és un camp més dins d'un missatge que el servidor ja reenvia opac.
+El camp `cam` de STATE/STRUCT no va requerir cap canvi al servidor: és un camp
+més dins d'un missatge que ja es reenvia opac.
+
+Per verificar el contracte del relay: `node scripts/check-sync.mjs [ws://host:3000] [SYNC_KEY]`
 
 ### Relay de moviment de tokens entre clients (TOKEN_RELAY)
 

@@ -51,7 +51,7 @@ l'estat complet al DM en tornar.
 - **Ara viatja l'enquadrament en coordenades de MAPA** (`cam`: centre + amplada/alçada visibles, `src/lib/camera.ts`) i cada pantalla l'hi fa **encaixar dins** (regla "contain"). Conseqüència garantida: **cap pantalla no veu mai menys que el DM**; si el format no coincideix, la diferència surt com a marge extra de mapa, mai com a retall. Verificat sobre 1210 combinacions de mapa, finestra, zoom i pan.
 - **Es reenquadra sol quan canvia una finestra**: girar la tablet, entrar a pantalla completa o moure la finestra del DM a un altre monitor ja no descol·loca res (abans la mida només es llegia en connectar).
 - **Nou indicador 🖥 al HUD del DM** amb les pantalles de jugador connectades i quant de mapa veuen **de més** que ell (les pantalles reporten la seva mida amb el missatge `VIEWPORT`). El DM ja no ha d'endevinar què hi ha a l'altra banda.
-- **Res d'això necessita cap canvi a la API**: `cam` és un camp més dins de missatges que el servidor ja reenvia. L'únic pendent (opcional) és que la API reenviï `VIEWPORT` perquè les pantalles de fora del PC també surtin al comptador 🖥; les del mateix ordinador ja hi surten.
+- El camp `cam` no necessita cap canvi a la API (és un camp més dins de missatges que el servidor ja reenvia). Per al comptador 🖥, la API reenvia `VIEWPORT` client→dm; les pantalles del mateix ordinador hi surten igualment via `BroadcastChannel`. Nou script de comprovació del contracte del WS: `node scripts/check-sync.mjs [ws://host:3000] [SYNC_KEY]`.
 - La vista privada del DM (Maj) continua sent local i no es propaga.
 
 ### v4.2 — La pantalla de jugador va molt més fluida amb sales fosques

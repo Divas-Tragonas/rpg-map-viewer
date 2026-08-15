@@ -39,10 +39,10 @@ function ScreensChip({ playerScreens, camAr }: { playerScreens: Props['playerScr
   const worst = rows.reduce((m, r) => Math.max(m, r.ex ? r.ex.pct : 0), 0);
   const none = ids.length === 0;
   const col = none ? C.dim : worst >= 15 ? '#e3b341' : '#4ade80';
-  // Les pantalles del mateix PC arriben pel BroadcastChannel; les de fora (tablet per
-  // wifi) només si la API reenvia el missatge VIEWPORT. Es diu explícitament perquè un
-  // recompte curt no es llegeixi com "no hi ha ningú més connectat".
-  const NOTE = 'Les pantalles del mateix ordinador es detecten sempre; les de fora (tablet per wifi) només si la API reenvia el missatge VIEWPORT.';
+  // Les del mateix PC arriben pel BroadcastChannel i les de fora pel WebSocket de la API
+  // (relay de VIEWPORT). Una pantalla apareix aquí uns segons després d'obrir-se i marxa
+  // ~50s després de tancar-se, així que val la pena dir-ho al tooltip.
+  const NOTE = 'Cada pantalla reporta la seva mida en connectar-se, en canviar-la i cada 15s.';
   const title = none
     ? `Cap pantalla de jugador detectada.\n\n${NOTE}`
     : rows.map(r => `${r.s.w}×${r.s.h} (${r.ar.toFixed(2)}:1) · veu un ${r.ex ? r.ex.pct : 0}% més d'${r.ex && r.ex.axis === 'w' ? 'amplada' : 'alçada'}`).join('\n')
