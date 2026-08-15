@@ -46,6 +46,13 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.3 — El que veu el DM és el que veuen els jugadors (càmera independent del format)
+- **Arreglat: els jugadors no veien el mateix tros de mapa que el DM.** La càmera es sincronitzava com a `zoom` + `panOffset` en **píxels de la pantalla del DM**, i cada pantalla aplicava després la seva pròpia escala d'ajust (`min(W/mw, H/mh)`). Amb finestres de mida o format diferents (monitor del DM, tele dels jugadors, tablet 4:3) el mateix desplaçament en píxels movia una quantitat de mapa diferent i cada pantalla retallava per un costat: el DM tenia un enemic o una porta a la vora de la seva pantalla i a l'altra banda no hi era, **sense cap indici que allò passés**.
+- **Ara viatja l'enquadrament en coordenades de MAPA** (`cam`: centre + amplada/alçada visibles, `src/lib/camera.ts`) i cada pantalla l'hi fa **encaixar dins** (regla "contain"). Conseqüència garantida: **cap pantalla no veu mai menys que el DM**; si el format no coincideix, la diferència surt com a marge extra de mapa, mai com a retall. Verificat sobre 1210 combinacions de mapa, finestra, zoom i pan.
+- **Es reenquadra sol quan canvia una finestra**: girar la tablet, entrar a pantalla completa o moure la finestra del DM a un altre monitor ja no descol·loca res (abans la mida només es llegia en connectar).
+- **Nou indicador 🖥 al HUD del DM** amb les pantalles de jugador connectades i quant de mapa veuen **de més** que ell (les pantalles reporten la seva mida amb el missatge `VIEWPORT`). El DM ja no ha d'endevinar què hi ha a l'altra banda.
+- La vista privada del DM (Maj) continua sent local i no es propaga.
+
 ### v4.2 — La pantalla de jugador va molt més fluida amb sales fosques
 - **Memòria cau del rasteritzat de cada llum** (`_maskCache` a `render/darkrooms.ts`). Calcular la llum d'un token (màscara sala ∪ visió → erosió → gradient) és el gruix del cost del frame, i es refeia per a **totes** les llums a cada frame encara que només se n'hagués mogut una. Ara cada llum es reutilitza mentre no canviï res que en determini els píxels (parets/portes, càmera, posició/radi/intensitat). Movent un token amb una party de 5: **98 ms → 52 ms per frame**; amb 8 jugadors: **133 ms → 51 ms** (el cost ja gairebé no depèn de la mida del grup). Amb tothom quiet: **94 ms → 45 ms**.
 - **`_lightCanvas` només es neteja i es composita a la finestra que ocupen les llums**, en lloc de dues passades de pantalla completa per frame.

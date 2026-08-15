@@ -177,6 +177,7 @@ src/
 │   ├── useKeyboardHandlers.ts
 │   └── useWheelZoom.ts
 ├── lib/
+│   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
 │   ├── psd/
 │   │   ├── parser.ts       # parsePSDStructure(buffer) → ParsedPSD
 │   │   ├── extractor.ts    # extractLayerImages → Record<number, HTMLCanvasElement>
@@ -323,6 +324,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `TEXTREVEAL_SYNC` | DM→Jugador | Front de revelació (`pos`) streamejat a ~30fps |
 | `TEXTREVEAL_HIDE` | DM→Jugador | Amagar revelador de text |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
+| `VIEWPORT` | Jugador→DM | Mida del canvas d'aquella pantalla (`{id,w,h}`). El DM en fa la llista del HUD 🖥 |
 | `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
 | `RESET_EXPLORED` | DM→Jugador | Reset de la memòria d'explorat d'una sala (torna a ser negra del tot). Porta el polígon `points`; DM i jugador criden `clearExploredAt(points)` a `darkrooms.ts` |
@@ -498,8 +500,18 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Editar l'ordre**: botó **⚙** a la barra activa un mode edició on els chips es poden **arrossegar** (HTML5 drag) per reordenar `order` (`reorderTurn`, que manté actiu el mateix token recalculant `turnIndex`). En mode edició, clicar el chip actiu no passa torn.
 - **Acabar combat**: el botó ✕ demana **confirmació** ("Finalitzar? Sí/No") per evitar clics accidentals.
 
+### Càmera compartida — independent de la mida i el format de finestra (`src/lib/camera.ts`)
+- **Problema que resol**: la càmera es sincronitzava com `{ zoom, panOffset }` amb `panOffset` en **píxels de pantalla del DM**, i cada pantalla hi aplicava després la seva pròpia escala d'ajust `min(W/mw, H/mh)`. Amb finestres de mida o format diferents, el mateix `panOffset` desplaçava una quantitat de mapa diferent i el rectangle visible depenia del format: en fer zoom, **cada pantalla retallava per un costat diferent**. El DM tenia contingut a la vora de la seva pantalla i els jugadors no el veien, sense cap indici.
+- **Model**: el que viatja és `cam: CamRect { cx, cy, w, h }` — el **rectangle de MAPA** que enquadra el DM. Camp lleuger de `STATE`/`STRUCT` (4 números, s'envia sempre). `zoom`/`panOffset` es continuen enviant **només per compatibilitat amb clients antics**.
+- **DM** (`useRafLoop` escriu `rDmCam` cada frame; `_currentCam()` a `useDMActions` el recalcula **al moment d'enviar**): `viewRect()` a partir de `rZoom`/`rPanOffset` — **mai** de `dmLocalZoom`/`dmLocalPan` (vista privada) ni de la càmera de la cinemàtica, que són locals. Després `clampCamToMap()`: no es demana a les altres pantalles que reservin espai per als marges buits del DM (amb formats molt diferents això empetitia molt el mapa a l'altra banda); la **mida** del rectangle es conserva i només es desplaça cap endins, així que tot el contingut de mapa que veu el DM hi continua sent.
+  - ⚠️ **No llegir `rDmCam` directament dins del missatge**: el tick l'escriu un cop per frame i les interaccions (roda, pan) broadcastegen **síncronament dins del seu handler**, o sigui que s'enviaria l'enquadrament del frame ANTERIOR. Com que després d'una roda de zoom no arriba cap més missatge, el jugador es quedava un pas de zoom enrere per sempre (~12% d'enquadrament). Sempre `_currentCam()`.
+- **Jugador** (`PlayerView`): desa `cam` a `rCam` i **cada frame** el tradueix al seu `{zoom, pan}` amb `camToView()` (regla **contain**: `sc = min(W/cam.w, H/cam.h)`), escrivint-lo a `rZoom`/`rPanOffset` perquè la resta del codi (LERP i hit-test del drag de tokens) el llegeixi com sempre. Com que es recalcula cada frame amb la mida REAL d'ara, **girar la tablet o canviar de mida reenquadra tot sol** sense esperar cap missatge. Si el DM és antic i no envia `cam`, es cau al model vell.
+- **Garantia**: amb la regla contain, **cap pantalla no veu mai menys que el DM**; una de format diferent veu **més** mapa als costats. Verificat sobre 1210 combinacions de mapa/finestra/zoom/pan.
+- **El DM redimensiona**: el tick detecta el canvi de `W×H` i rebroadcasteja (throttle 120ms amb reintent: si es descarta l'enviament, `prevWH` NO s'actualitza i el frame següent hi torna, així la mida final sempre arriba).
+- **HUD 🖥 (`CanvasHUD` → `ScreensChip`)**: les pantalles de jugador reporten la seva mida amb `VIEWPORT {id,w,h}` (en connectar, en redimensionar i cada 15s de heartbeat); el DM les desa a `rPlayerScreens` i oblida les que fa >50s que no diuen res. El xip mostra quantes n'hi ha i, al tooltip, quant de mapa veu **de més** cadascuna (`extraSeen`). El format de l'enquadrament es mostreja cada 700ms a l'estat `camAr` — **no llegir `rDmCam` durant el render** (és una ref que escriu el tick; el HUD no es refrescaria).
+
 ### Vista privada DM
-- `Ctrl+scroll/drag`: zoom i pan locals, no sincronitzats al jugador
+- `Maj+scroll/drag` (toggle `rShiftPanToggle`): zoom i pan locals, **no** sincronitzats al jugador (no entren a `cam`)
 - Refs: `dmLocalPan`, `dmLocalZoom` — animació de retorn suau (`dmPrivateReturnAnim`)
 
 ### Opacitat del fons (només DM)
@@ -544,3 +556,5 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Nou estat no afegit a STRUCT | Jugador no rep l'estat en connectar | Afegir a `BCStructMessage`, `_sendFullState` i al seu handler |
 | `'use client'` oblidat | Error de hidratació | Tots els components amb hooks o events necessiten `'use client'` |
 | Codi nou penjat de `struct` | Apareix UI de PSD en un mapa només amb imatge (o a l'inrevés) | Usar `psdStruct` (o `!struct.synthetic`) per al que és exclusiu del PSD; `struct` només vol dir "hi ha mapa" |
+| Sincronitzar càmera en píxels de pantalla | Els jugadors veuen un tros de mapa diferent del DM segons la mida/format de finestra | Enviar `cam` (coords de mapa) i traduir-lo a cada pantalla amb `camToView` |
+| Llegir `rDmCam` dins del missatge en lloc de `_currentCam()` | El jugador es queda un pas de zoom/pan enrere | El ref l'escriu el tick un cop per frame; els handlers d'interacció envien abans del frame següent |

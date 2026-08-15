@@ -18,7 +18,8 @@ import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { computePath, smoothPath } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState } from '@/types';
+import { camToView } from '@/lib/camera';
+import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 export function PlayerView() {
@@ -70,6 +71,11 @@ export function PlayerView() {
   const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
+  // Enquadrament del DM en coordenades de MAPA. És l'autoritat de la càmera: cada frame
+  // es tradueix al zoom/pan d'AQUESTA finestra (regla "contain" a `camToView`), així el
+  // format i la mida de pantalla deixen de canviar què es veu. `rZoom`/`rPanOffset`
+  // (píxels del DM) només s'usen si el DM és una versió antiga que no envia `cam`.
+  const rCam          = useRef<CamRect | null>(null);
   const visualZoomRef = useRef(1);
   const visualPanRef  = useRef({ x: 0, y: 0 });
   const visualPosRef  = useRef<PosMap>({});
@@ -115,6 +121,19 @@ export function PlayerView() {
 
   const bcRef = useRef<BroadcastChannel | null>(null);
   const wsRef = useRef<SyncSocket | null>(null);
+  // Identificador d'aquesta pantalla (efímer, per sessió de pestanya): permet al DM
+  // distingir-la de la resta al llistat de pantalles connectades del HUD.
+  // (Es genera al primer report, no al render: el render ha de ser pur.)
+  const screenIdRef = useRef('');
+  const _reportViewport = useCallback(() => {
+    const c = canvasRef.current; if (!c) return;
+    const w = c.clientWidth, h = c.clientHeight;
+    if (!w || !h) return;
+    if (!screenIdRef.current) screenIdRef.current = Math.random().toString(36).slice(2, 8);
+    const msg = { type: 'VIEWPORT', id: screenIdRef.current, w, h };
+    bcRef.current?.postMessage(msg);
+    wsRef.current?.send(JSON.stringify(msg));
+  }, []);
   const pendingBgMetaRef = useRef<{ mimeType: string; withFade?: boolean } | null>(null);
   const pendingExpMetaRef = useRef<{ mimeType: string } | null>(null);
   const rafRef = useRef<number>(0);
@@ -504,6 +523,7 @@ export function PlayerView() {
         if (msg.doors) rDoors.current = msg.doors;
         if (msg.lights) rLights.current = msg.lights;
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
+        if (msg.cam)           rCam.current           = msg.cam;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
         if (msg.gridSnap      !== undefined) rGridSnap.current      = msg.gridSnap;
@@ -610,6 +630,7 @@ export function PlayerView() {
         }
         if (msg.zoom  !== undefined) rZoom.current = msg.zoom;
         if (msg.panOffset) rPanOffset.current = msg.panOffset;
+        if (msg.cam) rCam.current = msg.cam;
         if (msg.players)   rPlayers.current = msg.players;
         if (msg.conditions)  rConditions.current = msg.conditions;
         if (msg.defeated) {
@@ -795,8 +816,9 @@ export function PlayerView() {
     };
 
     bc.postMessage({ type: 'PLAYER_READY' });
+    _reportViewport();
     return () => bc.close();
-  }, [_loadBgFromUrl, _bgChanged, _reconcileSpells]);
+  }, [_loadBgFromUrl, _bgChanged, _reconcileSpells]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── WebSocket setup (receives same messages as BC, for cross-device iPad) ──
   useEffect(() => {
@@ -855,10 +877,25 @@ export function PlayerView() {
       // send() el descartaria) garanteix que el DM rep PLAYER_READY i respon
       // amb l'estat complet (BG + STRUCT).
       ws.send(JSON.stringify({ type: 'PLAYER_READY' }));
+      _reportViewport();
     });
     wsRef.current = ws;
     return () => { ws.close(); wsRef.current = null; };
   }, [_loadBgFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Format de pantalla → DM ───────────────────────────────────────────────
+  // El DM no pot saber com és de gran ni de quin format és cada pantalla connectada.
+  // Amb `cam` (enquadrament de mapa) ningú no veu MENYS que ell, però una pantalla més
+  // ampla sí que veu MÉS: aquest report permet que el DM ho vegi al HUD i no es pensi
+  // que el marc que composa és exactament el que hi ha a l'altra banda.
+  useEffect(() => {
+    _reportViewport();
+    const onResize = () => _reportViewport();
+    window.addEventListener('resize', onResize);
+    // Heartbeat: el DM oblida les pantalles que fa massa que no diuen res (tancades).
+    const iv = setInterval(_reportViewport, 15000);
+    return () => { window.removeEventListener('resize', onResize); clearInterval(iv); };
+  }, [_reportViewport]);
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
@@ -882,6 +919,16 @@ export function PlayerView() {
       let mw = 1920, mh = 1080;
       if (media?.tagName === 'IMG'   && media.naturalWidth)  { mw = media.naturalWidth;  mh = media.naturalHeight; }
       if (media?.tagName === 'VIDEO' && media.videoWidth)    { mw = media.videoWidth;    mh = media.videoHeight; }
+
+      // Càmera: l'autoritat és l'enquadrament de MAPA del DM (`rCam`), que es tradueix al
+      // zoom/pan d'aquesta finestra amb la seva mida REAL d'ara. Es recalcula cada frame,
+      // així un canvi de mida (rotar la tablet, pantalla completa, barra del navegador)
+      // reenquadra tot sol sense esperar cap missatge del DM. Es desa a `rZoom`/`rPanOffset`
+      // perquè la resta del codi (LERP i hit-test del drag) el llegeixi com sempre.
+      if (rCam.current) {
+        const t = camToView(rCam.current, W, H, mw, mh);
+        rZoom.current = t.zoom; rPanOffset.current = t.pan;
+      }
 
       const cinCam = cinematicCamRef.current;
       const _tgtZ   = cinCam.active ? cinCam.tgtZoom  : rZoom.current;

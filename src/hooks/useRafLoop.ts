@@ -7,6 +7,7 @@ import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/l
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
+import { viewRect, clampCamToMap } from '@/lib/camera';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
 
@@ -25,6 +26,8 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
     let prevBgStyle = '';
     let prevBgEl: HTMLElement | null = null;
     let prevBgOpacity = -1;
+    let prevWH = '';
+    let resizeBcastAt = 0;
     const txCache: Record<string, HTMLCanvasElement> = {};
 
     const tick = () => {
@@ -78,6 +81,22 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       }
       const sc = Math.min(W / mw, H / mh) * z;
       const ox = (W - mw * sc) / 2 + pan.x, oy = (H - mh * sc) / 2 + pan.y;
+
+      // Enquadrament COMPARTIT en coordenades de MAPA: sense la vista privada (Ctrl) ni
+      // la càmera de la cinemàtica, que són locals del DM. És el que viatja al jugador
+      // dins `cam` i el que fa que totes les pantalles enquadrin el mateix tros de mapa
+      // sigui quina sigui la seva mida o el seu format (veure `src/lib/camera.ts`).
+      R.rDmCam.current = clampCamToMap(viewRect(W, H, mw, mh, R.rZoom.current, R.rPanOffset.current), mw, mh);
+      // Redimensionar la finestra del DM canvia l'enquadrament sense passar per cap
+      // interacció: si no es reenvia, els jugadors es queden amb el marc antic.
+      const whNow = `${W}x${H}`;
+      // (Throttle amb reintent: si es descarta l'enviament, `prevWH` NO s'actualitza i el
+      // frame següent hi torna, així la mida final sempre acaba arribant.)
+      if (whNow !== prevWH) {
+        const nowR = Date.now();
+        if (!prevWH) prevWH = whNow;
+        else if (nowR - resizeBcastAt > 120) { resizeBcastAt = nowR; prevWH = whNow; broadcastDmPreview(); }
+      }
 
       // Sync background DOM element position
       if (media) {

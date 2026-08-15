@@ -274,12 +274,22 @@ export type ConditionsMap = Record<string, string[]>;
 export type DefeatedMap = Record<string, boolean>;
 export type TokenSizeMap = Record<string, number>;
 
+/**
+ * Enquadrament de la càmera en coordenades de MAPA (centre + extensió visible).
+ * Independent de la mida i el format de la finestra: veure `src/lib/camera.ts`.
+ */
+export interface CamRect { cx: number; cy: number; w: number; h: number }
+
 export interface BCStateMessage {
   type: 'STATE';
   vis?: VisMap;
   pos?: PosMap;
+  /** @deprecated Càmera en píxels de pantalla del DM: només per a clients antics. Usa `cam`. */
   zoom?: number;
+  /** @deprecated Càmera en píxels de pantalla del DM: només per a clients antics. Usa `cam`. */
   panOffset?: Point;
+  /** Enquadrament autoritatiu del DM en coords de mapa (mana sobre `zoom`/`panOffset`). */
+  cam?: CamRect;
   players?: Player[];
   conditions?: ConditionsMap;
   defeated?: DefeatedMap;
@@ -329,6 +339,8 @@ export interface BCStructMessage {
   defeated: DefeatedMap;
   paintedZones: PaintedZone[];
   panOffset: Point;
+  /** Enquadrament autoritatiu del DM en coords de mapa (mana sobre `zoom`/`panOffset`). */
+  cam?: CamRect;
   gridVisible: boolean;
   gridSize: number;
   gridSnap: boolean;
@@ -367,6 +379,9 @@ export type BCMessage =
   | { type: 'BOSS_INTRO'; tokenId: number | string; bossName: string; tokenPos: Point | null; portraitDataUrl: string | null }
   | { type: 'BOSS_INTRO_SKIP' }
   | { type: 'PLAYER_READY' }
+  // Format de pantalla d'un client (jugador→DM): el DM llista les pantalles connectades
+  // i avisa de quant de mapa veuen fora del seu enquadrament.
+  | { type: 'VIEWPORT'; id: string; w: number; h: number }
   | { type: 'EXPOSITOR_SHOW'; buffer: ArrayBuffer; mimeType: string }
   | { type: 'EXPOSITOR_HIDE' }
   | { type: 'EXPOSITOR_SYNC'; zoom: number; panXNorm: number; panYNorm: number; kbTxPct: number; kbTyPct: number }

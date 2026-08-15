@@ -8,7 +8,8 @@ import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { pruneDoors } from '@/lib/rooms/doors';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
-import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point } from '@/types';
+import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect } from '@/types';
+import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
@@ -56,10 +57,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
     bcRef, wsRef, rVis, rPos, rZoom, rPanOffset, rPlayers, rLibEnemies, rConditions, rDefeated,
     rPaintedZones, rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride,
     rGridLineWidth, rGridOriginX, rGridOriginY, rEnemyHighlight, rHighlightLocked, rHighlightAlpha,
-    rActiveSpells, rStruct, rStruct2, dmLocalPan, dmLocalZoom, dmPreviewBcastRef,
+    rActiveSpells, rStruct, rStruct2, dmLocalPan, dmLocalZoom, dmPreviewBcastRef, rDmCam,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan, rLayerImages, rLayerUrls,
     rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
-    stageRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
+    stageRef, canvasRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
     gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
     rMeasure, rPointerPos, rWalls, rRooms, rDoors, rLights, rDoorPlacement, rDoorPreview,
@@ -82,12 +83,31 @@ export function useDMActions(R: DMRefs, S: Setters) {
     };
   }, []);
 
+  // Enquadrament compartit en coords de mapa, calculat AL MOMENT D'ENVIAR.
+  // ⚠️ No llegir `rDmCam` directament al missatge: el tick l'escriu un cop per frame i les
+  // interaccions (roda del ratolí, pan) broadcastegen de forma síncrona DINS del seu propi
+  // handler, així que s'enviava l'enquadrament del frame ANTERIOR. Com que després d'una
+  // roda de zoom no arriba cap altre missatge, el jugador es quedava un pas de zoom enrere
+  // per sempre (mesurat: ~12% de diferència d'enquadrament).
+  const _currentCam = useCallback((): CamRect | undefined => {
+    const c = canvasRef.current;
+    const W = c?.clientWidth ?? 0, H = c?.clientHeight ?? 0;
+    if (!W || !H) return rDmCam.current ?? undefined;
+    const { mw, mh } = mediaSize(mediaRef.current);
+    const cam = clampCamToMap(viewRect(W, H, mw, mh, rZoom.current, rPanOffset.current), mw, mh);
+    rDmCam.current = cam;
+    return cam;
+  }, []);
+
   const _broadcastState = useCallback((extra: Record<string, unknown> = {}) => {
     const _isDMPrev = dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1;
     const msg: Record<string, unknown> = {
       type: 'STATE',
       vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
       panOffset: rPanOffset.current,
+      // Enquadrament en coords de mapa: és el que mana al jugador. `zoom`/`panOffset`
+      // (píxels de la pantalla del DM) es mantenen només per compatibilitat.
+      cam: _currentCam(),
       gridVisible: rGridVisible.current, gridSize: rGridSize.current,
       gridSnap: rGridSnap.current,
       gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
@@ -127,6 +147,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       layerImageUrls: rLayerUrls.current,
       conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, panOffset: rPanOffset.current,
+      cam: _currentCam(),
       gridVisible: rGridVisible.current, gridSize: rGridSize.current,
       gridSnap: rGridSnap.current,
       gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,

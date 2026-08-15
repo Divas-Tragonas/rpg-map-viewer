@@ -60,6 +60,11 @@ export function DMView() {
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
+  // Pantalles de jugador connectades (id → mida), reportades pel missatge VIEWPORT.
+  const [playerScreens, setPlayerScreens] = useState<Record<string, { w: number; h: number; ts: number }>>({});
+  // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
+  // a baixa freqüència perquè el HUD no re-renderitzi a 60fps mentre el DM fa pan/zoom.
+  const [camAr, setCamAr] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [activeDrag, setActiveDrag] = useState<string | number | null>(null);
   const [canUndo, setCanUndo] = useState(false);
@@ -435,6 +440,43 @@ export function DMView() {
     setContextMenu(null);
   }, [R]);
 
+  // ── Pantalles de jugador connectades ──────────────────────────────────────
+  // Cada pantalla reporta la seva mida (VIEWPORT). Amb l'enquadrament en coords de mapa
+  // ningú no veu MENYS que el DM, però una pantalla d'un altre format veu MÉS: el HUD ho
+  // mostra perquè el DM sàpiga què hi ha realment a l'altra banda.
+  const _registerScreen = useCallback((id: string, w: number, h: number) => {
+    if (!w || !h) return;
+    const prev = R.rPlayerScreens.current[id];
+    R.rPlayerScreens.current = { ...R.rPlayerScreens.current, [id]: { w, h, ts: Date.now() } };
+    // Re-render només quan canvia alguna cosa visible (el heartbeat cada 15s no en fa).
+    if (!prev || prev.w !== w || prev.h !== h) setPlayerScreens(R.rPlayerScreens.current);
+  }, [R]);
+
+  // Oblidar les pantalles que fa massa que no reporten (pestanya tancada): el heartbeat
+  // del jugador va cada 15s, així que 50s de marge cobreix reconnexions i suspensions.
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const now = Date.now();
+      const cur = R.rPlayerScreens.current;
+      const kept = Object.fromEntries(Object.entries(cur).filter(([, s]) => now - s.ts < 50000));
+      if (Object.keys(kept).length !== Object.keys(cur).length) {
+        R.rPlayerScreens.current = kept; setPlayerScreens(kept);
+      }
+    }, 10000);
+    return () => clearInterval(iv);
+  }, [R]);
+
+  // Mostreig del format de l'enquadrament per al HUD (fora del render: `rDmCam` és una ref
+  // que escriu el tick a 60fps i llegir-la en render no refrescaria res).
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const c = R.rDmCam.current;
+      const ar = c ? Math.round((c.w / Math.max(c.h, 1e-6)) * 1000) / 1000 : null;
+      setCamAr(prev => (prev === ar ? prev : ar));
+    }, 700);
+    return () => clearInterval(iv);
+  }, [R]);
+
   // ── BC setup (DM only receives PLAYER_READY) ──────────────────────────────
   useEffect(() => {
     const bc = new BroadcastChannel(BC_CHANNEL);
@@ -444,6 +486,8 @@ export function DMView() {
       if (msg?.type === 'PLAYER_READY') {
         _sendFullState();
         trResendShowRef.current();
+      } else if (msg?.type === 'VIEWPORT' && msg.id) {
+        _registerScreen(msg.id, msg.w, msg.h);
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment fet des de la pantalla de jugador (mateix ordinador via BC). La validació
         // (bloqueig, torn actiu i saldo de peus) i la propagació viuen a handlePlayerTokenMove.
@@ -456,11 +500,13 @@ export function DMView() {
   // ── WebSocket setup (network sync for cross-device iPad/player) ───────────
   useEffect(() => {
     const ws = createSyncSocket('dm', (ev) => {
-      let msg: { type: string; id?: number | string; x?: number; y?: number };
+      let msg: { type: string; id?: number | string; x?: number; y?: number; w?: number; h?: number };
       try { msg = JSON.parse(ev.data as string); } catch { return; }
       if (msg.type === 'PLAYER_READY') {
         _sendFullState();
         trResendShowRef.current();
+      } else if (msg.type === 'VIEWPORT' && msg.id !== undefined && msg.w && msg.h) {
+        _registerScreen(String(msg.id), msg.w, msg.h);
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment des de la pantalla de jugador (per xarxa). Mateixa validació + propagació
         // que la via BC (bloqueig, torn actiu i saldo de peus) a handlePlayerTokenMove.
@@ -1062,6 +1108,7 @@ export function DMView() {
           onResetView={onResetView} onResetPrivate={onResetPrivate}
           onToggleEnemyHighlight={onToggleEnemyHighlight}
           onToggleHighlightLocked={onToggleHighlightLocked}
+          playerScreens={playerScreens} camAr={camAr}
         />
         <FloatingToolbar
           drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}

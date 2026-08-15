@@ -122,8 +122,8 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 
 | type                | Contingut addicional                                            | Descripció                         |
 |---------------------|-----------------------------------------------------------------|------------------------------------|
-| STATE               | Camps de BCStateMessage (vis, pos, zoom, players, gridSnap, activeSpells, measure...) | Delta d'estat            |
-| STRUCT              | Estat complet inicial (BCStructMessage, inclou activeSpells + measure) | Enviat en reconnexió / late join |
+| STATE               | Camps de BCStateMessage (vis, pos, cam, zoom, players, gridSnap, activeSpells, measure...) | Delta d'estat       |
+| STRUCT              | Estat complet inicial (BCStructMessage, inclou cam + activeSpells + measure) | Enviat en reconnexió / late join |
 | BG_META             | { mimeType: string, withFade?: boolean }                        | Capçalera del frame binari BG      |
 | EXPOSITOR_SHOW_META | { mimeType: string }                                            | Capçalera del frame binari expositor |
 | STROKE              | { points, color, size, tool }                                   | Traç de dibuix                     |
@@ -149,6 +149,13 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 |--------------|------------------------------------------------|-------------------------------------|
 | TOKEN_MOVE   | { id: number | string, x: number, y: number }  | Client mou token (iPad drag)        |
 | PLAYER_READY | —                                              | Client connectat, sol·licita STRUCT |
+| VIEWPORT     | { id: string, w: number, h: number }           | Mida del canvas d'aquella pantalla  |
+
+`VIEWPORT` l'envia cada client en connectar, en redimensionar la finestra i cada
+15s (heartbeat). El DM en fa la llista de pantalles connectades del seu HUD i hi
+calcula quant de mapa veu de més cadascuna. El servidor només l'ha de reenviar
+al rol=dm com qualsevol altre missatge client→dm; si el servidor filtra per
+tipus, cal afegir-hi `VIEWPORT` a la llista permesa.
 
 ### Relay de moviment de tokens entre clients (TOKEN_RELAY)
 

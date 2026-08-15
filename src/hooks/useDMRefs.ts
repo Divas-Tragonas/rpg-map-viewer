@@ -4,7 +4,7 @@ import type {
   MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
   Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
-  Wall, Room, Door, TurnState,
+  Wall, Room, Door, TurnState, CamRect,
 } from '@/types';
 import type { CinematicTimeline } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
@@ -141,6 +141,12 @@ export function useDMRefs() {
   const gridCalibHoverRef = useRef<{ hx: number; hy: number } | null>(null);
   const highlightStartRef = useRef<number | null>(null);
   const dmPreviewBcastRef = useRef(0);
+  // Enquadrament COMPARTIT del DM en coords de mapa (sense la vista privada Ctrl):
+  // el recalcula `useRafLoop` cada frame i és el que viatja al jugador dins `cam`.
+  const rDmCam            = useRef<CamRect | null>(null);
+  // Pantalles de jugador connectades (missatge VIEWPORT): id → format i últim contacte.
+  // Serveix per avisar el DM de quant de mapa veuen fora del seu marc.
+  const rPlayerScreens    = useRef<Record<string, { w: number; h: number; ts: number }>>({});
   const zoneAppearRef     = useRef<Record<string, number>>({});
   // Pan toggle modes (tap key once to activate, tap again to deactivate + restore)
   const rCtrlPanToggle   = useRef(false);
@@ -181,7 +187,7 @@ export function useDMRefs() {
     visualZoomRef, visualPanRef,
     zoneDragRef, areaSpellDragRef, defeatedAnimRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
     rPointerPos, rMeasure, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
-    gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, zoneAppearRef,
+    gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, rDmCam, rPlayerScreens, zoneAppearRef,
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
     cinematicOrigZoomRef, cinematicOrigPanRef,
