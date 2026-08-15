@@ -698,9 +698,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     };
     const np = snapTokenPos({ x: mx - ox, y: my - oy }, id);
     const nextPos = { ...R.rPos.current, [id]: np };
+    delete R.rMovePath.current[String(id)];  // el DM mana: cancel·la l'animació de camí pendent
     if (R.groupDragRef.current) {
       for (const [sid, off] of R.groupDragRef.current) {
         nextPos[sid] = snapTokenPos({ x: mx - off.ox, y: my - off.oy }, sid);
+        delete R.rMovePath.current[String(sid)];
       }
     }
     R.rPos.current = nextPos;

@@ -1,7 +1,7 @@
 import type { Condition, Element } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.3';
+export const APP_VERSION = 'v4.4';
 
 export const CONDITIONS: Condition[] = [
   { id: 'grappled',      label: 'Agarrado',     bg: '#6b7280', tint: null      },

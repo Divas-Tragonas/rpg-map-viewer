@@ -46,6 +46,13 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.4 — El DM veu el desplaçament dels tokens que mouen els jugadors
+- **Els tokens moguts des de `/player` ja no salten de cop a la pantalla del DM.** Fins ara el DM només veia la posició final i no sabia per on havia passat el token (ni si havia vorejat una paret o havia creuat una porta). Ara reprodueix la **mateixa animació de desplaçament** que les pantalles de jugador: velocitat de creuer constant seguint el camí real (forma d'L, suavitzat) i frenada suau al final.
+- Quan no hi ha grid ni parets (o el moviment és d'una sola casella) el token es desplaça en **línia recta animada** en lloc de teleportar-se.
+- La llum del token acompanya l'animació també al DM, així que veu exactament el mateix que els jugadors.
+- El que mou el DM amb el ratolí continua sent instantani (el token segueix el cursor), i arrossegar un token o fer Ctrl+Z cancel·la qualsevol animació pendent.
+- El càlcul del camí que abans estava duplicat entre la pantalla de jugador i el drag passa a un únic `buildMovePath` (`src/lib/rooms/pathing.ts`), compartit ara també pel DM.
+
 ### v4.3 — El que veu el DM és el que veuen els jugadors (càmera independent del format)
 - **Arreglat: els jugadors no veien el mateix tros de mapa que el DM.** La càmera es sincronitzava com a `zoom` + `panOffset` en **píxels de la pantalla del DM**, i cada pantalla aplicava després la seva pròpia escala d'ajust (`min(W/mw, H/mh)`). Amb finestres de mida o format diferents (monitor del DM, tele dels jugadors, tablet 4:3) el mateix desplaçament en píxels movia una quantitat de mapa diferent i cada pantalla retallava per un costat: el DM tenia un enemic o una porta a la vora de la seva pantalla i a l'altra banda no hi era, **sense cap indici que allò passés**.
 - **Ara viatja l'enquadrament en coordenades de MAPA** (`cam`: centre + amplada/alçada visibles, `src/lib/camera.ts`) i cada pantalla l'hi fa **encaixar dins** (regla "contain"). Conseqüència garantida: **cap pantalla no veu mai menys que el DM**; si el format no coincideix, la diferència surt com a marge extra de mapa, mai com a retall. Verificat sobre 1210 combinacions de mapa, finestra, zoom i pan.

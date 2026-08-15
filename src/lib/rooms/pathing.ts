@@ -162,6 +162,37 @@ export function smoothPath(pts: Point[], iterations = 2): Point[] {
   return cur;
 }
 
+/** Casella [col, fila] que ocupa un token amb cantonada superior esquerra `pos` i radi `R`. */
+export function cellOf(pos: Point, R: number, grid: CellGridInfo): [number, number] {
+  const { gs, gox, goy } = grid;
+  return [Math.floor((pos.x + R - gox) / gs), Math.floor((pos.y + R - goy) / gs)];
+}
+
+/**
+ * Polilínia suavitzada que ha de recórrer un token per anar de `from` a `to` (coords de
+ * cantonada del token, com `rPos`): el camí real vorejant les parets (forma d'L) quan hi
+ * ha grid i parets, o la línia recta si no n'hi ha (només amb `straightFallback`).
+ * Inclou l'origen i acaba EXACTE al destí. Retorna `null` si no cal animar cap camí
+ * (llavors el moviment és el LERP recte de sempre).
+ */
+export function buildMovePath(
+  from: Point,
+  to: Point,
+  o: { walls: Wall[]; grid: CellGridInfo; R: number; maxCells?: number; straightFallback?: boolean },
+): Point[] | null {
+  const { walls, grid, R, maxCells = 260, straightFallback = false } = o;
+  const straight = (): Point[] | null =>
+    straightFallback && (from.x !== to.x || from.y !== to.y) ? [{ ...from }, { ...to }] : null;
+  if (grid.gs <= 0 || walls.length === 0) return straight();
+  const [sCol, sRow] = cellOf(from, R, grid);
+  const [dCol, dRow] = cellOf(to, R, grid);
+  const pts = computePath(walls, sCol, sRow, dCol, dRow, grid, maxCells);
+  if (!pts || pts.length < 2) return straight();
+  const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
+  wp[wp.length - 1] = { x: to.x, y: to.y };  // acabar exacte al destí
+  return smoothPath([from, ...wp], 2);
+}
+
 /**
  * Camí més curt (Dijkstra 8-dir amb cost real, mateixes regles de paret que
  * `computeReachableCells`) de la casella d'origen a la de destí. Retorna la llista de

@@ -107,6 +107,10 @@ export function useDMRefs() {
   const rPanOffset      = useRef<Point>({ x: 0, y: 0 });
   const roomAnimRef     = useRef<Record<string, number>>({});
   const visualPosRef    = useRef<PosMap>({});
+  // Camí pendent d'animar per token (tokenId → polilínia + distància recorreguda). Al DM
+  // només s'omple amb els moviments que arriben d'una pantalla de jugador, perquè el vegi
+  // desplaçar-se (vorejant les parets) en lloc de saltar de cop. El que mou el DM no hi entra.
+  const rMovePath       = useRef<Record<string, { pts: Point[]; t: number }>>({});
   const currentStrokeRef  = useRef<Point[]>([]);
   const strokeQueueRef    = useRef<StrokeAnimState[]>([]);
   const activeStrokeAnim  = useRef<StrokeAnimState | null>(null);
@@ -181,7 +185,7 @@ export function useDMRefs() {
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,
-    panDragRef, rPanOffset, roomAnimRef, visualPosRef, currentStrokeRef, strokeQueueRef,
+    panDragRef, rPanOffset, roomAnimRef, visualPosRef, rMovePath, currentStrokeRef, strokeQueueRef,
     activeStrokeAnim, rDeathCanvas, shapePointsRef, isShapeDrawingRef, bgBufferRef,
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,

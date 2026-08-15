@@ -147,7 +147,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         defeatedAnimRef: R.defeatedAnimRef, invisAlphaRef: R.invisAlphaRef,
         rEnemyHighlight: R.rEnemyHighlight, rHighlightAlpha: R.rHighlightAlpha,
         rHighlightLocked: R.rHighlightLocked, highlightStartRef: R.highlightStartRef,
-        visualPosRef: R.visualPosRef, rPlayers: R.rPlayers, rTokenSizeOverride: R.rTokenSizeOverride,
+        visualPosRef: R.visualPosRef, rMovePath: R.rMovePath, rPlayers: R.rPlayers, rTokenSizeOverride: R.rTokenSizeOverride,
         rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridLineWidth: R.rGridLineWidth,
         rGridOriginX: R.rGridOriginX, rGridOriginY: R.rGridOriginY,
         rGridCalibrating: R.rGridCalibrating, rGridDmAlpha: R.rGridDmAlpha,

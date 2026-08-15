@@ -16,7 +16,7 @@ import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cine
 import { createSyncSocket } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
-import { computePath, smoothPath } from '@/lib/rooms/pathing';
+import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect } from '@/types';
@@ -235,19 +235,20 @@ export function PlayerView() {
     if (gs <= 0) { delete rMovePath.current[id]; return; }
     const walls = effectiveWalls(rWalls.current, rDoors.current);
     if (walls.length === 0) { delete rMovePath.current[id]; return; }
-    const gox = ((rGridOriginX.current % gs) + gs) % gs;
-    const goy = ((rGridOriginY.current % gs) + gs) % gs;
+    const grid = {
+      gs,
+      gox: ((rGridOriginX.current % gs) + gs) % gs,
+      goy: ((rGridOriginY.current % gs) + gs) % gs,
+    };
     const R = rTokenSizeOverride.current[id] ?? 22;
-    const sCol = Math.floor((from.x + R - gox) / gs), sRow = Math.floor((from.y + R - goy) / gs);
-    const dCol = Math.floor((to.x + R - gox) / gs), dRow = Math.floor((to.y + R - goy) / gs);
+    const [sCol, sRow] = cellOf(from, R, grid);
+    const [dCol, dRow] = cellOf(to, R, grid);
     // Mateixa casella (p. ex. l'eco del relay del propi token que ja s'ha mogut): no-op,
     // no esborrar un camí ja fixat en deixar anar.
     if (sCol === dCol && sRow === dRow) return;
-    const pts = computePath(walls, sCol, sRow, dCol, dRow, { gs, gox, goy }, 260);
-    if (!pts || pts.length < 2) { delete rMovePath.current[id]; return; }
-    const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
-    wp[wp.length - 1] = { x: to.x, y: to.y }; // acabar exacte al destí
-    rMovePath.current[id] = { pts: smoothPath([from, ...wp], 2), t: 0 };
+    const pts = buildMovePath(from, to, { walls, grid, R });
+    if (!pts) { delete rMovePath.current[id]; return; }
+    rMovePath.current[id] = { pts, t: 0 };
   }, []);
 
   const triggerBossIntro = useCallback((data: Record<string, unknown>) => {

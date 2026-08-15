@@ -16,7 +16,7 @@ import { useMouseHandlers } from '@/hooks/useMouseHandlers';
 import { useWheelZoom } from '@/hooks/useWheelZoom';
 import { useKeyboardHandlers } from '@/hooks/useKeyboardHandlers';
 import { createSyncSocket } from '@/lib/ws';
-import { computeReachableCells, segmentBlocked } from '@/lib/rooms/pathing';
+import { computeReachableCells, segmentBlocked, buildMovePath } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
@@ -281,6 +281,7 @@ export function DMView() {
     const hist = R.rMoveHistory.current;
     if (hist.length === 0) return;
     const last = hist.pop()!;
+    delete R.rMovePath.current[String(last.id)];  // desfer és instantani: res d'animació pendent
     const np = { ...R.rPos.current, [last.id]: last.from };
     R.rPos.current = np; setPos(np);
     const t = R.rTurn.current;
@@ -351,6 +352,31 @@ export function DMView() {
     if (turn.active) {
       // Registra el moviment (posició d'origen + peus gastats) per poder desfer-lo amb Ctrl+Z.
       R.rMoveHistory.current.push({ id, from: R.rPos.current[id] ?? { x, y }, spentFt: consumedFt });
+    }
+
+    // Animació de desplaçament a la pantalla del DM: el token recorre el camí real
+    // (vorejant les parets, forma d'L) o la línia recta si no n'hi ha, en lloc de saltar de
+    // cop de l'origen al destí — així el DM veu el moviment i per on ha passat. El camí es
+    // calcula des de la posició ANTERIOR, abans d'escriure la nova a rPos.
+    {
+      const from = R.rPos.current[id];
+      if (from) {
+        const Rv = R.rTokenSizeOverride.current[id] ?? 22;
+        const gsA = R.rGridSize.current;
+        const grid = gsA > 0
+          ? { gs: gsA, gox: ((R.rGridOriginX.current % gsA) + gsA) % gsA, goy: ((R.rGridOriginY.current % gsA) + gsA) % gsA }
+          : { gs: 0, gox: 0, goy: 0 };
+        const pts = buildMovePath(from, { x, y }, { walls, grid, R: Rv, straightFallback: true });
+        if (pts) {
+          R.rMovePath.current[sid] = { pts, t: 0 };
+          // Ancorar ja la posició visual a l'origen: `renderRooms` (que hi centra la llum)
+          // corre ABANS de `renderPlayerTokens`, i sense això el primer frame il·luminaria
+          // el destí abans que el token hi arribi.
+          R.visualPosRef.current[sid] = { ...from };
+        } else {
+          delete R.rMovePath.current[sid];
+        }
+      }
     }
 
     const np = { ...R.rPos.current, [id]: { x, y } };

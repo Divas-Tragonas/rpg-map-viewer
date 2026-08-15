@@ -2,7 +2,7 @@
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
-import { computeReachableCells, computePath, smoothPath, slideAgainstWalls } from '@/lib/rooms/pathing';
+import { computeReachableCells, buildMovePath, slideAgainstWalls } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
@@ -243,16 +243,10 @@ export function usePlayerTokenDrag(
       const walls = dragRef.current.walls;
       delete rMovePath.current[id];
       if (origin && range && walls.length > 0) {
-        const { startCol, startRow, maxCells, gs, gox, goy } = range;
-        const R = dragRef.current.R;
-        const dCol = Math.floor((preview.x + R - gox) / gs);
-        const dRow = Math.floor((preview.y + R - goy) / gs);
-        const pts = computePath(walls, startCol, startRow, dCol, dRow, { gs, gox, goy }, maxCells);
-        if (pts && pts.length >= 2) {
-          const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
-          wp[wp.length - 1] = { x: preview.x, y: preview.y };
-          rMovePath.current[id] = { pts: smoothPath([origin, ...wp], 2), t: 0 };
-        }
+        const { maxCells, gs, gox, goy } = range;
+        const pts = buildMovePath(origin, { x: preview.x, y: preview.y },
+          { walls, grid: { gs, gox, goy }, R: dragRef.current.R, maxCells });
+        if (pts) rMovePath.current[id] = { pts, t: 0 };
       }
       rPos.current = { ...rPos.current, [id]: { x: preview.x, y: preview.y } };
       const moveMsg = { type: 'TOKEN_MOVE', id, x: preview.x, y: preview.y };

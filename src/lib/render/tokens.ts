@@ -8,6 +8,50 @@ import { drawConditionBadges } from '@/lib/conditions';
 const PATH_CRUISE = 0.08;  // ~4.8 caselles/s a 60fps (gs·0.08 px/frame)
 const PATH_BRAKE  = 0.14;  // ease-out de frenada a prop del destí
 
+/**
+ * Avança un frame el token `key` pel camí de moviment pendent (`rMovePath`) i retorna la
+ * posició resultant, o `null` si no en té cap (llavors mana el LERP recte de sempre).
+ *
+ * El token recorre la polilínia a **velocitat de creuer constant** (px de mapa per frame,
+ * escalada amb la mida de casella) amb una **frenada suau** al final: molt més lent i
+ * cinematogràfic que un LERP, i es veu clarament per on passa. En arribar, esborra
+ * l'entrada de `rMovePath`. La fa servir tant la pantalla de jugador com la del DM (allà,
+ * per als moviments que arriben d'una pantalla de jugador).
+ */
+function advanceMovePath(fc: FrameContext, key: string): { x: number; y: number } | null {
+  const mp = fc.rMovePath?.current[key];
+  if (!mp || mp.pts.length < 2) return null;
+  const pts = mp.pts;
+  let vp = fc.visualPosRef.current[key];
+  if (!vp) { vp = { ...pts[0] }; fc.visualPosRef.current[key] = vp; }
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
+  const cruise = gs * PATH_CRUISE;       // velocitat constant (lenta)
+  const remaining = total - mp.t;
+  // min(creuer, frenada): cruise mana la major part; a prop del final la frenada
+  // (ease-out) fa que s'aturi suau en lloc d'un tall sec.
+  mp.t += Math.min(cruise, remaining * PATH_BRAKE);
+  if (total - mp.t < 0.5) {
+    vp.x = pts[pts.length - 1].x; vp.y = pts[pts.length - 1].y;
+    if (fc.rMovePath) delete fc.rMovePath.current[key];
+  } else {
+    let acc = 0, px = pts[0].x, py = pts[0].y;
+    for (let i = 1; i < pts.length; i++) {
+      const seg = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      if (acc + seg >= mp.t) {
+        const f = seg > 0 ? (mp.t - acc) / seg : 0;
+        px = pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f;
+        py = pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f;
+        break;
+      }
+      acc += seg; px = pts[i].x; py = pts[i].y;
+    }
+    vp.x = px; vp.y = py;
+  }
+  return vp;
+}
+
 const _tokenImgCache = new Map<string, HTMLImageElement>();
 function getTokenImg(src: string): HTMLImageElement {
   let img = _tokenImgCache.get(src);
@@ -446,50 +490,28 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
   rPlayers.current.forEach(pl => {
     const rawPos = pp[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     let ppos = rawPos;
-    if (!isDM) {
-      const key = `pl_${pl.id}`;
+    const key = `pl_${pl.id}`;
+    if (isDM) {
+      // El DM no suavitza res del que mou ell mateix (el token segueix el ratolí), però SÍ
+      // que reprodueix l'animació de desplaçament dels moviments que arriben d'una pantalla
+      // de jugador (`rMovePath`, omplert a `handlePlayerTokenMove`): així veu el token
+      // desplaçar-se i per on ha passat, en lloc d'un salt sec. En acabar, s'esborra
+      // l'entrada de `visualPosRef` perquè la llum torni a seguir `rPos` directament.
+      const anim = advanceMovePath(fc, key);
+      if (anim) ppos = anim;
+      else if (visualPosRef.current[key]) delete visualPosRef.current[key];
+    } else {
       const vp = visualPosRef.current[key];
       if (!vp) { visualPosRef.current[key] = { ...rawPos }; ppos = rawPos; }
       // Drag local a la pantalla de jugador: el token segueix el dit sense LERP
       else if (rSelectedToken.current === key) { vp.x = rawPos.x; vp.y = rawPos.y; ppos = vp; }
       else {
-        // Camí de moviment pendent (vorejant parets, forma d'L): el token es desplaça
-        // seguint la polilínia a **velocitat de creuer lenta i constant** (px de mapa per
-        // frame, escalada amb la mida de casella) amb una **frenada suau** al final. Molt més
-        // lent i cinematogràfic que un LERP. Sense camí, LERP recte de sempre. Així la llum
-        // no talla per sales fosques que el token no travessa.
-        const mp = fc.rMovePath?.current[key];
-        if (mp && mp.pts.length >= 2) {
-          const pts = mp.pts;
-          let total = 0;
-          for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-          const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
-          const cruise = gs * PATH_CRUISE;       // velocitat constant (lenta)
-          const remaining = total - mp.t;
-          // min(creuer, frenada): cruise mana la major part; a prop del final la frenada
-          // (ease-out) fa que s'aturi suau en lloc d'un tall sec.
-          mp.t += Math.min(cruise, remaining * PATH_BRAKE);
-          if (total - mp.t < 0.5) {
-            vp.x = pts[pts.length - 1].x; vp.y = pts[pts.length - 1].y;
-            if (fc.rMovePath) delete fc.rMovePath.current[key];
-          } else {
-            let acc = 0, px = pts[0].x, py = pts[0].y;
-            for (let i = 1; i < pts.length; i++) {
-              const seg = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-              if (acc + seg >= mp.t) {
-                const f = seg > 0 ? (mp.t - acc) / seg : 0;
-                px = pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f;
-                py = pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f;
-                break;
-              }
-              acc += seg; px = pts[i].x; py = pts[i].y;
-            }
-            vp.x = px; vp.y = py;
-          }
-          ppos = vp;
-        } else {
-          vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp;
-        }
+        // Camí de moviment pendent (vorejant parets, forma d'L): es recorre a velocitat de
+        // creuer amb frenada suau. Sense camí, LERP recte de sempre. Així la llum no talla
+        // per sales fosques que el token no travessa.
+        const anim = advanceMovePath(fc, key);
+        if (anim) ppos = anim;
+        else { vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp; }
       }
       const cx = ppos.x + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
       const cy = ppos.y + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
