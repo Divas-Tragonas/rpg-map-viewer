@@ -299,6 +299,14 @@ export function DMView() {
   const handlePlayerTokenMove = useCallback((id: number | string, x: number, y: number) => {
     const sid = String(id);
     if (!sid.startsWith('pl_')) return;
+    // ECO DEL MATEIX MOVIMENT: la pantalla de jugador envia cada TOKEN_MOVE pel
+    // BroadcastChannel **i** pel WebSocket, o sigui que una pantalla del mateix ordinador
+    // (amb la API engegada) el fa arribar DUES vegades. La segona còpia ja no mou res
+    // (rPos hi és), però abans esborrava el camí d'animació que acabava de fixar la
+    // primera → el token semblava teletransportar-se al DM. Descartar-la del tot també
+    // evita un TOKEN_RELAY i una entrada de rMoveHistory duplicats.
+    const prev = R.rPos.current[id];
+    if (prev && prev.x === x && prev.y === y) return;
     const bounceBack = () => {
       const auth = R.rPos.current[id];
       if (!auth) return;

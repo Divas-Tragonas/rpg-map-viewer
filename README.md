@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.5 — Arreglat: els tokens continuaven teletransportant-se al DM
+- L'animació de la v4.4 no s'arribava a veure **si la API estava engegada**. La pantalla de jugador envia cada `TOKEN_MOVE` pel BroadcastChannel **i** pel WebSocket, així que una pantalla del mateix ordinador el feia arribar al DM **dues vegades**: la segona còpia no movia res (el token ja hi era) però **esborrava el camí d'animació** que acabava de fixar la primera, i el token saltava igualment. Ara el DM descarta l'eco d'un moviment ja aplicat.
+- De retruc, l'eco també duplicava el `TOKEN_RELAY` cap a la resta de pantalles i l'entrada de l'historial de Ctrl+Z (calien dues pulsacions per desfer un sol moviment).
+
 ### v4.4 — El DM veu el desplaçament dels tokens que mouen els jugadors
 - **Els tokens moguts des de `/player` ja no salten de cop a la pantalla del DM.** Fins ara el DM només veia la posició final i no sabia per on havia passat el token (ni si havia vorejat una paret o havia creuat una porta). Ara reprodueix la **mateixa animació de desplaçament** que les pantalles de jugador: velocitat de creuer constant seguint el camí real (forma d'L, suavitzat) i frenada suau al final.
 - Quan no hi ha grid ni parets (o el moviment és d'una sola casella) el token es desplaça en **línia recta animada** en lloc de teleportar-se.
