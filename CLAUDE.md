@@ -166,8 +166,11 @@ src/
 │   │   ├── BottomControls, CanvasHUD
 │   │   └── ContextMenuOverlay, SceneConfigOverlay,
 │   │       SpellMenuOverlay, ShapeMenuOverlay
+│   │       ├── StageTopBar (Expositor + Text)
 │   └── ui/                 # Components UI genèrics
 │       ├── Chip, DropZone, LayerRow, TreeGroup, SceneImgPicker
+│       ├── SidebarSection  # Secció plegable del sidebar (capçalera + comptador + accions)
+│       └── HoverTip        # Finestreta d'explicació d'un botó (hover)
 ├── hooks/
 │   ├── useDMRefs.ts        # Tots els refs del DM (state mirrors + interaction)
 │   ├── useDMActions.ts     # Callbacks d'acció (PSD import, BC, drag...)
@@ -375,19 +378,31 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Sessió**: `synthetic` es desa dins de `psdStruct` i es restaura a `applySessionState` (si es perdés, la UI del PSD tornaria a sortir buida en carregar la partida).
 - **Regla**: qualsevol codi nou que es pengi de `struct` ha de decidir explícitament si vol *"hi ha mapa"* (`struct`) o *"hi ha PSD"* (`psdStruct` / `!struct.synthetic`).
 
+### Finestra lateral esquerra — seccions plegables (`src/components/ui/SidebarSection.tsx`)
+- Totes les seccions del sidebar del DM comparteixen `SidebarSection`: capçalera amb **fletxa, icona, títol, comptador i botons d'acció** (`SectionButton`, amb `stopPropagation` perquè no pleguin la secció) i cos que s'anima amb el truc `grid-template-rows: 0fr → 1fr` (sense mesurar alçades, igual que el desplegable de configuració del jugador).
+- `maxBodyHeight` dóna **scroll propi** a una secció: les llistes llargues (capes del PSD, sales, llums) no empenyen la resta del panell fora de la pantalla.
+- L'usen `ImportPanel`, `LayerTree` (embolcallat des de `DMView`), `RoomsPanel`, `PlayersPanel` i `EnemyLibraryPanel`.
+- **`defaultOpen` només s'aplica en muntar.** Per fer que una secció es plegui sola quan canvia una condició, cal remuntar-la amb un `key` (ho fa `ImportPanel`: `key={bgLoaded ? 'loaded' : 'empty'}`).
+
 ### Panell de sales (`src/components/dm/RoomsPanel.tsx`)
 - Arbre de "capes" d'un mapa dibuixat a l'app: substitueix el `LayerTree` quan no hi ha PSD (i conviu amb ell quan n'hi ha). Es mostra sempre que `bgLoaded`.
+- **Sales i llums van cadascuna dins d'una `SidebarSection` plegada per defecte** amb el comptador a la capçalera (`Sales · 12`) i un resum de quantes són fosques i quantes revelades. Amb un mapa de moltes sales, la llista sencera se'n menjava el panell.
 - Llista les **sales detectades** (`rRooms`): commutador 🌑 de sala fosca, ull de revelar/amagar (només si és fosca), nom editable en línia i desplegable amb "Afegir porta", "Resetejar explorat" (només si és fosca) i "Eliminar sala" amb **confirmació en dos passos** (es desa l'`id` pendent, no un booleà — mateix criteri que `ContextMenuOverlay`).
 - Hover d'una fila → escriu a `R.rHoveredRoomId` (ref llegida per `renderRooms`), així la sala es ressalta al canvas.
-- Secció de **punts de llum** (`rLights`): radi en peus, selecció (sincronitza el slider del flyout) i eliminar.
-- Botons d'accés directe a les eines 🧱 Parets (`5`) i 🔆 Llums (`6`).
+- Botons d'accés directe a les eines 🧱 Parets (`5`) i 🔆 Llums (`6`) a la capçalera de la secció, que s'encenen amb l'eina activa.
 
 ### Eines de dibuix (barra flotant)
 - `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral).
-- Botons apilats: Selecció (`none`), Ploma, Goma, Màgies, Senyal, separador, Desfer, Esborrar tot i (condicional) Esborrar zones màgiques.
-- Quan l'eina activa és Ploma/Goma o Senyal, apareix un flyout contextual a la dreta de la columna amb la paleta de color + mida de pinzell, o l'ajuda de la regla de mesura, respectivament.
-- La pestanya lateral "Eines" només conté ara el `GridPanel` (configuració de grid).
+- Botons apilats: **eines** Selecció (`none`), Ploma, Goma, Màgies, Senyal, Parets, Llums · **modes** CTRL, MAJ, ▣ · **accions** Desfer, Esborrar tot i (condicional) Esborrar zones màgiques · **Graella**.
+- **Modes de ratolí a la barra**: `ctrlPanActive` / `shiftPanActive` / `areaSelectMode` amb els seus `onToggle*`. Les tres funcions (`toggleCtrlPan`, `toggleShiftPan`, `toggleAreaSelect`) viuen a `DMView` i les comparteixen **el botó i la tecla** — `useKeyboardHandlers` les rep per `opts` i no duplica la lògica. Si s'hi afegeix un mode nou, ha de seguir el mateix camí (una sola funció, dos disparadors).
+- **Explicacions al hover, no al flyout**: cada botó va dins d'un embolcall `position: relative` que ancora un `HoverTip` amb el nom de l'eina, la drecera i què fa. ⚠️ El component del botó (`ToolButton`) està definit **a nivell de mòdul**: si es declarés dins de `FloatingToolbar`, cada canvi de `hover` en crearia un tipus nou, React desmuntaria tots els botons i el `mouseleave` es perdria (finestreta enganxada).
+- El `HoverTip` de la barra vertical s'alinea **per baix** (`bottom: 0`), no centrat: la barra viu a la cantonada inferior i una finestreta centrada sobre l'últim botó sortiria de la pantalla.
+- Al flyout hi queden **només els controls manipulables**: paleta de color + gruix (Ploma/Goma) i slider de radi (Llums). Parets i Senyal ja no en tenen.
 - Eina **Llums** (drecera `6`): col·locació de punts de llum (torxes) — veure feature "Punts de llum".
+
+### Barra superior del canvas (`src/components/dm/StageTopBar.tsx`)
+- Expositor (🖼) i Revelador de text (📜) com a **botons d'eina** (mateixa mida i contenidor que la barra flotant), amb `HoverTip` desplegat **cap avall** (`side="bottom"`) i un punt verd a la cantonada quan el contingut s'està mostrant als jugadors.
+- Els panells flotants dels dos van a `top: 60` (just sota la barra).
 
 ### Grid i tokens
 - Grid configurable: `gridSize`, `gridOriginX/Y`, `gridLineWidth`
@@ -404,6 +419,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **PSD enemies**: R = `Math.max(Math.min(en.w, en.h) / 2, 22)` (o override via `rTokenSizeOverride`)
 - **Lib enemies**: `LibEnemy[]` afegits manualment des del panell, amb imatge custom opcional
 - Overrides per PSD enemy: `PsdEnemyOverrides` (`hp`, `hpMax`, `name`, `imageData`)
+- **Numeració automàtica** (`addEnemyNumbered` a `src/lib/enemy-naming.ts`, usada per `addLibEnemy` i `addDbEnemy`): el primer Goblin es diu "Goblin"; en afegir-ne un segon, el primer passa a "Goblin 1" i el nou a "Goblin 2", i la sèrie va ascendint. El **nom base** és el nom sense el número final (`/\s+\d+$/`), així que un nom propi escrit pel DM ("Goblin Cap") té un base diferent i queda fora de la sèrie. Retorna sempre un **array nou** (els `libEnemies` són camp pesat del `STATE`: mutar-los in place no els sincronitzaria).
 
 ### Grups de tokens
 - `rTokenGroups` (`useDMRefs.ts`) — `Map<tokenId, groupId>`. Un token només pot pertànyer a un grup alhora. Estat 100% local del DM (ephemeral, ref-only, com `rMultiSelected`); no persisteix a reload ni es sincronitza al jugador.
@@ -486,8 +502,9 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Bloqueig de moviment per jugador** (`Player.canMove`, absent → `true`): amb `canMove === false` el hit-test de `usePlayerTokenDrag` ignora el token (no es pot ni començar el drag des de `/player`). A més, si arriba un `TOKEN_MOVE` d'un token bloquejat (BC o WS, handlers a `DMView.tsx`), el DM no només el descarta sinó que **reenvia l'estat** (`_broadcastState({})`) perquè la posició autoritzada torni al jugador a l'instant — així un client que encara no hagués rebut el bloqueig no deixa el token mogut fins al següent broadcast. El DM el commuta al desplegable de configuració del `PlayersPanel` (`setPlayerCanMove`); la targeta mostra 🔒. Com `speed`, viatja dins `players` sense camps de sync nous.
 
 ### Panell de jugadors (`src/components/dm/PlayersPanel.tsx`)
+- Va dins d'una `SidebarSection` ("Jugadors · N") amb els botons ＋ (desplega el formulari d'alta, que si no no ocupa espai) i Party.
 - Targetes a **una columna** (amplada completa del sidebar), apilades verticalment.
-- Cada targeta (`PlayerCard`): capçalera (color, nom editable, 🔒 si `canMove === false`, ✕ eliminar) + fila d'HP gran (botons −/+ de 32px amb clic dret ±10, vida a 24px) + botó d'engranatge.
+- Cada targeta (`PlayerCard`): capçalera (color, nom editable, 🔒 si `canMove === false`, ✕ eliminar) + fila d'HP gran (botons −/+ de `HP_ROW`=36px amb clic dret ±10, vida a `HP_FONT`=30px) + botó d'engranatge. Alçada total **68px** (abans 72 amb la vida a 24px): la fila de vida fa 36px i el número n'ocupa 30, o sigui ~3px de marge amunt i avall — si es puja més la font, el número toca el nom i la vora de la targeta.
 - L'engranatge desplega una **secció de configuració** enganxada sota la targeta amb animació suau (truc CSS `grid-template-rows: 0fr→1fr`, sense mesurar alçades): vida actual, vida màxima, velocitat (peus + equivalència en caselles), visió a les fosques (peus; radi de llum a les sales fosques) i toggle de moviment des de la pantalla de jugador. Només un desplegable obert alhora (`openConfigId`).
 
 ### Sistema per torns (iniciativa) — barra inferior
@@ -561,3 +578,5 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Sincronitzar càmera en píxels de pantalla | Els jugadors veuen un tros de mapa diferent del DM segons la mida/format de finestra | Enviar `cam` (coords de mapa) i traduir-lo a cada pantalla amb `camToView` |
 | Llegir `rDmCam` dins del missatge en lloc de `_currentCam()` | El jugador es queda un pas de zoom/pan enrere | El ref l'escriu el tick un cop per frame; els handlers d'interacció envien abans del frame següent |
 | Processar dos cops un missatge jugador→DM | Efectes que es "desfan" sols i **només amb la API engegada** (p. ex. l'animació de moviment que es talla) | Tot missatge del jugador viatja per BC **i** WS: al mateix ordinador arriba duplicat. Fer els handlers idempotents (descartar l'eco: l'estat ja hi és) |
+| Component definit dins d'un altre component | El hover es queda enganxat / l'estat intern es perd a cada render | Declarar-lo a nivell de mòdul (veure `ToolButton` a `FloatingToolbar`) |
+| Mode nou només al teclat | L'usuari no sap que existeix | Una sola funció `toggle*` a `DMView`, compartida pel botó de `FloatingToolbar` i per `useKeyboardHandlers` |

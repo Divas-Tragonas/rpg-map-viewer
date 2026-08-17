@@ -2,6 +2,7 @@
 import React from 'react';
 import { AlertTriangle } from '@/components/icons';
 import { DropZone } from '@/components/ui/DropZone';
+import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
 import { C } from '@/constants';
 import type { MapStructure, PSDInfo } from '@/types';
 
@@ -24,14 +25,13 @@ export function ImportPanel({ bgLoaded, bgName, parsing, struct, psdInfo, parseE
   }, [warnings, parseError, warningsDismissed, setWarningsDismissed]);
 
   return (
-    <div style={{ padding: '6px 12px 7px', borderBottom: `1px solid ${C.border}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Importar</div>
-        <button onClick={onLoadDemo} title="Carregar demo (mapa + PSD)"
-          style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}`, borderRadius: 5, padding: '2px 8px', cursor: 'pointer', color: C.accent, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>
-          DEMO
-        </button>
-      </div>
+    // Un cop hi ha mapa carregat la secció es plega sola: no cal tenir sempre a la vista
+    // les dues caixes d'importació, que és espai que treu a les sales i als jugadors.
+    // (el `key` fa que en carregar el primer mapa la secció es torni a muntar ja plegada)
+    <SidebarSection key={bgLoaded ? 'loaded' : 'empty'} title="Importar" icon="📂" defaultOpen={!bgLoaded} bodyPadding="0 12px 7px"
+      actions={
+        <SectionButton onClick={onLoadDemo} title="Carregar demo (mapa + PSD)" active color={C.accent}>DEMO</SectionButton>
+      }>
       <div style={{ display: 'flex', gap: 4 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <DropZone accept="image/*,video/*"
@@ -60,6 +60,6 @@ export function ImportPanel({ bgLoaded, bgName, parsing, struct, psdInfo, parseE
           {warnings.map((w, i) => <div key={i}>• {w}</div>)}
         </div>
       )}
-    </div>
+    </SidebarSection>
   );
 }

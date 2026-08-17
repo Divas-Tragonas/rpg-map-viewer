@@ -33,6 +33,8 @@ import { ContextMenuOverlay } from '@/components/dm/ContextMenuOverlay';
 import { SceneConfigOverlay } from '@/components/dm/SceneConfigOverlay';
 import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
+import { StageTopBar } from '@/components/dm/StageTopBar';
+import { SidebarSection } from '@/components/ui/SidebarSection';
 import { isApiConfigured } from '@/lib/api';
 
 export function DMView() {
@@ -678,12 +680,53 @@ export function DMView() {
     redetectRooms();
   }, [redetectRooms]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Modes de ratolí (CTRL / MAJ / selecció per àrea) ───────────────────────
+  // Viuen aquí, no dins de useKeyboardHandlers, perquè ara també s'activen des dels
+  // botons de la barra d'eines flotant: tecla i botó han de fer exactament el mateix.
+  const toggleCtrlPan = useCallback(() => {
+    if (!R.rCtrlPanToggle.current) {
+      R.rCtrlPanToggle.current = true;
+      R.rCtrlPanSnapshot.current = { ...R.rPanOffset.current, zoom: R.rZoom.current };
+      setCtrlPanActive(true);
+    } else {
+      R.rCtrlPanToggle.current = false;
+      if (R.rCtrlPanSnapshot.current) {
+        const { x, y, zoom } = R.rCtrlPanSnapshot.current;
+        R.rPanOffset.current = { x, y };
+        R.rZoom.current = zoom; setZoom(zoom);
+        _broadcastState({});
+      }
+      R.rCtrlPanSnapshot.current = null;
+      setCtrlPanActive(false);
+    }
+  }, [R, _broadcastState]);
+
+  const toggleShiftPan = useCallback(() => {
+    // Amb l'eina de màgies, Maj serveix per traçar la línia del spell: no fa de toggle.
+    if (R.rDrawTool.current === 'shape') return;
+    if (!R.rShiftPanToggle.current) {
+      R.rShiftPanToggle.current = true;
+      setShiftPanActive(true);
+    } else {
+      R.rShiftPanToggle.current = false;
+      R.rShiftHeld.current = false;
+      setShiftPanActive(false);
+      if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
+        R.dmPrivateReturnAnim.current = true;
+      }
+    }
+  }, [R]);
+
+  const toggleAreaSelect = useCallback(() => {
+    const next = !R.rAreaSelectMode.current;
+    R.rAreaSelectMode.current = next; setAreaSelectMode(next);
+    if (!next) R.rAreaSelectRect.current = null;
+  }, [R]);
+
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
     setDrawTool, undoStroke, undoTokenMove, skipBossIntro,
-    broadcastState: () => _broadcastState({}),
-    setCtrlPanActive, setShiftPanActive, setZoom,
-    setAreaSelectMode,
+    toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
     onDeleteSelection,
     removeLastWall,
     cancelWallChain,
@@ -1067,20 +1110,23 @@ export function DMView() {
           {sidebarTab === 'mapa' && (
             <>
               {psdStruct && (
-                <LayerTree
-                  struct={psdStruct} vis={vis} expanded={expanded}
-                  activeDrag={activeDrag} selectedToken={selectedToken}
-                  psdEnemyOverrides={psdEnemyOverrides} defeated={defeated}
-                  setExpanded={setExpanded} setSelectedToken={setSelectedToken}
-                  rSelectedToken={R.rSelectedToken}
-                  onToggleVis={toggleVis} onDeleteLayer={deleteLayer} onResetToken={resetToken}
-                  onAdjustPsdHp={adjustPsdEnemyHp}
-                />
+                <SidebarSection title="Capes del PSD" icon="🗂" defaultOpen maxBodyHeight={260}>
+                  <LayerTree
+                    struct={psdStruct} vis={vis} expanded={expanded}
+                    activeDrag={activeDrag} selectedToken={selectedToken}
+                    psdEnemyOverrides={psdEnemyOverrides} defeated={defeated}
+                    setExpanded={setExpanded} setSelectedToken={setSelectedToken}
+                    rSelectedToken={R.rSelectedToken}
+                    onToggleVis={toggleVis} onDeleteLayer={deleteLayer} onResetToken={resetToken}
+                    onAdjustPsdHp={adjustPsdEnemyHp}
+                  />
+                </SidebarSection>
               )}
               {bgLoaded && (
                 <RoomsPanel
                   rooms={rooms} lights={lights} wallsCount={walls.length}
                   wallToolActive={drawToolState === 'wall'}
+                  lightToolActive={drawToolState === 'light'}
                   selectedLightId={lightSelectedId}
                   hoveredRoomRef={R.rHoveredRoomId}
                   onActivateWallTool={() => setDrawTool(drawToolState === 'wall' ? 'none' : 'wall')}
@@ -1152,6 +1198,9 @@ export function DMView() {
           onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
           bcRef={R.bcRef} wsRef={R.wsRef}
           lightRadiusFt={newLightRadiusFt} lightSelected={lightSelectedId !== null} onSetLightRadius={setLightRadius}
+          ctrlPanActive={ctrlPanActive} onToggleCtrlPan={toggleCtrlPan}
+          shiftPanActive={shiftPanActive} onToggleShiftPan={toggleShiftPan}
+          areaSelectMode={areaSelectMode} onToggleAreaSelect={toggleAreaSelect}
           grid={{
             gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
             rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridSnap: R.rGridSnap,
@@ -1178,22 +1227,16 @@ export function DMView() {
           onRecoverTurn={recoverTurn}
           onReorder={reorderTurn}
         />
-        <button
-          onClick={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
-          title="Expositor d'Imatges i Vídeo per als jugadors"
-          style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: expositorOpen ? `${C.accent}22` : 'rgba(10,13,18,.92)', border: `1px solid ${expositorOpen ? C.accent : (expositorActive ? C.accent + '88' : C.border)}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: expositorOpen ? C.accent : (expositorActive ? C.accent + 'cc' : C.dim), fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
-          {expositorActive ? '◉ Expositor' : 'Expositor'}
-        </button>
-        <button
-          onClick={() => setTextRevealOpen(v => { if (!v) setExpositorOpen(false); return !v; })}
-          title="Revelador de text per als jugadors"
-          style={{ position: 'absolute', top: 12, left: 104, zIndex: 10, background: textRevealOpen ? `${C.accent}22` : 'rgba(10,13,18,.92)', border: `1px solid ${textRevealOpen ? C.accent : (textRevealActive ? C.accent + '88' : C.border)}`, borderRadius: 6, padding: '5px 9px', cursor: 'pointer', color: textRevealOpen ? C.accent : (textRevealActive ? C.accent + 'cc' : C.dim), fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>
-          {textRevealActive ? '◉ Text' : 'Text'}
-        </button>
+        <StageTopBar
+          expositorOpen={expositorOpen} expositorActive={expositorActive}
+          onToggleExpositor={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
+          textOpen={textRevealOpen} textActive={textRevealActive}
+          onToggleText={() => setTextRevealOpen(v => { if (!v) setExpositorOpen(false); return !v; })}
+        />
 
         {/* Expositor floating panel */}
         {expositorOpen && (
-          <div style={{ position: 'absolute', top: 42, left: 12, zIndex: 20, width: 480, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 480, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>Expositor de Campanya</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1281,7 +1324,7 @@ export function DMView() {
 
         {/* Revelador de text floating panel */}
         {textRevealOpen && (
-          <div style={{ position: 'absolute', top: 42, left: 12, zIndex: 20, width: 620, maxHeight: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 620, maxHeight: 'calc(100vh - 78px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>Revelador de Text</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
