@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { ENEMY_TEMPLATES } from '@/constants';
 import { C } from '@/constants';
+import { SidebarSection } from '@/components/ui/SidebarSection';
 import { api, isApiConfigured } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { LibEnemy, DefeatedMap } from '@/types';
@@ -30,11 +31,9 @@ export function EnemyLibraryPanel({ libEnemies, defeated, onAddEnemy, onAddDbEne
   }, []);
 
   return (
-    <div style={{ padding: '8px' }}>
-      <div style={{ fontSize: 10, color: C.dim, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>
-        Biblioteca
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 8 }}>
+    <>
+      <SidebarSection title="Biblioteca" icon="📖" defaultOpen bodyPadding="0 8px 8px">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
         {ENEMY_TEMPLATES.map(tmpl => (
           <button
             key={tmpl.id}
@@ -52,17 +51,16 @@ export function EnemyLibraryPanel({ libEnemies, defeated, onAddEnemy, onAddDbEne
         ))}
       </div>
 
+      </SidebarSection>
+
       {isApiConfigured() && (
-        <>
-          <div style={{ fontSize: 10, color: C.dim, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-            Base de dades
-            {dbLoading && <span style={{ fontSize: 9, color: C.dim, fontWeight: 400 }}>carregant…</span>}
-          </div>
+        <SidebarSection title="Base de dades" icon="☁" count={dbEnemies.length} defaultOpen bodyPadding="0 8px 8px">
+          {dbLoading && <div style={{ fontSize: 10, color: C.dim }}>carregant…</div>}
           {!dbLoading && dbEnemies.length === 0 && (
-            <div style={{ fontSize: 10, color: C.dim, marginBottom: 8 }}>Cap enemic a la BD</div>
+            <div style={{ fontSize: 10, color: C.dim }}>Cap enemic a la BD</div>
           )}
           {dbEnemies.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
               {dbEnemies.map(en => (
                 <button
                   key={en.id}
@@ -80,14 +78,11 @@ export function EnemyLibraryPanel({ libEnemies, defeated, onAddEnemy, onAddDbEne
               ))}
             </div>
           )}
-        </>
+        </SidebarSection>
       )}
 
       {libEnemies.length > 0 && (
-        <>
-          <div style={{ fontSize: 10, color: C.dim, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>
-            A l&apos;escena ({libEnemies.length})
-          </div>
+        <SidebarSection title="A l'escena" icon="⚔" count={libEnemies.length} countColor={C.enemy} defaultOpen bodyPadding="0 8px 8px">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {libEnemies.map(en => {
               const hp = en.hp ?? en.hpMax;
@@ -140,8 +135,8 @@ export function EnemyLibraryPanel({ libEnemies, defeated, onAddEnemy, onAddDbEne
               );
             })}
           </div>
-        </>
+        </SidebarSection>
       )}
-    </div>
+    </>
   );
 }

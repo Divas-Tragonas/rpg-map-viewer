@@ -7,6 +7,7 @@ import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { pruneDoors } from '@/lib/rooms/doors';
+import { addEnemyNumbered } from '@/lib/enemy-naming';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
@@ -706,7 +707,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const _sm = tmpl.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : tmpl.R;
     const newEn: LibEnemy = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData };
-    const ns = [...rLibEnemies.current, newEn];
+    // Numeració automàtica: el primer Goblin és "Goblin"; en crear el segon, el primer
+    // passa a "Goblin 1" i el nou a "Goblin 2" (i així ascendint).
+    const ns = addEnemyNumbered(rLibEnemies.current, newEn);
     rLibEnemies.current = ns; S.setLibEnemies(ns);
     const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };
     rPos.current = np; S.setPos(np);
@@ -727,7 +730,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const _sm = enemy.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : enemy.R;
     const newEn: LibEnemy = { id: Date.now(), templateId: enemy.id, name: enemy.name, color: enemy.color, hpMax: enemy.hpMax, hp: enemy.hpMax, R: _libR, visible: true, imageData: enemy.imageData ?? null };
-    const ns = [...rLibEnemies.current, newEn];
+    const ns = addEnemyNumbered(rLibEnemies.current, newEn);
     rLibEnemies.current = ns; S.setLibEnemies(ns);
     const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };
     rPos.current = np; S.setPos(np);

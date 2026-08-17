@@ -9,42 +9,27 @@ interface KBOpts {
   undoStroke: () => void;
   undoTokenMove: () => void;
   skipBossIntro: () => void;
-  broadcastState: () => void;
-  setCtrlPanActive: (v: boolean) => void;
-  setShiftPanActive: (v: boolean) => void;
-  setZoom: (v: number) => void;
-  setAreaSelectMode?: (v: boolean) => void;
+  /** Modes compartits amb els botons de la barra d'eines (definits a DMView). */
+  toggleCtrlPan: () => void;
+  toggleShiftPan: () => void;
+  toggleAreaSelect: () => void;
   onDeleteSelection?: () => void;
   removeLastWall?: () => void;
   cancelWallChain?: () => void;
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undoStroke, undoTokenMove, skipBossIntro, broadcastState, setCtrlPanActive, setShiftPanActive, setZoom, setAreaSelectMode, onDeleteSelection, removeLastWall, cancelWallChain } = opts;
+  const { setDrawTool, undoStroke, undoTokenMove, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain } = opts;
 
   // CTRL key: toggle shared pan/zoom mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       if (e.key !== 'Control' || e.repeat) return;
-      if (!R.rCtrlPanToggle.current) {
-        R.rCtrlPanToggle.current = true;
-        R.rCtrlPanSnapshot.current = { ...R.rPanOffset.current, zoom: R.rZoom.current };
-        setCtrlPanActive(true);
-      } else {
-        R.rCtrlPanToggle.current = false;
-        if (R.rCtrlPanSnapshot.current) {
-          const { x, y, zoom } = R.rCtrlPanSnapshot.current;
-          R.rPanOffset.current = { x, y };
-          R.rZoom.current = zoom; setZoom(zoom);
-          broadcastState();
-        }
-        R.rCtrlPanSnapshot.current = null;
-        setCtrlPanActive(false);
-      }
+      toggleCtrlPan();
     };
     window.addEventListener('keydown', onDown);
     return () => window.removeEventListener('keydown', onDown);
-  }, [broadcastState, setZoom, setCtrlPanActive]);
+  }, [toggleCtrlPan]);
 
   // SHIFT key: toggle DM-only private pan/zoom mode. Tap once to activate, tap again to deactivate + return camera.
   // In shape mode, SHIFT is used for spell line drawing (rShiftHeld physical hold) — no toggle.
@@ -52,18 +37,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     const onDown = (e: KeyboardEvent) => {
       if (e.key !== 'Shift' || e.repeat) return;
       R.rShiftHeld.current = true;
-      if (R.rDrawTool.current === 'shape') return;
-      if (!R.rShiftPanToggle.current) {
-        R.rShiftPanToggle.current = true;
-        setShiftPanActive(true);
-      } else {
-        R.rShiftPanToggle.current = false;
-        R.rShiftHeld.current = false;
-        setShiftPanActive(false);
-        if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
-          R.dmPrivateReturnAnim.current = true;
-        }
-      }
+      toggleShiftPan();
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.key !== 'Shift') return;
@@ -72,7 +46,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
-  }, [setShiftPanActive]);
+  }, [toggleShiftPan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tool shortcuts (1-4) + Ctrl+Z + Escape
   useEffect(() => {
@@ -88,7 +62,8 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       }
       if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); R.wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO_SKIP' })); skipBossIntro(); return; }
       if (e.key === 'Escape' && (R.rAreaSelectMode.current || R.rAreaSelectRect.current)) {
-        R.rAreaSelectMode.current = false; R.rAreaSelectRect.current = null; setAreaSelectMode?.(false);
+        if (R.rAreaSelectMode.current) toggleAreaSelect();
+        R.rAreaSelectRect.current = null;
         return;
       }
       if (e.key === 'Escape' && R.rDrawTool.current === 'pointer' && (R.rMeasure.current.a || R.rMeasure.current.b)) {
@@ -121,12 +96,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       if (e.key === 'Escape' && R.rMultiSelected.current.size > 0) { R.rMultiSelected.current = new Set(); return; }
       if ((e.key === 'Delete' || e.key === 'Backspace') && R.rMultiSelected.current.size > 0) { e.preventDefault(); onDeleteSelection?.(); return; }
       if (e.ctrlKey) return;
-      if (e.key === 'a' || e.key === 'A') {
-        const next = !R.rAreaSelectMode.current;
-        R.rAreaSelectMode.current = next; setAreaSelectMode?.(next);
-        if (!next) R.rAreaSelectRect.current = null;
-        return;
-      }
+      if (e.key === 'a' || e.key === 'A') { toggleAreaSelect(); return; }
       // Tecla L: mode debug de llum (parets efectives + polígon de visió + radi).
       if (e.key === 'l' || e.key === 'L') { toggleLightDebug(); return; }
       if (e.key === '1') setDrawTool(t => t === 'pen' ? 'none' : 'pen');
@@ -145,5 +115,5 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undoStroke, undoTokenMove, skipBossIntro, onDeleteSelection, setAreaSelectMode, removeLastWall, cancelWallChain]);
+  }, [undoStroke, undoTokenMove, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain]); // eslint-disable-line react-hooks/exhaustive-deps
 }

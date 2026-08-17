@@ -46,6 +46,16 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.5 — Redisseny de la finestra lateral i barra d'eines completa
+- **Finestra lateral en seccions plegables.** Importar, capes del PSD, sales, punts de llum, jugadors i la biblioteca d'enemics comparteixen ara la mateixa capçalera (títol, comptador i botons d'acció) i es poden plegar. Les llistes llargues (capes, sales, llums) tenen scroll propi en lloc d'empènyer la resta del panell fora de la pantalla.
+- **Les sales van comprimides en un grup**, plegat per defecte i amb el comptador a la capçalera (`Sales · 12`), més un resum de quantes són fosques i quantes estan revelades. Les files són més compactes. Igual per als punts de llum.
+- **La secció Importar es plega sola** en carregar el primer mapa, i el formulari d'alta de jugadors només ocupa espai quan el desplegues (botó ＋).
+- **Targetes de jugador un 5% més baixes** (72 → 68 px) i amb **el número de vida molt més gran** (24 → 30 px), aprofitant tota l'alçada de la fila i mantenint els marges amb el nom i amb la vora de la targeta.
+- **La barra d'eines flotant ja té totes les eines**: s'hi han afegit els tres modes que fins ara només existien per teclat i no hi havia manera de descobrir — **vista compartida (CTRL)**, **vista privada (MAJ)** i **selecció múltiple (A)**. Botó i tecla comparteixen exactament la mateixa acció (`toggleCtrlPan` / `toggleShiftPan` / `toggleAreaSelect` a `DMView`).
+- **Les explicacions de les eines surten en passar-hi el cursor per sobre**, en una finestreta enganxada a la dreta del botó, amb el nom de l'eina i la seva drecera. Abans només es veien —i ocupant espai fix a baix a l'esquerra— quan l'eina ja estava seleccionada, o sigui quan ja no calien. Al flyout hi queden només els controls que cal manipular (color i gruix del pinzell, radi de la llum).
+- **Expositor i Text passen a ser botons d'eina** dins d'una barra igual a la superior esquerra del canvas, amb la mateixa finestreta d'explicació (desplegada cap avall) i un punt verd quan s'estan mostrant als jugadors.
+- **Els tokens d'enemic de la biblioteca es numeren sols**: el primer Goblin es diu "Goblin"; en crear-ne un segon, el primer passa a "Goblin 1" i el nou a "Goblin 2", i la sèrie va ascendint. Els noms propis que hagis escrit tu ("Goblin Cap") queden fora de la sèrie i no es toquen.
+
 ### v4.4 — El DM veu el desplaçament dels tokens que mouen els jugadors
 - **Els tokens moguts des de `/player` ja no salten de cop a la pantalla del DM.** Fins ara el DM només veia la posició final i no sabia per on havia passat el token (ni si havia vorejat una paret o havia creuat una porta). Ara reprodueix la **mateixa animació de desplaçament** que les pantalles de jugador: velocitat de creuer constant seguint el camí real (forma d'L, suavitzat) i frenada suau al final.
 - Quan no hi ha grid ni parets (o el moviment és d'una sola casella) el token es desplaça en **línia recta animada** en lloc de teleportar-se.
