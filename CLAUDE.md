@@ -170,7 +170,9 @@ src/
 │   └── ui/                 # Components UI genèrics
 │       ├── Chip, DropZone, LayerRow, TreeGroup, SceneImgPicker
 │       ├── SidebarSection  # Secció plegable del sidebar (capçalera + comptador + accions)
-│       └── HoverTip        # Finestreta d'explicació d'un botó (hover)
+│       ├── HoverTip        # Finestreta d'explicació d'un botó (hover)
+│       ├── ConditionIcon   # Isotip d'un estat com a <svg> (mateixos paths que el canvas)
+│       └── ConditionPicker # Graella d'estats del menú contextual (+ traduccions al hover)
 ├── hooks/
 │   ├── useDMRefs.ts        # Tots els refs del DM (state mirrors + interaction)
 │   ├── useDMActions.ts     # Callbacks d'acció (PSD import, BC, drag...)
@@ -194,7 +196,9 @@ src/
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/index.ts  # cpBurst, cpUpdate, cpDraw (partícules cinematica)
 │   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)
-│   ├── conditions/index.ts # Helpers de condicions D&D
+│   ├── conditions/
+│   │   ├── icons.ts        # CONDITION_ICONS: isotips vectorials (paths SVG) dels estats
+│   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
 │   ├── textures/           # Textures procedurals (noise, elements)
 │   └── enemy-images.ts     # ENEMY_IMAGES (imatges base64 enemics)
@@ -429,6 +433,19 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - `ContextMenuState.existingGroupId` distingeix "Crear grup" vs "Dissoldre grup" (multi-select: només si la selecció coincideix exactament amb tots els membres del grup) i mostra/amaga "Sortir del grup" (single-token: el grup del token, si en té).
 - Eliminar un lib enemy (`removeLibEnemy`) neteja també la seva entrada a `rTokenGroups` i `rMultiSelected`.
 
+### Estats dels tokens (condicions)
+
+- **Model** (`Condition` a `types/index.ts`, llista a `constants/index.ts`): els **16 estats oficials** de la làmina de D&D. Cada un porta `label` **en català** (l'únic nom que es pinta), `es` i `en` (traduccions que surten al hover del menú), `color` propi i un `tint` opcional que tenyeix el token sencer. Les `id` són les angleses (`blinded`, `charmed`…), o sigui que **les partides desades continuen sent vàlides**; les noves respecte de la versió anterior són `exhaustion` i `dying`.
+- **Isotips vectorials** (`src/lib/conditions/icons.ts`): cada estat és una llista de parts amb el `d` d'un path SVG dins d'una caixa de `ICON_BOX` (512). **Mai bitmaps**: al canvas es dibuixen amb `Path2D` (`conditionPaths`, cachejats per id) i al menú amb `<svg>` (`ConditionIcon`), o sigui que es re-rasteritzen a la resolució de cada zoom.
+  - Part **sense `w`** → s'omple amb regla **evenodd** (els subpaths interiors fan de forat: ulls, boca, esquerdes…).
+  - Part amb **`w`** → es traça (`dash` per a guions; és com es fa el contorn de l'estat *Invisible*).
+  - Part amb **`bg`** → es pinta amb el **color del badge**. ⚠️ És l'única manera neta de fer la barra del "prohibit" (*Eixordat*): amb evenodd, allà on la barra creuava un forat de la silueta la doble inversió el tornava a omplir i quedava un escaquer.
+- **Tinta llegible** (`conditionInk`): blanc sobre colors foscos i gairebé negre sobre els clars (groc, cian, gris). Sense això, els estats de color clar pintaven un isotip blanc sobre blanc.
+- **Distintiu al mapa** (`drawConditionBadges`, cridada des de les tres famílies de tokens a `render/tokens.ts`, sempre **després** de pintar el token):
+  1. **Anell segmentat** a la vora del token: un tram per estat amb el seu color. És la lectura d'un cop d'ull — encara que els isotips quedin petits, els colors ja diuen quants estats hi ha. Va **per dins** del radi del token: a fora hi viuen l'aro daurat del torn, el de ressaltar enemics i el blau de selecció, i s'hi trepitjarien.
+  2. **Badges amb isotip** repartits en un **arc simètric respecte del capdamunt** del token: amb pocs estats queden centrats sobre el cap i, a mesura que se n'acumulen, s'obren cap als costats fins a envoltar-lo. Si l'arc s'omple, el badge s'encongeix fins a un mínim llegible i, només si encara no hi caben, l'últim lloc mostra «+N».
+- **Menú** (`ConditionPicker`, usat pel menú d'un token i pel de multi-selecció a `ContextMenuOverlay`): graella de 4 columnes amb isotip + nom en català; les fitxes actives s'encenen del color de l'estat i el hover mostra una finestreta amb el castellà i l'anglès. ⚠️ Els dos menús de token han d'anar amb **`overflow: 'visible'`**: amb `hidden` la finestreta de traduccions quedava retallada per la caixa del menú.
+
 ### Cinematica boss reveal
 - Llançada via `triggerBossIntroRef.current(data)`
 - `BOSS_INTRO` BC message inclou `portraitDataUrl` (JPEG base64, max 600px)
@@ -559,7 +576,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | `TOKEN_LERP` | `0.07` | Suavitzat moviment tokens |
 | `TSCALE` | `90` | Escala base tokens |
 | `C` | objecte colors | Paleta UI (`bg`, `panel`, `accent`, `text`...) |
-| `CONDITIONS` | array | Condicions D&D (14 condicions) |
+| `CONDITIONS` | array | Estats de D&D (16, amb `label` en català, `es`/`en` i `color`) |
 | `ELEMENTS` | array | Elements màgics (fire, ice, water...) |
 | `ENEMY_TEMPLATES` | array | Plantilles enemics (goblin, troll, drac...) |
 | `DEFAULT_PARTY` | array | 5 jugadors per defecte |
@@ -578,5 +595,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Sincronitzar càmera en píxels de pantalla | Els jugadors veuen un tros de mapa diferent del DM segons la mida/format de finestra | Enviar `cam` (coords de mapa) i traduir-lo a cada pantalla amb `camToView` |
 | Llegir `rDmCam` dins del missatge en lloc de `_currentCam()` | El jugador es queda un pas de zoom/pan enrere | El ref l'escriu el tick un cop per frame; els handlers d'interacció envien abans del frame següent |
 | Processar dos cops un missatge jugador→DM | Efectes que es "desfan" sols i **només amb la API engegada** (p. ex. l'animació de moviment que es talla) | Tot missatge del jugador viatja per BC **i** WS: al mateix ordinador arriba duplicat. Fer els handlers idempotents (descartar l'eco: l'estat ja hi és) |
+| Isotip d'estat pintat amb evenodd damunt d'una barra de "prohibit" | Escaquer allà on la barra creua un forat de la silueta | Fer la barra amb dues parts `bg` + tinta (veure `deafened` a `conditions/icons.ts`) |
+| Menú contextual d'un token amb `overflow: hidden` | La finestreta de traduccions dels estats queda retallada | `overflow: 'visible'` als dos menús de token de `ContextMenuOverlay` |
 | Component definit dins d'un altre component | El hover es queda enganxat / l'estat intern es perd a cada render | Declarar-lo a nivell de mòdul (veure `ToolButton` a `FloatingToolbar`) |
 | Mode nou només al teclat | L'usuari no sap que existeix | Una sola funció `toggle*` a `DMView`, compartida pel botó de `FloatingToolbar` i per `useKeyboardHandlers` |

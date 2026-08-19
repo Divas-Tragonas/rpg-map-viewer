@@ -240,10 +240,21 @@ export interface SpellMenuState {
   mode?: 'path' | 'line' | 'area';
 }
 
+/**
+ * Estat (condició) de D&D que es pot aplicar a un token.
+ * L'isotip vectorial corresponent viu a `src/lib/conditions/icons.ts` (mateixa `id`).
+ */
 export interface Condition {
   id: string;
+  /** Nom en català — l'únic que es pinta a la UI. */
   label: string;
-  bg: string;
+  /** Traducció castellana (finestreta d'ajuda del menú). */
+  es: string;
+  /** Traducció anglesa (finestreta d'ajuda del menú). */
+  en: string;
+  /** Color identificatiu de l'estat: badge, segment de l'anell i ressaltat del menú. */
+  color: string;
+  /** Tint opcional sobre el token sencer (només els estats que en canvien l'aspecte). */
   tint: string | null;
 }
 

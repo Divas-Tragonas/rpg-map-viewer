@@ -46,6 +46,13 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.7 — Menú d'estats de token refet de cap i de nou
+- **Els 16 estats oficials** de la làmina de D&D (s'hi afegeixen **Cansament** i **Morint**), amb el nom **en català**; en passar el cursor per sobre d'una fitxa del menú surten les traduccions al **castellà i a l'anglès**.
+- **Isotips nous, vectorials** (`src/lib/conditions/icons.ts`): paths SVG en una caixa de 512, dibuixats amb `Path2D` al canvas i amb `<svg>` al menú, o sigui **màxima resolució a qualsevol zoom** (res de bitmaps).
+- **Un color propi per estat** en lloc del vermell/gris de sempre.
+- **Un token amb molts estats ja s'entén**: els distintius es reparteixen en un arc simètric damunt del token i s'obren fins a envoltar-lo (encongint-se si cal, amb «+N» com a últim recurs), i la vora del token es pinta com un **anell segmentat** amb el color de cada estat — d'un cop d'ull ja se sap quants n'hi ha i quins.
+- Menú contextual redissenyat: graella de fitxes amb isotip i nom, les actives enceses del color de l'estat.
+
 ### v4.6 — Redisseny de la finestra lateral i barra d'eines completa
 - **Finestra lateral en seccions plegables.** Importar, capes del PSD, sales, punts de llum, jugadors i la biblioteca d'enemics comparteixen ara la mateixa capçalera (títol, comptador i botons d'acció) i es poden plegar. Les llistes llargues (capes, sales, llums) tenen scroll propi en lloc d'empènyer la resta del panell fora de la pantalla.
 - **Les sales van comprimides en un grup**, plegat per defecte i amb el comptador a la capçalera (`Sales · 12`), més un resum de quantes són fosques i quantes estan revelades. Les files són més compactes. Igual per als punts de llum.

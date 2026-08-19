@@ -1,23 +1,29 @@
 import type { Condition, Element } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.6';
+export const APP_VERSION = 'v4.7';
 
+// Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
+// Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
+// és el que permet endevinar d'un cop d'ull quins estats té un token quan n'acumula
+// uns quants. L'isotip vectorial de cada `id` viu a `src/lib/conditions/icons.ts`.
 export const CONDITIONS: Condition[] = [
-  { id: 'grappled',      label: 'Agarrado',     bg: '#6b7280', tint: null      },
-  { id: 'frightened',    label: 'Asustado',     bg: '#7c3aed', tint: null      },
-  { id: 'stunned',       label: 'Aturdido',     bg: '#ea580c', tint: '#f97316' },
-  { id: 'blinded',       label: 'Cegado',       bg: '#374151', tint: null      },
-  { id: 'prone',         label: 'Derribado',    bg: '#78350f', tint: null      },
-  { id: 'deafened',      label: 'Ensordecido',  bg: '#9ca3af', tint: null      },
-  { id: 'poisoned',      label: 'Envenenado',   bg: '#15803d', tint: '#22c55e' },
-  { id: 'charmed',       label: 'Hechizado',    bg: '#be185d', tint: '#f472b6' },
-  { id: 'unconscious',   label: 'Inconsciente', bg: '#1e293b', tint: '#475569' },
-  { id: 'invisible',     label: 'Invisible',    bg: '#0369a1', tint: null      },
-  { id: 'paralyzed',     label: 'Paralizado',   bg: '#a16207', tint: '#eab308' },
-  { id: 'petrified',     label: 'Petrificado',  bg: '#57534e', tint: '#a8a29e' },
-  { id: 'restrained',    label: 'Apresado',     bg: '#92400e', tint: null      },
-  { id: 'incapacitated', label: 'Incapacitado', bg: '#991b1b', tint: null      },
+  { id: 'blinded',       label: 'Encegat',     es: 'Cegado',       en: 'Blinded',       color: '#3f3f46', tint: null      },
+  { id: 'charmed',       label: 'Encisat',     es: 'Hechizado',    en: 'Charmed',       color: '#ec4899', tint: '#f472b6' },
+  { id: 'deafened',      label: 'Eixordat',    es: 'Ensordecido',  en: 'Deafened',      color: '#a1a1aa', tint: null      },
+  { id: 'exhaustion',    label: 'Cansament',   es: 'Cansancio',    en: 'Exhaustion',    color: '#a16207', tint: null      },
+  { id: 'frightened',    label: 'Espantat',    es: 'Asustado',     en: 'Frightened',    color: '#7c3aed', tint: null      },
+  { id: 'grappled',      label: 'Agafat',      es: 'Agarrado',     en: 'Grappled',      color: '#0e7490', tint: null      },
+  { id: 'incapacitated', label: 'Incapacitat', es: 'Incapacitado', en: 'Incapacitated', color: '#dc2626', tint: null      },
+  { id: 'invisible',     label: 'Invisible',   es: 'Invisible',    en: 'Invisible',     color: '#67e8f9', tint: null      },
+  { id: 'paralyzed',     label: 'Paralitzat',  es: 'Paralizado',   en: 'Paralyzed',     color: '#facc15', tint: '#eab308' },
+  { id: 'petrified',     label: 'Petrificat',  es: 'Petrificado',  en: 'Petrified',     color: '#78716c', tint: '#a8a29e' },
+  { id: 'poisoned',      label: 'Enverinat',   es: 'Envenenado',   en: 'Poisoned',      color: '#16a34a', tint: '#22c55e' },
+  { id: 'prone',         label: 'Estès',       es: 'Derribado',    en: 'Prone',         color: '#c2410c', tint: null      },
+  { id: 'restrained',    label: 'Retingut',    es: 'Apresado',     en: 'Restrained',    color: '#4f46e5', tint: null      },
+  { id: 'stunned',       label: 'Atordit',     es: 'Aturdido',     en: 'Stunned',       color: '#f97316', tint: '#fb923c' },
+  { id: 'unconscious',   label: 'Inconscient', es: 'Inconsciente', en: 'Unconscious',   color: '#1e40af', tint: '#475569' },
+  { id: 'dying',         label: 'Morint',      es: 'Muriendo',     en: 'Dying',         color: '#7f1d1d', tint: '#991b1b' },
 ];
 
 export const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));

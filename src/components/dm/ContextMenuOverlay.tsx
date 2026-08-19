@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { X } from '@/components/icons';
-import { CONDITIONS } from '@/constants';
+import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { C } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, LibEnemy, PsdEnemyOverrides } from '@/types';
 
@@ -150,20 +150,20 @@ export function ContextMenuOverlay({
     const ids = contextMenu.ids;
     const idsStr = ids.map(String);
     return (
-      <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 230), top: Math.min(contextMenu.y, window.innerHeight - 420), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', minWidth: 220, overflow: 'hidden' }}>
+      <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 278), top: Math.min(contextMenu.y, window.innerHeight - 420), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', width: 268, overflow: 'visible' }}>
         <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}` }}>
           <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>{contextMenu.name}</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, padding: 6, maxHeight: 280, overflowY: 'auto' }}>
-          {CONDITIONS.map(cond => (
-            <button key={cond.id}
-              onMouseDown={e => { e.stopPropagation(); idsStr.forEach(tid => onToggleCondition(tid, cond.id)); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: '1px solid transparent', borderRadius: 6, cursor: 'pointer', background: 'transparent', color: C.dim, fontSize: 11, textAlign: 'left' }}>
-              <div style={{ width: 13, height: 13, borderRadius: '50%', background: cond.bg, flexShrink: 0, opacity: 0.5 }} />
-              {cond.label}
-            </button>
-          ))}
-        </div>
+        <ConditionPicker
+          multi
+          active={[]}
+          onToggle={condId => idsStr.forEach(tid => onToggleCondition(tid, condId))}
+          onClear={() => {
+            const nc = { ...rConditions.current };
+            idsStr.forEach(tid => delete nc[tid]);
+            rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
+          }}
+        />
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {contextMenu.existingGroupId ? (
             <button onMouseDown={e => {
@@ -192,14 +192,6 @@ export function ContextMenuOverlay({
           </button>
           <button onMouseDown={e => {
             e.stopPropagation();
-            const nc = { ...rConditions.current };
-            idsStr.forEach(tid => delete nc[tid]);
-            rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
-          }} style={{ width: '100%', padding: '6px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 5, color: C.dim, cursor: 'pointer', fontSize: 11 }}>
-            Netejar estados
-          </button>
-          <button onMouseDown={e => {
-            e.stopPropagation();
             ids.forEach(tid => { if (typeof tid === 'string' && tid.startsWith('lib_')) removeLibEnemy(parseInt(tid.replace('lib_', ''))); });
             onClose();
           }} style={{ width: '100%', padding: '6px', background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', borderRadius: 5, color: '#f85149', cursor: 'pointer', fontSize: 11 }}>
@@ -211,7 +203,7 @@ export function ContextMenuOverlay({
   }
 
   return (
-    <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 230), top: Math.min(contextMenu.y, window.innerHeight - 500), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', minWidth: 220, overflow: 'hidden' }}>
+    <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 278), top: Math.min(contextMenu.y, window.innerHeight - 500), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', width: 268, overflow: 'visible' }}>
       {/* Header */}
       <div style={{ padding: '8px 12px 6px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>{contextMenu.name}</span>
@@ -289,31 +281,14 @@ export function ContextMenuOverlay({
               <span style={{ color: C.dim, fontSize: 10 }}>ft de diàmetre</span>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, padding: 6, maxHeight: 280, overflowY: 'auto' }}>
-            {CONDITIONS.map(cond => {
-              const active = (conditions[id] || []).includes(cond.id);
-              return (
-                <button key={cond.id}
-                  onMouseDown={e => { e.stopPropagation(); onToggleCondition(id, cond.id); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: active ? `1px solid ${cond.bg}66` : '1px solid transparent', borderRadius: 6, cursor: 'pointer', background: active ? `${cond.bg}22` : 'transparent', color: active ? '#e6edf3' : C.dim, fontSize: 11, textAlign: 'left' }}>
-                  <div style={{ width: 13, height: 13, borderRadius: '50%', background: cond.bg, flexShrink: 0, opacity: active ? 1 : 0.5 }} />
-                  {cond.label}
-                  {active && <span style={{ marginLeft: 'auto', color: cond.bg, fontSize: 9 }}>●</span>}
-                </button>
-              );
-            })}
-          </div>
-          {(conditions[id] || []).length > 0 && (
-            <div style={{ borderTop: `1px solid ${C.border}`, padding: '4px 6px' }}>
-              <button onMouseDown={e => {
-                e.stopPropagation();
-                const nc = { ...rConditions.current }; delete nc[id];
-                rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
-              }} style={{ width: '100%', padding: '5px', background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', borderRadius: 5, color: '#f85149', cursor: 'pointer', fontSize: 11 }}>
-                Limpiar estados
-              </button>
-            </div>
-          )}
+          <ConditionPicker
+            active={conditions[id] || []}
+            onToggle={condId => onToggleCondition(id, condId)}
+            onClear={() => {
+              const nc = { ...rConditions.current }; delete nc[id];
+              rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
+            }}
+          />
 
           {/* Leave group */}
           {contextMenu.existingGroupId && (
