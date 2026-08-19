@@ -150,7 +150,7 @@ export function ContextMenuOverlay({
     const ids = contextMenu.ids;
     const idsStr = ids.map(String);
     return (
-      <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 278), top: Math.min(contextMenu.y, window.innerHeight - 420), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', width: 268, overflow: 'visible' }}>
+      <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 240), top: Math.min(contextMenu.y, window.innerHeight - 420), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', width: 230, overflow: 'hidden' }}>
         <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}` }}>
           <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>{contextMenu.name}</span>
         </div>
@@ -203,7 +203,7 @@ export function ContextMenuOverlay({
   }
 
   return (
-    <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 278), top: Math.min(contextMenu.y, window.innerHeight - 500), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', width: 268, overflow: 'visible' }}>
+    <div data-ctxmenu="1" style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 240), top: Math.min(contextMenu.y, window.innerHeight - 500), background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.65)', width: 230, overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '8px 12px 6px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>{contextMenu.name}</span>

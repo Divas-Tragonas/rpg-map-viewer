@@ -1,7 +1,7 @@
 import type { Condition, Element } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.7';
+export const APP_VERSION = 'v4.8';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -10,7 +10,7 @@ export const APP_VERSION = 'v4.7';
 export const CONDITIONS: Condition[] = [
   { id: 'blinded',       label: 'Encegat',     es: 'Cegado',       en: 'Blinded',       color: '#3f3f46', tint: null      },
   { id: 'charmed',       label: 'Encisat',     es: 'Hechizado',    en: 'Charmed',       color: '#ec4899', tint: '#f472b6' },
-  { id: 'deafened',      label: 'Eixordat',    es: 'Ensordecido',  en: 'Deafened',      color: '#a1a1aa', tint: null      },
+  { id: 'deafened',      label: 'Ensordit',    es: 'Ensordecido',  en: 'Deafened',      color: '#a1a1aa', tint: null      },
   { id: 'exhaustion',    label: 'Cansament',   es: 'Cansancio',    en: 'Exhaustion',    color: '#a16207', tint: null      },
   { id: 'frightened',    label: 'Espantat',    es: 'Asustado',     en: 'Frightened',    color: '#7c3aed', tint: null      },
   { id: 'grappled',      label: 'Agafat',      es: 'Agarrado',     en: 'Grappled',      color: '#0e7490', tint: null      },
@@ -19,7 +19,7 @@ export const CONDITIONS: Condition[] = [
   { id: 'paralyzed',     label: 'Paralitzat',  es: 'Paralizado',   en: 'Paralyzed',     color: '#facc15', tint: '#eab308' },
   { id: 'petrified',     label: 'Petrificat',  es: 'Petrificado',  en: 'Petrified',     color: '#78716c', tint: '#a8a29e' },
   { id: 'poisoned',      label: 'Enverinat',   es: 'Envenenado',   en: 'Poisoned',      color: '#16a34a', tint: '#22c55e' },
-  { id: 'prone',         label: 'Estès',       es: 'Derribado',    en: 'Prone',         color: '#c2410c', tint: null      },
+  { id: 'prone',         label: 'Tombat',      es: 'Derribado',    en: 'Prone',         color: '#c2410c', tint: null      },
   { id: 'restrained',    label: 'Retingut',    es: 'Apresado',     en: 'Restrained',    color: '#4f46e5', tint: null      },
   { id: 'stunned',       label: 'Atordit',     es: 'Aturdido',     en: 'Stunned',       color: '#f97316', tint: '#fb923c' },
   { id: 'unconscious',   label: 'Inconscient', es: 'Inconsciente', en: 'Unconscious',   color: '#1e40af', tint: '#475569' },

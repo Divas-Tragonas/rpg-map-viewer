@@ -46,6 +46,11 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.8 — Retocs al menú d'estats
+- **Traduccions revisades**: *Ensordit* (no «Eixordat», que no és català estàndard) i *Tombat* per a `prone`.
+- **Menú molt més compacte** (230 px d'ample, 4×4 fitxes) i les traduccions al castellà i a l'anglès passen a la **finestreta natiua del sistema** (`title`) en lloc d'un menú propi de l'app.
+- **Isotips millorats**: la cara d'*Encegat* ja no somriu (cap estat és una cosa bona), *Cansament* és una figura ensorrada de debò, *Agafat* passa a ser un puny que estreny i *Petrificat* té els trossos de pedra que se'n desprenen.
+
 ### v4.7 — Menú d'estats de token refet de cap i de nou
 - **Els 16 estats oficials** de la làmina de D&D (s'hi afegeixen **Cansament** i **Morint**), amb el nom **en català**; en passar el cursor per sobre d'una fitxa del menú surten les traduccions al **castellà i a l'anglès**.
 - **Isotips nous, vectorials** (`src/lib/conditions/icons.ts`): paths SVG en una caixa de 512, dibuixats amb `Path2D` al canvas i amb `<svg>` al menú, o sigui **màxima resolució a qualsevol zoom** (res de bitmaps).
