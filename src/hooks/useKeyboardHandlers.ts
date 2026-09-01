@@ -4,6 +4,18 @@ import type { DrawTool } from '@/types';
 import type { DMRefs } from './useDMRefs';
 import { toggleLightDebug } from '@/lib/render/darkrooms';
 
+/**
+ * true si l'esdeveniment ve d'un camp on l'usuari està escrivint. TOTS els escoltadors
+ * de teclat d'aquest hook hi han de passar: sense això, escriure una majúscula a l'editor
+ * del revelador de text o reanomenar un jugador commutava la vista privada del DM a cada
+ * pulsació de Maj (i un Ctrl+A/Ctrl+V dins d'un camp, la vista compartida).
+ */
+function isTyping(e: KeyboardEvent): boolean {
+  const t = e.target;
+  return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement
+    || (t instanceof HTMLElement && t.isContentEditable);
+}
+
 interface KBOpts {
   setDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
   undoStroke: () => void;
@@ -24,7 +36,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
   // CTRL key: toggle shared pan/zoom mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Control' || e.repeat) return;
+      if (e.key !== 'Control' || e.repeat || isTyping(e)) return;
       toggleCtrlPan();
     };
     window.addEventListener('keydown', onDown);
@@ -35,7 +47,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
   // In shape mode, SHIFT is used for spell line drawing (rShiftHeld physical hold) — no toggle.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Shift' || e.repeat) return;
+      if (e.key !== 'Shift' || e.repeat || isTyping(e)) return;
       R.rShiftHeld.current = true;
       toggleShiftPan();
     };
@@ -51,7 +63,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
   // Tool shortcuts (1-4) + Ctrl+Z + Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isTyping(e)) return;
       // Ctrl+Z segons l'eina: amb l'eina de selecció ('none') desfà l'últim moviment del
       // torn actiu (combat); amb una eina de dibuix desfà l'últim traç. Cadascú el seu.
       if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { C } from '@/constants';
-import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnState } from '@/types';
+import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnState, DefeatedMap } from '@/types';
 
 interface Props {
   turn: TurnState;
@@ -11,6 +11,8 @@ interface Props {
   struct: MapStructure | null;
   psdEnemyOverrides: PsdEnemyOverrides;
   vis: VisMap;
+  /** Tokens derrotats: el seu xip surt atenuat i amb la ✕ (ja no agafen torn). */
+  defeated: DefeatedMap;
   tokenGroupsRef: MutableRefObject<Map<number | string, string>>;
   onStart: (ids: (number | string)[]) => void;
   onEnd: () => void;
@@ -23,7 +25,7 @@ interface Props {
 interface TokenInfo { name: string; color: string; img: string | null }
 
 export function TurnTracker({
-  turn, players, libEnemies, struct, psdEnemyOverrides, vis, tokenGroupsRef,
+  turn, players, libEnemies, struct, psdEnemyOverrides, vis, defeated, tokenGroupsRef,
   onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder,
 }: Props) {
   const [selecting, setSelecting] = useState(false);
@@ -246,6 +248,7 @@ export function TurnTracker({
             const info = resolve(id);
             const isActive = i === turn.turnIndex;
             const isPlayer = String(id).startsWith('pl_');
+            const isDefeated = !!defeated[String(id)];
             return (
               <div
                 key={String(id)}
@@ -255,7 +258,7 @@ export function TurnTracker({
                 onDrop={editMode ? () => { if (dragIdx !== null) moveInOrder(dragIdx, i); setDragIdx(null); } : undefined}
                 onClick={!editMode && isActive ? onAdvance : undefined}
                 onContextMenu={(e) => { e.preventDefault(); if (!isActive) setMenuFor(id); }}
-                title={editMode ? 'Arrossega per reordenar' : isActive ? 'Clica per passar el torn · clic dret per recuperar un torn anterior' : `${info.name} · clic dret per recuperar el seu torn`}
+                title={editMode ? 'Arrossega per reordenar' : isDefeated ? `${info.name} · derrotat, se li salta el torn` : isActive ? 'Clica per passar el torn · clic dret per recuperar un torn anterior' : `${info.name} · clic dret per recuperar el seu torn`}
                 style={{
                   position: 'relative',
                   display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
@@ -265,9 +268,16 @@ export function TurnTracker({
                   border: isActive ? `2px solid ${C.accent}` : editMode ? `1px dashed ${C.dim}66` : '2px solid transparent',
                   background: isActive ? `${C.accent}22` : dragIdx === i ? `${C.accent}18` : 'transparent',
                   boxShadow: isActive ? `0 0 16px ${C.accent}66` : 'none',
-                  opacity: isActive ? 1 : 0.75,
+                  opacity: isDefeated ? 0.34 : isActive ? 1 : 0.75,
+                  filter: isDefeated ? 'grayscale(1)' : 'none',
                 }}>
                 <Avatar id={id} size={isActive ? 42 : 34} />
+                {isDefeated && (
+                  <span aria-hidden style={{
+                    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: C.enemy, fontSize: isActive ? 30 : 24, fontWeight: 900, lineHeight: 1, pointerEvents: 'none',
+                  }}>✕</span>
+                )}
                 {isActive && (
                   <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, textAlign: 'left' }}>
                     <span style={{ color: C.bright, fontSize: 13, fontWeight: 700, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.name}</span>

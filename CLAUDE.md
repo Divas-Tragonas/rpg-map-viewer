@@ -43,15 +43,24 @@ git remote set-url origin https://oauth2:TOKEN@github.com/Divas-Tragonas/rpg-map
 
 ### Versió i changelog — OBLIGATORI en cada push
 
+> **FORMAT DE LA VERSIÓ: `vMAJOR.MM` amb DOS dígits a la part petita** (`v4.09`, `v4.10`,
+> `v4.11`… fins a `v4.99`). **Mai un sol dígit** (`v4.9` és un error: ordena malament i
+> obliga a saltar a la v5 al cap de nou canvis). El salt de versió gran (`v5`) es reserva
+> per a una fita de debò, no per haver-se quedat sense números.
+>
+> L'increment normal és de **+0.01** (`v4.09` → `v4.10`). Compte: `v4.9` i `v4.90` no són
+> el mateix — sempre dos dígits.
+
 **Abans de cada commit**, actualitzar el `README.md`:
-1. Incrementar la versió (`vX.Y` → `vX.Y+1`) al títol de l'entrada més recent del Changelog
+1. Incrementar la versió (`vX.YY` → `vX.YY+1`) i posar-la al títol de l'entrada nova del Changelog
 2. Afegir un nou bloc al Changelog amb la versió nova i un resum dels canvis:
    ```markdown
-   ### vX.Y+1
+   ### vX.YY+1 — Títol curt del canvi
    - Descripció breu del canvi 1
    - Descripció breu del canvi 2
    ```
-3. Incloure el `README.md` al commit
+3. Actualitzar `APP_VERSION` a `src/constants/index.ts` (surt a la pantalla de benvinguda del DM i del jugador)
+4. Incloure el `README.md` al commit
 
 ---
 
@@ -176,6 +185,7 @@ src/
 ├── hooks/
 │   ├── useDMRefs.ts        # Tots els refs del DM (state mirrors + interaction)
 │   ├── useDMActions.ts     # Callbacks d'acció (PSD import, BC, drag...)
+│   ├── useAutosave.ts      # Desat automàtic periòdic de la partida (IndexedDB)
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
@@ -183,6 +193,8 @@ src/
 │   └── useWheelZoom.ts
 ├── lib/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
+│   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
+│   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
 │   ├── psd/
 │   │   ├── parser.ts       # parsePSDStructure(buffer) → ParsedPSD
 │   │   ├── extractor.ts    # extractLayerImages → Record<number, HTMLCanvasElement>
@@ -528,7 +540,9 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Estat**: `TurnState` (`types/index.ts`) `{ active, order, turnIndex, round, activeRemainingFt }`. Mirall `rTurn` (`useDMRefs.ts`), estat React `turn` (`DMView.tsx`). El DM és la font de veritat; viatja al jugador dins `STATE`/`STRUCT` (camp lleuger `turn`, sempre enviat) i persisteix a la sessió (save/load).
 - **Component**: `TurnTracker` (`src/components/dm/TurnTracker.tsx`) — barra flotant a baix al centre del `stageRef`. Inactiu: botó "⚔️ Iniciar torns" que obre un popover de selecció (tots els jugadors s'afegeixen automàticament; es trien enemics PSD/lib visibles i **grups** llegits de `rTokenGroups`). Actiu: badge de ronda + fila de chips en ordre de torn + botó "⏭ Ronda" + "✕".
 - **Ordre** (`startTurnCombat` a `DMView.tsx`): `order` = ids plans `[...jugadors, ...selecció]` amb dedup (els grups s'expandeixen als seus tokens en iniciar; l'ordre no guarda referències a grups perquè `rTokenGroups` és efímer).
-- **Passar torn** (`advanceTurn`): clic al chip **actiu** de la barra. En tancar la volta (`turnIndex` supera l'últim) → `round++` i `turnIndex=0`. Cada token, en agafar el torn, reinicia `activeRemainingFt` a la seva velocitat (`_budgetFor`: `Player.speed` per `pl_*`, sentinella gran per enemics). Botó "⏭ Ronda" (`advanceRound`): salta els que queden i comença ronda nova.
+- **Primitives compartides** (`src/lib/turn.ts`): `budgetFor` (peus amb què arrenca un token: `Player.speed` per `pl_*`, sentinella `NO_MOVE_LIMIT_FT` per enemics), `nextActive` / `firstActive` (recorregut de la cua saltant-se els derrotats) i `removeFromTurn`. Viuen fora de `DMView` perquè **`useDMActions` també les necessita**: veure "Eliminar un token" més avall.
+- **Passar torn** (`advanceTurn`): clic al chip **actiu** de la barra. Avança amb `nextActive`, que **se salta els tokens derrotats** (`rDefeated`): un enemic amb la X o un jugador a 0 de vida ja no juga, i abans calia passar-li el torn a mà, un clic buit per baixa i per ronda. Cada volta completa fa `round++` i neteja els saldos; si tothom és derrotat, la funció torna al mateix token després d'una volta (mai un bucle infinit). Cada token, en agafar el torn, reinicia `activeRemainingFt` amb `budgetFor`. Botó "⏭ Ronda" (`advanceRound`) i `startTurnCombat` arrenquen amb `firstActive` pel mateix motiu. Al `TurnTracker`, el chip d'un derrotat surt **atenuat, en gris i amb la ✕**.
+- **Eliminar un token** (`_cleanupTokenKey` a `useDMActions.ts`): a més de condicions, derrotat, mida, selecció i grups, **el treu de la cua d'iniciativa** (`removeFromTurn`) i de `rMoveHistory`. Sense això, esborrar un token durant el combat deixava el seu chip a la barra amb el nom «?» i, en arribar-li el torn, l'aro daurat no es pintava enlloc. Si s'esborra el token que **té** el torn, passa al següent amb el saldo sencer; si la cua queda buida, el combat s'acaba. La ronda **no** s'incrementa per una eliminació (qui la fa avançar és el DM). Com que `turn` és camp lleuger del `STATE`, el `_broadcastState` que ja fan `removePlayer`/`removeLibEnemy` el propaga.
 - **Distintiu**: aro **daurat sòlid** al token actiu (`drawActiveTurnRing` a `render/tokens.ts`), pintat a **les tres** famílies de tokens — `renderPlayerTokens`, `renderEnemyTokens` (PSD, `_activeId === en.id`, numèric) i `renderLibEnemyTokens` (`_activeId === \`lib_${en.id}\``) — perquè al mapa es vegi a qui li toca moure i no calgui mirar la barra d'iniciativa. No es pinta si el token està derrotat o pràcticament invisible (`enAlpha > 0.3`). Coherent amb el groc però diferent de l'aro de "ressaltar enemics" i del blau de selecció.
 - **Límit de moviment per torn** (extensió de `usePlayerTokenDrag`): amb combat actiu, des de `/player` només es pot **agafar** el token del torn actiu, i el disc de moviment usa `activeRemainingFt` en lloc de la velocitat sencera (es va encongint drag a drag: p. ex. 15 ft → mou 5 → queden 10). El DM valida cada `TOKEN_MOVE` (`handlePlayerTokenMove`): comprova bloqueig manual (`canMove`), que sigui el token actiu i que el cost no superi el saldo (mateixa mètrica de disc: `cost = ceil(hypot(dc,dr) − 0.5)` caselles × 5 ft); si el supera, rebot amb `TOKEN_RELAY`. En aplicar, descompta el saldo i propaga amb `_broadcastState` (perquè el disc del jugador s'encongeixi). **El DM mou sense límits** (el seu drag no passa per aquesta via). Sense grid no hi ha límit (com el clamp existent).
 - **Recuperar un torn anterior**: clic dret sobre un token **no actiu** de la barra → "↩ Recuperar el seu torn" (`recoverTurn`). Torna `turnIndex` a aquell token amb el saldo de peus que li quedava (`TurnState.remaining`, mapa de saldos desat en deixar cada torn; es neteja a cada ronda nova).
@@ -545,6 +559,17 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Garantia**: amb la regla contain, **cap pantalla no veu mai menys que el DM**; una de format diferent veu **més** mapa als costats. Verificat sobre 1210 combinacions de mapa/finestra/zoom/pan.
 - **El DM redimensiona**: el tick detecta el canvi de `W×H` i rebroadcasteja (throttle 120ms amb reintent: si es descarta l'enviament, `prevWH` NO s'actualitza i el frame següent hi torna, així la mida final sempre arriba).
 - **HUD 🖥 (`CanvasHUD` → `ScreensChip`)**: les pantalles de jugador reporten la seva mida amb `VIEWPORT {id,w,h}` (en connectar, en redimensionar i cada 15s de heartbeat); el DM les desa a `rPlayerScreens` i oblida les que fa >50s que no diuen res. Entre finestres del mateix PC va pel BroadcastChannel; les de fora (tablet per wifi) pel relay `VIEWPORT` client→dm de la API. El contracte del WS es pot comprovar amb `node scripts/check-sync.mjs`. El xip mostra quantes n'hi ha i, al tooltip, quant de mapa veu **de més** cadascuna (`extraSeen`). El format de l'enquadrament es mostreja cada 700ms a l'estat `camAr` — **no llegir `rDmCam` durant el render** (és una ref que escriu el tick; el HUD no es refrescaria).
+
+### Desat automàtic de la partida (`src/lib/autosave.ts` + `src/hooks/useAutosave.ts`)
+- **Problema que resol**: tot l'estat viu del DM (fons, parets, sales, portes, llums, posicions, vides, estats, dibuix i torns) només existia en refs de memòria. Un F5, un hot-reload del dev server o una pestanya que el navegador descarrega buidaven la partida sencera si el DM no havia premut «Desar».
+- **Magatzem**: IndexedDB (`rpg-map-viewer` → store `autosave`) amb **tres claus**: `meta` (data + nom del mapa + empremta del fons), `state` (la partida) i `bg` (la imatge). **No localStorage**: el mapa són megabytes i localStorage té ~5 MB i només accepta text.
+- **El fons va a part i com a `Blob`** (`bgFingerprint`: tipus + mida + suma de bytes mostrejats). Mentre no canviï el mapa, els desats successius només reescriuen l'estat (uns KB). ⚠️ **No tornar-lo a passar per base64** com fa el fitxer `.json`: infla la imatge un 33% i el bucle de `btoa` sobre un mapa de 8 MB bloqueja el fil principal — a un desat cada 30 s es notaria.
+- **Què es desa**: `_buildSessionCore()` a `useDMActions.ts` — el mateix nucli que el fitxer `.json` i el desat al servidor, **sense** el fons ni el `drawCanvas` (que `applySessionState` no llegeix mai: el dibuix es reconstrueix des de `strokeHistory`). `buildSessionState()` hi afegeix el base64 i el dataURL; `buildAutosaveRecord()` hi afegeix el Blob.
+- **Quan es desa** (`useAutosave`): cada **30 s** i sempre que la pestanya passa a **amagada** (`visibilitychange`), i **només si hi ha canvis** — `rAutosaveDirty` el posa `_broadcastState` (per on passa tota mutació) i el traç de dibuix a `useMouseHandlers` (que no hi passa). La marca es neteja **abans** de construir l'estat, així un canvi que arribi mentre s'escriu no es dona per desat. Si l'escriptura falla (quota, mode privat) es torna a marcar i es reintenta al cicle següent.
+- **Recuperació**: a la pantalla de benvinguda (sense mapa) surt **«↩ Recuperar l'última partida · fa X min»** amb el nom del mapa i un enllaç per descartar-la. `applySessionState` accepta el fons com a `state.bgBlob` (Blob) a més del `state.bgData` (base64) dels fitxers `.json` i del servidor.
+- **Control**: xip **⟳** al `CanvasHUD` (només quan hi ha mapa) amb l'últim desat — clic per desar ara, **clic dret per apagar-lo**. La preferència va a `localStorage['rpg_autosave']` (un booleà sí que hi cap) i apagar-lo **esborra** el que hi hagués desat.
+- **Tolerància a fallades**: sense IndexedDB (mode privat, navegador antic) cap funció de `lib/autosave.ts` llança: retornen `null`/`false` i l'app funciona com abans.
+- També s'hi desen els **grups de tokens** (`tokenGroups`, com a parells perquè un `Map` no sobreviu al JSON) — abans es perdien en carregar una partida.
 
 ### Vista privada DM
 - `Maj+scroll/drag` (toggle `rShiftPanToggle`): zoom i pan locals, **no** sincronitzats al jugador (no entren a `cam`)
@@ -597,5 +622,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Processar dos cops un missatge jugador→DM | Efectes que es "desfan" sols i **només amb la API engegada** (p. ex. l'animació de moviment que es talla) | Tot missatge del jugador viatja per BC **i** WS: al mateix ordinador arriba duplicat. Fer els handlers idempotents (descartar l'eco: l'estat ja hi és) |
 | Isotip d'estat pintat amb evenodd damunt d'una barra de "prohibit" | Escaquer allà on la barra creua un forat de la silueta | Fer la barra amb dues parts `bg` + tinta (veure `deafened` a `conditions/icons.ts`) |
 | Finestreta d'ajuda pròpia per a un text curt d'un botó | Ocupa espai, tapa altres controls i obliga el contenidor a `overflow: visible` | Usar l'atribut `title` natiu (com `PlayersPanel`, `BottomControls` i `CanvasHUD`) |
+| Escoltador de teclat global sense guarda d'escriptura | Escriure una majúscula o fer Ctrl+A en un camp dispara una drecera (commuta la vista privada/compartida) | Passar sempre per `isTyping(e)` a `useKeyboardHandlers` (input, textarea **i** `contentEditable`) |
+| Estat de token no purgat en eliminar-lo | Xip fantasma «?» a la barra d'iniciativa, aro daurat pintat enlloc | Afegir-lo a `_cleanupTokenKey` (`useDMActions.ts`), que ja neteja condicions, derrotat, mida, selecció, grups i torn |
 | Component definit dins d'un altre component | El hover es queda enganxat / l'estat intern es perd a cada render | Declarar-lo a nivell de mòdul (veure `ToolButton` a `FloatingToolbar`) |
 | Mode nou només al teclat | L'usuari no sap que existeix | Una sola funció `toggle*` a `DMView`, compartida pel botó de `FloatingToolbar` i per `useKeyboardHandlers` |

@@ -864,6 +864,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.bcRef.current?.postMessage(strokeMsg);
         R.wsRef.current?.send(JSON.stringify(strokeMsg));
         R.strokeHistoryRef.current.push({ points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current });
+        R.rAutosaveDirty.current = true;  // el dibuix no passa per _broadcastState
         S.setCanUndo(true);
       }
     }

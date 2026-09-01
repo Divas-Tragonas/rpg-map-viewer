@@ -36,6 +36,9 @@ import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
 import { StageTopBar } from '@/components/dm/StageTopBar';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { isApiConfigured } from '@/lib/api';
+import { budgetFor, firstActive, nextActive } from '@/lib/turn';
+import { useAutosave } from '@/hooks/useAutosave';
+import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
 
 export function DMView() {
   // ── State ────────────────────────────────────────────────────────────────
@@ -62,6 +65,10 @@ export function DMView() {
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
+  // Desat automàtic (P5): interruptor i metadades del desat que hi ha guardat, si n'hi ha.
+  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const [autosaveMeta, setAutosaveMeta] = useState<AutosaveMeta | null>(null);
+  const [recovering, setRecovering] = useState(false);
   // Pantalles de jugador connectades (id → mida), reportades pel missatge VIEWPORT.
   const [playerScreens, setPlayerScreens] = useState<Record<string, { w: number; h: number; ts: number }>>({});
   // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
@@ -202,6 +209,7 @@ export function DMView() {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
+    buildAutosaveRecord, applySessionState,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
@@ -210,14 +218,58 @@ export function DMView() {
   } = useDMActions(R, S);
 
 
+  // ── Desat automàtic ────────────────────────────────────────────────────────
+  // Xarxa de seguretat contra un F5: tot l'estat viu (fons, parets, sales, portes, llums,
+  // posicions, vides, dibuix i torns) només existia en memòria i un refresc el buidava.
+  const { savedAt: autosaveAt, saveNow: autosaveNow } = useAutosave(R, {
+    enabled: autosaveEnabled, hasMap: bgLoaded, mapName: bgName, buildRecord: buildAutosaveRecord,
+  });
+
+  // En arrencar: hi ha partida recuperable? (i la preferència de l'interruptor). Els dos
+  // setState van DESPRÉS d'un await, o sigui que no disparen renders en cascada.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const meta = await readAutosaveMeta();
+      if (!alive) return;
+      setAutosaveMeta(meta);
+      setAutosaveEnabled(localStorage.getItem('rpg_autosave') !== 'off');
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const toggleAutosave = useCallback(() => {
+    setAutosaveEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('rpg_autosave', next ? 'on' : 'off');
+      // Apagar-lo esborra el que hi hagués desat: si l'usuari no vol autodesat, tampoc no
+      // vol que la partida es quedi al disc del navegador.
+      if (!next) { void clearAutosave(); setAutosaveMeta(null); }
+      return next;
+    });
+  }, []);
+
+  const recoverAutosave = useCallback(async () => {
+    setRecovering(true);
+    try {
+      const saved = await readAutosave();
+      if (saved) await applySessionState(saved.state);
+    } finally {
+      setRecovering(false);
+      setAutosaveMeta(null);   // ja recuperada: el botó desapareix
+    }
+  }, [applySessionState]);
+
+  const discardAutosave = useCallback(async () => {
+    await clearAutosave();
+    setAutosaveMeta(null);
+  }, []);
+
   // ── Sistema per torns ──────────────────────────────────────────────────────
   // Peus amb què arrenca un token en agafar el torn: la velocitat del jugador. Els
   // enemics no tenen límit des de /player, així que un sentinella gran fa de "sense límit".
-  const _budgetFor = useCallback((id: number | string): number => {
-    const s = String(id);
-    if (s.startsWith('pl_')) return R.rPlayers.current.find(p => `pl_${p.id}` === s)?.speed ?? DEFAULT_SPEED_FT;
-    return 100000;
-  }, [R]);
+  // La primitiva viu a `lib/turn.ts` perquè `useDMActions` la comparteix (veure removeFromTurn).
+  const _budgetFor = useCallback((id: number | string): number => budgetFor(id, R.rPlayers.current), [R]);
 
   const _applyTurn = useCallback((t: TurnState) => {
     R.rMoveHistory.current = [];  // cada canvi de torn reinicia l'historial de Ctrl+Z
@@ -233,7 +285,8 @@ export function DMView() {
       if (!seen.has(k)) { seen.add(k); order.push(id); }
     });
     if (order.length === 0) return;
-    _applyTurn({ active: true, order, turnIndex: 0, round: 1, activeRemainingFt: _budgetFor(order[0]) });
+    const first = firstActive(order, R.rDefeated.current);
+    _applyTurn({ active: true, order, turnIndex: first, round: 1, activeRemainingFt: _budgetFor(order[first]) });
   }, [R, _applyTurn, _budgetFor]);
 
   const endTurnCombat = useCallback(() => {
@@ -245,15 +298,19 @@ export function DMView() {
     if (!t.active || t.order.length === 0) return;
     // Desa el saldo amb què deixa el torn el token actual (per poder recuperar-lo després).
     const remaining = { ...(t.remaining ?? {}), [String(t.order[t.turnIndex])]: t.activeRemainingFt };
-    let ni = t.turnIndex + 1, round = t.round, rem = remaining;
-    if (ni >= t.order.length) { ni = 0; round += 1; rem = {}; }  // volta completa → nova ronda (neteja saldos)
+    // Els tokens derrotats se salten: un enemic amb la X o un jugador a 0 de vida ja no
+    // juga, i abans calia passar-li el torn a mà (un clic buit per baixa i per ronda).
+    const { index: ni, wraps } = nextActive(t.order, t.turnIndex, R.rDefeated.current);
+    const round = t.round + wraps;
+    const rem = wraps > 0 ? {} : remaining;  // volta completa → nova ronda (neteja saldos)
     _applyTurn({ ...t, turnIndex: ni, round, remaining: rem, activeRemainingFt: _budgetFor(t.order[ni]) });
   }, [R, _applyTurn, _budgetFor]);
 
   const advanceRound = useCallback(() => {
     const t = R.rTurn.current;
     if (!t.active || t.order.length === 0) return;  // salta els que queden i comença ronda nova
-    _applyTurn({ ...t, turnIndex: 0, round: t.round + 1, remaining: {}, activeRemainingFt: _budgetFor(t.order[0]) });
+    const first = firstActive(t.order, R.rDefeated.current);
+    _applyTurn({ ...t, turnIndex: first, round: t.round + 1, remaining: {}, activeRemainingFt: _budgetFor(t.order[first]) });
   }, [R, _applyTurn, _budgetFor]);
 
   // Recupera el torn d'un token anterior tal com l'havia deixat (saldo de peus inclòs). Desa
@@ -1189,6 +1246,8 @@ export function DMView() {
           onToggleEnemyHighlight={onToggleEnemyHighlight}
           onToggleHighlightLocked={onToggleHighlightLocked}
           playerScreens={playerScreens} camAr={camAr}
+          hasMap={bgLoaded} autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
+          onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
         />
         <FloatingToolbar
           drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
@@ -1219,6 +1278,7 @@ export function DMView() {
           struct={psdStruct}
           psdEnemyOverrides={psdEnemyOverrides}
           vis={vis}
+          defeated={defeated}
           tokenGroupsRef={R.rTokenGroups}
           onStart={startTurnCombat}
           onEnd={endTurnCombat}
@@ -1438,6 +1498,30 @@ export function DMView() {
               <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
               <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
               <div style={{ fontSize: 11, marginTop: 6, opacity: 0.5 }}>Amb la imatge n&apos;hi ha prou: grid, sales, parets, llums i tokens<br />funcionen sense cap arxiu de Photoshop (el PSD és opcional)</div>
+
+              {/* Recuperació del desat automàtic: l'única sortida després d'un F5 accidental. */}
+              {autosaveMeta && (
+                <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, pointerEvents: 'auto' }}>
+                  <button onClick={() => void recoverAutosave()} disabled={recovering}
+                    title={`Desada automàticament el ${new Date(autosaveMeta.savedAt).toLocaleString('ca-ES')}`}
+                    style={{
+                      padding: '10px 18px', borderRadius: 8, border: `1px solid ${C.accent}`,
+                      background: `${C.accent}1e`, color: C.accent, fontSize: 12, fontWeight: 700,
+                      cursor: recovering ? 'default' : 'pointer', opacity: recovering ? 0.6 : 1,
+                    }}>
+                    {recovering ? 'Recuperant…' : `↩ Recuperar l'última partida · ${agoLabel(autosaveMeta.savedAt)}`}
+                  </button>
+                  <div style={{ fontSize: 10, opacity: 0.65 }}>
+                    {autosaveMeta.mapName || 'Sense nom'}
+                    {' · '}
+                    <button onClick={() => void discardAutosave()}
+                      style={{ background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: 10, textDecoration: 'underline', cursor: 'pointer' }}>
+                      descartar
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
             </div>
           </div>
