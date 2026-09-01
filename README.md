@@ -46,23 +46,36 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
-### v4.9 — Els estats ja no tenyeixen el token
+> **Numeració:** `vMAJOR.MM`, amb **dos dígits** a la part petita (`v4.09`, `v4.10`, …
+> `v4.99`) i increments de +0.01. Les entrades de la v4 que abans es deien `v4.1`–`v4.8`
+> s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
+> que queda reservada per a una fita de debò.
+
+### v4.10 — Arreglats quatre errors i la partida ja no es perd amb un F5
+- **Escriure ja no descol·loca la vista.** Prémer Maj per fer una majúscula a l'editor del revelador de text, o mentre reanomenaves un jugador o una sala, **activava i desactivava la vista privada del DM** a cada pulsació — amb l'animació de retorn de càmera cada vegada. Amb Ctrl passava el mateix amb la vista compartida: un Ctrl+A o un Ctrl+V dins d'un camp la commutava. Els dos commutadors ara ignoren el teclat quan estàs escrivint (i les dreceres continuen funcionant igual fora dels camps).
+- **Eliminar un token durant el combat ja no deixa un fantasma a la iniciativa.** Fins ara el seu xip es quedava a la barra amb el nom «?», i quan li arribava el torn l'aro daurat no es pintava enlloc i calia passar-lo a mà. Ara surt de la cua: si era el token que tenia el torn, passa al següent amb el seu saldo de moviment sencer, i si era l'últim de la cua el combat s'acaba sol. També cau de l'historial de Ctrl+Z.
+- **Els tokens derrotats ja no agafen torn.** Un enemic amb la X o un jugador a 0 de vida se salta automàticament (abans calia un clic buit per cada baixa i per cada ronda). El seu xip surt atenuat i amb la ✕ per veure que hi és però no juga; si recupera vida, torna a jugar sol.
+- **Desat automàtic de la partida.** Tot l'estat viu (fons, parets, sales, portes, llums, tokens, vides, estats, dibuix i torns) només existia en memòria: un F5 accidental, un hot-reload o una pestanya que el navegador descarrega i s'havia acabat. Ara es desa sol a IndexedDB **cada 30 segons i sempre que amagues la pestanya**, i a la pantalla de benvinguda hi surt **«↩ Recuperar l'última partida · fa 4 min»**. Nou xip ⟳ al HUD amb l'últim desat: clic per desar ara, clic dret per apagar-lo (apagar-lo esborra el que hi hagi desat).
+  - El fons es desa com a **Blob i en un registre a part**: no es torna a copiar la imatge mentre no canviï el mapa, i s'evita el base64, que la infla un 33% i bloqueja el fil principal.
+  - Els **grups de tokens** ara també entren a la partida desada (abans es perdien en carregar-la).
+
+### v4.09 — Els estats ja no tenyeixen el token
 - S'elimina el tint de color que alguns estats aplicaven al token sencer: amb dos o tres estats alhora els colors se sumaven i el resultat no volia dir res. Tota la lectura d'estats queda al distintiu (anell segmentat + badges), que sí que els distingeix un per un.
 - **Excepció**: `invisible` continua igual (fantasma semitransparent al DM, contorn blau de guions i amagat del tot al jugador) — mai va anar pel tint.
 
-### v4.8 — Retocs al menú d'estats
+### v4.08 — Retocs al menú d'estats
 - **Traduccions revisades**: *Ensordit* (no «Eixordat», que no és català estàndard) i *Tombat* per a `prone`.
 - **Menú molt més compacte** (230 px d'ample, 4×4 fitxes) i les traduccions al castellà i a l'anglès passen a la **finestreta natiua del sistema** (`title`) en lloc d'un menú propi de l'app.
 - **Isotips millorats**: la cara d'*Encegat* ja no somriu (cap estat és una cosa bona), *Cansament* és una figura ensorrada de debò, *Agafat* passa a ser un puny que estreny i *Petrificat* té els trossos de pedra que se'n desprenen.
 
-### v4.7 — Menú d'estats de token refet de cap i de nou
+### v4.07 — Menú d'estats de token refet de cap i de nou
 - **Els 16 estats oficials** de la làmina de D&D (s'hi afegeixen **Cansament** i **Morint**), amb el nom **en català**; en passar el cursor per sobre d'una fitxa del menú surten les traduccions al **castellà i a l'anglès**.
 - **Isotips nous, vectorials** (`src/lib/conditions/icons.ts`): paths SVG en una caixa de 512, dibuixats amb `Path2D` al canvas i amb `<svg>` al menú, o sigui **màxima resolució a qualsevol zoom** (res de bitmaps).
 - **Un color propi per estat** en lloc del vermell/gris de sempre.
 - **Un token amb molts estats ja s'entén**: els distintius es reparteixen en un arc simètric damunt del token i s'obren fins a envoltar-lo (encongint-se si cal, amb «+N» com a últim recurs), i la vora del token es pinta com un **anell segmentat** amb el color de cada estat — d'un cop d'ull ja se sap quants n'hi ha i quins.
 - Menú contextual redissenyat: graella de fitxes amb isotip i nom, les actives enceses del color de l'estat.
 
-### v4.6 — Redisseny de la finestra lateral i barra d'eines completa
+### v4.06 — Redisseny de la finestra lateral i barra d'eines completa
 - **Finestra lateral en seccions plegables.** Importar, capes del PSD, sales, punts de llum, jugadors i la biblioteca d'enemics comparteixen ara la mateixa capçalera (títol, comptador i botons d'acció) i es poden plegar. Les llistes llargues (capes, sales, llums) tenen scroll propi en lloc d'empènyer la resta del panell fora de la pantalla.
 - **Les sales van comprimides en un grup**, plegat per defecte i amb el comptador a la capçalera (`Sales · 12`), més un resum de quantes són fosques i quantes estan revelades. Les files són més compactes. Igual per als punts de llum.
 - **La secció Importar es plega sola** en carregar el primer mapa, i el formulari d'alta de jugadors només ocupa espai quan el desplegues (botó ＋).
@@ -72,18 +85,18 @@ l'estat complet al DM en tornar.
 - **Expositor i Text passen a ser botons d'eina** dins d'una barra igual a la superior esquerra del canvas, amb la mateixa finestreta d'explicació (desplegada cap avall) i un punt verd quan s'estan mostrant als jugadors.
 - **Els tokens d'enemic de la biblioteca es numeren sols**: el primer Goblin es diu "Goblin"; en crear-ne un segon, el primer passa a "Goblin 1" i el nou a "Goblin 2", i la sèrie va ascendint. Els noms propis que hagis escrit tu ("Goblin Cap") queden fora de la sèrie i no es toquen.
 
-### v4.5 — Arreglat: els tokens continuaven teletransportant-se al DM
-- L'animació de la v4.4 no s'arribava a veure **si la API estava engegada**. La pantalla de jugador envia cada `TOKEN_MOVE` pel BroadcastChannel **i** pel WebSocket, així que una pantalla del mateix ordinador el feia arribar al DM **dues vegades**: la segona còpia no movia res (el token ja hi era) però **esborrava el camí d'animació** que acabava de fixar la primera, i el token saltava igualment. Ara el DM descarta l'eco d'un moviment ja aplicat.
+### v4.05 — Arreglat: els tokens continuaven teletransportant-se al DM
+- L'animació de la v4.04 no s'arribava a veure **si la API estava engegada**. La pantalla de jugador envia cada `TOKEN_MOVE` pel BroadcastChannel **i** pel WebSocket, així que una pantalla del mateix ordinador el feia arribar al DM **dues vegades**: la segona còpia no movia res (el token ja hi era) però **esborrava el camí d'animació** que acabava de fixar la primera, i el token saltava igualment. Ara el DM descarta l'eco d'un moviment ja aplicat.
 - De retruc, l'eco també duplicava el `TOKEN_RELAY` cap a la resta de pantalles i l'entrada de l'historial de Ctrl+Z (calien dues pulsacions per desfer un sol moviment).
 
-### v4.4 — El DM veu el desplaçament dels tokens que mouen els jugadors
+### v4.04 — El DM veu el desplaçament dels tokens que mouen els jugadors
 - **Els tokens moguts des de `/player` ja no salten de cop a la pantalla del DM.** Fins ara el DM només veia la posició final i no sabia per on havia passat el token (ni si havia vorejat una paret o havia creuat una porta). Ara reprodueix la **mateixa animació de desplaçament** que les pantalles de jugador: velocitat de creuer constant seguint el camí real (forma d'L, suavitzat) i frenada suau al final.
 - Quan no hi ha grid ni parets (o el moviment és d'una sola casella) el token es desplaça en **línia recta animada** en lloc de teleportar-se.
 - La llum del token acompanya l'animació també al DM, així que veu exactament el mateix que els jugadors.
 - El que mou el DM amb el ratolí continua sent instantani (el token segueix el cursor), i arrossegar un token o fer Ctrl+Z cancel·la qualsevol animació pendent.
 - El càlcul del camí que abans estava duplicat entre la pantalla de jugador i el drag passa a un únic `buildMovePath` (`src/lib/rooms/pathing.ts`), compartit ara també pel DM.
 
-### v4.3 — El que veu el DM és el que veuen els jugadors (càmera independent del format)
+### v4.03 — El que veu el DM és el que veuen els jugadors (càmera independent del format)
 - **Arreglat: els jugadors no veien el mateix tros de mapa que el DM.** La càmera es sincronitzava com a `zoom` + `panOffset` en **píxels de la pantalla del DM**, i cada pantalla aplicava després la seva pròpia escala d'ajust (`min(W/mw, H/mh)`). Amb finestres de mida o format diferents (monitor del DM, tele dels jugadors, tablet 4:3) el mateix desplaçament en píxels movia una quantitat de mapa diferent i cada pantalla retallava per un costat: el DM tenia un enemic o una porta a la vora de la seva pantalla i a l'altra banda no hi era, **sense cap indici que allò passés**.
 - **Ara viatja l'enquadrament en coordenades de MAPA** (`cam`: centre + amplada/alçada visibles, `src/lib/camera.ts`) i cada pantalla l'hi fa **encaixar dins** (regla "contain"). Conseqüència garantida: **cap pantalla no veu mai menys que el DM**; si el format no coincideix, la diferència surt com a marge extra de mapa, mai com a retall. Verificat sobre 1210 combinacions de mapa, finestra, zoom i pan.
 - **Es reenquadra sol quan canvia una finestra**: girar la tablet, entrar a pantalla completa o moure la finestra del DM a un altre monitor ja no descol·loca res (abans la mida només es llegia en connectar).
@@ -91,7 +104,7 @@ l'estat complet al DM en tornar.
 - El camp `cam` no necessita cap canvi a la API (és un camp més dins de missatges que el servidor ja reenvia). Per al comptador 🖥, la API reenvia `VIEWPORT` client→dm; les pantalles del mateix ordinador hi surten igualment via `BroadcastChannel`. Nou script de comprovació del contracte del WS: `node scripts/check-sync.mjs [ws://host:3000] [SYNC_KEY]`.
 - La vista privada del DM (Maj) continua sent local i no es propaga.
 
-### v4.2 — La pantalla de jugador va molt més fluida amb sales fosques
+### v4.02 — La pantalla de jugador va molt més fluida amb sales fosques
 - **Memòria cau del rasteritzat de cada llum** (`_maskCache` a `render/darkrooms.ts`). Calcular la llum d'un token (màscara sala ∪ visió → erosió → gradient) és el gruix del cost del frame, i es refeia per a **totes** les llums a cada frame encara que només se n'hagués mogut una. Ara cada llum es reutilitza mentre no canviï res que en determini els píxels (parets/portes, càmera, posició/radi/intensitat). Movent un token amb una party de 5: **98 ms → 52 ms per frame**; amb 8 jugadors: **133 ms → 51 ms** (el cost ja gairebé no depèn de la mida del grup). Amb tothom quiet: **94 ms → 45 ms**.
 - **`_lightCanvas` només es neteja i es composita a la finestra que ocupen les llums**, en lloc de dues passades de pantalla completa per frame.
 - **Culling de les sales fora de pantalla**: les sales fosques que no es veuen ja no es tracen (farciment + contorn al jugador; contorns, noms i ull al DM). La memòria d'explorat continua fent servir *totes* les sales, perquè el que s'explora fora de càmera ha de quedar memoritzat igual.
@@ -100,7 +113,7 @@ l'estat complet al DM en tornar.
 - Cerca de la sala que conté un punt amb descart previ per bbox (`roomAt`).
 - Sense canvis visuals: el resultat és el mateix píxel a píxel.
 
-### v4.1 — El PSD passa a ser opcional (mapa només amb imatge)
+### v4.01 — El PSD passa a ser opcional (mapa només amb imatge)
 - **Un mapa només amb la imatge de fons ja és jugable.** Fins ara, sense un arxiu de Photoshop el canvas no dibuixava res: el render loop sortia aviat (`if (!s) return`) perquè no hi havia estructura de capes. Ara, en carregar una imatge o un vídeo sense PSD es crea una **estructura buida sintètica** i tot funciona amb la imatge sola: **grid** (activar, calibrar, snap, autosize), **parets → sales fosques**, **portes**, **punts de llum** i **fog of war**, **tokens** de jugador i de biblioteca, **dibuix a ploma**, **zones màgiques**, **spells**, **regla de mesura**, **sistema per torns** i la **sincronització amb la pantalla de jugador** (STRUCT + BG).
 - **Nou panell "Sales"** al sidebar (pestanya Mapa): l'equivalent de l'arbre de capes per a un mapa dibuixat a l'app. Llista les sales detectades amb el commutador de sala fosca, l'ull de revelar/amagar, reanomenar en línia i un desplegable amb afegir porta, resetejar explorat i eliminar (amb confirmació). Passar el ratolí per una fila la ressalta al mapa. A sota, la llista de **punts de llum** amb el seu radi. Accessos directes a les eines 🧱 Parets i 🔆 Llums.
 - **La UI exclusiva del PSD s'amaga** quan no n'hi ha (arbre de capes, "Resaltar enemics", comptador d'actius i les dimensions a la caixa del PSD), en lloc de sortir buida.

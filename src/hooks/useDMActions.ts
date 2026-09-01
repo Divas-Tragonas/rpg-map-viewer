@@ -8,6 +8,8 @@ import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { pruneDoors } from '@/lib/rooms/doors';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
+import { removeFromTurn } from '@/lib/turn';
+import { bgFingerprint } from '@/lib/autosave';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
@@ -101,6 +103,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, []);
 
   const _broadcastState = useCallback((extra: Record<string, unknown> = {}) => {
+    // Tota mutació d'estat del DM passa per aquí, o sigui que és el lloc natural per
+    // marcar que hi ha canvis sense desar (`useAutosave` no escriu res si això és false).
+    R.rAutosaveDirty.current = true;
     const _isDMPrev = dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1;
     const msg: Record<string, unknown> = {
       type: 'STATE',
@@ -359,6 +364,14 @@ export function useDMActions(R: DMRefs, S: Setters) {
     if (R.rSelectedToken.current === key) R.rSelectedToken.current = null;
     R.rMultiSelected.current.delete(key);
     R.rTokenGroups.current.delete(key);
+    // Cua d'iniciativa: sense això, eliminar un token durant el combat deixava el seu xip a
+    // la barra (nom «?»), l'aro daurat no es pintava enlloc quan li arribava el torn i calia
+    // passar-lo a mà. El camp `turn` és lleuger i sempre viatja al STATE, o sigui que el
+    // `_broadcastState` que fan les funcions que criden aquesta ja el propaga.
+    const nt = removeFromTurn(rTurn.current, key, rPlayers.current, rDefeated.current);
+    if (nt) { rTurn.current = nt; S.setTurn(nt); }
+    // L'historial de Ctrl+Z no pot guardar moviments d'un token que ja no existeix.
+    R.rMoveHistory.current = R.rMoveHistory.current.filter(h => String(h.id) !== key);
   }, []);
 
   const removePlayer = useCallback((id: number) => {
@@ -470,10 +483,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
     wsRef.current?.send(JSON.stringify({ type: 'UNDO_DRAW', strokeHistory: [...hist] }));
   }, []);
 
-  // Construeix l'objecte d'estat complet de la partida. Reutilitzat pel desat
-  // a .json (saveSession) i pel desat al servidor (serverSaveSession).
-  const buildSessionState = useCallback(() => {
-    const oc = drawCanvasRef.current;
+  // Nucli de l'estat de la partida: tot menys el fons, que cada consumidor adjunta a la
+  // seva manera (base64 al fitxer .json i al servidor; Blob al desat automàtic, que no es
+  // pot permetre el cost de base64 cada 30 segons — veure `lib/autosave.ts`).
+  const _buildSessionCore = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state: Record<string, any> = {
       version: '2.2',
@@ -487,14 +500,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
       libEnemies: rLibEnemies.current,
       walls: rWalls.current, rooms: rRooms.current, doors: rDoors.current, lights: rLights.current,
       turn: rTurn.current,
-      drawCanvas: oc && oc.width > 1 ? oc.toDataURL('image/png') : null,
+      // Els grups de tokens són efímers dins d'una sessió, però perdre'ls en tornar a
+      // carregar una partida desada és una sorpresa, no una decisió de l'usuari. Com a
+      // parells perquè un Map no sobreviu al JSON.
+      tokenGroups: [...R.rTokenGroups.current],
     };
-    if (bgBufferRef.current) {
-      const u8 = new Uint8Array(bgBufferRef.current.buffer);
-      let bin = ''; const CHUNK = 8192;
-      for (let i = 0; i < u8.length; i += CHUNK) bin += String.fromCharCode(...u8.subarray(i, i + CHUNK));
-      state.bgData = btoa(bin); state.bgMimeType = bgBufferRef.current.mimeType;
-    }
     if (rStruct2.current) {
       state.psdStruct = rStruct2.current;
       state.psdInfo = rPsdInfo.current;
@@ -502,6 +512,34 @@ export function useDMActions(R: DMRefs, S: Setters) {
     }
     return state;
   }, []);
+
+  // Estat complet amb el fons en base64: desat a .json (saveSession) i al servidor.
+  const buildSessionState = useCallback(() => {
+    const state = _buildSessionCore();
+    // `drawCanvas` es desa per compatibilitat amb els fitxers antics: qui reconstrueix el
+    // dibuix és `strokeHistory` (applySessionState no llegeix mai aquest camp).
+    const oc = drawCanvasRef.current;
+    state.drawCanvas = oc && oc.width > 1 ? oc.toDataURL('image/png') : null;
+    if (bgBufferRef.current) {
+      const u8 = new Uint8Array(bgBufferRef.current.buffer);
+      let bin = ''; const CHUNK = 8192;
+      for (let i = 0; i < u8.length; i += CHUNK) bin += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+      state.bgData = btoa(bin); state.bgMimeType = bgBufferRef.current.mimeType;
+    }
+    return state;
+  }, [_buildSessionCore]);
+
+  // Estat per al desat automàtic: mateix nucli, amb el fons com a Blob (sense base64 ni
+  // `toDataURL` del canvas de dibuix, que bloquejarien el fil principal a cada desat).
+  const buildAutosaveRecord = useCallback(() => {
+    const bg = bgBufferRef.current;
+    return {
+      state: _buildSessionCore(),
+      bg: bg
+        ? { blob: new Blob([bg.buffer], { type: bg.mimeType }), fingerprint: bgFingerprint(bg.buffer, bg.mimeType) }
+        : null,
+    };
+  }, [_buildSessionCore]);
 
   const saveSession = useCallback(() => {
     const state = buildSessionState();
@@ -516,8 +554,12 @@ export function useDMActions(R: DMRefs, S: Setters) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const applySessionState = useCallback(async (state: Record<string, any>) => {
     try {
-      // Restore BG image
-      if (state.bgData) {
+      // Restore BG image. El desat automàtic el porta com a Blob (veure `lib/autosave.ts`);
+      // els fitxers .json i les partides del servidor, en base64.
+      if (state.bgBlob instanceof Blob) {
+        const blob: Blob = state.bgBlob;
+        await loadBg(new File([blob], state.bgName || 'background.png', { type: blob.type || 'image/png' }));
+      } else if (state.bgData) {
         const bin = atob(state.bgData); const arr = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
         await loadBg(new File([arr], state.bgName || 'background.png', { type: state.bgMimeType || 'image/png' }));
@@ -574,6 +616,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.doors)         { rDoors.current = state.doors; S.setDoors(state.doors); }
       if (state.lights)        { rLights.current = state.lights; S.setLights(state.lights); }
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
+      if (Array.isArray(state.tokenGroups)) R.rTokenGroups.current = new Map(state.tokenGroups);
       if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;
         if (oc) {
@@ -942,6 +985,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
+    buildAutosaveRecord, applySessionState,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,

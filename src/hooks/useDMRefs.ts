@@ -78,6 +78,9 @@ export function useDMRefs() {
   const rTurn            = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   // Historial de moviments del torn actiu (per Ctrl+Z). DM-only, es neteja a cada canvi de torn.
   const rMoveHistory     = useRef<Array<{ id: number | string; from: Point; spentFt: number }>>([]);
+  // Desat automàtic: hi ha canvis sense desar? El posa `_broadcastState` (per on passa
+  // tota mutació d'estat) i el consumeix `useAutosave`, que només escriu si està a true.
+  const rAutosaveDirty   = useRef(false);
   // Area (marquee) selection — RTS-style box select, toggled with "A"
   const rAreaSelectMode  = useRef(false);
   const rAreaSelectRect  = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -181,7 +184,7 @@ export function useDMRefs() {
     rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,
