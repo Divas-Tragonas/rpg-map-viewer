@@ -51,6 +51,10 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.12 — El rètol de torn s'adapta a la mida de la pantalla
+- **El rètol de torn de la pantalla de jugador escala amb la finestra.** Estava dimensionat en píxels fixos, pensat per a la TV: en una pantalla petita es menjava gairebé tota l'amplada. Ara totes les mides (tipografia, avatar, marges i barra) van amb `clamp` proporcional a l'amplada de la finestra, amb terra i sostre — ni desapareix en una pantalla petita ni es fa gegant en un monitor gran.
+- Mesurat: passa d'ocupar un 89% de l'amplada en una pantalla de 800 px a **entre el 37% i el 47% a totes les mides** (de 1920 a 600 px), amb una alçada d'entre el 6% i el 13%.
+
 ### v4.11 — Els estats ja fan efecte i les parets es poden editar
 - **Indicador de torn a les pantalles de jugador.** La TV i la tablet ja diuen, en gran, **de qui és el torn**, la ronda i **quants peus de moviment queden** (número gran + barra que s'encongeix). Fins ara qui jugava des de la tablet només ho sabia si el DM li deia en veu alta, i el rang groc de moviment només apareixia mentre arrossegava. A la barra del DM, els peus del token actiu també passen a ser un número gran amb barra, perquè les dues pantalles diguin exactament el mateix.
 - **Els estats ja tenen efecte de debò sobre el moviment.** Dels 16 estats, només *Encegat* feia alguna cosa (encongir la llum). Ara **Agafat, Retingut, Paralitzat, Petrificat, Atordit, Incapacitat i Inconscient deixen la velocitat a 0** i **Tombat la parteix per la meitat** (aixecar-se costa mig moviment).
