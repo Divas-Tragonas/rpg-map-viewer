@@ -757,12 +757,27 @@ export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   ctx.beginPath();
   for (const w of walls) { ctx.moveTo(w.a.x, w.a.y); ctx.lineTo(w.b.x, w.b.y); }
   ctx.stroke();
-  // Vèrtexs (de les parets originals: els extrems de porta no són vèrtexs editables)
+  // Vèrtexs (de les parets originals: els extrems de porta no són vèrtexs editables).
+  // Amb l'eina Parets i sense cap cadena en curs es pinten més grossos: són nanses que
+  // es poden agafar i moure, i si no es veuen ningú no ho endevina.
+  const editable = fc.rDrawTool?.current === 'wall' && !fc.rWallPenLast?.current;
   ctx.fillStyle = 'rgba(255,220,90,0.95)';
-  const r = 3 / sc;
+  const r = (editable ? 4.5 : 3) / sc;
   for (const w of allWalls) {
     ctx.beginPath(); ctx.arc(w.a.x, w.a.y, r, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(w.b.x, w.b.y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  // Nansa del vèrtex sota el cursor (o del que s'està movent).
+  const hovV = fc.rWallVertexHover?.current ?? null;
+  if (editable && hovV) {
+    const dragging = !!fc.rWallVertexDrag?.current;
+    ctx.beginPath(); ctx.arc(hovV.x, hovV.y, 8 / sc, 0, Math.PI * 2);
+    ctx.fillStyle = dragging ? 'rgba(255,235,150,0.95)' : 'rgba(255,235,150,0.75)';
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(hovV.x, hovV.y, 11 / sc, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2 / sc;
+    ctx.stroke();
   }
   ctx.restore();
   const hovDoor = fc.rHoveredDoorId?.current ?? null;

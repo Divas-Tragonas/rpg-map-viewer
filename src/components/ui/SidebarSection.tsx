@@ -59,12 +59,12 @@ export function SidebarSection({
 }
 
 /** Botó petit per a la fila `actions` d'una capçalera de secció. */
-export function SectionButton({ onClick, title, active, color = C.accent, children }: {
-  onClick: () => void; title: string; active?: boolean; color?: string; children: React.ReactNode;
+export function SectionButton({ onClick, title, active, disabled, color = C.accent, children }: {
+  onClick: () => void; title: string; active?: boolean; disabled?: boolean; color?: string; children: React.ReactNode;
 }) {
   return (
-    <button onClick={onClick} title={title}
-      style={{ background: active ? `${color}22` : 'transparent', border: `1px solid ${active ? color : C.border}`, borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: active ? color : C.dim, fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+    <button onClick={onClick} title={title} disabled={disabled}
+      style={{ background: active ? `${color}22` : 'transparent', border: `1px solid ${active ? color : C.border}`, borderRadius: 5, padding: '2px 7px', cursor: disabled ? 'default' : 'pointer', color: disabled ? `${C.dim}66` : active ? color : C.dim, fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
       {children}
     </button>
   );

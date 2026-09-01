@@ -2,6 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
+import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
 
 const AREA_TYPES = new Set(['sleep', 'grease']);
@@ -9,7 +10,7 @@ const AREA_SETTLED = (sp: import('@/types').Spell) => {
   const DUR: Record<string, number> = { sleep: 3.0, grease: 3.5 };
   return (performance.now() - sp.startTime) / 1000 > (DUR[sp.type] ?? 2.5);
 };
-import type { PosMap, VisMap } from '@/types';
+import type { PosMap, VisMap, Wall } from '@/types';
 import type { DMRefs } from './useDMRefs';
 
 interface MouseHandlerSetters {
@@ -35,6 +36,8 @@ interface MouseHandlerSetters {
   removeLight: (id: string) => void;
   selectLight: (id: string | null) => void;
   setLights: (v: import('@/types').LightSource[]) => void;
+  /** Desa l'estat del mapa a l'historial abans d'un canvi (Ctrl+Z de parets/sales/llums). */
+  pushMapEdit: (label: string) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -80,11 +83,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   // Punt de paret amb imant: 1) s'enganxa a un vèrtex de paret existent (tancament),
   // 2) s'enganxa a l'aresta d'una paret existent si el cursor hi és a prop (unions en T,
   // tot queda "sobre rails"), 3) snap a la graella si està actiu.
-  const snapWall = useCallback((mx: number, my: number, sc: number) => {
+  // `skip`: parets que no compten per a l'imant. En moure un vèrtex, les seves pròpies
+  // parets hi són (encara) i el cursor s'hi imantaria a sobre, o sigui que no es mouria.
+  const snapWall = useCallback((mx: number, my: number, sc: number, skip?: Set<Wall>) => {
     const vtol = 12 / sc;   // imant a vèrtexs
     const etol = 9 / sc;    // imant a arestes
+    const walls = skip && skip.size > 0 ? R.rWalls.current.filter(w => !skip.has(w)) : R.rWalls.current;
     let best: { x: number; y: number } | null = null, bestD = vtol;
-    for (const w of R.rWalls.current) {
+    for (const w of walls) {
       for (const v of [w.a, w.b]) {
         const d = Math.hypot(mx - v.x, my - v.y);
         if (d < bestD) { bestD = d; best = v; }
@@ -93,7 +99,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (best) return { x: best.x, y: best.y, onVertex: true };
     // Snap a la línia (projecció sobre el segment més proper dins de tolerància)
     let edge: { x: number; y: number } | null = null, edgeD = etol;
-    for (const w of R.rWalls.current) {
+    for (const w of walls) {
       const dx = w.b.x - w.a.x, dy = w.b.y - w.a.y;
       const len2 = dx * dx + dy * dy; if (len2 < 1e-6) continue;
       let t = ((mx - w.a.x) * dx + (my - w.a.y) * dy) / len2;
@@ -194,6 +200,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         }
         R.rDoorPreview.current = null;
         e.preventDefault(); return;
+      }
+      // Sense cap cadena en curs, clicar sobre un vèrtex existent el mou en lloc de
+      // començar una paret nova: és l'única manera d'arreglar una cantonada mal posada
+      // sense esborrar la sala sencera.
+      if (!R.rWallPenLast.current) {
+        const v = vertexAt(R.rWalls.current, { x: mx, y: my }, 11 / sc);
+        if (v) {
+          S.pushMapEdit('moure vèrtex');
+          R.rWallVertexDrag.current = { orig: v, base: R.rWalls.current };
+          R.rWallVertexHover.current = v;
+          e.preventDefault(); return;
+        }
       }
       const snap = snapWall(mx, my, sc);
       const p = { x: snap.x, y: snap.y };
@@ -494,7 +512,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.rWallCursor.current = null;
         return;
       }
-      R.rWallCursor.current = snapWall(mx, my, sc);
+      // Arrossegant un vèrtex: es recalcula sempre des del conjunt ORIGINAL de parets, així
+      // el moviment no acumula error i tornar al punt de sortida el deixa exactament igual.
+      const vd = R.rWallVertexDrag.current;
+      if (vd) {
+        const moving = new Set(wallsAtVertex(vd.base, vd.orig));
+        const snap = snapWall(mx, my, sc, moving);
+        R.rWalls.current = moveVertex(vd.base, vd.orig, { x: snap.x, y: snap.y });
+        S.setWalls(R.rWalls.current);
+        R.rWallVertexHover.current = { x: snap.x, y: snap.y };
+        R.rWallCursor.current = null;
+        return;
+      }
+      // Sense cadena en curs, ressaltar el vèrtex sota el cursor (es pot agafar i moure).
+      R.rWallVertexHover.current = R.rWallPenLast.current
+        ? null
+        : vertexAt(R.rWalls.current, { x: mx, y: my }, 11 / sc);
+      R.rWallCursor.current = R.rWallVertexHover.current ? null : snapWall(mx, my, sc);
       return;
     }
 
@@ -719,6 +753,15 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   ) => {
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
 
+    // Final del moviment d'un vèrtex: ara sí que es re-detecten les sales (durant el drag
+    // només s'han mogut les parets, que és barat; `redetectRooms` reconcilia noms i estats
+    // i poda les portes que hagin perdut la seva paret).
+    if (R.rWallVertexDrag.current) {
+      R.rWallVertexDrag.current = null;
+      S.redetectRooms();
+      return;
+    }
+
     // Finalize light drag: sync React state + broadcast final position.
     if (R.rLightDrag.current) {
       R.rLightDrag.current = null;
@@ -896,6 +939,16 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.rDrawTool.current === 'wall') {
       const hitDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 10 / sc);
       if (hitDoor) { S.removeDoor(hitDoor.id); return; }
+      // Sense porta a sota: esborrar el tram de paret (abans només es podia desfer
+      // l'última amb Backspace; qualsevol altra obligava a eliminar la sala).
+      const hitWall = wallAt(R.rWalls.current, { x: mx, y: my }, 10 / sc);
+      if (hitWall) {
+        S.pushMapEdit('esborrar paret');
+        R.rWalls.current = R.rWalls.current.filter(w => w !== hitWall);
+        S.setWalls(R.rWalls.current);
+        S.redetectRooms();
+        return;
+      }
     }
     // Eina "Llums": clic dret sobre una llum l'elimina.
     if (R.rDrawTool.current === 'light') {

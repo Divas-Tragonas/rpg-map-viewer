@@ -20,6 +20,8 @@ interface KBOpts {
   setDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
   undoStroke: () => void;
   undoTokenMove: () => void;
+  /** Desfà l'últim canvi al mapa (parets, sales, portes, llums). */
+  undoMapEdit: () => string | null;
   skipBossIntro: () => void;
   /** Modes compartits amb els botons de la barra d'eines (definits a DMView). */
   toggleCtrlPan: () => void;
@@ -31,7 +33,7 @@ interface KBOpts {
 }
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undoStroke, undoTokenMove, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain } = opts;
+  const { setDrawTool, undoStroke, undoTokenMove, undoMapEdit, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain } = opts;
 
   // CTRL key: toggle shared pan/zoom mode (DM + Player). Tap once to activate, tap again to deactivate + restore camera.
   useEffect(() => {
@@ -64,12 +66,20 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isTyping(e)) return;
-      // Ctrl+Z segons l'eina: amb l'eina de selecció ('none') desfà l'últim moviment del
-      // torn actiu (combat); amb una eina de dibuix desfà l'últim traç. Cadascú el seu.
+      // Ctrl+Z segons l'eina, perquè cada context desfaci el seu:
+      //  · Parets i Llums  → l'últim canvi al mapa (paret, sala, porta, llum).
+      //  · Dibuix          → l'últim traç.
+      //  · Selecció        → l'últim moviment del torn actiu; si no n'hi ha cap (fora de
+      //    combat, o ja desfets tots), cau al canvi de mapa: així el Ctrl+Z d'un canvi fet
+      //    des del panell de sales funciona sense haver de canviar d'eina abans.
       if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
-        if (R.rDrawTool.current === 'none') undoTokenMove();
-        else undoStroke();
+        const tool = R.rDrawTool.current;
+        if (tool === 'wall' || tool === 'light') undoMapEdit();
+        else if (tool === 'none') {
+          if (R.rMoveHistory.current.length > 0) undoTokenMove();
+          else undoMapEdit();
+        } else undoStroke();
         return;
       }
       if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); R.wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO_SKIP' })); skipBossIntro(); return; }
@@ -127,5 +137,5 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undoStroke, undoTokenMove, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [undoStroke, undoTokenMove, undoMapEdit, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain]); // eslint-disable-line react-hooks/exhaustive-deps
 }

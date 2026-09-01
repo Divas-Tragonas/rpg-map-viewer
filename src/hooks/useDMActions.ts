@@ -53,7 +53,12 @@ interface Setters {
   setDoors: (v: Door[]) => void;
   setLights: (v: import('@/types').LightSource[]) => void;
   setTurn: (v: import('@/types').TurnState) => void;
+  /** Etiqueta del canvi de mapa que desfaria el proper Ctrl+Z (null = res a desfer). */
+  setMapUndo: (v: string | null) => void;
 }
+
+/** Profunditat màxima del Ctrl+Z de mapa (cada entrada són 4 referències: no pesa res). */
+const MAP_HISTORY_MAX = 60;
 
 export function useDMActions(R: DMRefs, S: Setters) {
   const {
@@ -483,6 +488,38 @@ export function useDMActions(R: DMRefs, S: Setters) {
     wsRef.current?.send(JSON.stringify({ type: 'UNDO_DRAW', strokeHistory: [...hist] }));
   }, []);
 
+  // ── Historial de canvis del mapa (Ctrl+Z de parets, sales, portes i llums) ──
+  // Una entrada és només les QUATRE REFERÈNCIES d'array d'abans del canvi: com que tota
+  // mutació d'aquests camps crea arrays nous (és el que fa funcionar la dieta del STATE),
+  // desar-les no costa cap còpia i restaurar-les torna l'estat exacte.
+  const _pushMapEdit = useCallback((label: string) => {
+    const h = R.rMapHistory.current;
+    h.push({
+      label,
+      walls: rWalls.current, rooms: rRooms.current,
+      doors: rDoors.current, lights: rLights.current,
+    });
+    if (h.length > MAP_HISTORY_MAX) h.shift();
+    S.setMapUndo(label);
+  }, []);
+
+  /** Desfà l'últim canvi al mapa. Retorna l'etiqueta desfeta, o null si no n'hi havia cap. */
+  const undoMapEdit = useCallback((): string | null => {
+    const h = R.rMapHistory.current;
+    const entry = h.pop();
+    S.setMapUndo(h.length > 0 ? h[h.length - 1].label : null);
+    if (!entry) return null;
+    rWalls.current = entry.walls; S.setWalls(entry.walls);
+    rRooms.current = entry.rooms; S.setRooms(entry.rooms);
+    rDoors.current = entry.doors; S.setDoors(entry.doors);
+    rLights.current = entry.lights; S.setLights(entry.lights);
+    // Qualsevol cosa a mig fer deixa de tenir sentit amb una geometria diferent.
+    rWallPenLast.current = null; rWallChain.current = []; rWallCursor.current = null;
+    rDoorPlacement.current = null; rDoorPreview.current = null;
+    _broadcastState({});
+    return entry.label;
+  }, [_broadcastState]);
+
   // Nucli de l'estat de la partida: tot menys el fons, que cada consumidor adjunta a la
   // seva manera (base64 al fitxer .json i al servidor; Blob al desat automàtic, que no es
   // pot permetre el cost de base64 cada 30 segons — veure `lib/autosave.ts`).
@@ -892,6 +929,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   // Les portes noves neixen TANCADES (bloquegen llum i moviment fins que el DM les obre
   // amb un clic en mode selecció).
   const addDoor = useCallback((a: Point, b: Point) => {
+    _pushMapEdit('afegir porta');
     const door: Door = { id: `door_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, a, b, open: false };
     const nd = [...rDoors.current, door];
     rDoors.current = nd; S.setDoors(nd);
@@ -899,6 +937,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const removeDoor = useCallback((id: string) => {
+    _pushMapEdit('eliminar porta');
     const nd = rDoors.current.filter(d => d.id !== id);
     if (nd.length === rDoors.current.length) return;
     rDoors.current = nd; S.setDoors(nd);
@@ -929,6 +968,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const renameRoom = useCallback((id: string, name: string) => {
+    _pushMapEdit('reanomenar sala');
     const nr = rRooms.current.map(r => r.id === id ? { ...r, name } : r);
     rRooms.current = nr; S.setRooms(nr); _broadcastState({});
   }, [_broadcastState]);
@@ -937,6 +977,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   // i re-detecta. Per una sala aïllada això n'esborra tot el contorn; per una sala
   // subdividida, les parets compartides es conserven i les dues sales es fusionen.
   const deleteRoom = useCallback((id: string) => {
+    _pushMapEdit('eliminar sala');
     const room = rRooms.current.find(r => r.id === id);
     if (!room) return;
     const onOutline = (p: { x: number; y: number }, poly: { x: number; y: number }[], tol: number) => {
@@ -974,6 +1015,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [redetectRooms]);
 
   const clearWalls = useCallback(() => {
+    _pushMapEdit('esborrar totes les parets');
     rWalls.current = []; rRooms.current = []; rDoors.current = []; rWallPenLast.current = null;
     rWallChain.current = []; rWallCursor.current = null;
     rDoorPlacement.current = null; rDoorPreview.current = null;
@@ -985,7 +1027,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
-    buildAutosaveRecord, applySessionState,
+    buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,

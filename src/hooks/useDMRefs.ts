@@ -53,6 +53,11 @@ export function useDMRefs() {
   const rWallPenLast    = useRef<Point | null>(null);   // últim vèrtex de la cadena activa (null = ploma amunt)
   const rWallChain      = useRef<Wall[]>([]);            // parets afegides a la cadena oberta actual (per cancel·lar amb Esc)
   const rWallCursor     = useRef<{ x: number; y: number; onVertex: boolean } | null>(null); // preview de la paret en curs
+  // Edició de parets (eina Parets, sense cap cadena en curs): vèrtex sota el cursor i
+  // vèrtex que s'està arrossegant. `base` és el conjunt de parets d'abans del drag, per
+  // recalcular la posició a cada frame sense acumular errors.
+  const rWallVertexHover = useRef<Point | null>(null);
+  const rWallVertexDrag  = useRef<{ orig: Point; base: Wall[] } | null>(null);
   const rHoveredRoomId  = useRef<string | null>(null);  // sala sota el cursor (ull, mode selecció)
   const roomRevealAnimRef = useRef<Record<string, number>>({}); // 1 = fosca opaca, 0 = revelada
   const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
@@ -78,6 +83,10 @@ export function useDMRefs() {
   const rTurn            = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   // Historial de moviments del torn actiu (per Ctrl+Z). DM-only, es neteja a cada canvi de torn.
   const rMoveHistory     = useRef<Array<{ id: number | string; from: Point; spentFt: number }>>([]);
+  // Historial de canvis del mapa (Ctrl+Z de parets, sales, portes i llums). Cada entrada
+  // són les referències d'array d'abans del canvi: com que tota mutació les substitueix,
+  // desar-les no costa cap còpia. DM-only, no es sincronitza ni es desa a la partida.
+  const rMapHistory      = useRef<Array<{ label: string; walls: Wall[]; rooms: Room[]; doors: Door[]; lights: import('@/types').LightSource[] }>>([]);
   // Desat automàtic: hi ha canvis sense desar? El posa `_broadcastState` (per on passa
   // tota mutació d'estat) i el consumeix `useAutosave`, que només escriu si està a true.
   const rAutosaveDirty   = useRef(false);
@@ -181,10 +190,10 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rMapHistory, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,

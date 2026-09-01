@@ -4,7 +4,8 @@ import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
 import { computeReachableCells, buildMovePath, slideAgainstWalls } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
-import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point } from '@/types';
+import { movementLimit } from '@/lib/rules/conditions';
+import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point, ConditionsMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
 
 /**
@@ -122,6 +123,9 @@ export function usePlayerTokenDrag(
   rDragPreview: RefObject<{ id: string; x: number; y: number } | null>,
   // Camí de moviment pendent per token (vorejant parets, forma d'L; ease-out per arc).
   rMovePath: RefObject<Record<string, { pts: { x: number; y: number }[]; t: number }>>,
+  // Estats dels tokens: Agafat, Retingut, Paralitzat… deixen la velocitat a 0 i Tombat
+  // la parteix per la meitat (`lib/rules/conditions.ts`).
+  rConditions: RefObject<ConditionsMap>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -155,6 +159,11 @@ export function usePlayerTokenDrag(
       if (String(hit.id) !== String(activeId)) return; // no és el seu torn
       speedFt = turn.activeRemainingFt;
     }
+    // Estats: Agafat/Retingut/Paralitzat… → 0 peus; Tombat → la meitat. El mateix límit
+    // que aplica el DM en validar el moviment i que pinta el rang groc.
+    const limit = movementLimit(speedFt, rConditions.current[String(hit.id)]);
+    if (limit.immobile) return;   // no es pot ni començar a arrossegar
+    speedFt = limit.ft;
     // Rang de moviment en caselles a partir dels peus disponibles (1 casella = 5 ft).
     // El límit només s'aplica a la pantalla de jugador: el DM mou sense restriccions.
     let range: MoveRange | null = null;

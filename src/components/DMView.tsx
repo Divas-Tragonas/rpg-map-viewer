@@ -37,6 +37,7 @@ import { StageTopBar } from '@/components/dm/StageTopBar';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
+import { movementLimit } from '@/lib/rules/conditions';
 import { useAutosave } from '@/hooks/useAutosave';
 import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
 
@@ -69,6 +70,8 @@ export function DMView() {
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [autosaveMeta, setAutosaveMeta] = useState<AutosaveMeta | null>(null);
   const [recovering, setRecovering] = useState(false);
+  // Etiqueta del canvi de mapa que desfaria el proper Ctrl+Z (null = no hi ha res a desfer).
+  const [mapUndo, setMapUndo] = useState<string | null>(null);
   // Pantalles de jugador connectades (id → mida), reportades pel missatge VIEWPORT.
   const [playerScreens, setPlayerScreens] = useState<Record<string, { w: number; h: number; ts: number }>>({});
   // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
@@ -201,7 +204,7 @@ export function DMView() {
     setPaintedZones, setExpanded, setCanUndo, setActiveSpells, setGridSize, setGridSnap,
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
     setWarningsDismissed, setGridVisible, setGridAutoSize,
-    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setLights, setTurn,
+    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setLights, setTurn, setMapUndo,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -209,7 +212,7 @@ export function DMView() {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
-    buildAutosaveRecord, applySessionState,
+    buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
@@ -384,6 +387,14 @@ export function DMView() {
     const walls = effectiveWalls(R.rWalls.current, R.rDoors.current);
     let consumedFt = 0;
     if (turn.active && sid !== String(turn.order[turn.turnIndex])) { bounceBack(); return; }  // no és el seu torn
+    // Estats que limiten el moviment (Agafat, Retingut, Paralitzat… → 0; Tombat → meitat).
+    // Mateix `movementLimit` que fa servir el clamp del drag i la pintura del rang, perquè
+    // el jugador no vegi un rang que aquí li rebotem.
+    const limit = movementLimit(
+      turn.active ? turn.activeRemainingFt : (player?.speed ?? DEFAULT_SPEED_FT),
+      R.rConditions.current[sid],
+    );
+    if (limit.immobile) { bounceBack(); return; }
     const gs = R.rGridSize.current;
     if (gs > 0) {
       const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
@@ -395,13 +406,13 @@ export function DMView() {
       if (turn.active) {
         const cells = Math.max(0, Math.ceil(Math.hypot(col(x) - col(cur.x), row(y) - row(cur.y)) - 0.5));
         consumedFt = cells * 5;
-        if (consumedFt > turn.activeRemainingFt + 0.001) { bounceBack(); return; }
+        if (consumedFt > limit.ft + 0.001) { bounceBack(); return; }
       }
       // Parets: la casella de destí ha de tenir camí transitable des de l'origen (mateix
       // Dijkstra que el clamp/pintura del drag: no es travessa cap paret, cal una porta).
       // En combat, el cost passa a ser el del CAMÍ (vorejar una paret cobra el desvium).
       if (walls.length > 0) {
-        const budgetFt = turn.active ? turn.activeRemainingFt : (player?.speed ?? DEFAULT_SPEED_FT);
+        const budgetFt = limit.ft;
         const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy });
         if (reach) {
           const pathCost = reach.get(`${col(x) - col(cur.x)},${row(y) - row(cur.y)}`);
@@ -487,20 +498,22 @@ export function DMView() {
 
   // ── Punts de llum (torxes/llànties) ──────────────────────────────────────────
   const addLight = useCallback((x: number, y: number) => {
+    _pushMapEdit('afegir llum');
     const id = `light_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const nl = [...R.rLights.current, { id, x, y, radiusFt: R.rNewLightRadiusFt.current }];
     R.rLights.current = nl; setLights(nl);
     R.rLightSelected.current = id; setLightSelectedId(id);
     _broadcastState({});
-  }, [R, _broadcastState]);
+  }, [R, _broadcastState, _pushMapEdit]);
 
   const removeLight = useCallback((id: string) => {
     const nl = R.rLights.current.filter(l => l.id !== id);
     if (nl.length === R.rLights.current.length) return;
+    _pushMapEdit('eliminar llum');
     R.rLights.current = nl; setLights(nl);
     if (R.rLightSelected.current === id) { R.rLightSelected.current = null; setLightSelectedId(null); }
     _broadcastState({});
-  }, [R, _broadcastState]);
+  }, [R, _broadcastState, _pushMapEdit]);
 
   const selectLight = useCallback((id: string | null) => {
     R.rLightSelected.current = id; setLightSelectedId(id);
@@ -685,7 +698,7 @@ export function DMView() {
     setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
-    addLight, removeLight, selectLight, setLights,
+    addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit,
   }), [redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
@@ -726,6 +739,7 @@ export function DMView() {
   // ── Desfer l'última paret (Backspace amb l'eina Parets activa) ─────────────
   const removeLastWall = useCallback(() => {
     if (R.rWalls.current.length === 0) return;
+    _pushMapEdit('desfer paret');
     const last = R.rWalls.current[R.rWalls.current.length - 1];
     const nw = R.rWalls.current.slice(0, -1);
     R.rWalls.current = nw; setWalls(nw);
@@ -782,7 +796,7 @@ export function DMView() {
 
   // ── Keyboard handlers ─────────────────────────────────────────────────────
   useKeyboardHandlers(R, {
-    setDrawTool, undoStroke, undoTokenMove, skipBossIntro,
+    setDrawTool, undoStroke, undoTokenMove, undoMapEdit, skipBossIntro,
     toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
     onDeleteSelection,
     removeLastWall,
@@ -1188,6 +1202,7 @@ export function DMView() {
                   hoveredRoomRef={R.rHoveredRoomId}
                   onActivateWallTool={() => setDrawTool(drawToolState === 'wall' ? 'none' : 'wall')}
                   onActivateLightTool={() => setDrawTool(drawToolState === 'light' ? 'none' : 'light')}
+                  onUndoMapEdit={() => { undoMapEdit(); }} mapUndo={mapUndo}
                   onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
                   onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
                   onAddDoor={handleAddDoorToRoom} onResetExplored={onResetExplored}
@@ -1279,6 +1294,7 @@ export function DMView() {
           psdEnemyOverrides={psdEnemyOverrides}
           vis={vis}
           defeated={defeated}
+          conditions={conditions}
           tokenGroupsRef={R.rTokenGroups}
           onStart={startTurnCombat}
           onEnd={endTurnCombat}

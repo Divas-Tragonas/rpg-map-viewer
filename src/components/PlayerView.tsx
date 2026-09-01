@@ -1,6 +1,8 @@
 'use client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layers } from '@/components/icons';
+import { TurnBanner } from '@/components/player/TurnBanner';
+import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
 import {
   BC_CHANNEL, TOKEN_LERP, APP_VERSION,
 } from '@/constants';
@@ -157,6 +159,18 @@ export function PlayerView() {
   const expCur = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
 
   // ── Revelador de text ──────────────────────────────────────────────────────
+  // Rètol de torn (TV i tablet): projecció del combat al que es veu, per no re-renderitzar
+  // aquesta pantalla a cada STATE (n'arriben ~20/s mentre el DM fa pan o zoom).
+  const [turnBanner, setTurnBanner] = useState<TurnBannerData>(EMPTY_BANNER);
+  const refreshTurnBanner = useCallback(() => {
+    const next = buildTurnBanner({
+      turn: rTurn.current, players: rPlayers.current, libEnemies: rLibEnemies.current,
+      struct: rStruct.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
+      conditions: rConditions.current,
+    });
+    setTurnBanner(prev => sameBanner(prev, next) ? prev : next);
+  }, []);
+
   const [textRevealVisible, setTextRevealVisible] = useState(false);
   const [textRevealFading, setTextRevealFading] = useState(false);
   const textRevealVisibleRef = useRef(false);
@@ -478,6 +492,7 @@ export function PlayerView() {
     rDoors,
     rDragPreview,
     rMovePath,
+    rConditions,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
@@ -542,6 +557,7 @@ export function PlayerView() {
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.turn) rTurn.current = msg.turn;
+        refreshTurnBanner();
         if (msg.psdEnemyOverrides) {
           rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
           await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
@@ -650,6 +666,7 @@ export function PlayerView() {
         if (msg.doors) rDoors.current = msg.doors;
         if (msg.lights) rLights.current = msg.lights;
         if (msg.turn) rTurn.current = msg.turn;
+        refreshTurnBanner();
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
@@ -1116,6 +1133,7 @@ export function PlayerView() {
         ref={bgTransitionRef}
         style={{ position: 'absolute', inset: 0, background: '#000', zIndex: 8, opacity: 0, transition: 'opacity 0.5s ease', pointerEvents: 'none' }}
       />
+      <TurnBanner data={turnBanner} />
       {!playerReady && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16 }}>
           <Layers size={40} color="#21262d" />

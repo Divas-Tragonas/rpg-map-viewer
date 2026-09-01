@@ -121,6 +121,9 @@ export interface FrameContext {
   rHoveredDoorId?:    MutableRefObject<string | null>;
   rWallPenLast?:      MutableRefObject<Point | null>;
   rWallCursor?:       MutableRefObject<{ x: number; y: number; onVertex: boolean } | null>;
+  /** Vèrtex de paret sota el cursor (o el que s'està arrossegant): es pinta com a nansa. */
+  rWallVertexHover?:  MutableRefObject<Point | null>;
+  rWallVertexDrag?:   MutableRefObject<{ orig: Point; base: Wall[] } | null>;
   rHoveredRoomId?:    MutableRefObject<string | null>;
   roomRevealAnimRef?: MutableRefObject<Record<string, number>>;
   // Punts de llum (torxes) col·locats pel DM; il·luminen la seva sala quan hi ha un token dins.

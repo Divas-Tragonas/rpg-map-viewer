@@ -16,6 +16,9 @@ interface Props {
   hoveredRoomRef: React.MutableRefObject<string | null>;
   onActivateWallTool: () => void;
   onActivateLightTool: () => void;
+  /** Desfà l'últim canvi al mapa; `mapUndo` és la seva etiqueta (null = res a desfer). */
+  onUndoMapEdit: () => void;
+  mapUndo: string | null;
   onSetRoomDark: (id: string, dark: boolean) => void;
   onToggleRoomReveal: (id: string) => void;
   onRenameRoom: (id: string, name: string) => void;
@@ -123,7 +126,7 @@ function RoomRow({
  */
 export function RoomsPanel({
   rooms, lights, wallsCount, wallToolActive, lightToolActive, selectedLightId, hoveredRoomRef,
-  onActivateWallTool, onActivateLightTool, onSetRoomDark, onToggleRoomReveal,
+  onActivateWallTool, onActivateLightTool, onUndoMapEdit, mapUndo, onSetRoomDark, onToggleRoomReveal,
   onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onSelectLight, onRemoveLight,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -144,6 +147,10 @@ export function RoomsPanel({
               title="Eina Parets (5): dibuixa parets i les sales es detecten soles">🧱</SectionButton>
             <SectionButton onClick={onActivateLightTool} active={lightToolActive} color="#ffcc33"
               title="Eina Llums (6): col·loca torxes dins de les sales">🔆</SectionButton>
+            {/* Un mode que només existeix al teclat no el descobreix ningú: el botó i el
+                Ctrl+Z criden exactament la mateixa funció. */}
+            <SectionButton onClick={onUndoMapEdit} disabled={!mapUndo}
+              title={mapUndo ? `Desfer: ${mapUndo} (Ctrl+Z)` : 'Res a desfer al mapa'}>↶</SectionButton>
           </>
         }>
         {rooms.length === 0 ? (

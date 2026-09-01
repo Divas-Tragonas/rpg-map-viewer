@@ -2,7 +2,9 @@
 import React, { useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { C } from '@/constants';
-import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnState, DefeatedMap } from '@/types';
+import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnState, DefeatedMap, ConditionsMap } from '@/types';
+import { movementLimit } from '@/lib/rules/conditions';
+import { budgetFor } from '@/lib/turn';
 
 interface Props {
   turn: TurnState;
@@ -13,6 +15,8 @@ interface Props {
   vis: VisMap;
   /** Tokens derrotats: el seu xip surt atenuat i amb la ✕ (ja no agafen torn). */
   defeated: DefeatedMap;
+  /** Estats dels tokens: limiten el moviment (Agafat → 0 peus, Tombat → la meitat). */
+  conditions: ConditionsMap;
   tokenGroupsRef: MutableRefObject<Map<number | string, string>>;
   onStart: (ids: (number | string)[]) => void;
   onEnd: () => void;
@@ -25,7 +29,7 @@ interface Props {
 interface TokenInfo { name: string; color: string; img: string | null }
 
 export function TurnTracker({
-  turn, players, libEnemies, struct, psdEnemyOverrides, vis, defeated, tokenGroupsRef,
+  turn, players, libEnemies, struct, psdEnemyOverrides, vis, defeated, conditions, tokenGroupsRef,
   onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder,
 }: Props) {
   const [selecting, setSelecting] = useState(false);
@@ -245,10 +249,16 @@ export function TurnTracker({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', maxWidth: '56vw', padding: '2px 0' }}>
           {turn.order.map((id, i) => {
+            /* Peus efectius del token actiu: el saldo del torn retallat pels seus estats
+               (mateix `movementLimit` que fa servir el clamp del jugador i la validació). */
             const info = resolve(id);
             const isActive = i === turn.turnIndex;
             const isPlayer = String(id).startsWith('pl_');
             const isDefeated = !!defeated[String(id)];
+            const activeTotalFt = isActive ? budgetFor(id, players) : 0;
+            const activeLimit = isActive
+              ? movementLimit(turn.activeRemainingFt, conditions[String(id)])
+              : { ft: 0, reason: null, immobile: false };
             return (
               <div
                 key={String(id)}
@@ -279,13 +289,30 @@ export function TurnTracker({
                   }}>✕</span>
                 )}
                 {isActive && (
-                  <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, textAlign: 'left' }}>
-                    <span style={{ color: C.bright, fontSize: 13, fontWeight: 700, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.name}</span>
-                    {isPlayer && (
-                      <span style={{ color: turn.activeRemainingFt >= 5 ? C.accent : C.enemy, fontSize: 11, fontWeight: 700 }}>
-                        {turn.activeRemainingFt} ft
+                  <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, textAlign: 'left', minWidth: isPlayer ? 104 : undefined }}>
+                    <span style={{ color: C.bright, fontSize: 13, fontWeight: 700, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.name}</span>
+                    {isPlayer && (activeLimit.immobile ? (
+                      // Un estat li impedeix moure's: val més dir-ho que ensenyar peus que no pot gastar.
+                      <span style={{ color: C.enemy, fontSize: 12, fontWeight: 800 }} title={`${activeLimit.reason}: no es pot moure`}>
+                        ✋ {activeLimit.reason}
                       </span>
-                    )}
+                    ) : (
+                      <>
+                        <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                          <span style={{ color: activeLimit.ft >= 5 ? C.accent : C.enemy, fontSize: 22, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                            {activeLimit.ft}
+                          </span>
+                          <span style={{ color: C.dim, fontSize: 11, fontWeight: 700 }}>/ {activeTotalFt} ft</span>
+                        </span>
+                        <span style={{ display: 'block', marginTop: 3, height: 4, width: '100%', borderRadius: 3, background: 'rgba(255,255,255,0.14)', overflow: 'hidden' }}>
+                          <span style={{
+                            display: 'block', height: '100%', borderRadius: 3,
+                            width: `${Math.max(0, Math.min(1, activeTotalFt > 0 ? activeLimit.ft / activeTotalFt : 0)) * 100}%`,
+                            background: activeLimit.ft >= 5 ? C.accent : C.enemy, transition: 'width 0.3s ease',
+                          }} />
+                        </span>
+                      </>
+                    ))}
                   </span>
                 )}
               </div>

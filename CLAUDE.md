@@ -169,6 +169,7 @@ src/
 │   ├── DMView.tsx          # Component principal DM (estat + orquestració)
 │   ├── PlayerView.tsx      # Component jugador
 │   ├── icons.tsx           # Icones SVG inline
+│   ├── player/TurnBanner.tsx  # Rètol de torn de la pantalla de jugador (TV i tablet)
 │   ├── dm/                 # Panells i overlays del DM
 │   │   ├── ImportPanel, LayerTree, PlayersPanel
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel
@@ -194,7 +195,14 @@ src/
 ├── lib/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
 │   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
+│   ├── turn-banner.ts      # Projecció del combat al rètol de les pantalles de jugador
+│   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
+│   ├── rooms/
+│   │   ├── detect.ts       # detectRooms + reconcileRooms (cares del graf de parets)
+│   │   ├── doors.ts        # Portes: effectiveWalls, pruneDoors, doorAt
+│   │   ├── walls.ts        # Edició de parets: vertexAt, moveVertex, wallAt
+│   │   └── pathing.ts      # Camins i caselles abastables (Dijkstra amb parets)
 │   ├── psd/
 │   │   ├── parser.ts       # parsePSDStructure(buffer) → ParsedPSD
 │   │   ├── extractor.ts    # extractLayerImages → Record<number, HTMLCanvasElement>
@@ -459,6 +467,32 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
   2. **Badges amb isotip** repartits en un **arc simètric respecte del capdamunt** del token: amb pocs estats queden centrats sobre el cap i, a mesura que se n'acumulen, s'obren cap als costats fins a envoltar-lo. Si l'arc s'omple, el badge s'encongeix fins a un mínim llegible i, només si encara no hi caben, l'últim lloc mostra «+N».
 - **Menú** (`ConditionPicker`, usat pel menú d'un token i pel de multi-selecció a `ContextMenuOverlay`): graella compacta de 4 columnes amb isotip + nom en català; les fitxes actives s'encenen del color de l'estat. Les traduccions al castellà i a l'anglès van al **`title` natiu** del botó (la finestreta grisa del sistema), com la resta de botons de l'app — no una finestreta pròpia, que ocupava espai i obligava el menú a portar `overflow: visible`.
 
+### Efecte mecànic dels estats (`src/lib/rules/conditions.ts`)
+- **Problema que resolia**: després de la feinada de la v4.07/v4.08 hi havia 16 estats amb isotip, color i traduccions i **només un feia alguna cosa** (`blinded`, que encongeix el radi de llum a `darkrooms.ts`). Un token Agafat o Paralitzat es movia els seus 30 peus com si res.
+- **Regles** (`movementLimit(baseFt, conds)`): `grappled`, `restrained`, `paralyzed`, `petrified`, `stunned`, `incapacitated` i `unconscious` → **0 peus**; `prone` → **la meitat**, arrodonida a passos de 5 ft. Retorna `{ ft, reason, immobile }`, on `reason` és l'etiqueta en català per poder dir-ho a la pantalla.
+- ⚠️ **Font única dels tres llocs que han de coincidir**: el clamp del drag (`usePlayerTokenDrag`), la pintura del rang groc (`renderMoveRange`, que es deriva del mateix `speedFt` ja limitat) i la validació autoritzada del DM (`handlePlayerTokenMove`). Si divergeixen, el jugador veu un rang que el DM després li rebutja. Mateix criteri que `buildMovePath` per al càlcul del camí.
+- **No consumeix saldo**: s'aplica **sobre** `activeRemainingFt`, no el modifica. Si el DM treu l'estat a mig torn, els peus que quedaven tornen a estar disponibles a l'instant.
+- Els estats ja viatgen al jugador dins de `conditions` (camp pesat del `STATE`): cap camp de sync nou.
+
+### Rètol de torn a les pantalles de jugador (`src/components/player/TurnBanner.tsx`)
+- **Problema que resol**: `/player` no tenia cap element d'interfície. En combat, qui juga des de la TV o la tablet no sabia de qui era el torn ni quants peus li quedaven (el disc groc només surt mentre s'arrossega, i amb el saldo a zero ni això).
+- **Contingut**: ronda, avatar i nom de qui té el torn, i **peus restants sobre el total** amb número gran i barra. Dimensionat per llegir-se des del sofà, no des del teclat. Si un estat el bloqueja, en lloc dels peus surt **«No es pot moure · Agafat»**.
+- ⚠️ **Projecció a `lib/turn-banner.ts`, no l'estat sencer.** `turn` arriba dins de CADA `STATE`, també els de pan/zoom a ~20 Hz: passar-lo a estat de React re-renderitzaria `PlayerView` vint cops per segon. `buildTurnBanner` en treu un objecte pla amb només el que es veu i `sameBanner` el compara; l'`useState` retorna `prev` quan no ha canviat res i React no re-renderitza. Qualsevol camp nou al rètol s'ha d'afegir a **totes dues** funcions.
+- Els enemics no tenen límit de moviment (sentinella `NO_MOVE_LIMIT_FT`): el seu rètol no mostra peus.
+- La barra del DM (`TurnTracker`) fa servir el mateix `movementLimit` i ensenya el saldo igual de gran, perquè les dues pantalles diguin el mateix.
+
+### Editar parets ja dibuixades (`src/lib/rooms/walls.ts`)
+- **Moure un vèrtex**: amb l'eina Parets i **cap cadena en curs** (`rWallPenLast === null`), els vèrtexs es pinten més grossos (són nanses), s'encenen en passar-hi el cursor (`rWallVertexHover`) i s'arrosseguen. Un vèrtex no és una entitat pròpia sinó un punt on coincideixen extrems: `moveVertex` mou **tots** els extrems que hi cauen a sobre (si no, la cantonada s'obriria i la sala deixaria de detectar-se) i descarta les parets que quedin degenerades.
+- **Durant el drag només es mouen les parets** (barat, `rWalls` es recalcula sempre des de `rWallVertexDrag.base` per no acumular error); `redetectRooms()` —que reconcilia noms i estats i poda les portes òrfenes— es crida **només al deixar anar**.
+- ⚠️ `snapWall` accepta un conjunt `skip`: les parets del vèrtex que s'està movent no compten per a l'imant, si no el cursor s'hi imantaria a sobre i el vèrtex no es mouria mai.
+- **Esborrar un tram**: amb l'eina Parets, clic dret sobre una paret (si no hi ha cap porta a sota) l'elimina. Abans, una paret mal posada només es podia desfer amb Backspace mentre era l'última de la cadena.
+
+### Desfer canvis del mapa (Ctrl+Z de parets, sales, portes i llums)
+- **Model** (`rMapHistory` a `useDMRefs`, `_pushMapEdit`/`undoMapEdit` a `useDMActions`): una entrada és **només les quatre referències d'array** (`walls`, `rooms`, `doors`, `lights`) d'abans del canvi. Com que tota mutació d'aquests camps crea arrays nous —el que fa funcionar la dieta del `STATE`—, desar-les no costa cap còpia i restaurar-les torna l'estat exacte. Màxim `MAP_HISTORY_MAX` entrades. DM-only: no es sincronitza ni es desa a la partida.
+- **Qui hi entra**: afegir/esborrar/moure paret, esborrar sala, reanomenar sala, afegir/eliminar porta, afegir/eliminar llum i esborrar totes les parets. **No** hi entren les accions de joc (obrir una porta, marcar una sala com a fosca o revelar-la): Ctrl+Z no ha de desfer una decisió de partida.
+- **Encaminament per eina** (`useKeyboardHandlers`): Parets/Llums → canvi de mapa; eines de dibuix → traç; selecció → moviment de combat i, **si no n'hi ha cap a l'historial**, canvi de mapa (així el Ctrl+Z d'un canvi fet des del panell de sales funciona sense canviar d'eina).
+- **Botó visible**: `↶` a la capçalera de la secció «Sales», amb el nom del canvi que desfarà al `title`. Botó i tecla criden la mateixa funció (mateix criteri que els modes de la barra d'eines).
+
 ### Cinematica boss reveal
 - Llançada via `triggerBossIntroRef.current(data)`
 - `BOSS_INTRO` BC message inclou `portraitDataUrl` (JPEG base64, max 600px)
@@ -625,5 +659,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Finestreta d'ajuda pròpia per a un text curt d'un botó | Ocupa espai, tapa altres controls i obliga el contenidor a `overflow: visible` | Usar l'atribut `title` natiu (com `PlayersPanel`, `BottomControls` i `CanvasHUD`) |
 | Escoltador de teclat global sense guarda d'escriptura | Escriure una majúscula o fer Ctrl+A en un camp dispara una drecera (commuta la vista privada/compartida) | Passar sempre per `isTyping(e)` a `useKeyboardHandlers` (input, textarea **i** `contentEditable`) |
 | Estat de token no purgat en eliminar-lo | Xip fantasma «?» a la barra d'iniciativa, aro daurat pintat enlloc | Afegir-lo a `_cleanupTokenKey` (`useDMActions.ts`), que ja neteja condicions, derrotat, mida, selecció, grups i torn |
+| Regla de moviment duplicada en lloc de compartida | El jugador veu un rang groc que el DM li rebutja (o al revés) | Passar sempre per `movementLimit` (`lib/rules/conditions.ts`), com `buildMovePath` per al camí |
+| Estat de combat passat sencer a React al jugador | `PlayerView` es re-renderitza ~20 cops/s (el `turn` va dins de cada STATE) | Projectar-lo amb `buildTurnBanner` + `sameBanner` i retornar `prev` quan no canvia |
 | Component definit dins d'un altre component | El hover es queda enganxat / l'estat intern es perd a cada render | Declarar-lo a nivell de mòdul (veure `ToolButton` a `FloatingToolbar`) |
 | Mode nou només al teclat | L'usuari no sap que existeix | Una sola funció `toggle*` a `DMView`, compartida pel botó de `FloatingToolbar` i per `useKeyboardHandlers` |
