@@ -59,6 +59,11 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.14 — El diagnòstic de connexió diu QUINA de les avaries és
+- **Codi de tancament del WebSocket a la pantalla.** Un socket que no connecta i un socket que el servidor **rebutja** es veien exactament igual. Ara es llegeix el codi: `4401` («invalid key», el que retorna la API quan té `SYNC_KEY`) surt com a **clau de sincronització incorrecta**, amb el detall de si aquest build en porta cap — que és el fracàs típic quan es desplega a Vercel sense la `NEXT_PUBLIC_SYNC_KEY`.
+- **Prova del host per HTTP** (`probeApiReachable`): quan el socket cau, es fa una petició `no-cors` a la API. Així se separa **«no s'arriba al host»** (ordinador apagat o adormit, túnel públic tancat, sense xarxa) de **«el host respon però el WebSocket es tanca»** (clau, o alguna cosa entremig que el bloqueja). Abans les dues coses deien el mateix.
+- **Consells segons on és la API**: amb una adreça de xarxa local es parla de la wifi i del port 3000; amb un host públic (Tailscale Funnel) es parla de l'ordinador, del servei i del túnel — que és el que toca comprovar-hi.
+
 ### v4.13 — La pantalla de jugador ja funciona al mòbil (i diu per què no connecta)
 - **Arreglada la mida al mòbil.** Faltava el `meta viewport`: el telèfon assumia una finestra virtual de ~980 px i n'escalava el resultat, així que la pantalla de jugador sortia minúscula i mal enquadrada. Ara fa servir l'amplada real del dispositiu, ocupa tota la pantalla (osca inclosa) i l'alçada segueix `100dvh` — amb `100vh` la barra del navegador tallava el rètol de torn.
 - **Ja no cal escriure la IP del PC a `next.config.ts`.** `allowedDevOrigins` es calcula a l'arrencada amb les IPv4 de les interfícies del PC i els rangs privats habituals. Amb una sola IP escrita a mà, el dia que el router en donava una de nova, Next bloquejava els recursos del dev server i el mòbil es quedava amb una **pàgina negra congelada i cap error visible**.

@@ -15,42 +15,84 @@ import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
-import { createSyncSocket, syncUrl, syncBlockedByMixedContent } from '@/lib/ws';
+import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect } from '@/types';
-import type { SyncSocket, SyncStatus } from '@/lib/ws';
+import type { SyncSocket, SyncState } from '@/lib/ws';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
 // arribar al DM ensenyava exactament el mateix que un mòbil ben connectat esperant que
 // el DM carregui un mapa: "Esperant al Dungeon Master...", per sempre i sense cap pista.
+//
+// Els dos fracassos que des de fora es veuen IGUAL i que aquí se separen:
+//   · el servidor rebutja la clau (codi 4401, veure api-spec.txt) → el host respon;
+//   · no s'arriba al host (codi 1006) → Mac apagat, funnel tancat, sense xarxa.
+// Per això, quan el socket es tanca, es prova el host per HTTP (`probeApiReachable`).
 // Component a nivell de mòdul (no dins de PlayerView) com la resta de l'app.
-function ConnDiag({ conn, info }: { conn: SyncStatus; info: { url: string; mixed: boolean } | null }) {
+export interface ConnInfo { url: string; mixed: boolean; hasKey: boolean }
+
+// És una adreça de xarxa local? Decideix quins consells tenen sentit: els de la wifi i
+// el port 3000 no ajuden gens si la API va per un host públic (Tailscale Funnel).
+function isLanHost(host: string): boolean {
+  const h = host.replace(/:\d+$/, '');
+  return h === 'localhost' || h === '127.0.0.1' || /^192\.168\./.test(h) || /^10\./.test(h)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || h.endsWith('.local');
+}
+
+function ConnDiag({ conn, info, reachable }: { conn: SyncState; info: ConnInfo | null; reachable: boolean | null }) {
   if (!info) return null;
   const host = (() => { try { return new URL(info.url).host; } catch { return info.url; } })();
+  // Els consells de wifi i port 3000 només valen si la API és a la xarxa local; amb un
+  // host públic (Tailscale Funnel) el que cal comprovar és una altra cosa.
+  const lan = isLanHost(host);
   const box: React.CSSProperties = {
     marginTop: 10, maxWidth: 460, width: '100%', textAlign: 'center', fontSize: 12, lineHeight: 1.5,
     padding: '8px 12px', borderRadius: 8, border: '1px solid #21262d', background: 'rgba(255,255,255,0.03)',
   };
+  const bad: React.CSSProperties = { ...box, borderColor: '#7d3a2e', color: '#ffb4a2' };
+
   if (info.mixed) return (
-    <div style={{ ...box, borderColor: '#7d3a2e', color: '#ffb4a2' }}>
-      Aquesta pàgina va per <b>https</b> i el DM per <b>http</b>: el navegador bloqueja la connexió.
-      Obre l&apos;app amb l&apos;adreça del PC del DM (<b>http://[IP-del-PC]:3001/player</b>) i des de la mateixa wifi.
+    <div style={bad}>
+      Aquesta pàgina va per <b>https</b> i la API per <b>http</b>: el navegador bloqueja la connexió
+      (contingut mixt). Obre l&apos;app amb la mateixa adreça que la API, o dóna-li https.
     </div>
   );
-  if (conn === 'open') return (
+  if (conn.status === 'open') return (
     <div style={{ ...box, color: '#7ee787' }}>● Connectat a {host} — esperant que el DM comparteixi el mapa.</div>
   );
-  if (conn === 'connecting') return (
+  if (conn.status === 'connecting') return (
     <div style={{ ...box, color: '#8b949e' }}>○ Connectant amb {host}…</div>
   );
+
+  // Tancat: el codi diu de què es tracta.
+  if (conn.code === 4401 || /key/i.test(conn.reason ?? '')) return (
+    <div style={bad}>
+      <b>{host}</b> ha rebutjat la connexió: <b>clau de sincronització incorrecta</b> (codi 4401
+      {info.hasKey ? '' : ', i aquest build no en porta cap'}).{' '}
+      La <code>NEXT_PUBLIC_SYNC_KEY</code> del frontend ha de ser la mateixa que la{' '}
+      <code>SYNC_KEY</code> de la API, i cal tornar a desplegar després de canviar-la.
+    </div>
+  );
+  if (reachable === false) return (
+    <div style={bad}>
+      ✕ No s&apos;arriba a <b>{host}</b>{conn.code ? ` (codi ${conn.code})` : ''}.{' '}
+      {lan
+        ? 'Comprova que ets a la mateixa wifi que el PC del DM i que la API (port 3000) està engegada.'
+        : 'Comprova que l\u2019ordinador de la API està encès i despert, que la API està engegada i que el túnel públic (Tailscale Funnel) segueix actiu.'}
+    </div>
+  );
   return (
-    <div style={{ ...box, borderColor: '#7d3a2e', color: '#ffb4a2' }}>
-      ✕ Sense connexió amb <b>{host}</b>{' '}— s&apos;està reintentant.
-      Comprova que el mòbil és a la mateixa wifi que el PC del DM i que la API (port 3000) està engegada.
+    <div style={bad}>
+      ✕ Sense connexió amb <b>{host}</b>{conn.code ? ` (codi ${conn.code}${conn.reason ? `: ${conn.reason}` : ''})` : ''}{' '}— s&apos;està reintentant.{' '}
+      {reachable === true
+        ? 'El host respon per HTTP, així que el problema és el WebSocket: clau de sincronització o alguna cosa entremig que el bloqueja.'
+        : (lan
+          ? 'Comprova que ets a la mateixa wifi que el PC del DM i que la API (port 3000) està engegada.'
+          : 'Comprova que la API està engegada i accessible des d\u2019aquest dispositiu.')}
     </div>
   );
 }
@@ -59,9 +101,12 @@ export function PlayerView() {
   const [bgLoaded,   setBgLoaded]   = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
   // Estat de la connexió amb la API i adreça a la qual truca (per ensenyar-los a la
-  // pantalla d'espera). Tots dos els omple el socket (veure el seu efecte).
-  const [conn, setConn] = useState<SyncStatus>('connecting');
-  const [syncInfo, setSyncInfo] = useState<{ url: string; mixed: boolean } | null>(null);
+  // pantalla d'espera). Els omple el socket (veure el seu efecte).
+  const [conn, setConn] = useState<SyncState>({ status: 'connecting' });
+  const [syncInfo, setSyncInfo] = useState<ConnInfo | null>(null);
+  // El host respon per HTTP? (null = encara no s'ha comprovat). Veure ConnDiag.
+  const [apiReachable, setApiReachable] = useState<boolean | null>(null);
+  const probingRef = useRef(false);
 
   const stageRef  = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -947,7 +992,16 @@ export function PlayerView() {
       // L'adreça del WS i la comprovació de contingut mixt depenen de `window.location`:
       // es calculen aquí (ja al client) i no al render, on el servidor donaria un valor
       // diferent i provocaria un error d'hidratació.
-      setSyncInfo(prev => prev ?? { url: syncUrl('client'), mixed: syncBlockedByMixedContent() });
+      setSyncInfo(prev => prev ?? {
+        url: syncUrl('client'), mixed: syncBlockedByMixedContent(), hasKey: hasSyncKey(),
+      });
+      // Si el socket s'ha tancat, mirar si el host respon per HTTP: és el que separa
+      // "no s'hi arriba" de "s'hi arriba però el WebSocket es tanca". Una sola prova
+      // (el socket reintenta cada 2s i no cal repetir-la a cada intent).
+      if (st.status === 'closed' && !probingRef.current) {
+        probingRef.current = true;
+        probeApiReachable().then(setApiReachable).catch(() => setApiReachable(false));
+      }
     });
     wsRef.current = ws;
     return () => { ws.close(); wsRef.current = null; };
@@ -1191,7 +1245,7 @@ export function PlayerView() {
           <Layers size={40} color="#21262d" />
           <div style={{ fontSize: 18, color: '#e6edf3', fontWeight: 600 }}>RPG Map Viewer</div>
           <div style={{ fontSize: 13 }}>Esperant al Dungeon Master...</div>
-          <ConnDiag conn={conn} info={syncInfo} />
+          <ConnDiag conn={conn} info={syncInfo} reachable={apiReachable} />
           <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
         </div>
       )}
