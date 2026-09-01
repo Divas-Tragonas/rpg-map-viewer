@@ -46,6 +46,10 @@ l'estat complet al DM en tornar.
 
 ## Changelog
 
+### v4.9 — Els estats ja no tenyeixen el token
+- S'elimina el tint de color que alguns estats aplicaven al token sencer: amb dos o tres estats alhora els colors se sumaven i el resultat no volia dir res. Tota la lectura d'estats queda al distintiu (anell segmentat + badges), que sí que els distingeix un per un.
+- **Excepció**: `invisible` continua igual (fantasma semitransparent al DM, contorn blau de guions i amagat del tot al jugador) — mai va anar pel tint.
+
 ### v4.8 — Retocs al menú d'estats
 - **Traduccions revisades**: *Ensordit* (no «Eixordat», que no és català estàndard) i *Tombat* per a `prone`.
 - **Menú molt més compacte** (230 px d'ample, 4×4 fitxes) i les traduccions al castellà i a l'anglès passen a la **finestreta natiua del sistema** (`title`) en lloc d'un menú propi de l'app.

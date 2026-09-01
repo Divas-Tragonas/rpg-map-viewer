@@ -1,5 +1,5 @@
 import type { FrameContext } from './types';
-import { TOKEN_LERP, CONDITIONS_BY_ID, C } from '@/constants';
+import { TOKEN_LERP, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
 
 // Moviment del token seguint el camí (corba suau de Chaikin): velocitat de creuer (fracció
@@ -74,15 +74,6 @@ function drawActiveTurnRing(ctx: CanvasRenderingContext2D, cx: number, cy: numbe
   ctx.strokeStyle = 'rgba(255,196,52,0.95)'; ctx.lineWidth = 4 / sc;
   ctx.beginPath(); ctx.arc(cx, cy, R + (5 + 1.5 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
-}
-
-// Troba l'última condició amb tint sense crear arrays intermedis (s'executa per token i frame).
-function findTintCond(condIds: string[]) {
-  for (let i = condIds.length - 1; i >= 0; i--) {
-    const c = CONDITIONS_BY_ID.get(condIds[i]);
-    if (c?.tint) return c;
-  }
-  return undefined;
 }
 
 // El retrat desaturat d'un enemic derrotat només canvia mentre avança l'animació (~1s);
@@ -183,13 +174,6 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
         ctx.fillText(displayName.slice(0, 2).toUpperCase(), ep.x, ep.y); ctx.textBaseline = 'alphabetic';
       }
 
-      const tintCond = findTintCond(enCondIds);
-      if (tintCond) {
-        ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = 0.45;
-        ctx.fillStyle = tintCond.tint!;
-        ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
       ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.7)';
       ctx.lineWidth = 2 / sc;
       if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
@@ -326,7 +310,6 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       }
     }
 
-    const enTintCond = findTintCond(enCondIds);
     ctx.globalAlpha = enAlpha;
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ep.x + 2 / sc, ep.y + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
@@ -344,11 +327,6 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
           ctx.drawImage(dtImg, ep.x - R, ep.y - R, R * 2, R * 2); ctx.restore();
         }
       }
-      if (enTintCond) {
-        ctx.save(); ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.clip();
-        ctx.globalAlpha = enAlpha * (1 - colorProg * 0.35) * 0.45;
-        ctx.fillStyle = enTintCond.tint!; ctx.fillRect(ep.x - R, ep.y - R, R * 2, R * 2); ctx.restore();
-      }
       ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
@@ -365,11 +343,6 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
           ctx.save(); ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.clip();
           ctx.drawImage(tImg, ep.x - R, ep.y - R, R * 2, R * 2); ctx.restore();
         }
-      }
-      if (enTintCond) {
-        ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = 0.45;
-        ctx.fillStyle = enTintCond.tint!;
-        ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       }
       ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
       if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
@@ -541,18 +514,12 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(0,0,0,.4)';
     ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
-    const plTintCond = findTintCond(plCondIds);
     if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
       ctx.globalAlpha = 1 - colorProg * 0.35;
       ctx.fillStyle = pl.color;
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
-      if (plTintCond) {
-        ctx.save(); ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.clip();
-        ctx.globalAlpha = (1 - colorProg * 0.35) * 0.45;
-        ctx.fillStyle = plTintCond.tint!; ctx.fillRect(ppos.x, ppos.y, R * 2, R * 2); ctx.restore();
-      }
       ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
@@ -563,12 +530,6 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     } else {
       ctx.fillStyle = pl.color;
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
-      if (plTintCond) {
-        ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = 0.45;
-        ctx.fillStyle = plTintCond.tint!;
-        ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
       ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
       if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();

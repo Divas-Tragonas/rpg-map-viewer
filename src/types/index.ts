@@ -254,8 +254,6 @@ export interface Condition {
   en: string;
   /** Color identificatiu de l'estat: badge, segment de l'anell i ressaltat del menú. */
   color: string;
-  /** Tint opcional sobre el token sencer (només els estats que en canvien l'aspecte). */
-  tint: string | null;
 }
 
 export interface Element {
