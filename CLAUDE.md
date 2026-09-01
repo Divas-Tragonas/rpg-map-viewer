@@ -381,8 +381,12 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
   el socket: encara està CONNECTING i es descarta). El DM hi fa `_sendFullState()` per
   refrescar el `STRUCT` en caché del servidor (late join).
 - **`allowedDevOrigins` a `next.config.ts`**: Next 16 bloqueja recursos cross-origin
-  del dev server. La IP LAN del PC del DM ha de ser-hi o la tablet no hidrata (pàgina
-  congelada sense errors visibles).
+  del dev server; si l'origen no hi és, el dispositiu rep l'HTML però no els `/_next/*`
+  i **no hidrata** (pàgina negra congelada, sense errors visibles). Ja **no s'escriu cap
+  IP a mà**: es llegeixen les IPv4 de les interfícies de la màquina (`os.networkInterfaces`)
+  i s'hi afegeixen els comodins dels rangs privats. ⚠️ Next compara els orígens **per
+  trossos separats per punts**, així que un comodí ha de ser un tros sencer
+  (`192.168.*.*` sí, `172.2*.*.*` no).
 
 ---
 
@@ -606,6 +610,12 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Control**: xip **⟳** al `CanvasHUD` (només quan hi ha mapa) amb l'últim desat — clic per desar ara, **clic dret per apagar-lo**. La preferència va a `localStorage['rpg_autosave']` (un booleà sí que hi cap) i apagar-lo **esborra** el que hi hagués desat.
 - **Tolerància a fallades**: sense IndexedDB (mode privat, navegador antic) cap funció de `lib/autosave.ts` llança: retornen `null`/`false` i l'app funciona com abans.
 - També s'hi desen els **grups de tokens** (`tokenGroups`, com a parells perquè un `Map` no sobreviu al JSON) — abans es perdien en carregar una partida.
+
+### La pantalla de jugador al mòbil
+- **`meta viewport`** (`export const viewport` a `src/app/layout.tsx`): sense això el mòbil assumeix una finestra virtual de ~980 px i escala el resultat — la pantalla de jugador sortia minúscula i mal enquadrada, i semblava que no carregués. `viewportFit: 'cover'` per als mòbils amb osca.
+- **Alçada `100dvh`** (classe `.full-stage` a `globals.css`, usada per l'arrel de `PlayerView`): `100vh` al mòbil val l'alçada AMB la barra del navegador desplegada i tallava el rètol de torn. Es declara `100vh` i tot seguit `100dvh` perquè un navegador antic es quedi amb el primer.
+- **`BroadcastChannel` amb guarda** (`try/catch` a l'efecte de `PlayerView`): no existeix a iOS Safari < 15.4 i, sense protecció, l'excepció tombava l'arbre de React (pantalla en negre). Al mòbil no cal: la sincronització hi va per WebSocket. ⚠️ Per això el handler dels missatges viu a **`bcHandlerRef`** i el WS l'hi crida directament — abans el WS despatxava via `bcRef.current.onmessage`, o sigui que sense BroadcastChannel no hauria processat res.
+- **Diagnòstic a la pantalla d'espera** (`ConnDiag` a `PlayerView`, `SyncStatus`/`syncUrl`/`syncBlockedByMixedContent` a `lib/ws.ts`): sota "Esperant al Dungeon Master..." es diu l'estat del WS i **a quina adreça truca**. Cas especial: pàgina servida per `https` (Vercel) + DM per `http` → el navegador bloqueja el WebSocket per **contingut mixt** i abans no s'hi veia cap pista. La URL es calcula dins del callback d'estat del socket, ja al client (depèn de `window.location`: calculada al render, el servidor en donaria una altra i hi hauria error d'hidratació).
 
 ### Vista privada DM
 - `Maj+scroll/drag` (toggle `rShiftPanToggle`): zoom i pan locals, **no** sincronitzats al jugador (no entren a `cam`)

@@ -31,9 +31,12 @@ API (`divas_tragonas_api`, endpoint `/sync` al port 3000).
 
 1. **Al PC del DM**: arrencar la API (port 3000) i l'app (`npm run dev`, port 3001).
 2. **Trobar la IP LAN del PC** (`ipconfig` a Windows / `ip addr` a Linux), p. ex. `192.168.68.102`.
-3. **Verificar `next.config.ts`**: la IP del PC ha de ser a `allowedDevOrigins`
-   (Next 16 bloqueja l'accés cross-origin al dev server si no hi és — la tablet
-   carregaria una pàgina en blanc). Si la IP canvia (DHCP), actualitzar-la aquí.
+3. **`next.config.ts` no s'ha de tocar**: `allowedDevOrigins` es calcula sol a partir
+   de les IPv4 de les interfícies del PC i inclou els rangs privats habituals
+   (`192.168.*.*`, `10.*.*.*`, `172.16–31.*.*`). Next 16 bloqueja l'accés cross-origin
+   al dev server i, si l'origen no hi és, la tablet o el mòbil es queden amb una
+   pàgina en blanc; abans calia escriure-hi la IP a mà i tornar-la a canviar cada cop
+   que el router en donava una de nova.
 4. **Monitors del PC**: `http://localhost:3001/` (DM) i `http://localhost:3001/player` (jugadors).
 5. **Tablet**: obrir `http://[IP-del-PC]:3001/player` al navegador.
 
@@ -41,6 +44,11 @@ La tablet dedueix automàticament l'adreça del WebSocket a partir de la URL amb
 ha carregat la pàgina — no cal configurar `NEXT_PUBLIC_API_URL` per a l'ús en LAN.
 Si la connexió cau (wifi inestable), el client es reconnecta sol cada 2 s i demana
 l'estat complet al DM en tornar.
+
+> ⚠️ **Des del mòbil, obre l'adreça del PC del DM (`http://[IP-del-PC]:3001/player`),
+> no el desplegament públic de Vercel.** La pàgina de Vercel va per `https` i el PC del
+> DM per `http`: el navegador bloqueja la connexió (contingut mixt) i la pantalla es
+> queda per sempre a "Esperant al Dungeon Master...". Ara la mateixa pantalla ho diu.
 
 ---
 
@@ -50,6 +58,12 @@ l'estat complet al DM en tornar.
 > `v4.99`) i increments de +0.01. Les entrades de la v4 que abans es deien `v4.1`–`v4.8`
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
+
+### v4.13 — La pantalla de jugador ja funciona al mòbil (i diu per què no connecta)
+- **Arreglada la mida al mòbil.** Faltava el `meta viewport`: el telèfon assumia una finestra virtual de ~980 px i n'escalava el resultat, així que la pantalla de jugador sortia minúscula i mal enquadrada. Ara fa servir l'amplada real del dispositiu, ocupa tota la pantalla (osca inclosa) i l'alçada segueix `100dvh` — amb `100vh` la barra del navegador tallava el rètol de torn.
+- **Ja no cal escriure la IP del PC a `next.config.ts`.** `allowedDevOrigins` es calcula a l'arrencada amb les IPv4 de les interfícies del PC i els rangs privats habituals. Amb una sola IP escrita a mà, el dia que el router en donava una de nova, Next bloquejava els recursos del dev server i el mòbil es quedava amb una **pàgina negra congelada i cap error visible**.
+- **La pantalla d'espera diu què passa.** Sota "Esperant al Dungeon Master..." hi surt ara l'estat de la connexió i a quina adreça truca: connectat, connectant o sense connexió (amb què cal comprovar). Si la pàgina s'ha obert per `https` (el desplegament de Vercel) i el DM va per `http`, ho diu explícitament: el navegador bloqueja el WebSocket per contingut mixt i abans no s'hi veia cap pista.
+- **`BroadcastChannel` amb guarda.** No existeix a iOS Safari < 15.4 ni a navegadors antics d'Android i es creava sense protecció: l'excepció tombava l'arbre de React i la pantalla es quedava en negre. Al mòbil no fa cap falta (la sincronització hi va per WebSocket), així que ara si no hi és s'ignora i el WS continua funcionant.
 
 ### v4.12 — El rètol de torn s'adapta a la mida de la pantalla
 - **El rètol de torn de la pantalla de jugador escala amb la finestra.** Estava dimensionat en píxels fixos, pensat per a la TV: en una pantalla petita es menjava gairebé tota l'amplada. Ara totes les mides (tipografia, avatar, marges i barra) van amb `clamp` proporcional a l'amplada de la finestra, amb terra i sostre — ni desapareix en una pantalla petita ni es fa gegant en un monitor gran.

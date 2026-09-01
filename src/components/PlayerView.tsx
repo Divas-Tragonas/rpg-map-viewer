@@ -15,18 +15,53 @@ import { renderSpells } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
-import { createSyncSocket } from '@/lib/ws';
+import { createSyncSocket, syncUrl, syncBlockedByMixedContent } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect } from '@/types';
-import type { SyncSocket } from '@/lib/ws';
+import type { SyncSocket, SyncStatus } from '@/lib/ws';
+
+// Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
+// arribar al DM ensenyava exactament el mateix que un mòbil ben connectat esperant que
+// el DM carregui un mapa: "Esperant al Dungeon Master...", per sempre i sense cap pista.
+// Component a nivell de mòdul (no dins de PlayerView) com la resta de l'app.
+function ConnDiag({ conn, info }: { conn: SyncStatus; info: { url: string; mixed: boolean } | null }) {
+  if (!info) return null;
+  const host = (() => { try { return new URL(info.url).host; } catch { return info.url; } })();
+  const box: React.CSSProperties = {
+    marginTop: 10, maxWidth: 460, width: '100%', textAlign: 'center', fontSize: 12, lineHeight: 1.5,
+    padding: '8px 12px', borderRadius: 8, border: '1px solid #21262d', background: 'rgba(255,255,255,0.03)',
+  };
+  if (info.mixed) return (
+    <div style={{ ...box, borderColor: '#7d3a2e', color: '#ffb4a2' }}>
+      Aquesta pàgina va per <b>https</b> i el DM per <b>http</b>: el navegador bloqueja la connexió.
+      Obre l&apos;app amb l&apos;adreça del PC del DM (<b>http://[IP-del-PC]:3001/player</b>) i des de la mateixa wifi.
+    </div>
+  );
+  if (conn === 'open') return (
+    <div style={{ ...box, color: '#7ee787' }}>● Connectat a {host} — esperant que el DM comparteixi el mapa.</div>
+  );
+  if (conn === 'connecting') return (
+    <div style={{ ...box, color: '#8b949e' }}>○ Connectant amb {host}…</div>
+  );
+  return (
+    <div style={{ ...box, borderColor: '#7d3a2e', color: '#ffb4a2' }}>
+      ✕ Sense connexió amb <b>{host}</b>{' '}— s&apos;està reintentant.
+      Comprova que el mòbil és a la mateixa wifi que el PC del DM i que la API (port 3000) està engegada.
+    </div>
+  );
+}
 
 export function PlayerView() {
   const [bgLoaded,   setBgLoaded]   = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
+  // Estat de la connexió amb la API i adreça a la qual truca (per ensenyar-los a la
+  // pantalla d'espera). Tots dos els omple el socket (veure el seu efecte).
+  const [conn, setConn] = useState<SyncStatus>('connecting');
+  const [syncInfo, setSyncInfo] = useState<{ url: string; mixed: boolean } | null>(null);
 
   const stageRef  = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -122,6 +157,10 @@ export function PlayerView() {
   const skipBossIntroRef     = useRef<(() => void) | null>(null);
 
   const bcRef = useRef<BroadcastChannel | null>(null);
+  // Handler únic dels missatges del DM: el criden tant el BroadcastChannel (finestres
+  // del mateix PC) com el WebSocket (tablet i mòbil). Va en una ref perquè el WS NO
+  // depengui que el BroadcastChannel existeixi — veure la guarda del seu efecte.
+  const bcHandlerRef = useRef<((ev: MessageEvent) => Promise<void> | void) | null>(null);
   const wsRef = useRef<SyncSocket | null>(null);
   // Identificador d'aquesta pantalla (efímer, per sessió de pestanya): permet al DM
   // distingir-la de la resta al llistat de pantalles connectades del HUD.
@@ -497,10 +536,7 @@ export function PlayerView() {
   const tokenDragRef = tokenDrag.dragRef;
 
   useEffect(() => {
-    const bc = new BroadcastChannel(BC_CHANNEL);
-    bcRef.current = bc;
-
-    bc.onmessage = async (ev) => {
+    const handleMsg = async (ev: MessageEvent) => {
       const msg = ev.data;
 
       if (msg.type === 'BG') {
@@ -833,9 +869,21 @@ export function PlayerView() {
       }
     };
 
-    bc.postMessage({ type: 'PLAYER_READY' });
+    bcHandlerRef.current = handleMsg;
+
+    // `new BroadcastChannel` NO existeix a iOS Safari < 15.4 ni a navegadors antics
+    // d'Android i, sense guarda, llançava aquí dins: l'efecte petava, React desmuntava
+    // l'arbre i el mòbil es quedava amb la pantalla en negre. Al mòbil no fa cap falta
+    // (la sincronització hi va per WebSocket), així que si no hi és, s'ignora.
+    let bc: BroadcastChannel | null = null;
+    try { bc = new BroadcastChannel(BC_CHANNEL); } catch { bc = null; }
+    if (bc) {
+      bc.onmessage = handleMsg;
+      bcRef.current = bc;
+      bc.postMessage({ type: 'PLAYER_READY' });
+    }
     _reportViewport();
-    return () => bc.close();
+    return () => { bc?.close(); bcRef.current = null; bcHandlerRef.current = null; };
   }, [_loadBgFromUrl, _bgChanged, _reconcileSpells]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── WebSocket setup (receives same messages as BC, for cross-device iPad) ──
@@ -883,11 +931,9 @@ export function PlayerView() {
           pendingExpMetaRef.current = parsed as { mimeType: string };
           return;
         }
-        // Synthesize a fake BroadcastChannel MessageEvent so the existing BC handler processes it
+        // Synthesize a fake BroadcastChannel MessageEvent so the existing handler processes it
         const fakeEv = { data: parsed } as MessageEvent;
-        if (bcRef.current?.onmessage) {
-          await (bcRef.current.onmessage as (e: MessageEvent) => Promise<void>)(fakeEv);
-        }
+        await bcHandlerRef.current?.(fakeEv);
       }
     }, () => {
       // onOpen: s'executa a cada connexió I a cada reconnexió. Enviar-lo aquí
@@ -896,6 +942,12 @@ export function PlayerView() {
       // amb l'estat complet (BG + STRUCT).
       ws.send(JSON.stringify({ type: 'PLAYER_READY' }));
       _reportViewport();
+    }, (st) => {
+      setConn(st);
+      // L'adreça del WS i la comprovació de contingut mixt depenen de `window.location`:
+      // es calculen aquí (ja al client) i no al render, on el servidor donaria un valor
+      // diferent i provocaria un error d'hidratació.
+      setSyncInfo(prev => prev ?? { url: syncUrl('client'), mixed: syncBlockedByMixedContent() });
     });
     wsRef.current = ws;
     return () => { ws.close(); wsRef.current = null; };
@@ -1119,7 +1171,7 @@ export function PlayerView() {
   }, []);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden' }}>
+    <div className="full-stage" style={{ background: '#000', position: 'relative', overflow: 'hidden' }}>
       <div ref={stageRef} style={{ position: 'absolute', inset: 0 }} />
       <canvas
         ref={canvasRef}
@@ -1135,10 +1187,11 @@ export function PlayerView() {
       />
       <TurnBanner data={turnBanner} />
       {!playerReady && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16, padding: 24, fontFamily: 'system-ui,sans-serif', textAlign: 'center' }}>
           <Layers size={40} color="#21262d" />
           <div style={{ fontSize: 18, color: '#e6edf3', fontWeight: 600 }}>RPG Map Viewer</div>
           <div style={{ fontSize: 13 }}>Esperant al Dungeon Master...</div>
+          <ConnDiag conn={conn} info={syncInfo} />
           <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
         </div>
       )}
