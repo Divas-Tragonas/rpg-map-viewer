@@ -46,8 +46,6 @@ export function useDMRefs() {
   // l'amplada. Sense anchor, el proper clic marca l'inici.
   const rDoorPlacement  = useRef<{ roomId: string | null; anchor?: { wall: Wall; s: number } } | null>(null);
   const rDoorPreview    = useRef<{ a: Point; b: Point } | null>(null);
-  // Amplada de la porta en col·locació, en caselles (+/− per canviar-la; es recorda).
-  const rDoorWidthCells = useRef(1);
   // Porta sota el cursor en mode selecció (hover reactiu; clic = obrir/tancar).
   const rHoveredDoorId  = useRef<string | null>(null);
   const rWallPenLast    = useRef<Point | null>(null);   // últim vèrtex de la cadena activa (null = ploma amunt)
@@ -143,6 +141,13 @@ export function useDMRefs() {
   const _ctx2dRef         = useRef<CanvasRenderingContext2D | null>(null);
   const invisAlphaRef     = useRef<Record<string, number>>({});
   const strokeHistoryRef  = useRef<StrokeData[]>([]);
+  // Traços ja "cuits": quan l'historial supera el límit, els més antics es rasteritzen aquí
+  // i surten de la llista. El dibuix es reconstrueix sempre com a base + historial, així que
+  // ni l'historial ni els missatges que el porten creixen sense fre. Veure `_capStrokeHistory`.
+  const strokeBaseRef     = useRef<HTMLCanvasElement | null>(null);
+  // Versió de la base: puja a cada rasterització. Serveix per no reenviar-ne la imatge quan
+  // no ha canviat (un Ctrl+Z seguit no la toca).
+  const strokeBaseVerRef  = useRef(0);
   const rPointerPos       = useRef<Point | null>(null);
   // Measuring ruler (tool 4/"Senyal"): click cycle a(start) -> b(fixed end) -> clear.
   const rMeasure          = useRef<{ a: Point | null; b: Point | null }>({ a: null, b: null });
@@ -190,7 +195,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rMapHistory, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
@@ -201,7 +206,7 @@ export function useDMRefs() {
     activeStrokeAnim, rDeathCanvas, shapePointsRef, isShapeDrawingRef, bgBufferRef,
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,
-    zoneDragRef, areaSpellDragRef, defeatedAnimRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef,
+    zoneDragRef, areaSpellDragRef, defeatedAnimRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef, strokeBaseRef, strokeBaseVerRef,
     rPointerPos, rMeasure, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, rDmCam, rPlayerScreens, zoneAppearRef,
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,

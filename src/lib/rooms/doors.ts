@@ -95,51 +95,6 @@ export function effectiveWallsAnimated(walls: Wall[], allDoors: Door[], frac: (i
   return out;
 }
 
-/**
- * Col·locació de porta amb imant: projecta el cursor sobre la paret més propera i
- * retorna el segment de porta centrat a la projecció, sempre enganxat a la paret
- * ("snap" continu mentre llisques). Amb grid, el centre s'imanta a més al centre de
- * casella al llarg de l'eix dominant de la paret (la porta ocupa una casella exacta
- * a les parets alineades amb la graella). La porta queda sempre dins de la paret.
- */
-export function doorPlacementAt(
-  walls: Wall[],
-  cursor: Point,
-  width: number,
-  grid: { gs: number; gox: number; goy: number } | null,
-): { a: Point; b: Point } | null {
-  let best: WallFrame | null = null, bestS = 0, bestD = Infinity;
-  for (const w of walls) {
-    const f = frame(w);
-    if (!f) continue;
-    let s = (cursor.x - w.a.x) * f.ux + (cursor.y - w.a.y) * f.uy;
-    s = Math.max(0, Math.min(f.len, s));
-    const px = w.a.x + f.ux * s, py = w.a.y + f.uy * s;
-    const d = Math.hypot(cursor.x - px, cursor.y - py);
-    if (d < bestD) { bestD = d; best = f; bestS = s; }
-  }
-  if (!best) return null;
-  const dw = Math.min(width, best.len * 0.9);
-  const clamp = (s: number) => Math.max(dw / 2, Math.min(best!.len - dw / 2, s));
-  let s = clamp(bestS);
-  if (grid && grid.gs > 0) {
-    // Paritat: amb amplada senar (1, 3... caselles) el centre s'imanta al centre de
-    // casella; amb amplada parella (2, 4...) a la frontera entre caselles — així la
-    // porta cobreix sempre caselles exactes a les parets alineades amb la graella.
-    const half = Math.round(dw / grid.gs) % 2 === 0 ? 0 : 0.5;
-    const p = { x: best.w.a.x + best.ux * s, y: best.w.a.y + best.uy * s };
-    if (Math.abs(best.ux) >= Math.abs(best.uy)) {
-      const k = Math.round((p.x - grid.gox) / grid.gs - half);
-      s = clamp(((grid.gox + (k + half) * grid.gs) - best.w.a.x) / best.ux);
-    } else {
-      const k = Math.round((p.y - grid.goy) / grid.gs - half);
-      s = clamp(((grid.goy + (k + half) * grid.gs) - best.w.a.y) / best.uy);
-    }
-  }
-  const at = (t: number): Point => ({ x: best!.w.a.x + best!.ux * t, y: best!.w.a.y + best!.uy * t });
-  return { a: at(s - dw / 2), b: at(s + dw / 2) };
-}
-
 // Projecció d'un paràmetre s (distància des de wall.a) a la graella: imanta el punt a la
 // línia de graella més propera al llarg de l'eix dominant de la paret (perquè els extrems
 // de la porta caiguin a fronteres de casella a les parets alineades amb el grid).

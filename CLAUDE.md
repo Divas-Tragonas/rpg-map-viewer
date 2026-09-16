@@ -152,7 +152,7 @@ Sempre que es detecti o implementi un canvi a la API, actualitzar `api-spec.txt`
 |---|---|---|
 | `/` | `DMView` | Vista del Dungeon Master (pantalla principal) |
 | `/player` | `PlayerView` | Vista del jugador (pantalla secundària) |
-| `/expositor` | `ExpositorPage` | Pantalla d'expositor de campanya (imatge/vídeo) |
+| `/expositor` | `ExpositorPage` | **Visor local** per a un monitor de recanvi: obres un fitxer a mà i es veu a pantalla completa. **No és l'Expositor del DM** (no rep res del BC ni del WS) |
 
 ---
 
@@ -339,7 +339,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `BG` | DM→Jugador | Buffer de la imatge/vídeo de fons |
 | `STROKE` | DM→Jugador | Traç de dibuix (reproducció animada) |
 | `CLEAR_DRAW` | DM→Jugador | Netejar canvas de dibuix |
-| `UNDO_DRAW` | DM→Jugador | Desfer + reapplicar historial |
+| `UNDO_DRAW` | DM→Jugador | Desfer + reaplicar `strokeBaseline` (només quan ha canviat) + historial |
 | `POINTER` | DM→Jugador | Posició del cursor DM |
 | `MEASURE` | DM→Jugador | Punts A/B de la regla de mesura |
 | `SPELL` | DM→Jugador | Inici d'animació de spell |
@@ -514,7 +514,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Sales fosques**: les sales noves **neixen fosques per defecte** (`reconcileRooms` a `detect.ts` → `dark: true`); `Room.dark` també es commuta via clic dret (el menú s'actualitza en viu) → interior negre opac al jugador; `Room.revealed` (ull: clic sobre la sala en mode selecció, o menú contextual) → es revela amb fade suau (`roomRevealAnimRef`). **Revelar és lliure, però amagar una sala revelada amb l'ull requereix el mode Shift actiu** (`rShiftPanToggle`), com les sales PSD. Menú de sala a `ContextMenuOverlay` (`isRoom`): marcar fosca, revelar/amagar, reanomenar, afegir porta, resetejar explorat i eliminar. **Eliminar demana confirmació en dos passos** (`confirmDelRoomId` a `ContextMenuOverlay`: es desa l'**id** de la sala pendent de confirmar, no un booleà, perquè obrir el menú d'una altra sala no arribi ja confirmat sense necessitat d'un efecte que reiniciï l'estat).
 - **Render** (`src/lib/render/darkrooms.ts`): `renderRooms` — al **jugador** es pinta DAMUNT de tot (després dels tokens/spells) perquè qualsevol token/dibuix dins una sala fosca quedi amagat (fog of war); al **DM** va dins la transformació de mapa (semitransparent, hi veu a través). El farciment es fa amb el polígon + contorn del mateix color perquè les sales contigües se solapin i no quedi cap fil visible a la paret compartida. `renderWalls` (parets, només DM), `renderWallDraft` (paret elàstica en curs, espai pantalla).
 - **Sync**: camps `rooms` i `walls` a `STATE`/`STRUCT` (pesats: només s'envien quan canvia la referència). Persisteix a la sessió (`walls` + `rooms`). Les parets viatgen al jugador **però no s'hi dibuixen**: calen per a la llum (línia de visió) i per a la col·lisió de moviment.
-- **Pendent** (futur): revelat automàtic de la sala sencera en entrar-hi un jugador, obrir/tancar portes, edició de vèrtexs.
+- **Pendent** (futur): revelat automàtic de la sala sencera en entrar-hi un jugador. Obrir/tancar portes i edició de vèrtexs ja estan fets (veure «Portes» i «Editar parets ja dibuixades» més avall).
 
 ### Portes (col·locació obligada en tancar una sala)
 - **Model** (`Door` a `types/index.ts`, helpers a `src/lib/rooms/doors.ts`): una porta és un **segment sobre una paret** (`{id, a, b, open?}`). Per a llum i col·lisió es calculen les **parets efectives** (`effectiveWalls`): cada paret amb els trams de porta **oberta** retallats — per una porta oberta hi passen la llum i el moviment; una porta **tancada** (`open: false`) deixa la paret sencera i torna a bloquejar. La detecció de sales continua usant les parets senceres (una porta no parteix la sala). Una paret pot tenir **diverses portes**.
@@ -600,6 +600,26 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **El DM redimensiona**: el tick detecta el canvi de `W×H` i rebroadcasteja (throttle 120ms amb reintent: si es descarta l'enviament, `prevWH` NO s'actualitza i el frame següent hi torna, així la mida final sempre arriba).
 - **HUD 🖥 (`CanvasHUD` → `ScreensChip`)**: les pantalles de jugador reporten la seva mida amb `VIEWPORT {id,w,h}` (en connectar, en redimensionar i cada 15s de heartbeat); el DM les desa a `rPlayerScreens` i oblida les que fa >50s que no diuen res. Entre finestres del mateix PC va pel BroadcastChannel; les de fora (tablet per wifi) pel relay `VIEWPORT` client→dm de la API. El contracte del WS es pot comprovar amb `node scripts/check-sync.mjs`. El xip mostra quantes n'hi ha i, al tooltip, quant de mapa veu **de més** cadascuna (`extraSeen`). El format de l'enquadrament es mostreja cada 700ms a l'estat `camAr` — **no llegir `rDmCam` durant el render** (és una ref que escriu el tick; el HUD no es refrescaria).
 
+### Avisos a la pantalla (`src/components/ui/NoticeStack.tsx`)
+- **Problema que resolia**: tot el que fallava en carregar (fons il·legible, `.json` de partida corrupte, demo inabastable, desat automàtic sense espai) només deixava rastre a `console.error`. Des de fora es veia exactament igual que «no passa res»: l'usuari tornava a clicar sense cap pista.
+- **Model**: `Notice {id, kind: 'error'|'warn'|'info', text}` a `types/index.ts`. `DMView` en té la pila (`notices`) i passa `notify(text, kind?)` dins de l'objecte `Setters` de `useDMActions` — o sigui que **qualsevol acció del DM pot avisar sense arrossegar props**. `useAutosave` el rep per l'opció `onError`.
+- **Comportament**: es pinten a dalt al centre del `stageRef`. Un **error no marxa sol** (si s'esvaís, es perdria justament el missatge que explica per què no hi ha mapa); els avisos i les informacions sí. Un text repetit no s'apila (es dedupliquen) i se'n mostren com a molt 3.
+- **Regla**: si afegeixes un camí que pot fallar de cara a l'usuari, ha de passar per `notify`, no per `console.error` tot sol.
+
+### Càrrega del fons: validació i fracàs visible (`loadBg` a `useDMActions.ts`)
+- **Tipus**: només `image/*` i `video/*` (un tipus buit es tracta com a imatge, perquè les partides desades des de versions antigues no sempre en porten). Qualsevol altra cosa es rebutja amb el nom del fitxer al missatge — abans, un `.zip` es convertia en un `<img>` silenciós.
+- **Mida**: sostre a `MAX_BG_BYTES` (256 MB) i avís a partir de `WARN_BG_BYTES` (40 MB). El fons es guarda sencer a memòria, es passa per base64 a cada desat `.json` i s'envia pel WS **sense control de flux**: sense sostre, un vídeo de mig giga tomba la pestanya sense dir-ne res.
+- **`error` listener** (⚠️ el bug que amagava): sense ell, un fitxer malmès o un còdec no admès no disparava mai `load`, però `setBgLoaded(true)` ja s'havia executat — l'app deia que hi havia mapa, la pantalla quedava negra i no hi havia cap error. Ara es reverteix l'estat, es neteja el mèdia i es diu què passa (amb consell de format si és un vídeo).
+- **Object URL**: el del fons anterior es **revoca** en carregar-ne un de nou (`bgUrlRef`). Abans cada canvi de mapa deixava penjada a memòria la imatge o el vídeo sencers. Mateix patró que ja feien `PlayerView` i `/expositor`.
+
+### Límit de l'historial de dibuix (base + historial)
+- **Problema que resolia**: `strokeHistory` creixia **sense cap límit** i viatja sencer dins de **cada `STRUCT`** (late join, reconnexió de la tablet), dins de **cada `UNDO_DRAW`** (i per duplicat: BC + WS) i entra a **cada desat automàtic**. Una sessió llarga de dibuix degradava les tres coses alhora.
+- **Model**: el dibuix es reconstrueix sempre com a **BASE + HISTORIAL**. Es conserven com a objectes els últims `STROKE_HISTORY_MAX` (120) traços; els que passen del límit es **rasteritzen** a `strokeBaseRef` (canvas offscreen) i surten de la llista. El resultat a la pantalla és idèntic.
+- **`_capStrokeHistory`** (`useDMActions`) es crida just després d'afegir un traç — des de `useMouseHandlers`, que el rep **per paràmetre** (com `_broadcastState`: aquest hook no rep l'objecte d'accions sencer). `_repaintDrawCanvas` és l'únic lloc que repinta (base + historial): l'usen el Ctrl+Z i la càrrega de partida.
+- **Sync**: `strokeBaseVerRef` puja a cada rasterització i `sentBaseVerRef` recorda què ha rebut el jugador. El `STRUCT` sempre porta la base; l'`UNDO_DRAW` **només quan ha canviat** — la base no es toca en desfer, així que una tanda de Ctrl+Z l'envia una sola vegada (és una imatge de la mida del mapa). El jugador la conserva a `strokeBaseImgRef` i reconstrueix amb `_rebuildDrawing`, amb guarda de seqüència (`drawSeqRef`) perquè una descàrrega lenta no trepitgi una reconstrucció més nova.
+- **Sessió**: `strokeBaseline` es desa dins de l'estat. Sense això, carregar una partida amb molt dibuix en perdria el gruix. Les partides anteriors a aquest camp no en porten: llavors l'historial ja ho és tot (comportament de sempre).
+- ⚠️ `clearDrawing` ha de **buidar també la base**; si no, els traços vells reapareixerien al primer Ctrl+Z després d'esborrar-ho tot.
+
 ### Desat automàtic de la partida (`src/lib/autosave.ts` + `src/hooks/useAutosave.ts`)
 - **Problema que resol**: tot l'estat viu del DM (fons, parets, sales, portes, llums, posicions, vides, estats, dibuix i torns) només existia en refs de memòria. Un F5, un hot-reload del dev server o una pestanya que el navegador descarrega buidaven la partida sencera si el DM no havia premut «Desar».
 - **Magatzem**: IndexedDB (`rpg-map-viewer` → store `autosave`) amb **tres claus**: `meta` (data + nom del mapa + empremta del fons), `state` (la partida) i `bg` (la imatge). **No localStorage**: el mapa són megabytes i localStorage té ~5 MB i només accepta text.
@@ -609,6 +629,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Recuperació**: a la pantalla de benvinguda (sense mapa) surt **«↩ Recuperar l'última partida · fa X min»** amb el nom del mapa i un enllaç per descartar-la. `applySessionState` accepta el fons com a `state.bgBlob` (Blob) a més del `state.bgData` (base64) dels fitxers `.json` i del servidor.
 - **Control**: xip **⟳** al `CanvasHUD` (només quan hi ha mapa) amb l'últim desat — clic per desar ara, **clic dret per apagar-lo**. La preferència va a `localStorage['rpg_autosave']` (un booleà sí que hi cap) i apagar-lo **esborra** el que hi hagués desat.
 - **Tolerància a fallades**: sense IndexedDB (mode privat, navegador antic) cap funció de `lib/autosave.ts` llança: retornen `null`/`false` i l'app funciona com abans.
+- **El fracàs és visible** (⚠️ no tornar-hi enrere): amb la quota plena o en finestra privada, l'única pista era que l'etiqueta del xip deixava d'avançar — ningú no se n'adonava fins a perdre la partida. Ara, a partir de `FAIL_STREAK_TO_WARN` (2) fallades seguides, `useAutosave` retorna `failing` (el xip es posa **vermell amb ⚠ «no es pot desar»**) i crida `onError` **una sola vegada per ratxa** (si no, en sortiria un avís cada 30 s). Una escriptura correcta reinicia el comptador.
 - També s'hi desen els **grups de tokens** (`tokenGroups`, com a parells perquè un `Map` no sobreviu al JSON) — abans es perdien en carregar una partida.
 
 ### La pantalla de jugador al mòbil
@@ -679,3 +700,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Estat de combat passat sencer a React al jugador | `PlayerView` es re-renderitza ~20 cops/s (el `turn` va dins de cada STATE) | Projectar-lo amb `buildTurnBanner` + `sameBanner` i retornar `prev` quan no canvia |
 | Component definit dins d'un altre component | El hover es queda enganxat / l'estat intern es perd a cada render | Declarar-lo a nivell de mòdul (veure `ToolButton` a `FloatingToolbar`) |
 | Mode nou només al teclat | L'usuari no sap que existeix | Una sola funció `toggle*` a `DMView`, compartida pel botó de `FloatingToolbar` i per `useKeyboardHandlers` |
+| Camí que pot fallar resolt amb `console.error` tot sol | L'usuari veu «no passa res» i torna a clicar | Passar per `notify` (veure «Avisos a la pantalla») |
+| Element de mèdia sense listener d'`error` | «Mapa carregat» amb la pantalla negra i cap pista | Parella obligatòria: `load`/`loadedmetadata` **i** `error`, revertint l'estat a l'error |
+| `createObjectURL` sense el seu `revokeObjectURL` | Cada canvi de mapa o d'imatge deixa el fitxer sencer a memòria | Desar l'URL en un ref i revocar-lo en substituir-lo (`bgUrlRef`, `customUrlRef`) |
+| Estat que viatja a cada `STRUCT` i creix sense límit | Late join, desfer i desat automàtic es degraden a la vegada | Posar-hi sostre i rasteritzar el que en surt (veure «Límit de l'historial de dibuix») |

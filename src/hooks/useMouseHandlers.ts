@@ -64,7 +64,12 @@ function mapCoords(e: React.MouseEvent | MouseEvent, r: DOMRect, media: HTMLImag
   return { mx: (e.clientX - r.left - (W - mw * sc) / 2 - pan.x) / sc, my: (e.clientY - r.top - (H - mh * sc) / 2 - pan.y) / sc, sc };
 }
 
-export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastState: BroadcastFn) {
+/**
+ * @param capStrokeHistory  Rasteritza i treu de l'historial els traços que passen del límit
+ *   (`_capStrokeHistory` a `useDMActions`). Ve per paràmetre, com `_broadcastState`: aquest
+ *   hook no rep l'objecte d'accions sencer.
+ */
+export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastState: BroadcastFn, capStrokeHistory: () => void) {
   // getBoundingClientRect pot forçar un reflow i es cridava a cada mousemove; el rect del
   // canvas només canvia quan canvia el layout, així que es cacheja amb un refresc curt.
   const rectCacheRef = useRef<{ rect: DOMRect; t: number } | null>(null);
@@ -907,12 +912,16 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.bcRef.current?.postMessage(strokeMsg);
         R.wsRef.current?.send(JSON.stringify(strokeMsg));
         R.strokeHistoryRef.current.push({ points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current });
+        // Els traços que passen del límit es rasteritzen i surten de la llista: el dibuix
+        // es veu igual, però l'historial (que viatja sencer a cada STRUCT i UNDO_DRAW i
+        // entra a cada desat automàtic) deixa de créixer sense fre.
+        capStrokeHistory();
         R.rAutosaveDirty.current = true;  // el dibuix no passa per _broadcastState
         S.setCanUndo(true);
       }
     }
     _broadcastState({});
-  }, [mc, _broadcastState]);
+  }, [mc, _broadcastState, capStrokeHistory]);
 
   const onMouseLeaveCanvas = useCallback(() => {
     R.panDragRef.current = null;

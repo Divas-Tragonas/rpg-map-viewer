@@ -25,6 +25,8 @@ interface Props {
   hasMap: boolean;
   autosaveEnabled: boolean;
   autosaveAt: number | null;
+  /** El desat automàtic porta fallades seguides (quota plena, finestra privada). */
+  autosaveFailing: boolean;
   onToggleAutosave: () => void;
   onSaveNow: () => void;
 }
@@ -68,8 +70,8 @@ function ScreensChip({ playerScreens, camAr }: { playerScreens: Props['playerScr
  * Estat del desat automàtic. Sense això, l'autodesat seria màgia opaca: aquí es veu quan
  * s'ha desat per últim cop, es força un desat amb un clic i s'apaga amb el clic dret.
  */
-function AutosaveChip({ enabled, savedAt, onToggle, onSaveNow }: {
-  enabled: boolean; savedAt: number | null; onToggle: () => void; onSaveNow: () => void;
+function AutosaveChip({ enabled, savedAt, failing, onToggle, onSaveNow }: {
+  enabled: boolean; savedAt: number | null; failing: boolean; onToggle: () => void; onSaveNow: () => void;
 }) {
   // Es refresca sol perquè l'etiqueta («fa 2 min») no es quedi congelada entre desats.
   const [, tick] = React.useState(0);
@@ -77,25 +79,28 @@ function AutosaveChip({ enabled, savedAt, onToggle, onSaveNow }: {
     const iv = setInterval(() => tick(n => n + 1), 15_000);
     return () => clearInterval(iv);
   }, []);
-  const col = !enabled ? C.dim : savedAt ? '#4ade80' : C.dim;
-  const title = enabled
-    ? `Desat automàtic actiu (cada 30 s i en amagar la pestanya).\n${savedAt ? `Últim desat: ${agoLabel(savedAt)}.` : 'Encara no s\'ha desat res.'}\n\nClic per desar ara · clic dret per apagar-lo.`
-    : 'Desat automàtic apagat: si tanques o refresques, perdràs la partida.\n\nClic per encendre\'l.';
+  // Vermell quan falla: l'única pista que hi havia era que l'etiqueta deixava d'avançar.
+  const col = !enabled ? C.dim : failing ? C.enemy : savedAt ? '#4ade80' : C.dim;
+  const title = !enabled
+    ? 'Desat automàtic apagat: si tanques o refresques, perdràs la partida.\n\nClic per encendre\'l.'
+    : failing
+      ? `El desat automàtic NO pot escriure (espai del navegador ple o finestra privada).\n${savedAt ? `L'últim que va funcionar: ${agoLabel(savedAt)}.` : 'No s\'ha arribat a desar res.'}\n\nDesa la partida a un fitxer per no perdre-la.\nClic per tornar-ho a provar · clic dret per apagar-lo.`
+      : `Desat automàtic actiu (cada 30 s i en amagar la pestanya).\n${savedAt ? `Últim desat: ${agoLabel(savedAt)}.` : 'Encara no s\'ha desat res.'}\n\nClic per desar ara · clic dret per apagar-lo.`;
   return (
     <button
       onClick={() => (enabled ? onSaveNow() : onToggle())}
       onContextMenu={e => { e.preventDefault(); if (enabled) onToggle(); }}
       title={title}
       style={{ background: 'rgba(10,13,18,.92)', border: `1px solid ${col}55`, borderRadius: 6, padding: '5px 9px', fontSize: 10, color: col, fontWeight: 700, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-      {enabled ? '⟳' : '⊘'}
+      {!enabled ? '⊘' : failing ? '⚠' : '⟳'}
       <span style={{ opacity: .85, fontWeight: 600 }}>
-        {!enabled ? 'sense desar' : savedAt ? agoLabel(savedAt) : 'desant…'}
+        {!enabled ? 'sense desar' : failing ? 'no es pot desar' : savedAt ? agoLabel(savedAt) : 'desant…'}
       </span>
     </button>
   );
 }
 
-export function CanvasHUD({ ctrlPanActive, shiftPanActive, areaSelectMode, struct, vis, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleEnemyHighlight, onToggleHighlightLocked, playerScreens, camAr, hasMap, autosaveEnabled, autosaveAt, onToggleAutosave, onSaveNow }: Props) {
+export function CanvasHUD({ ctrlPanActive, shiftPanActive, areaSelectMode, struct, vis, enemyHighlight, highlightLocked, gridCalibrating, onResetView, onResetPrivate, onToggleEnemyHighlight, onToggleHighlightLocked, playerScreens, camAr, hasMap, autosaveEnabled, autosaveAt, autosaveFailing, onToggleAutosave, onSaveNow }: Props) {
   return (
     <>
       {gridCalibrating && (
@@ -127,7 +132,7 @@ export function CanvasHUD({ ctrlPanActive, shiftPanActive, areaSelectMode, struc
         </div>
         <ScreensChip playerScreens={playerScreens} camAr={camAr} />
         {/* Sense mapa carregat no hi ha res a desar: el xip no apareix fins que n'hi ha un. */}
-        {hasMap && <AutosaveChip enabled={autosaveEnabled} savedAt={autosaveAt} onToggle={onToggleAutosave} onSaveNow={onSaveNow} />}
+        {hasMap && <AutosaveChip enabled={autosaveEnabled} savedAt={autosaveAt} failing={autosaveFailing} onToggle={onToggleAutosave} onSaveNow={onSaveNow} />}
         <button onClick={onResetView} title="Reset zoom y posición"
           style={{ background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 7px', cursor: 'pointer', color: C.dim, display: 'flex' }}>
           <RotateCcw size={11} />

@@ -84,8 +84,8 @@ const _deathCanvasCache = new Map<number | string, { canvas: HTMLCanvasElement; 
 export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
     sc, pp, isDM, s, v, rLayerImages, rConditions, rDefeated,
-    defeatedAnimRef, invisAlphaRef, rEnemyHighlight, rHighlightAlpha,
-    rHighlightLocked, highlightStartRef, visualPosRef, rTokenSizeOverride, rSelectedToken, rMultiSelected,
+    defeatedAnimRef, invisAlphaRef, rHighlightAlpha,
+    visualPosRef, rTokenSizeOverride, rSelectedToken, rMultiSelected,
     rPsdEnemyOverrides, rPsdEnemyImgCache, rTurn,
   } = fc;
   const _turn = rTurn?.current;

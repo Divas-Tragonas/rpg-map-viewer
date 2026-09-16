@@ -372,6 +372,13 @@ export interface BCStructMessage {
   measure?: { a: Point | null; b: Point | null };
   pointerPos?: Point | null;
   turn?: TurnState;
+  /**
+   * Dibuix a ploma per a qui es connecta tard o carrega una partida. Els traços més antics
+   * surten de `strokeHistory` i viatgen ja rasteritzats a `strokeBaseline` (PNG en dataURL),
+   * així que el dibuix es reconstrueix sempre com a base + historial. Veure `_capStrokeHistory`.
+   */
+  strokeHistory?: StrokeData[];
+  strokeBaseline?: string | null;
 }
 
 export type BCMessage =
@@ -380,7 +387,9 @@ export type BCMessage =
   | { type: 'BG'; buffer: ArrayBuffer; mimeType: string; withFade?: boolean }
   | { type: 'STROKE'; points: Point[]; color: string; size: number; tool: DrawTool }
   | { type: 'CLEAR_DRAW' }
-  | { type: 'UNDO_DRAW'; strokeHistory: StrokeData[] }
+  // `strokeBaseline` només s'inclou quan la base ha canviat des de l'últim cop que es va
+  // enviar: durant una tanda de Ctrl+Z no es toca, i és una imatge de la mida del mapa.
+  | { type: 'UNDO_DRAW'; strokeHistory: StrokeData[]; strokeBaseline?: string | null }
   | { type: 'POINTER'; pos: Point | null }
   | { type: 'MEASURE'; a: Point | null; b: Point | null }
   | { type: 'SPELL'; spell: Omit<Spell, 'startTime'> & { startTime: number } }
@@ -403,3 +412,17 @@ export type BCMessage =
   | { type: 'RESET_EXPLORED'; points: Point[] }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }
   | { type: 'EXPOSITOR_SHOW_META'; mimeType: string };
+
+/**
+ * Avís visible a la pantalla del DM. Fins ara, una càrrega que fallava (fons il·legible,
+ * partida corrupta, desat automàtic sense espai) només deixava rastre a la consola: l'app
+ * es quedava igual i no hi havia cap manera de saber què havia passat.
+ */
+export interface Notice {
+  id: number;
+  kind: 'error' | 'warn' | 'info';
+  text: string;
+}
+
+/** Publica un avís a la pantalla del DM. `kind` per defecte: 'error'. */
+export type Notify = (text: string, kind?: Notice['kind']) => void;

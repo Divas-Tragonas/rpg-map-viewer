@@ -279,6 +279,39 @@ export function PlayerView() {
   // desapareixia i els tokens saltaven. Veure el handler de STRUCT.
   const structSeqRef = useRef(0);
   const structMapSigRef = useRef('');
+
+  // ── Dibuix a ploma: base + historial ───────────────────────────────────────
+  // El DM només conserva com a objectes els últims traços; els més antics li arriben ja
+  // rasteritzats dins de `strokeBaseline`. La imatge es guarda aquí perquè un `UNDO_DRAW`
+  // que no en porti (la base no ha canviat) pugui reconstruir el dibuix igualment.
+  const strokeBaseImgRef = useRef<HTMLImageElement | null>(null);
+  /** Seqüència de reconstruccions: la descàrrega de la base és asíncrona i una de vella
+   *  no ha de trepitjar una de nova. */
+  const drawSeqRef = useRef(0);
+
+  const _rebuildDrawing = useCallback(async (hist: import('@/types').StrokeData[], baseline?: string | null) => {
+    const mySeq = ++drawSeqRef.current;
+    if (baseline !== undefined) {
+      if (!baseline) {
+        strokeBaseImgRef.current = null;
+      } else {
+        const img = await new Promise<HTMLImageElement | null>(res => {
+          const im = new Image();
+          im.onload = () => res(im);
+          im.onerror = () => res(null);
+          im.src = baseline;
+        });
+        if (drawSeqRef.current !== mySeq) return;
+        strokeBaseImgRef.current = img;
+      }
+    }
+    const oc = drawCanvasRef.current; if (!oc) return;
+    const ctx2 = oc.getContext('2d'); if (!ctx2) return;
+    ctx2.clearRect(0, 0, oc.width, oc.height);
+    const base = strokeBaseImgRef.current;
+    if (base) ctx2.drawImage(base, 0, 0, oc.width, oc.height);
+    for (const stroke of hist) _replayStroke(ctx2, stroke);
+  }, []);
   const _bgChanged = useCallback((buf: ArrayBuffer, mime: string) => {
     const u8 = new Uint8Array(buf);
     let h = 0;
@@ -704,16 +737,12 @@ export function PlayerView() {
         // Reconstruir el dibuix a ploma des de l'historial (late join / càrrega de partida):
         // els STROKE són incrementals, així que sense això una pantalla que no hi era quan
         // es van dibuixar els traços (o després de carregar una partida) no els veu.
-        if (msg.strokeHistory) {
-          const oc = drawCanvasRef.current;
-          if (oc) {
-            const ctx2 = oc.getContext('2d');
-            if (ctx2) {
-              strokeQueueRef.current = []; activeStrokeAnim.current = null;
-              ctx2.clearRect(0, 0, oc.width, oc.height);
-              for (const stroke of msg.strokeHistory) _replayStroke(ctx2, stroke);
-            }
-          }
+        // ⚠️ Comprovació explícita d'`undefined`: un historial BUIT (`[]`) és falsy però
+        // vol dir «no hi ha dibuix», i s'ha de netejar el canvas igualment (si no, qui es
+        // connecta després d'un «esborrar-ho tot» es quedaria amb els traços vells).
+        if (msg.strokeHistory !== undefined || msg.strokeBaseline !== undefined) {
+          strokeQueueRef.current = []; activeStrokeAnim.current = null;
+          void _rebuildDrawing(msg.strokeHistory || [], msg.strokeBaseline);
         }
         setPlayerReady(true);
         setBgLoaded(true);
@@ -814,14 +843,14 @@ export function PlayerView() {
         }
       } else if (msg.type === 'CLEAR_DRAW') {
         strokeQueueRef.current = []; activeStrokeAnim.current = null;
+        strokeBaseImgRef.current = null;
         const oc = drawCanvasRef.current;
         if (oc) oc.getContext('2d')!.clearRect(0, 0, oc.width, oc.height);
       } else if (msg.type === 'UNDO_DRAW') {
         strokeQueueRef.current = []; activeStrokeAnim.current = null;
-        const oc = drawCanvasRef.current; if (!oc) return;
-        const ctx2 = oc.getContext('2d')!;
-        ctx2.clearRect(0, 0, oc.width, oc.height);
-        for (const stroke of (msg.strokeHistory || [])) _replayStroke(ctx2, stroke);
+        // `strokeBaseline` només arriba quan la base ha canviat; si no ve, es reaprofita
+        // la que ja teníem (durant una tanda de Ctrl+Z no es toca).
+        void _rebuildDrawing(msg.strokeHistory || [], msg.strokeBaseline);
       } else if (msg.type === 'POINTER') {
         rPointerPos.current = msg.pos;
       } else if (msg.type === 'MEASURE') {

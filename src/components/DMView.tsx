@@ -1,11 +1,11 @@
 'use client';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT } from '@/constants';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, LightSource, TurnState,
+  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, LightSource, TurnState, Notice, Notify,
 } from '@/types';
 import { clearExploredAt } from '@/lib/render/darkrooms';
 import { useDMRefs } from '@/hooks/useDMRefs';
@@ -27,6 +27,7 @@ import { FloatingToolbar } from '@/components/dm/FloatingToolbar';
 import { EnemyLibraryPanel } from '@/components/dm/EnemyLibraryPanel';
 import { BottomControls } from '@/components/dm/BottomControls';
 import { CanvasHUD } from '@/components/dm/CanvasHUD';
+import { NoticeStack } from '@/components/ui/NoticeStack';
 import { SpellMenuOverlay } from '@/components/dm/SpellMenuOverlay';
 import { ShapeMenuOverlay } from '@/components/dm/ShapeMenuOverlay';
 import { ContextMenuOverlay } from '@/components/dm/ContextMenuOverlay';
@@ -197,6 +198,22 @@ export function DMView() {
     });
   }, [R]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Avisos a la pantalla ───────────────────────────────────────────────────
+  // Abans, tot el que fallava en carregar (fons il·legible, partida corrupta, desat
+  // automàtic sense espai) només anava a la consola: des de fora es veia com "no passa res".
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const noticeIdRef = useRef(0);
+  const dismissNotice = useCallback((id: number) => {
+    setNotices(ns => ns.filter(n => n.id !== id));
+  }, []);
+  const notify = useCallback<Notify>((text, kind = 'error') => {
+    setNotices(ns => {
+      // El mateix avís repetit (p. ex. dos fitxers dolents seguits) no ha d'apilar-se.
+      const dedup = ns.filter(n => n.text !== text);
+      return [...dedup.slice(-2), { id: ++noticeIdRef.current, kind, text }];
+    });
+  }, []);
+
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
     setBgLoaded, setBgName, setPsdInfo, setStruct, setWarnings, setParseError, setParsing,
@@ -205,12 +222,13 @@ export function DMView() {
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
     setWarningsDismissed, setGridVisible, setGridAutoSize,
     setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setLights, setTurn, setMapUndo,
+    notify,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
@@ -224,8 +242,9 @@ export function DMView() {
   // ── Desat automàtic ────────────────────────────────────────────────────────
   // Xarxa de seguretat contra un F5: tot l'estat viu (fons, parets, sales, portes, llums,
   // posicions, vides, dibuix i torns) només existia en memòria i un refresc el buidava.
-  const { savedAt: autosaveAt, saveNow: autosaveNow } = useAutosave(R, {
+  const { savedAt: autosaveAt, failing: autosaveFailing, saveNow: autosaveNow } = useAutosave(R, {
     enabled: autosaveEnabled, hasMap: bgLoaded, mapName: bgName, buildRecord: buildAutosaveRecord,
+    onError: notify,
   });
 
   // En arrencar: hi ha partida recuperable? (i la preferència de l'interruptor). Els dos
@@ -702,7 +721,7 @@ export function DMView() {
   }), [redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
-    useMouseHandlers(R, mouseSetters, _broadcastState);
+    useMouseHandlers(R, mouseSetters, _broadcastState, _capStrokeHistory);
 
   const handleMouseUp = useCallback(() => {
     onMouseUp(setPos, snapAllTokens, sizeAllTokens, setGridSize, setGridOriginX, setGridOriginY, setGridCalibrating);
@@ -1242,6 +1261,7 @@ export function DMView() {
 
       {/* ── Main canvas area ──────────────────────────────────────────────── */}
       <div ref={R.stageRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}>
+        <NoticeStack notices={notices} onClose={dismissNotice} />
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
@@ -1261,7 +1281,7 @@ export function DMView() {
           onToggleEnemyHighlight={onToggleEnemyHighlight}
           onToggleHighlightLocked={onToggleHighlightLocked}
           playerScreens={playerScreens} camAr={camAr}
-          hasMap={bgLoaded} autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
+          hasMap={bgLoaded} autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt} autosaveFailing={autosaveFailing}
           onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
         />
         <FloatingToolbar

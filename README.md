@@ -12,8 +12,8 @@ Eina per a Dungeon Masters per gestionar mapes, tokens i jugadors en temps real.
 |---|---|
 | `/` | Vista del Dungeon Master |
 | `/player` | Vista del jugador (pantalla secundària) |
-| `/expositor` | Pantalla d'expositor de campanya |
-| `/admin` | Back office (gestió d'enemics, mapes, zones) |
+| `/expositor` | Visor local per a un monitor de recanvi (obre-hi un fitxer a mà; **no** està connectat amb el DM) |
+| `/admin` | Back office (gestió d'enemics) |
 
 ## Dev
 
@@ -58,6 +58,15 @@ l'estat complet al DM en tornar.
 > `v4.99`) i increments de +0.01. Les entrades de la v4 que abans es deien `v4.1`–`v4.8`
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
+
+### v4.15 — Res no falla en silenci, i el dibuix deixa de créixer sense fre
+- **El fons ja diu quan no es pot obrir.** Faltava el listener d'`error` del `<img>`/`<video>`: amb un fitxer malmès o un còdec no admès, l'event `load` no arribava mai però l'app ja s'havia donat el mapa per carregat — **pantalla negra, «mapa carregat» i cap pista**. Ara es reverteix l'estat i es diu què passa (amb consell de format si és un vídeo). A més es valida el tipus (només imatge o vídeo; abans un `.zip` es convertia en un `<img>` silenciós) i la mida (sostre de 256 MB, avís a partir de 40 MB: el fons es guarda sencer a memòria i s'envia pel WebSocket sense control de flux).
+- **Avisos a la pantalla** (`NoticeStack`): carregar una partida corrupta, un `.json` que no és una partida o la demo sense connexió només deixava rastre a la consola i des de fora es veia igual que «no passa res». Ara surt un avís a dalt del canvas. Els errors no marxen sols; els avisos i les informacions sí.
+- **El desat automàtic avisa quan no pot escriure.** Amb l'espai del navegador ple o en finestra privada, l'única pista era que l'etiqueta del xip deixava d'avançar — i te n'assabentaves en perdre la partida. Ara, després de dues fallades seguides, el xip es posa **vermell amb ⚠ «no es pot desar»** i surt un avís (un sol cop per ratxa, no un cada 30 s).
+- **L'historial de traços ja no creix sense límit.** Viatjava sencer dins de cada `STRUCT` (late join, reconnexió de la tablet) i de cada `UNDO_DRAW` (per duplicat: BC i WS), i entrava a cada desat automàtic. Ara se'n conserven els últims 120 com a objectes i els més antics es **rasteritzen** a una base: el dibuix es veu exactament igual, però ni l'historial ni els missatges ni el desat es disparen en una sessió llarga. La base viatja al `STRUCT` i només s'inclou a l'`UNDO_DRAW` quan ha canviat.
+- **Fuita de memòria del fons arreglada.** L'object URL del mapa anterior no es revocava mai: cada canvi de mapa deixava penjada la imatge o el vídeo sencers. Mateixa arreglada al selector d'imatge del token, que a més ara diu quan la imatge no es pot obrir.
+- **`/expositor` ja no es diu com l'Expositor del DM.** És un **visor local** per a un monitor de recanvi, sense cap connexió amb la partida; tenir-ne dos amb el mateix nom despistava. La pantalla ho diu i apunta a l'Expositor 🖼 de la vista del DM.
+- **Codi mort fora**: `doorPlacementAt` (substituït per la col·locació de dos clics), `rDoorWidthCells`, la còpia d'`unpackBits` del parser de PSD i refs de ressaltat que es destructuraven sense usar-se. Corregida la deriva de documentació (portes i edició de vèrtexs sortien com a «pendent» estant fetes).
 
 ### v4.14 — El diagnòstic de connexió diu QUINA de les avaries és
 - **Codi de tancament del WebSocket a la pantalla.** Un socket que no connecta i un socket que el servidor **rebutja** es veien exactament igual. Ara es llegeix el codi: `4401` («invalid key», el que retorna la API quan té `SYNC_KEY`) surt com a **clau de sincronització incorrecta**, amb el detall de si aquest build en porta cap — que és el fracàs típic quan es desplega a Vercel sense la `NEXT_PUBLIC_SYNC_KEY`.

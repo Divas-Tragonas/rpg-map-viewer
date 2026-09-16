@@ -11,7 +11,7 @@ import { addEnemyNumbered } from '@/lib/enemy-naming';
 import { removeFromTurn } from '@/lib/turn';
 import { bgFingerprint } from '@/lib/autosave';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
-import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect } from '@/types';
+import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect, Notify } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
@@ -55,10 +55,31 @@ interface Setters {
   setTurn: (v: import('@/types').TurnState) => void;
   /** Etiqueta del canvi de mapa que desfaria el proper Ctrl+Z (null = res a desfer). */
   setMapUndo: (v: string | null) => void;
+  /** Publica un avís a la pantalla (errors de càrrega i coses que abans només anaven a la consola). */
+  notify: Notify;
 }
 
 /** Profunditat màxima del Ctrl+Z de mapa (cada entrada són 4 referències: no pesa res). */
 const MAP_HISTORY_MAX = 60;
+
+/**
+ * Traços de ploma que es conserven com a objectes. A diferència de l'historial de mapa,
+ * aquests SÍ que pesen: viatgen sencers dins de cada STRUCT (late join, reconnexió de la
+ * tablet) i de cada UNDO_DRAW, i entren a cada desat automàtic. Sense límit, una sessió
+ * llarga de dibuix els feia créixer indefinidament i degradava les tres coses alhora.
+ * Els que passen del límit es rasteritzen a `strokeBaseRef` i surten de la llista.
+ */
+const STROKE_HISTORY_MAX = 120;
+
+/**
+ * Límits del fitxer de fons. El fons es guarda sencer a memòria, es passa per base64 a cada
+ * desat .json i s'envia pel WebSocket sense control de flux: sense sostre, un vídeo de mig
+ * giga tomba la pestanya i satura la sincronització sense dir-ne res a ningú.
+ */
+const MAX_BG_BYTES  = 256 * 1024 * 1024;
+const WARN_BG_BYTES = 40 * 1024 * 1024;
+
+const mb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
 
 export function useDMActions(R: DMRefs, S: Setters) {
   const {
@@ -69,7 +90,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan, rLayerImages, rLayerUrls,
     rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
     stageRef, canvasRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
-    gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef,
+    gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef, strokeBaseRef, strokeBaseVerRef,
     activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
     rMeasure, rPointerPos, rWalls, rRooms, rDoors, rLights, rDoorPlacement, rDoorPreview,
     rWallPenLast, rWallChain, rWallCursor, rTurn,
@@ -80,6 +101,69 @@ export function useDMActions(R: DMRefs, S: Setters) {
   // referència és un detector de canvis fiable: només s'inclouen al missatge quan han
   // canviat des de l'últim enviament. El jugador ja tracta tots aquests camps com a
   // opcionals (`if (msg.X)`), i el STRUCT inicial sempre porta l'estat complet.
+  // ── Base de traços "cuits" ────────────────────────────────────────────────
+  // El dibuix es reconstrueix sempre com a BASE + HISTORIAL. Quan l'historial passa de
+  // STROKE_HISTORY_MAX, els traços més antics es pinten a la base i surten de la llista:
+  // el resultat a la pantalla és idèntic, però ni l'historial ni els missatges que el
+  // porten (STRUCT, UNDO_DRAW) ni el desat automàtic creixen sense fre.
+  /** Object URL del fons actual, per poder-lo revocar quan se'n carrega un altre. */
+  const bgUrlRef = useRef<string | null>(null);
+
+  const strokeBaseUrlRef = useRef<{ ver: number; url: string | null }>({ ver: -1, url: null });
+  /** Últim `strokeBaseVerRef` que ha rebut el jugador: per no reenviar la imatge si no ha canviat. */
+  const sentBaseVerRef = useRef(-1);
+
+  /** Base actual com a dataURL (null si encara no s'hi ha cuit cap traç). Cachejada per versió. */
+  const _strokeBaseline = useCallback((): string | null => {
+    const base = strokeBaseRef.current;
+    if (!base || strokeBaseVerRef.current === 0) return null;
+    const cache = strokeBaseUrlRef.current;
+    if (cache.ver === strokeBaseVerRef.current) return cache.url;
+    let url: string | null = null;
+    try { url = base.toDataURL('image/png'); } catch { url = null; }
+    strokeBaseUrlRef.current = { ver: strokeBaseVerRef.current, url };
+    return url;
+  }, []);
+
+  /**
+   * Treu de l'historial els traços que passen del límit i els rasteritza a la base.
+   * Es crida just després d'afegir-n'hi un (`useMouseHandlers`) i en carregar una partida.
+   */
+  const _capStrokeHistory = useCallback(() => {
+    const hist = strokeHistoryRef.current;
+    if (hist.length <= STROKE_HISTORY_MAX) return;
+    const oc = drawCanvasRef.current;
+    // Sense canvas no es pot rasteritzar res: escapçar aquí perdria els traços de debò.
+    // Es deixa l'historial com està i ja es caparà al proper traç (el canvas existeix
+    // sempre que hi hagi mapa carregat, que és l'únic moment en què es pot dibuixar).
+    if (!oc) return;
+    let base = strokeBaseRef.current;
+    if (!base || base.width !== oc.width || base.height !== oc.height) {
+      const grown = document.createElement('canvas');
+      grown.width = oc.width; grown.height = oc.height;
+      // Canvi de mida del mapa: el que ja hi havia cuit es reescala a la mida nova en lloc
+      // de perdre's (si no, el dibuix antic desapareixeria en carregar un mapa d'una altra mida).
+      if (base && base.width > 1 && base.height > 1) {
+        grown.getContext('2d')?.drawImage(base, 0, 0, grown.width, grown.height);
+      }
+      base = grown; strokeBaseRef.current = grown;
+    }
+    const bctx = base.getContext('2d');
+    if (!bctx) return;
+    for (const stroke of hist.splice(0, hist.length - STROKE_HISTORY_MAX)) replayStroke(bctx, stroke);
+    strokeBaseVerRef.current++;
+  }, []);
+
+  /** Repinta el canvas de dibuix des de zero: base + historial. */
+  const _repaintDrawCanvas = useCallback(() => {
+    const oc = drawCanvasRef.current; if (!oc) return;
+    const ctx2 = oc.getContext('2d'); if (!ctx2) return;
+    ctx2.clearRect(0, 0, oc.width, oc.height);
+    const base = strokeBaseRef.current;
+    if (base && strokeBaseVerRef.current > 0) ctx2.drawImage(base, 0, 0, oc.width, oc.height);
+    for (const stroke of strokeHistoryRef.current) replayStroke(ctx2, stroke);
+  }, []);
+
   const lastSentHeavyRef = useRef<Record<string, unknown>>({});
   const _syncHeavySent = useCallback(() => {
     lastSentHeavyRef.current = {
@@ -175,16 +259,18 @@ export function useDMActions(R: DMRefs, S: Setters) {
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
       turn: rTurn.current,
-      // Historial de traços de dibuix: perquè el jugador reconstrueixi el drawCanvas en
-      // connectar-se (late join) o en carregar una partida (els STROKE són incrementals i
-      // un jugador que no hi era quan es van dibuixar no els tenia).
+      // Dibuix a ploma: perquè el jugador reconstrueixi el drawCanvas en connectar-se (late
+      // join) o en carregar una partida (els STROKE són incrementals i un jugador que no hi
+      // era quan es van dibuixar no els tenia). Els traços vells van rasteritzats a la base.
       strokeHistory: strokeHistoryRef.current,
+      strokeBaseline: _strokeBaseline(),
     };
+    sentBaseVerRef.current = strokeBaseVerRef.current;
     bcRef.current?.postMessage(structMsg);
     wsRef.current?.send(JSON.stringify(structMsg));
     // El STRUCT ja porta l'estat complet: sincronitza el detector de canvis del STATE.
     _syncHeavySent();
-  }, [_syncHeavySent]);
+  }, [_syncHeavySent, _strokeBaseline]);
 
   const _sendFullState = useCallback(() => {
     if (bgBufferRef.current) {
@@ -218,13 +304,31 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   const loadBg = useCallback(async (file: File) => {
     if (!file) return;
+    // Un tipus buit es tracta com a imatge: les partides desades des de versions antigues
+    // porten el fons amb el MIME que tingués el fitxer original, que a vegades no n'és cap.
+    const mime = file.type || 'image/png';
+    const isVid = mime.startsWith('video/');
+    if (!isVid && !mime.startsWith('image/')) {
+      S.notify(`«${file.name}» no és una imatge ni un vídeo (${file.type || 'tipus desconegut'}).`);
+      return;
+    }
+    if (file.size > MAX_BG_BYTES) {
+      S.notify(`«${file.name}» fa ${mb(file.size)} i el màxim són ${mb(MAX_BG_BYTES)}. Redueix-ne la mida o la durada.`);
+      return;
+    }
+    if (file.size > WARN_BG_BYTES) {
+      S.notify(`El fons fa ${mb(file.size)}: les altres pantalles poden trigar a rebre'l.`, 'warn');
+    }
     const buf = await file.arrayBuffer();
-    bgBufferRef.current = { buffer: buf, mimeType: file.type };
+    bgBufferRef.current = { buffer: buf, mimeType: mime };
     const stage = stageRef.current; if (!stage) return;
     if (mediaRef.current) { mediaRef.current.remove(); (mediaRef as React.MutableRefObject<HTMLImageElement | HTMLVideoElement | null>).current = null; }
-    const blob = new Blob([buf], { type: file.type });
+    // L'URL del fons anterior s'ha de revocar a mà: si no, cada canvi de mapa deixa penjada
+    // a memòria la imatge o el vídeo sencers (mateix patró que `PlayerView` i `/expositor`).
+    if (bgUrlRef.current) URL.revokeObjectURL(bgUrlRef.current);
+    const blob = new Blob([buf], { type: mime });
     const url = URL.createObjectURL(blob);
-    const isVid = file.type.startsWith('video/');
+    bgUrlRef.current = url;
     const el = document.createElement(isVid ? 'video' : 'img') as HTMLImageElement | HTMLVideoElement;
     el.style.cssText = 'position:absolute;pointer-events:none;display:block;top:0;left:0;';
     if (isVid) { (el as HTMLVideoElement).autoplay = true; (el as HTMLVideoElement).loop = true; (el as HTMLVideoElement).muted = true; (el as HTMLVideoElement).playsInline = true; }
@@ -243,12 +347,27 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (rStruct.current && !rStruct.current.synthetic) return;
       _applyImageOnlyStruct();
     };
+    // Fitxer corrupte o còdec no suportat: sense això, l'event `load` no arriba mai, però
+    // `setBgLoaded(true)` ja s'ha executat — l'app deia que hi havia mapa, la pantalla es
+    // quedava negra i no hi havia cap pista de què havia passat.
+    const onMediaError = () => {
+      if (mediaRef.current !== el) return;
+      el.remove();
+      (mediaRef as React.MutableRefObject<HTMLImageElement | HTMLVideoElement | null>).current = null;
+      if (bgUrlRef.current === url) { URL.revokeObjectURL(url); bgUrlRef.current = null; }
+      bgBufferRef.current = null;
+      S.setBgLoaded(false); S.setBgName('');
+      S.notify(isVid
+        ? `No s'ha pogut reproduir «${file.name}»: el navegador no admet aquest vídeo. Prova-ho amb un MP4 (H.264) o un WebM.`
+        : `No s'ha pogut obrir «${file.name}»: el fitxer està malmès o no és una imatge vàlida.`);
+    };
+    el.addEventListener('error', onMediaError, { once: true });
     if (isVid) { (el as HTMLVideoElement).addEventListener('loadedmetadata', onMediaReady, { once: true }); }
     else { (el as HTMLImageElement).addEventListener('load', onMediaReady, { once: true }); }
     S.setBgLoaded(true); S.setBgName(file.name);
     _broadcastState({});
-    bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: file.type, withFade: true });
-    wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: file.type, withFade: true }));
+    bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: mime, withFade: true });
+    wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: mime, withFade: true }));
     wsRef.current?.sendBinary(buf);
   }, [_broadcastState, _applyImageOnlyStruct]);
 
@@ -302,7 +421,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
       const psdBlob = await psdRes.blob();
       await loadBg(new File([bgBlob], 'demo_bg.png', { type: 'image/png' }));
       await loadPSD(new File([psdBlob], 'demo.psd', { type: 'application/octet-stream' }));
-    } catch (err) { console.error('Error loading demo:', err); }
+    } catch (err) {
+      console.error('Error carregant la demo:', err);
+      S.notify("No s'ha pogut carregar el mapa de demostració. Comprova la connexió i torna-ho a provar.");
+    }
   }, [loadBg, loadPSD]);
 
   const snapAllTokens = useCallback(() => {
@@ -471,6 +593,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const oc = drawCanvasRef.current; if (!oc) return;
     oc.getContext('2d')!.clearRect(0, 0, oc.width, oc.height);
     strokeHistoryRef.current = []; S.setCanUndo(false);
+    // La base guarda els traços vells ja rasteritzats: si no es buida, reapareixerien al
+    // primer Ctrl+Z després d'esborrar-ho tot.
+    strokeBaseRef.current = null; strokeBaseVerRef.current = 0; sentBaseVerRef.current = -1;
     bcRef.current?.postMessage({ type: 'CLEAR_DRAW' });
     wsRef.current?.send(JSON.stringify({ type: 'CLEAR_DRAW' }));
     _broadcastState({});
@@ -480,13 +605,15 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const hist = strokeHistoryRef.current;
     if (hist.length === 0) return;
     hist.pop(); S.setCanUndo(hist.length > 0);
-    const oc = drawCanvasRef.current; if (!oc) return;
-    const ctx2 = oc.getContext('2d')!;
-    ctx2.clearRect(0, 0, oc.width, oc.height);
-    for (const stroke of hist) replayStroke(ctx2, stroke);
-    bcRef.current?.postMessage({ type: 'UNDO_DRAW', strokeHistory: [...hist] });
-    wsRef.current?.send(JSON.stringify({ type: 'UNDO_DRAW', strokeHistory: [...hist] }));
-  }, []);
+    _repaintDrawCanvas();
+    // La base només canvia quan es dibuixa, mai en desfer: durant una tanda de Ctrl+Z
+    // s'envia una sola vegada i prou (és una imatge de la mida del mapa).
+    const baseline = strokeBaseVerRef.current !== sentBaseVerRef.current ? _strokeBaseline() : undefined;
+    if (baseline !== undefined) sentBaseVerRef.current = strokeBaseVerRef.current;
+    const msg = { type: 'UNDO_DRAW' as const, strokeHistory: [...hist], ...(baseline !== undefined ? { strokeBaseline: baseline } : {}) };
+    bcRef.current?.postMessage(msg);
+    wsRef.current?.send(JSON.stringify(msg));
+  }, [_repaintDrawCanvas, _strokeBaseline]);
 
   // ── Historial de canvis del mapa (Ctrl+Z de parets, sales, portes i llums) ──
   // Una entrada és només les QUATRE REFERÈNCIES d'array d'abans del canvi: com que tota
@@ -531,6 +658,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       panOffset: rPanOffset.current, players: rPlayers.current,
       conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, strokeHistory: strokeHistoryRef.current,
+      // Traços vells ja rasteritzats: sense això, carregar una partida amb molt dibuix en
+      // perdria el gruix (només tornarien els STROKE_HISTORY_MAX últims traços).
+      strokeBaseline: _strokeBaseline(),
       gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridSnap: rGridSnap.current,
       gridLineWidth: rGridLineWidth.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
       tokenSizeOverride: rTokenSizeOverride.current,
@@ -548,7 +678,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       state.layerImageUrls = rLayerUrls.current;
     }
     return state;
-  }, []);
+  }, [_strokeBaseline]);
 
   // Estat complet amb el fons en base64: desat a .json (saveSession) i al servidor.
   const buildSessionState = useCallback(() => {
@@ -640,6 +770,23 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.defeated)      { rDefeated.current = state.defeated; S.setDefeated(state.defeated); }
       if (state.paintedZones)  { rPaintedZones.current = state.paintedZones; S.setPaintedZones(state.paintedZones); }
       if (state.strokeHistory) { strokeHistoryRef.current = state.strokeHistory; S.setCanUndo(state.strokeHistory.length > 0); }
+      // Base de traços vells. Les partides anteriors a aquest camp no en porten: llavors
+      // l'historial ja ho és tot i la base es queda buida (comportament de sempre).
+      strokeBaseRef.current = null; strokeBaseVerRef.current = 0; sentBaseVerRef.current = -1;
+      if (typeof state.strokeBaseline === 'string' && state.strokeBaseline) {
+        await new Promise<void>(res => {
+          const img = new Image();
+          img.onload = () => {
+            const bc = document.createElement('canvas');
+            bc.width = img.naturalWidth; bc.height = img.naturalHeight;
+            bc.getContext('2d')?.drawImage(img, 0, 0);
+            strokeBaseRef.current = bc; strokeBaseVerRef.current = 1;
+            res();
+          };
+          img.onerror = () => res();
+          img.src = state.strokeBaseline;
+        });
+      }
       if (state.gridVisible !== undefined) { rGridVisible.current = state.gridVisible; S.setGridVisible(state.gridVisible); }
       if (state.gridSize)      { rGridSize.current = state.gridSize; S.setGridSize(state.gridSize); }
       if (state.gridSnap !== undefined)     { rGridSnap.current = state.gridSnap; S.setGridSnap(state.gridSnap); }
@@ -654,25 +801,35 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.lights)        { rLights.current = state.lights; S.setLights(state.lights); }
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (Array.isArray(state.tokenGroups)) R.rTokenGroups.current = new Map(state.tokenGroups);
-      if (state.strokeHistory && state.strokeHistory.length > 0) {
+      if ((state.strokeHistory && state.strokeHistory.length > 0) || strokeBaseRef.current) {
         const oc = drawCanvasRef.current;
         if (oc) {
           const w = state.psdInfo?.width || oc.width, h = state.psdInfo?.height || oc.height;
           if (oc.width !== w || oc.height !== h) { oc.width = w; oc.height = h; }
-          const ctx2 = oc.getContext('2d')!; ctx2.clearRect(0, 0, oc.width, oc.height);
-          for (const stroke of state.strokeHistory) replayStroke(ctx2, stroke);
+          _repaintDrawCanvas();
         }
       }
       _broadcastState({});
       if (state.psdStruct && bcRef.current) setTimeout(() => _sendFullState(), 150);
-    } catch (err) { console.error('Error cargando sesión:', err); }
-  }, [_broadcastState, _sendFullState, loadBg]);
+    } catch (err) {
+      console.error('Error carregant la partida:', err);
+      S.notify(`No s'ha pogut carregar la partida: ${err instanceof Error ? err.message : 'fitxer no vàlid'}`);
+    }
+  }, [_broadcastState, _sendFullState, loadBg, _repaintDrawCanvas]);
 
   const loadSession = useCallback(async (file: File) => {
+    let state: unknown;
     try {
-      const state = JSON.parse(await file.text());
-      await applySessionState(state);
-    } catch (err) { console.error('Error cargando sesión:', err); }
+      state = JSON.parse(await file.text());
+    } catch {
+      S.notify(`«${file.name}» no és un fitxer de partida vàlid (no es pot llegir com a JSON).`);
+      return;
+    }
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      S.notify(`«${file.name}» no és un fitxer de partida vàlid.`);
+      return;
+    }
+    await applySessionState(state as Record<string, unknown>);
   }, [applySessionState]);
 
   // ── Partides al servidor (back office) ──────────────────────────────────
@@ -1025,7 +1182,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
