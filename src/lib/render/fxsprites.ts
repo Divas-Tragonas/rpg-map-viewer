@@ -187,3 +187,96 @@ export function glow(ctx: CanvasRenderingContext2D, rgb: RGB3, x: number, y: num
 
 /** Mida d'una casella en coords de mapa (o una mida raonable de pantalla sense graella). */
 export const fxCell = (sc: number, gridSize: number) => (gridSize > 0 ? gridSize : 48 / sc);
+
+// ── Llenguatge visual comú ───────────────────────────────────────────────────
+// Cada escola de màgia té UNA paleta (blanc de nucli → clar → mig → profund) i tots
+// els seus spells la comparteixen: el projectil màgic i el raig màgic són del mateix
+// violeta, la bola de foc i les mans ardents del mateix foc. Així els spells semblen
+// d'un mateix joc i no vuit efectes fets per separat.
+
+export interface Palette { white: RGB3; light: RGB3; mid: RGB3; deep: RGB3; }
+export const PAL = {
+  fire:   { white: [255, 246, 225], light: [255, 176, 80],  mid: [255, 112, 26], deep: [200, 50, 10] },
+  arcane: { white: [250, 240, 255], light: [215, 170, 255], mid: [160, 80, 255], deep: [90, 40, 230] },
+  charm:  { white: [255, 240, 248], light: [255, 170, 215], mid: [236, 72, 153], deep: [150, 30, 100] },
+  dream:  { white: [236, 238, 255], light: [170, 182, 252], mid: [110, 112, 240], deep: [55, 50, 170] },
+} satisfies Record<string, Palette>;
+
+export const rgb = (c: RGB3) => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+/** Bufarada de foc amb temperatura contínua 0..3 (fosa entre dos sprites veïns). */
+export function fire(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, rot: number, temp: number, alpha: number, variant: number): void {
+  if (alpha <= 0.004 || r <= 0) return;
+  const t = Math.min(3, Math.max(0, temp)), i = Math.floor(t), f = t - i;
+  ctx.globalAlpha = alpha * (1 - f);
+  blit(ctx, fireSprite(i, variant), x, y, r, rot);
+  if (f > 0.02 && i < 3) {
+    ctx.globalAlpha = alpha * f;
+    blit(ctx, fireSprite(i + 1, variant), x, y, r, rot);
+  }
+}
+
+/** Ratlla d'espurna (motion blur) de q a p. */
+export function streak(ctx: CanvasRenderingContext2D, q: Point2, p: Point2, c: RGB3, width: number, alpha: number): void {
+  if (alpha <= 0.004) return;
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.strokeStyle = rgb(c); ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+}
+type Point2 = { x: number; y: number };
+
+/**
+ * Esclat d'impacte petit/mitjà, el mateix per a tots els spells que toquen un objectiu:
+ * flaix → llum → anell → espurnes. `k` 0..1 és el progrés; `size` el radi en coords de
+ * mapa. Cal estar en 'lighter'.
+ */
+export function impactBurst(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, pal: Palette, k: number, seed: number, px: number): void {
+  if (k < 0 || k >= 1) return;
+  const f = 1 - k;
+  if (k < 0.25) glow(ctx, pal.white, x, y, size * (0.5 + 1.4 * k / 0.25), (1 - k / 0.25) ** 2);
+  glow(ctx, pal.mid, x, y, size * 2.2, 0.5 * f * f);
+  glow(ctx, pal.white, x, y, size * 0.45, f);
+  ctx.globalAlpha = 0.8 * f; ctx.strokeStyle = rgb(pal.light);
+  ctx.lineWidth = Math.max(px, size * 0.12 * f);
+  ctx.beginPath(); ctx.arc(x, y, size * 1.5 * easeOutQuart(k), 0, TAU); ctx.stroke();
+  const rnd = mulberry32(seed);
+  for (let i = 0; i < 10; i++) {
+    const a = rnd() * TAU, sp = size * (4 + rnd() * 5), hot = rnd();
+    const at = (t: number) => { const d = dragged(sp, 5, t); return { x: x + Math.cos(a) * d, y: y + Math.sin(a) * d }; };
+    const tt = k * 0.5;
+    streak(ctx, at(Math.max(0, tt - 0.03)), at(tt), hot > 0.4 ? pal.white : pal.light, (1 + hot) * px, f);
+  }
+}
+
+/** Boira de color (blend normal): com el fum, però clara i d'un to. */
+export function mistSprite(c: RGB3, variant: number): HTMLCanvasElement | null {
+  return build(`mist:${c.join(',')}:${variant}`, 96, (img, S) => {
+    const n = fbm(S, 0x3157 + variant * 7753, 5, 2);
+    const h = S / 2, d = img.data;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const nv = n[y * S + x];
+      const r = Math.hypot(x + 0.5 - h, y + 0.5 - h) / h;
+      const dens = Math.max(0, 1 - r / (0.6 + 0.4 * nv));
+      const l = 0.75 + 0.35 * nv;
+      const i = (y * S + x) * 4;
+      d[i] = Math.min(255, c[0] * l); d[i + 1] = Math.min(255, c[1] * l); d[i + 2] = Math.min(255, c[2] * l);
+      d[i + 3] = Math.round(255 * Math.min(1, Math.pow(dens, 1.5) * (0.4 + 0.8 * nv)));
+    }
+  });
+}
+
+/** Textura del greix: oli verd fosc amb vetes irisades (es retalla a la forma del bassal). */
+export function greaseSprite(): HTMLCanvasElement | null {
+  return build('grease', 256, (img, S) => {
+    const n = fbm(S, 0x6ea5e, 5, 3), m = fbm(S, 0x0111, 4, 2);
+    const d = img.data;
+    for (let i = 0; i < S * S; i++) {
+      const nv = n[i], vein = Math.pow(Math.abs(Math.sin((m[i] * 2 + nv) * 7)), 40);
+      const k = 0.35 + 0.65 * nv;
+      d[i * 4]     = 30 + 70 * k + 35 * vein;
+      d[i * 4 + 1] = 44 + 88 * k + 45 * vein;
+      d[i * 4 + 2] = 6 + 20 * k + 25 * vein;
+      d[i * 4 + 3] = 255;
+    }
+  });
+}

@@ -218,6 +218,8 @@ src/
 │   │   ├── fireball.ts     # Bola de foc (ignició/vol/impacte/socarrim) + fireballShake
 │   │   ├── lightning.ts    # Raig elèctric (llamp fractal, re-descàrregues) + lightningShake
 │   │   ├── magicbeam.ts    # Raig màgic (càrrega, raig sostingut, col·lapse)
+│   │   ├── minorspells.ts  # Projectil màgic, risa horrible, mans ardents
+│   │   ├── areaspells.ts   # Dormir i greix (àrees persistents, passada 'ground')
 │   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
@@ -529,7 +531,15 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Sprites** (`fxsprites.ts`): foc (4 temperatures × 3 variants de soroll), fum, halo i socarrim, generats una sola vegada amb `ImageData` i copiats amb `drawImage`. La temperatura contínua es fa fonent dos sprites veïns (`fire()`). No tornar a `createRadialGradient` per partícula: és més car i tot surt amb forma de cercle perfecte.
 - **Dues passades**: el socarrim i les brases (`drawFireballGround`) van a la `'ground'`, sota els tokens; la resta a la `'air'`.
 - **Sacsejada de càmera** (`spellShake` a `spells.ts`, que suma `fireballShake` i `lightningShake`): el tick del DM (`useRafLoop`) i el del jugador (`PlayerView`) la sumen a `ox/oy`, així el fons DOM i el canvas es mouen junts. No afecta `rDmCam` (que surt de `rZoom`/`rPanOffset`) ni es sincronitza: cada pantalla la calcula del seu `startTime`. Un spell nou amb sacsejada s'afegeix a `spellShake`, no als ticks.
-- **Ajudants comuns** (`fxsprites.ts`): `glow`, `blitStretch` (sprite estirat: flares, flaixos direccionals), `smoothstep`, `dragged` (desplaçament amb fricció), `fxCell` (mida de casella o fallback de pantalla)… Els efectes nous els han de fer servir en lloc de copiar-los.
+- **Ajudants comuns** (`fxsprites.ts`): `glow`, `blitStretch` (sprite estirat: flares, flaixos direccionals), `fire` (bufarada de foc amb temperatura), `streak` (espurna), `impactBurst`, `smoothstep`, `dragged` (desplaçament amb fricció), `fxCell` (mida de casella o fallback de pantalla)… Els efectes nous els han de fer servir en lloc de copiar-los.
+
+### Llenguatge visual comú dels spells
+- **Una paleta per escola** (`PAL` a `fxsprites.ts`: `fire`, `arcane`, `charm`, `dream`; cadascuna `white → light → mid → deep`). Un spell nou n'agafa una; no s'inventa colors propis. Projectil i raig màgic = `arcane`; bola de foc i mans ardents = `fire`.
+- **Impacte únic** (`impactBurst`): flaix → llum → anell → espurnes. Tots els spells que toquen un objectiu l'usen, a una mida proporcional al seu nivell.
+- **Estructura en fases** (càrrega/llançament → acció → resolució), mides en caselles (`fxCell`), llum dinàmica amb `glow` additiu i partícules deterministes per llavor.
+- **Contenció**: els spells de nivell 1 (`minorspells.ts`) són més curts i amb menys peces que la bola de foc o els raigs. Sacsejada de càmera només als grossos (bola de foc, llamp).
+- **Llegibilitat primer**: quan un efecte de partícules no deixa clara l'àrea, s'hi afegeix una capa de forma suau (la falca de calor de les mans ardents, l'onada i el contorn de dormir).
+- **Àrees persistents** (`areaspells.ts`): reben `e` clampat a la meitat de la durada (l'aparició hi ha de cabre sencera); el que es mou mentre hi són va amb el rellotge absolut. Mai surten de l'àrea de reglament.
 
 ### Raig elèctric (`src/lib/render/lightning.ts`)
 - **Geometria fractal**: desplaçament recursiu del punt mig (`fractal`) amb branques que surten dels punts mitjos. ⚠️ Les branques només es generen a nivells grossos (`depth >= 3`) i amb fondària limitada: sense això un llamp llarg fa milers de segments. Els segments es tracen **agrupats per gruix** (`strokeBolt`: un path per nivell), no un stroke per segment.

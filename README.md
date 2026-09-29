@@ -60,6 +60,15 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.18 — Els cinc spells restants, amb el mateix llenguatge visual
+- **Coherència**: cada escola de màgia té una sola paleta (`PAL` a `fxsprites.ts`: foc, arcà, encantament, son) i tots els impactes fan servir el mateix esclat (`impactBurst`: flaix → llum → anell → espurnes). El projectil màgic comparteix el violeta del raig màgic; les mans ardents, el foc de la bola de foc.
+- **Projectil màgic**: la mà s'encén i els tres dards es materialitzen un a un; volen corbats i acceleren, amb una estela que s'aprima, cap allargat per la velocitat i llum sobre el mapa; cadascun impacta en un punt lleugerament diferent de l'objectiu.
+- **Risa horrible**: un projectil rosa juganer amb dues boletes que hi orbiten i una estela de purpurina; a l'objectiu, un esclat i una aura que batega a ritme de riallada, amb «HA!» que salten amb rebot i s'enlairen.
+- **Mans ardents**: un llançaflames curt: flames que surten de les mans, es frenen i es refreden al final del con, fum a la punta, espurnes i una falca de calor que fa llegible l'abast.
+- **Dormir**: una boira de son que s'escampa amb una onada fins al límit de l'àrea i hi queda girant a poc a poc, amb pols de somni que s'enlaira i les Zzz.
+- **Greix**: el bassal cau amb esquitxos, té textura d'oli amb vetes, vora més fosca, reflexos humits que llisquen i bombolles que creixen i peten.
+- `spells.ts` queda com a dispatcher i previsualització; els efectes viuen a `minorspells.ts` i `areaspells.ts`.
+
 ### v4.17 — Raig elèctric i raig màgic nous; bola de foc més directa
 - **Bola de foc**: fora el cercle rúnic. Ara la flama s'encén a la mà en un instant i surt disparada amb una flamarada i un flaix direccional. L'explosió és una mica més petita (15 ft de radi en lloc de 20).
 - **Raig elèctric refet**: llamp fractal de debò (desplaçament del punt mig amb branques), amb un líder que avança a salts, descàrrega principal amb flaix i sacsejada curta, re-descàrregues a intervals irregulars (parpelleja com un llamp de veritat), arcs que ballen a l'impacte i a la mà, espurnes, llum blava sobre el mapa, postllum violeta i marca socarrimada a terra.

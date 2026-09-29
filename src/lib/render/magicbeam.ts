@@ -15,7 +15,7 @@ import type { Point } from '@/types';
 import { pathAt, pathLen } from '@/lib/geometry';
 import {
   mulberry32, glowSprite, blitStretch,
-  TAU, clamp01, easeOutCubic, smoothstep, dragged, glow, fxCell, type RGB3,
+  TAU, clamp01, easeOutCubic, smoothstep, dragged, glow, fxCell, PAL, type RGB3,
 } from './fxsprites';
 
 export const MAGIC_BEAM_DUR = 3.2;
@@ -24,10 +24,7 @@ const EXTEND = 0.12;
 const COLLAPSE_AT = 2.65;
 const COLLAPSE = 0.22;
 
-const WHITE: RGB3 = [250, 240, 255];
-const LILAC: RGB3 = [215, 170, 255];
-const VIOLET: RGB3 = [160, 80, 255];
-const DEEP: RGB3 = [90, 40, 230];
+const { white: WHITE, light: LILAC, mid: VIOLET, deep: DEEP } = PAL.arcane;
 
 function dirAt(pts: Point[], t: number): Point {
   const a = pathAt(pts, Math.max(0, t - 0.01)), b = pathAt(pts, Math.min(1, t + 0.01));

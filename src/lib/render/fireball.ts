@@ -19,7 +19,7 @@
 import type { Point } from '@/types';
 import { pathAt } from '@/lib/geometry';
 import {
-  mulberry32, glowSprite, fireSprite, smokeSprite, scorchSprite, blit, blitStretch,
+  mulberry32, glowSprite, smokeSprite, scorchSprite, blit, blitStretch, fire, PAL,
   TAU, clamp01, easeOutCubic, easeOutQuart, smoothstep, dragged, glow, fxCell,
 } from './fxsprites';
 
@@ -29,9 +29,7 @@ const IMPACT_AT = CHARGE + TRAVEL; // s en què esclata
 export const FIREBALL_DUR = 4.6;
 const BLAST_FT = 15;               // radi visual de l'explosió (peus)
 
-const WHITE: [number, number, number] = [255, 246, 225];
-const AMBER: [number, number, number] = [255, 176, 80];
-const ORANGE: [number, number, number] = [255, 112, 26];
+const { white: WHITE, light: AMBER, mid: ORANGE } = PAL.fire;
 
 /** Posició a la trajectòria (0..1) per a un temps donat: el projectil accelera. */
 function pathT(e: number): number {
@@ -43,18 +41,6 @@ function dirAt(pts: Point[], t: number): Point {
   const a = pathAt(pts, Math.max(0, t - 0.02)), b = pathAt(pts, Math.min(1, t + 0.02));
   const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
   return { x: dx / l, y: dy / l };
-}
-
-/** Bufarada de foc amb temperatura contínua 0..3 (fosa entre dos sprites). */
-function fire(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, rot: number, temp: number, alpha: number, variant: number): void {
-  if (alpha <= 0.004 || r <= 0) return;
-  const t = Math.min(3, Math.max(0, temp)), i = Math.floor(t), f = t - i;
-  ctx.globalAlpha = alpha * (1 - f);
-  blit(ctx, fireSprite(i, variant), x, y, r, rot);
-  if (f > 0.02 && i < 3) {
-    ctx.globalAlpha = alpha * f;
-    blit(ctx, fireSprite(i + 1, variant), x, y, r, rot);
-  }
 }
 
 function sizes(sc: number, gridSize: number) {
