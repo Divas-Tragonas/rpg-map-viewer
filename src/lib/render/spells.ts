@@ -1,18 +1,34 @@
 import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
-import { pathAt, pathLen } from '@/lib/geometry';
 import { AREA_SPELL_DATA } from '@/constants';
 import { mulberry32 } from './fxsprites';
-import { drawSpellFireball, drawFireballGround, FIREBALL_DUR } from './fireball';
+import { drawSpellFireball, drawFireballGround, fireballShake, FIREBALL_DUR } from './fireball';
+import { drawSpellLightning, drawLightningGround, pruneLightningFx, lightningShake, LIGHTNING_DUR, LIGHTNING_FIRST_STRIKE } from './lightning';
+import { drawSpellMagicBeam, MAGIC_BEAM_DUR } from './magicbeam';
 
-export { drawSpellFireball, fireballShake } from './fireball';
+export { drawSpellFireball, drawSpellLightning, drawSpellMagicBeam };
+
+/**
+ * Sacsejada de càmera (px de pantalla) dels spells actius. Els ticks del DM i del
+ * jugador la sumen a `ox/oy`, així fons, mapa i tokens es mouen junts.
+ */
+export function spellShake(spells: readonly Spell[], now: number): Point {
+  const f = fireballShake(spells, now);
+  let x = f.x, y = f.y;
+  for (const sp of spells) {
+    if (sp.type !== 'lightning') continue;
+    const l = lightningShake((now - sp.startTime) / 1000 - LIGHTNING_FIRST_STRIKE, sp.id.length);
+    x += l.x; y += l.y;
+  }
+  return { x, y };
+}
 
 const AREA_SPELL_TYPES = new Set(['sleep', 'grease']);
 
 const SPELL_DURATIONS: Record<string, number> = {
   fireball:         FIREBALL_DUR,
-  lightning:        2.4,
-  magic_beam:       3.0,
+  lightning:        LIGHTNING_DUR,
+  magic_beam:       MAGIC_BEAM_DUR,
   magic_missile:    1.9,
   hideous_laughter: 2.3,
   burning_hands:    2.6,
@@ -52,13 +68,6 @@ function glowBlob(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   for (const [o, c] of stops) g.addColorStop(o, c);
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-}
-
-/** Local path direction (unit vector) at t, via finite differences. */
-function pathDirAt(pts: Point[], t: number): Point {
-  const a = pathAt(pts, Math.max(0, t - 0.02)), b = pathAt(pts, Math.min(1, t + 0.02));
-  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
-  return { x: dx / len, y: dy / len };
 }
 
 /**
@@ -108,163 +117,10 @@ function drawBurst(ctx: CanvasRenderingContext2D, cx: number, cy: number, maxRPx
   ctx.globalCompositeOperation = 'source-over';
 }
 
-// ── Lightning ───────────────────────────────────────────────────────────────
-
-interface Bolt { strikeIdx: number; main: Point[]; branches: Point[][]; }
-const boltCache = new Map<string, Bolt>();
-export function pruneSpellFx(aliveIds: Set<string>): void {
-  for (const k of boltCache.keys()) { if (!aliveIds.has(k)) boltCache.delete(k); }
-}
-
-function makeBolt(pts: Point[], seed: number, strikeIdx: number): Bolt {
-  const rnd = mulberry32((seed ^ Math.imul(strikeIdx + 1, 0x85ebca6b)) >>> 0);
-  const L = pathLen(pts);
-  const N = Math.max(12, Math.min(44, Math.round(L / 26)));
-  const amp = L * 0.035;
-  const main: Point[] = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N, p = pathAt(pts, t), dir = pathDirAt(pts, t);
-    // Pin ends, displace the middle: coarse + fine octave of perpendicular jitter
-    const env = Math.sin(Math.PI * t);
-    const off = ((rnd() * 2 - 1) * amp + (rnd() * 2 - 1) * amp * 0.4) * env;
-    main.push({ x: p.x - dir.y * off, y: p.y + dir.x * off });
-  }
-  const branches: Point[][] = [];
-  const nb = 2 + Math.floor(rnd() * 3);
-  for (let bIdx = 0; bIdx < nb; bIdx++) {
-    const at = 0.2 + rnd() * 0.6;
-    const start = main[Math.round(at * N)];
-    const dir = pathDirAt(pts, at);
-    const side = rnd() < 0.5 ? -1 : 1;
-    const angle = Math.atan2(dir.y, dir.x) + side * (0.4 + rnd() * 0.5);
-    const bLen = L * (0.1 + rnd() * 0.14);
-    const br: Point[] = [start];
-    let x = start.x, y = start.y, a = angle;
-    for (let s = 1; s <= 4; s++) {
-      a += (rnd() * 2 - 1) * 0.45;
-      x += Math.cos(a) * (bLen / 4); y += Math.sin(a) * (bLen / 4);
-      br.push({ x, y });
-    }
-    branches.push(br);
-  }
-  return { strikeIdx, main, branches };
-}
-
 function strokePolyline(ctx: CanvasRenderingContext2D, pts: Point[]): void {
   ctx.beginPath();
   for (let i = 0; i < pts.length; i++) { const p = pts[i]; i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); }
   ctx.stroke();
-}
-
-export function drawSpellLightning(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number, seed: number, spellId: string): void {
-  ctx.save();
-  const fade = elapsed < 0.1 ? elapsed / 0.1 : elapsed > dur - 0.3 ? Math.max(0, (dur - elapsed) / 0.3) : 1;
-  if (fade < 0.01) { ctx.restore(); return; }
-
-  // Re-strike: brand-new fractal geometry every ~110ms, bright at each strike
-  const PERIOD = 0.11;
-  const strikeIdx = Math.floor(elapsed / PERIOD);
-  const strikeT = (elapsed - strikeIdx * PERIOD) / PERIOD;
-  let bolt = boltCache.get(spellId);
-  if (!bolt || bolt.strikeIdx !== strikeIdx) { bolt = makeBolt(pts, seed, strikeIdx); boltCache.set(spellId, bolt); }
-  const env = 1 - 0.6 * smoothstep(strikeT, 0.2, 1);
-
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  const layers: [number, string, number][] = [
-    [13, '#2b4bd8', 0.22],
-    [4.5, '#7ea0ff', 0.55],
-    [1.6, '#f4f8ff', 1.0],
-  ];
-  for (const [lw, col, a] of layers) {
-    ctx.globalAlpha = a * fade * env;
-    ctx.strokeStyle = col; ctx.lineWidth = lw / sc;
-    strokePolyline(ctx, bolt.main);
-    ctx.globalAlpha = a * fade * env * 0.65;
-    ctx.lineWidth = (lw * 0.55) / sc;
-    for (const br of bolt.branches) strokePolyline(ctx, br);
-  }
-  // Impact glow at target + sparks, refreshed each strike
-  const end = bolt.main[bolt.main.length - 1];
-  glowBlob(ctx, end.x, end.y, 30 / sc, [
-    [0, `rgba(240,246,255,${0.85 * fade * env})`],
-    [0.4, `rgba(126,160,255,${0.5 * fade * env})`],
-    [1, 'rgba(0,0,0,0)'],
-  ]);
-  const rnd = mulberry32((seed ^ Math.imul(strikeIdx + 1, 0xc2b2ae35)) >>> 0);
-  for (let i = 0; i < 6; i++) {
-    const ang = rnd() * Math.PI * 2, d = (8 + rnd() * 22) * easeOutCubic(strikeT) / sc;
-    ctx.globalAlpha = fade * env * (1 - strikeT) * 0.9;
-    ctx.fillStyle = '#dbe7ff';
-    ctx.beginPath(); ctx.arc(end.x + Math.cos(ang) * d, end.y + Math.sin(ang) * d, 1.6 / sc, 0, Math.PI * 2); ctx.fill();
-  }
-  // Source glow at caster end
-  const start = bolt.main[0];
-  glowBlob(ctx, start.x, start.y, 16 / sc, [
-    [0, `rgba(126,160,255,${0.5 * fade * env})`],
-    [1, 'rgba(0,0,0,0)'],
-  ]);
-  ctx.globalAlpha = 1; ctx.restore();
-}
-
-// ── Magic beam ──────────────────────────────────────────────────────────────
-
-export function drawSpellMagicBeam(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number, seed: number): void {
-  ctx.save();
-  const BU = 0.5, FD = 0.45, HOLD = dur - FD;
-  const phase = elapsed < BU ? easeOutCubic(elapsed / BU) : 1;
-  const alpha = elapsed < BU ? elapsed / BU : elapsed > HOLD ? Math.max(0, (dur - elapsed) / FD) : 1;
-  if (alpha < 0.01) { ctx.restore(); return; }
-  const tN = performance.now() / 1000;
-  const steps = Math.max(2, Math.ceil(pts.length * phase) + 1);
-  const subPts: Point[] = [];
-  for (let i = 0; i < steps; i++) subPts.push(pathAt(pts, Math.min(phase, i / (steps - 1))));
-
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  // Breathing width + energy layers
-  const breathe = 1 + 0.18 * Math.sin(tN * 11 + seed);
-  const layers: [number, string, number][] = [
-    [24 * breathe, '#2a0a80', 0.22],
-    [11 * breathe, '#6633ee', 0.42],
-    [4.5, '#a385ff', 0.8],
-    [1.6, '#f2edff', 1.0],
-  ];
-  for (const [lw, col, a] of layers) {
-    ctx.globalAlpha = a * alpha; ctx.strokeStyle = col; ctx.lineWidth = lw / sc;
-    strokePolyline(ctx, subPts);
-  }
-  // Energy pulses surging along the beam
-  for (let i = 0; i < 5; i++) {
-    const pT = ((tN * 0.55 + i / 5) % 1) * phase;
-    const p = pathAt(pts, pT);
-    const pA = Math.sin((pT / Math.max(0.01, phase)) * Math.PI) * alpha;
-    glowBlob(ctx, p.x, p.y, (9 + 3 * Math.sin(tN * 7 + i * 2.2)) / sc, [
-      [0, `rgba(255,255,255,${0.75 * pA})`],
-      [0.4, `rgba(163,133,255,${0.5 * pA})`],
-      [1, 'rgba(0,0,0,0)'],
-    ]);
-  }
-  // Sparkles spiralling around the beam
-  const rnd = mulberry32(seed);
-  for (let i = 0; i < 8; i++) {
-    const speed = 0.35 + rnd() * 0.4, ph0 = rnd() * Math.PI * 2, rad = (5 + rnd() * 9);
-    const sT = ((tN * speed + i / 8) % 1) * phase;
-    const p = pathAt(pts, sT), dir = pathDirAt(pts, sT);
-    const swing = Math.sin(tN * 5 + ph0) * rad;
-    const px = p.x - (dir.y * swing) / sc, py = p.y + (dir.x * swing) / sc;
-    ctx.globalAlpha = alpha * 0.8 * Math.sin((sT / Math.max(0.01, phase)) * Math.PI);
-    ctx.fillStyle = '#e6dcff';
-    ctx.beginPath(); ctx.arc(px, py, 1.6 / sc, 0, Math.PI * 2); ctx.fill();
-  }
-  // Charge glow at the origin
-  const o = pts[0];
-  glowBlob(ctx, o.x, o.y, (20 + 5 * Math.sin(tN * 9)) / sc, [
-    [0, `rgba(242,237,255,${0.8 * alpha})`],
-    [0.4, `rgba(122,80,255,${0.5 * alpha})`],
-    [1, 'rgba(0,0,0,0)'],
-  ]);
-  ctx.globalAlpha = 1; ctx.restore();
 }
 
 // ── Magic missile — three staggered curving darts ───────────────────────────
@@ -718,7 +574,10 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     const seed = hash32(sp.id);
     // La bola de foc deixa un socarrim a terra: aquesta part va a la passada 'ground'
     // (sota els tokens) i la resta de l'efecte a la 'air'.
-    if (sp.type === 'fireball' && layer === 'ground') { drawFireballGround(ctx, sp.points, elapsed, sc, gridSize, seed); continue; }
+    if (layer === 'ground') {
+      if (sp.type === 'fireball')  { drawFireballGround(ctx, sp.points, elapsed, sc, gridSize, seed); continue; }
+      if (sp.type === 'lightning') { drawLightningGround(ctx, sp.points, elapsed, sc, gridSize, seed); continue; }
+    }
     if (isArea !== (layer === 'ground')) continue;  // each spell draws in its own pass
     const renderElapsed = isArea ? Math.min(elapsed, dur * 0.5) : elapsed;  // area spells: clamp to full-alpha state
     if      (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
@@ -732,7 +591,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
   }
   if (alive.length !== rActiveSpells.current.length) {
     rActiveSpells.current = alive; setActiveSpells(alive);
-    pruneSpellFx(new Set(alive.map(sp => sp.id)));
+    pruneLightningFx(new Set(alive.map(sp => sp.id)));
   }
   if (layer === 'air' && rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize);
 }

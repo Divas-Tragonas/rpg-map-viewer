@@ -60,6 +60,12 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.17 — Raig elèctric i raig màgic nous; bola de foc més directa
+- **Bola de foc**: fora el cercle rúnic. Ara la flama s'encén a la mà en un instant i surt disparada amb una flamarada i un flaix direccional. L'explosió és una mica més petita (15 ft de radi en lloc de 20).
+- **Raig elèctric refet**: llamp fractal de debò (desplaçament del punt mig amb branques), amb un líder que avança a salts, descàrrega principal amb flaix i sacsejada curta, re-descàrregues a intervals irregulars (parpelleja com un llamp de veritat), arcs que ballen a l'impacte i a la mà, espurnes, llum blava sobre el mapa, postllum violeta i marca socarrimada a terra.
+- **Raig màgic refet**: càrrega amb energia que convergeix en espiral i destell anamòrfic; el raig s'estén en un instant i queda sostingut amb capes violeta → magenta → nucli blanc que vibren, dues fibres en hèlix, anells i polsos que hi viatgen, espurnes i llum. A l'impacte, estrella de raigs que gira, ones i esquitxos; al final el raig s'aprima i l'impacte implosiona.
+- La sacsejada de càmera passa per `spellShake` (a `spells.ts`), que suma la de tots els spells.
+
 ### v4.16 — La bola de foc, refeta amb estil de videojoc
 - **Nou efecte en quatre temps**: càrrega (cercle rúnic al conjurador i espurnes que s'hi arremolinen), vol (projectil que accelera amb nucli incandescent que gira, cua de foc que queda enrere al món, fum i espurnes), impacte (flaix, bola de foc que s'infla i es refreda de blanc a vermell, ona expansiva amb anell de pols, terra que s'encén al pas de l'ona, runa encesa volant i fum que s'alça) i residu (socarrim a terra amb brases que es refreden).
 - **Llum dinàmica**: el projectil i l'explosió il·luminen el mapa del voltant amb pampallugues de foc.

@@ -155,3 +155,35 @@ export function blit(ctx: CanvasRenderingContext2D, spr: HTMLCanvasElement | nul
   ctx.drawImage(spr, -r, -r, r * 2, r * 2);
   ctx.rotate(-rot); ctx.translate(-x, -y);
 }
+
+/** Dibuixa un sprite estirat (el·lipse rx×ry orientada `rot`): flares, espetecs direccionals. */
+export function blitStretch(ctx: CanvasRenderingContext2D, spr: HTMLCanvasElement | null, x: number, y: number, rx: number, ry: number, rot: number): void {
+  if (!spr || rx <= 0 || ry <= 0) return;
+  ctx.translate(x, y); ctx.rotate(rot);
+  ctx.drawImage(spr, -rx, -ry, rx * 2, ry * 2);
+  ctx.rotate(-rot); ctx.translate(-x, -y);
+}
+
+// ── Ajudants compartits pels efectes dels spells ─────────────────────────────
+
+export type RGB3 = [number, number, number];
+export const TAU = Math.PI * 2;
+export const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+export const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+export const easeOutQuart = (t: number) => 1 - (1 - t) ** 4;
+export function smoothstep(t: number, a: number, b: number): number {
+  const k = clamp01((t - a) / (b - a));
+  return k * k * (3 - 2 * k);
+}
+/** Desplaçament amb fricció: arrenca a velocitat v i es frena (exp). */
+export const dragged = (v: number, k: number, age: number) => v * (1 - Math.exp(-k * age)) / k;
+
+/** Halo additiu d'un color (cal estar en 'lighter'). */
+export function glow(ctx: CanvasRenderingContext2D, rgb: RGB3, x: number, y: number, r: number, alpha: number): void {
+  if (alpha <= 0.004) return;
+  ctx.globalAlpha = Math.min(1, alpha);
+  blit(ctx, glowSprite(rgb), x, y, r);
+}
+
+/** Mida d'una casella en coords de mapa (o una mida raonable de pantalla sense graella). */
+export const fxCell = (sc: number, gridSize: number) => (gridSize > 0 ? gridSize : 48 / sc);

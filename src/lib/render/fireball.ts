@@ -1,7 +1,7 @@
 // Bola de foc — efecte en quatre temps, com als jocs:
 //
-//   1. CÀRREGA   cercle rúnic al conjurador, espurnes que s'hi arremolinen i una esfera
-//                que creix fins que surt disparada amb un esclat.
+//   1. IGNICIÓ   la flama s'encén a la mà en un instant i surt disparada amb una
+//                flamarada i un flaix direccional (directe, res de cercles rúnics).
 //   2. VIATGE    projectil que accelera: nucli incandescent que gira, cua de foc que
 //                queda ENRERE al món (no enganxada al cap), fum, espurnes i la llum que
 //                projecta sobre el mapa.
@@ -18,24 +18,16 @@
 
 import type { Point } from '@/types';
 import { pathAt } from '@/lib/geometry';
-import { mulberry32, glowSprite, fireSprite, smokeSprite, scorchSprite, blit } from './fxsprites';
+import {
+  mulberry32, glowSprite, fireSprite, smokeSprite, scorchSprite, blit, blitStretch,
+  TAU, clamp01, easeOutCubic, easeOutQuart, smoothstep, dragged, glow, fxCell,
+} from './fxsprites';
 
-const CHARGE = 0.32;               // s de càrrega abans de disparar
+const CHARGE = 0.14;               // s d'ignició a la mà abans de disparar
 const TRAVEL = 0.7;                // s de vol
 const IMPACT_AT = CHARGE + TRAVEL; // s en què esclata
 export const FIREBALL_DUR = 4.6;
-const BLAST_FT = 20;               // radi de la bola de foc de D&D
-
-const TAU = Math.PI * 2;
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
-const easeOutQuart = (t: number) => 1 - (1 - t) ** 4;
-function smoothstep(t: number, a: number, b: number): number {
-  const k = clamp01((t - a) / (b - a));
-  return k * k * (3 - 2 * k);
-}
-/** Desplaçament amb fricció: arrenca a velocitat v i es frena (exp). */
-const dragged = (v: number, k: number, age: number) => v * (1 - Math.exp(-k * age)) / k;
+const BLAST_FT = 15;               // radi visual de l'explosió (peus)
 
 const WHITE: [number, number, number] = [255, 246, 225];
 const AMBER: [number, number, number] = [255, 176, 80];
@@ -65,14 +57,8 @@ function fire(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, ro
   }
 }
 
-function glow(ctx: CanvasRenderingContext2D, rgb: [number, number, number], x: number, y: number, r: number, alpha: number): void {
-  if (alpha <= 0.004) return;
-  ctx.globalAlpha = Math.min(1, alpha);
-  blit(ctx, glowSprite(rgb), x, y, r);
-}
-
 function sizes(sc: number, gridSize: number) {
-  const cell = gridSize > 0 ? gridSize : 48 / sc;
+  const cell = fxCell(sc, gridSize);
   return { cell, R: (BLAST_FT / 5) * cell, headR: cell * 0.42 };
 }
 
@@ -163,55 +149,25 @@ export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], e
     glow(ctx, AMBER, end.x, end.y, R * 1.3, 0.7 * Math.exp(-tau * 3));
   }
 
-  // ── 1. Càrrega: cercle rúnic + espurnes que convergeixen ──
-  if (e < IMPACT_AT) {
-    const on = smoothstep(e, 0, 0.14) * (1 - smoothstep(e, CHARGE, CHARGE + 0.35));
-    if (on > 0.01) {
-      const cr = cell * 0.95 * (0.55 + 0.45 * easeOutCubic(clamp01(e / 0.22)));
-      const rot = e * 2.4;
-      glow(ctx, ORANGE, O.x, O.y, cr * 1.9, 0.45 * on);
-      ctx.strokeStyle = 'rgb(255,150,60)';
-      ctx.globalAlpha = 0.85 * on; ctx.lineWidth = 2 * px;
-      ctx.beginPath(); ctx.arc(O.x, O.y, cr, 0, TAU); ctx.stroke();
-      ctx.globalAlpha = 0.6 * on; ctx.lineWidth = 1.2 * px;
-      ctx.beginPath(); ctx.arc(O.x, O.y, cr * 0.8, 0, TAU); ctx.stroke();
-      // Runes: traços curts entre els dos anells
-      ctx.globalAlpha = 0.9 * on; ctx.lineWidth = 1.6 * px; ctx.strokeStyle = 'rgb(255,210,130)';
-      ctx.beginPath();
-      for (let k = 0; k < 16; k++) {
-        const a = rot + (k / 16) * TAU, a2 = a + (k % 3 === 0 ? 0.16 : 0.07);
-        const r1 = cr * 0.84, r2 = cr * (k % 2 ? 0.95 : 0.9);
-        ctx.moveTo(O.x + Math.cos(a) * r1, O.y + Math.sin(a) * r1);
-        ctx.lineTo(O.x + Math.cos(a2) * r2, O.y + Math.sin(a2) * r2);
-      }
-      ctx.stroke();
-      // Hexagrama que gira al revés
-      ctx.globalAlpha = 0.55 * on; ctx.lineWidth = 1.1 * px; ctx.strokeStyle = 'rgb(255,130,40)';
-      for (let tri = 0; tri < 2; tri++) {
-        ctx.beginPath();
-        for (let k = 0; k <= 3; k++) {
-          const a = -rot * 1.4 + tri * Math.PI / 3 + (k / 3) * TAU;
-          const x = O.x + Math.cos(a) * cr * 0.78, y = O.y + Math.sin(a) * cr * 0.78;
-          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      }
-    }
-    // Espurnes que s'hi arremolinen
+  // ── 1. Ignició: la flama s'encén a la mà i surt disparada (sense cerimònia) ──
+  if (e < CHARGE + 0.3) {
+    const d0 = dirAt(pts, 0), ang = Math.atan2(d0.y, d0.x);
+    // Flamarada de sortida: llengües de foc que esclaten cap endavant i als costats
     const rnd = mulberry32(seed ^ 0xc4a26e);
-    for (let i = 0; i < 18; i++) {
-      const s0 = rnd() * CHARGE * 0.6, a0 = rnd() * TAU, d0 = cell * (1.2 + rnd() * 1.1);
-      const k = clamp01((e - s0) / (CHARGE - s0 + 0.02));
-      if (e < s0 || k >= 1) continue;
-      const a = a0 + k * 3.2, d = d0 * (1 - easeOutCubic(k) * 0.97);
-      glow(ctx, AMBER, O.x + Math.cos(a) * d, O.y + Math.sin(a) * d, cell * 0.14, Math.sin(Math.PI * k));
+    for (let i = 0; i < 14; i++) {
+      const spread = (rnd() - 0.5) * 1.6, sp = cell * (2.5 + rnd() * 3), life = 0.14 + rnd() * 0.14, rs = rnd();
+      const age = e - CHARGE * 0.7;
+      if (age < 0 || age > life) continue;
+      const lf = age / life, a = ang + spread, d = dragged(sp, 9, age);
+      fire(ctx, O.x + Math.cos(a) * d, O.y + Math.sin(a) * d, headR * (0.45 + 0.4 * rs) * (1 - 0.4 * lf),
+        rs * TAU, 0.2 + lf * 2.6, (1 - lf) ** 1.3, i % 3);
     }
-    // Esclat de sortida
-    const lk = (e - CHARGE) / 0.2;
+    // Esclat de sortida: flaix curt i un "muzzle flash" estirat en la direcció del tret
+    const lk = (e - CHARGE) / 0.16;
     if (lk >= 0 && lk < 1) {
-      glow(ctx, WHITE, O.x, O.y, cell * (0.8 + 1.2 * lk), (1 - lk) ** 2);
-      ctx.globalAlpha = 0.7 * (1 - lk); ctx.strokeStyle = 'rgb(255,200,140)'; ctx.lineWidth = 3 * (1 - lk) * px;
-      ctx.beginPath(); ctx.arc(O.x, O.y, cell * (0.5 + 1.6 * easeOutCubic(lk)), 0, TAU); ctx.stroke();
+      glow(ctx, WHITE, O.x, O.y, cell * (0.7 + 0.6 * lk), (1 - lk) ** 2);
+      ctx.globalAlpha = 0.9 * (1 - lk) ** 1.5;
+      blitStretch(ctx, glowSprite(AMBER), O.x + d0.x * cell * 0.5, O.y + d0.y * cell * 0.5, cell * (1.2 + 0.8 * lk), cell * 0.22, ang);
     }
   }
 

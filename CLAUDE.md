@@ -215,8 +215,10 @@ src/
 │   │   ├── zones.ts        # renderZoneOverlays, renderExtras, renderPaintedZones, renderShapePreview
 │   │   ├── drawing.ts      # advanceStrokeAnim, replayStroke
 │   │   ├── spells.ts       # renderSpells (dispatcher de tots els spells + preview)
-│   │   ├── fireball.ts     # Bola de foc (càrrega/vol/impacte/socarrim) + fireballShake
-│   │   ├── fxsprites.ts    # Sprites de partícules pre-rasteritzats (foc, fum, halo, socarrim)
+│   │   ├── fireball.ts     # Bola de foc (ignició/vol/impacte/socarrim) + fireballShake
+│   │   ├── lightning.ts    # Raig elèctric (llamp fractal, re-descàrregues) + lightningShake
+│   │   ├── magicbeam.ts    # Raig màgic (càrrega, raig sostingut, col·lapse)
+│   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/index.ts  # cpBurst, cpUpdate, cpDraw (partícules cinematica)
@@ -522,11 +524,21 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - `SceneImgPicker` per importar imatge custom al context menu
 
 ### Bola de foc (`src/lib/render/fireball.ts`)
-- **Quatre temps** (constants `CHARGE`, `TRAVEL`, `IMPACT_AT`, `FIREBALL_DUR`): càrrega amb cercle rúnic al conjurador → projectil que accelera amb cua de foc que queda al món → impacte (flaix, bola que s'infla i es refreda, ona expansiva amb anell de pols, terra que s'encén, runa, fum) → socarrim amb brases. Radi de reglament: 20 ft (`BLAST_FT`).
+- **Quatre temps** (constants `CHARGE`, `TRAVEL`, `IMPACT_AT`, `FIREBALL_DUR`): ignició directa a la mà (flamarada + flaix direccional, 0,14 s; **res de cercles rúnics**: l'usuari els va trobar massa místics) → projectil que accelera amb cua de foc que queda al món → impacte (flaix, bola que s'infla i es refreda, ona expansiva amb anell de pols, terra que s'encén, runa, fum) → socarrim amb brases. Radi visual: 15 ft (`BLAST_FT`).
 - **Partícules deterministes**: cada partícula és funció pura de (llavor del `sp.id`, temps). Cap estat entre frames → DM i jugadors veuen la mateixa explosió. ⚠️ Dins de cada sistema, **tots els `rnd()` d'una partícula es treuen abans del `continue`** de les que no són vives; si no, el flux del PRNG es desalinea i les partícules canvien a mig efecte.
 - **Sprites** (`fxsprites.ts`): foc (4 temperatures × 3 variants de soroll), fum, halo i socarrim, generats una sola vegada amb `ImageData` i copiats amb `drawImage`. La temperatura contínua es fa fonent dos sprites veïns (`fire()`). No tornar a `createRadialGradient` per partícula: és més car i tot surt amb forma de cercle perfecte.
 - **Dues passades**: el socarrim i les brases (`drawFireballGround`) van a la `'ground'`, sota els tokens; la resta a la `'air'`.
-- **Sacsejada de càmera** (`fireballShake`): el tick del DM (`useRafLoop`) i el del jugador (`PlayerView`) la sumen a `ox/oy`, així el fons DOM i el canvas es mouen junts. No afecta `rDmCam` (que surt de `rZoom`/`rPanOffset`) ni es sincronitza: cada pantalla la calcula del seu `startTime`.
+- **Sacsejada de càmera** (`spellShake` a `spells.ts`, que suma `fireballShake` i `lightningShake`): el tick del DM (`useRafLoop`) i el del jugador (`PlayerView`) la sumen a `ox/oy`, així el fons DOM i el canvas es mouen junts. No afecta `rDmCam` (que surt de `rZoom`/`rPanOffset`) ni es sincronitza: cada pantalla la calcula del seu `startTime`. Un spell nou amb sacsejada s'afegeix a `spellShake`, no als ticks.
+- **Ajudants comuns** (`fxsprites.ts`): `glow`, `blitStretch` (sprite estirat: flares, flaixos direccionals), `smoothstep`, `dragged` (desplaçament amb fricció), `fxCell` (mida de casella o fallback de pantalla)… Els efectes nous els han de fer servir en lloc de copiar-los.
+
+### Raig elèctric (`src/lib/render/lightning.ts`)
+- **Geometria fractal**: desplaçament recursiu del punt mig (`fractal`) amb branques que surten dels punts mitjos. ⚠️ Les branques només es generen a nivells grossos (`depth >= 3`) i amb fondària limitada: sense això un llamp llarg fa milers de segments. Els segments es tracen **agrupats per gruix** (`strokeBolt`: un path per nivell), no un stroke per segment.
+- **Descàrregues a intervals irregulars** (`strikeTimes`, deterministes per llavor): cadascuna té geometria nova (`boltFor`, memòria cau per `spellId:índex`, podada a `pruneLightningFx`) i una intensitat amb pic i caiguda exponencial més un fons que manté el llamp visible entre descàrregues.
+- Líder que avança a salts (0,1 s) → descàrrega principal amb flaix i sacsejada → re-descàrregues → postllum violeta. Marca socarrimada a la passada `'ground'` (`drawLightningGround`).
+
+### Raig màgic (`src/lib/render/magicbeam.ts`)
+- Càrrega (espurnes en espiral + destell anamòrfic horitzontal) → el raig s'estén en 0,12 s → sostingut (capes violeta/magenta/blanc que vibren, fibres en hèlix, anells, polsos, espurnes; a l'impacte estrella giratòria, ones i esquitxos) → col·lapse i implosió.
+- ⚠️ Les **fibres en hèlix** es mostregen a ~12 punts per volta (`NH`), independentment del mostreig del cos del raig: amb poques mostres surten en ziga-zaga. Es tracen en dues passades (davant / darrere) per donar profunditat sense fer un stroke per segment.
 
 ### Zones màgiques (Painted Zones)
 - Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)

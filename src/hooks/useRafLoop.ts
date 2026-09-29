@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
 import { advanceStrokeAnim } from '@/lib/render/drawing';
-import { renderSpells, fireballShake } from '@/lib/render/spells';
+import { renderSpells, spellShake } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
@@ -80,8 +80,8 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         pan = { x: R.rPanOffset.current.x + R.dmLocalPan.current.x, y: R.rPanOffset.current.y + R.dmLocalPan.current.y };
       }
       const sc = Math.min(W / mw, H / mh) * z;
-      // Sacsejada de càmera de les explosions (bola de foc): mou fons, mapa i tokens junts.
-      const shake = fireballShake(R.rActiveSpells.current, performance.now());
+      // Sacsejada de càmera dels spells (explosió de la bola de foc, llamp): mou fons, mapa i tokens junts.
+      const shake = spellShake(R.rActiveSpells.current, performance.now());
       const ox = (W - mw * sc) / 2 + pan.x + shake.x, oy = (H - mh * sc) / 2 + pan.y + shake.y;
 
       // Enquadrament COMPARTIT en coordenades de MAPA: sense la vista privada (Ctrl) ni

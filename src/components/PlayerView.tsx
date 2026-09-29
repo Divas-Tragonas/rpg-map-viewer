@@ -11,7 +11,7 @@ import {
 } from '@/lib/render/zones';
 import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
-import { renderSpells, fireballShake } from '@/lib/render/spells';
+import { renderSpells, spellShake } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
@@ -1073,8 +1073,8 @@ export function PlayerView() {
       }
       const z = visualZoomRef.current, pan = visualPanRef.current;
       const sc = Math.min(W / mw, H / mh) * z;
-      // Sacsejada de càmera de les explosions (bola de foc): mou fons, mapa i tokens junts.
-      const shake = fireballShake(rActiveSpells.current, performance.now());
+      // Sacsejada de càmera dels spells (explosió de la bola de foc, llamp): mou fons, mapa i tokens junts.
+      const shake = spellShake(rActiveSpells.current, performance.now());
       const ox = (W - mw * sc) / 2 + pan.x + shake.x, oy = (H - mh * sc) / 2 + pan.y + shake.y;
 
       if (media) {
