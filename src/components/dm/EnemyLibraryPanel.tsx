@@ -1,23 +1,40 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { ENEMY_TEMPLATES } from '@/constants';
-import { C } from '@/constants';
+import { ENEMY_TEMPLATES, C, FS, RADIUS } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { api, isApiConfigured } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
-import type { LibEnemy, DefeatedMap } from '@/types';
+import type { LibEnemy } from '@/types';
 
 interface Props {
+  /** Enemics ja afegits a l'escena: només per mostrar quants n'hi ha de cada plantilla. */
   libEnemies: LibEnemy[];
-  defeated: DefeatedMap;
   onAddEnemy: (tmpl: typeof ENEMY_TEMPLATES[number]) => void;
   onAddDbEnemy: (enemy: ApiEnemy) => void;
-  onRemove: (id: number) => void;
-  onToggleVisibility: (id: number) => void;
-  onAdjustHp: (id: number, delta: number) => void;
 }
 
-export function EnemyLibraryPanel({ libEnemies, defeated, onAddEnemy, onAddDbEnemy, onRemove, onToggleVisibility, onAdjustHp }: Props) {
+function TemplateButton({ name, color, hpMax, inScene, onClick }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={`Afegir ${name} a l'escena (${hpMax} de vida)`}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5, padding: '5px 7px',
+        background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
+        borderRadius: RADIUS.sm, cursor: 'pointer', color: C.text, fontSize: FS.sm, textAlign: 'left',
+      }}>
+      <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      {inScene > 0
+        ? <span title={`${inScene} a l'escena`} style={{ color: C.enemy, fontSize: FS.xs, fontWeight: 700 }}>×{inScene}</span>
+        : <span style={{ color: C.dim, fontSize: FS.xs }}>{hpMax}</span>}
+    </button>
+  );
+}
+
+/**
+ * Pestanya Biblioteca: plantilles per AFEGIR enemics. Els que ja són a l'escena es gestionen
+ * (vida, visibilitat, eliminar) a la pestanya Escena, junt amb els del PSD i els jugadors.
+ */
+export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy }: Props) {
   const [dbEnemies, setDbEnemies] = useState<ApiEnemy[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
 
@@ -30,111 +47,36 @@ export function EnemyLibraryPanel({ libEnemies, defeated, onAddEnemy, onAddDbEne
       .finally(() => setDbLoading(false));
   }, []);
 
+  const countOf = (templateId: string) => libEnemies.filter(e => e.templateId === templateId).length;
+
   return (
     <>
-      <SidebarSection title="Biblioteca" icon="📖" defaultOpen bodyPadding="0 8px 8px">
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-        {ENEMY_TEMPLATES.map(tmpl => (
-          <button
-            key={tmpl.id}
-            onClick={() => onAddEnemy(tmpl)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5, padding: '5px 7px',
-              background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
-              borderRadius: 5, cursor: 'pointer', color: C.text, fontSize: 11, textAlign: 'left',
-            }}
-          >
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: tmpl.color, flexShrink: 0 }} />
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tmpl.name}</span>
-            <span style={{ color: C.dim, fontSize: 9 }}>{tmpl.hpMax}</span>
-          </button>
-        ))}
+      <div style={{ padding: '8px 12px 2px', fontSize: FS.sm, color: C.dim, lineHeight: 1.45 }}>
+        Clica una plantilla per afegir-la al centre de la vista. Després la trobaràs a <b style={{ color: C.text }}>Escena</b>.
       </div>
-
+      <SidebarSection title="Plantilles" icon="📖" defaultOpen bodyPadding="0 8px 8px">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+          {ENEMY_TEMPLATES.map(tmpl => (
+            <TemplateButton key={tmpl.id} name={tmpl.name} color={tmpl.color} hpMax={tmpl.hpMax}
+              inScene={countOf(tmpl.id)} onClick={() => onAddEnemy(tmpl)} />
+          ))}
+        </div>
       </SidebarSection>
 
       {isApiConfigured() && (
         <SidebarSection title="Base de dades" icon="☁" count={dbEnemies.length} defaultOpen bodyPadding="0 8px 8px">
-          {dbLoading && <div style={{ fontSize: 10, color: C.dim }}>carregant…</div>}
+          {dbLoading && <div style={{ fontSize: FS.xs, color: C.dim }}>carregant…</div>}
           {!dbLoading && dbEnemies.length === 0 && (
-            <div style={{ fontSize: 10, color: C.dim }}>Cap enemic a la BD</div>
+            <div style={{ fontSize: FS.xs, color: C.dim }}>Cap enemic a la BD</div>
           )}
           {dbEnemies.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
               {dbEnemies.map(en => (
-                <button
-                  key={en.id}
-                  onClick={() => onAddDbEnemy(en)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5, padding: '5px 7px',
-                    background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
-                    borderRadius: 5, cursor: 'pointer', color: C.text, fontSize: 11, textAlign: 'left',
-                  }}
-                >
-                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: en.color, flexShrink: 0 }} />
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{en.name}</span>
-                  <span style={{ color: C.dim, fontSize: 9 }}>{en.hpMax}</span>
-                </button>
+                <TemplateButton key={en.id} name={en.name} color={en.color} hpMax={en.hpMax}
+                  inScene={countOf(en.id)} onClick={() => onAddDbEnemy(en)} />
               ))}
             </div>
           )}
-        </SidebarSection>
-      )}
-
-      {libEnemies.length > 0 && (
-        <SidebarSection title="A l'escena" icon="⚔" count={libEnemies.length} countColor={C.enemy} defaultOpen bodyPadding="0 8px 8px">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {libEnemies.map(en => {
-              const hp = en.hp ?? en.hpMax;
-              const hpRatio = en.hpMax > 0 ? Math.max(0, hp / en.hpMax) : 0;
-              const hpColor = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
-              const isDefeated = !!defeated[`lib_${en.id}`];
-              return (
-                <div key={en.id} style={{
-                  background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}`,
-                  borderRadius: 5, padding: '5px 7px',
-                  opacity: (!en.visible || isDefeated) ? 0.5 : 1,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: en.color, flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: 11, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{en.name}</span>
-                    <button
-                      onClick={() => onToggleVisibility(en.id)}
-                      title={en.visible ? 'Ocultar' : 'Mostrar'}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: en.visible ? C.dim : '#555', padding: '1px 3px', fontSize: 11 }}
-                    >
-                      {en.visible ? '👁' : '🚫'}
-                    </button>
-                    <button
-                      onClick={() => onRemove(en.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f85149', padding: '1px 3px', fontSize: 11 }}
-                      title="Treure de l'escena"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  {en.hpMax > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <button
-                        onClick={() => onAdjustHp(en.id, -1)}
-                        onContextMenu={e => { e.preventDefault(); onAdjustHp(en.id, -10); }}
-                        style={{ flex: 1, padding: '2px 0', background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)', borderRadius: 3, cursor: 'pointer', color: '#f85149', fontSize: 10, fontWeight: 700 }}
-                      >-1</button>
-                      <div style={{ flex: 2, background: 'rgba(0,0,0,.5)', borderRadius: 3, height: 16, position: 'relative', overflow: 'hidden' }}>
-                        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${hpRatio * 100}%`, background: hpColor }} />
-                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700 }}>{hp}/{en.hpMax}</span>
-                      </div>
-                      <button
-                        onClick={() => onAdjustHp(en.id, 1)}
-                        onContextMenu={e => { e.preventDefault(); onAdjustHp(en.id, 10); }}
-                        style={{ flex: 1, padding: '2px 0', background: 'rgba(63,185,80,.12)', border: '1px solid rgba(63,185,80,.3)', borderRadius: 3, cursor: 'pointer', color: '#3fb950', fontSize: 10, fontWeight: 700 }}
-                      >+1</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         </SidebarSection>
       )}
     </>

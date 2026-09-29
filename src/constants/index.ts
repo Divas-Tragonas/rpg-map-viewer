@@ -1,7 +1,7 @@
 import type { Condition, Element } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.14';
+export const APP_VERSION = 'v4.15';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -120,7 +120,29 @@ export const C = {
   magic:       '#a855f7',  // màgia / cinematica — rgb(168,85,247)
   magicBright: '#c084fc',  // màgia clara (magic_missile, text cinematica)
   enemyHL:     '#ffd200',  // resaltat d'enemics en combat (deliberadament ≠ accent)
+  onAccent:    '#0d1117',  // text i icones damunt d'un fons accent (botó primari)
+  float:       'rgba(10,13,18,.92)',  // fons dels panells i barres flotants damunt del canvas
 } as const;
+
+// ── Sistema visual (DM) ─────────────────────────────────────────────────────
+// Escala tipogràfica: tota mida de lletra nova ha de sortir d'aquí. Abans n'hi havia 22
+// de diferents (de 7,5 a 32 px) i el text petit no es llegia; el mínim ara és FS.xs.
+// Les xifres grans (vida, peus, ronda) són mides de "display" i poden anar a part.
+export const FS = { xs: 10, sm: 11, md: 12, lg: 14, xl: 18 } as const;
+
+// Radis de vora: sm (xips, camps), md (botons), lg (panells i menús), pill (píndoles).
+export const RADIUS = { sm: 4, md: 6, lg: 10, pill: 999 } as const;
+
+export const SHADOW = {
+  float: '0 4px 16px rgba(0,0,0,0.5)',   // barres i panells flotants
+  menu:  '0 8px 32px rgba(0,0,0,0.65)',  // menús contextuals i popovers
+} as const;
+
+/** Color amb transparència en hex (`tint(C.enemy, 0.12)` → `#f851491f`). Només per a colors `#rrggbb`. */
+export function tint(color: string, alpha: number): string {
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
+  return `${color}${a}`;
+}
 
 export const BC_CHANNEL = 'rpg_map_sync_v18';
 export const TOKEN_LERP  = 0.07;

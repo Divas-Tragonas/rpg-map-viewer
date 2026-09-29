@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { C, CONDITIONS } from '@/constants';
+import { C, CONDITIONS, FS, RADIUS } from '@/constants';
 import { conditionInk } from '@/lib/conditions';
 import { ConditionIcon } from './ConditionIcon';
 
@@ -31,16 +31,16 @@ export function ConditionPicker({ active, onToggle, onClear, multi }: Props) {
   return (
     <div style={{ padding: '5px 6px 6px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 2px 4px' }}>
-        <span style={{ fontSize: 8.5, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.09em', fontWeight: 700 }}>
+        <span style={{ fontSize: FS.xs, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
           Estats
         </span>
         {!multi && active.length > 0 && (
-          <span style={{ fontSize: 8.5, color: C.accent, fontWeight: 700 }}>{active.length}</span>
+          <span style={{ fontSize: FS.xs, color: C.accent, fontWeight: 700 }}>{active.length}</span>
         )}
         {onClear && (multi || active.length > 0) && (
           <button onMouseDown={e => { e.stopPropagation(); onClear(); }}
             title="Treure tots els estats"
-            style={{ marginLeft: 'auto', padding: '1px 6px', borderRadius: 4, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: 9 }}>
+            style={{ marginLeft: 'auto', padding: '1px 6px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: FS.xs }}>
             Netejar
           </button>
         )}
@@ -58,7 +58,7 @@ export function ConditionPicker({ active, onToggle, onClear, multi }: Props) {
               onMouseLeave={() => setHover(h => (h === cond.id ? null : h))}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                padding: '4px 1px 3px', borderRadius: 5, cursor: 'pointer',
+                padding: '4px 1px 3px', borderRadius: RADIUS.sm, cursor: 'pointer',
                 border: `1px solid ${on ? cond.color : 'transparent'}`,
                 background: on ? `${cond.color}30` : hot ? 'rgba(255,255,255,0.06)' : 'transparent',
               }}>
@@ -71,7 +71,7 @@ export function ConditionPicker({ active, onToggle, onClear, multi }: Props) {
                   on={on || hot ? cond.color : 'rgba(0,0,0,0)'} />
               </span>
               <span style={{
-                fontSize: 7.5, lineHeight: 1.05, textAlign: 'center', letterSpacing: '-0.02em',
+                fontSize: FS.xs, lineHeight: 1.1, textAlign: 'center', letterSpacing: '-0.03em', whiteSpace: 'nowrap',
                 color: on ? C.bright : C.dim, fontWeight: on ? 700 : 500,
               }}>
                 {cond.label}

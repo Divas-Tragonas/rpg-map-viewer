@@ -3,7 +3,7 @@ import React from 'react';
 import { AlertTriangle } from '@/components/icons';
 import { DropZone } from '@/components/ui/DropZone';
 import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
-import { C } from '@/constants';
+import { C, FS, RADIUS, tint } from '@/constants';
 import type { MapStructure, PSDInfo } from '@/types';
 
 interface Props {
@@ -47,16 +47,16 @@ export function ImportPanel({ bgLoaded, bgName, parsing, struct, psdInfo, parseE
             onFile={onLoadPSD} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onLoadPSD(f); }} disabled={parsing} />
         </div>
       </div>
-      {parsing && <div style={{ marginTop: 6, color: C.dim, fontSize: 11, textAlign: 'center' }}>Extrayendo imágenes de capas...</div>}
+      {parsing && <div style={{ marginTop: 6, color: C.dim, fontSize: FS.sm, textAlign: 'center' }}>Extrayendo imágenes de capas...</div>}
       {parseError && (
-        <div style={{ marginTop: 5, padding: '6px 9px', borderRadius: 6, background: 'rgba(248,81,73,.1)', border: '1px solid rgba(248,81,73,.3)', color: '#ffa0a0', fontSize: 12, lineHeight: 1.5 }}>
+        <div style={{ marginTop: 5, padding: '6px 9px', borderRadius: RADIUS.md, background: tint(C.enemy, 0.1), border: `1px solid ${tint(C.enemy, 0.3)}`, color: '#ffa0a0', fontSize: FS.md, lineHeight: 1.5 }}>
           <AlertTriangle size={12} style={{ verticalAlign: 'middle', marginRight: 5 }} />{parseError}
         </div>
       )}
       {warnings.length > 0 && !parseError && !warningsDismissed && (
-        <div style={{ marginTop: 5, padding: '5px 9px', borderRadius: 5, background: 'rgba(210,153,34,.08)', border: '1px solid rgba(210,153,34,.25)', color: C.warn, fontSize: 11, lineHeight: 1.6, position: 'relative' }}>
+        <div style={{ marginTop: 5, padding: '5px 9px', borderRadius: RADIUS.md, background: 'rgba(210,153,34,.08)', border: '1px solid rgba(210,153,34,.25)', color: C.warn, fontSize: FS.sm, lineHeight: 1.6, position: 'relative' }}>
           <button onClick={() => setWarningsDismissed(true)}
-            style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 4, background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: 12 }}>✕</button>
+            style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 4, background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: FS.md }}>✕</button>
           {warnings.map((w, i) => <div key={i}>• {w}</div>)}
         </div>
       )}

@@ -115,7 +115,12 @@ export function useDMRefs() {
   const rHoveredRoom    = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const bcRef           = useRef<BroadcastChannel | null>(null);
   const wsRef           = useRef<SyncSocket | null>(null);
-  const panDragRef      = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number; private?: boolean } | null>(null);
+  // Pan en curs (botó central, Espai+arrossegar o arrossegar en buit amb l'eina de selecció).
+  // `onClick` és el que faria el clic si al final no s'arrossega (p. ex. revelar una sala):
+  // així començar un pan damunt d'una sala fosca no la revela sense voler.
+  const panDragRef      = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number; private?: boolean; moved?: boolean; onClick?: () => void } | null>(null);
+  // Espai premut: qualsevol eina passa a arrossegar el mapa (convenció de Photoshop/Figma).
+  const rSpaceHeld      = useRef(false);
   const rPanOffset      = useRef<Point>({ x: 0, y: 0 });
   const roomAnimRef     = useRef<Record<string, number>>({});
   const visualPosRef    = useRef<PosMap>({});
@@ -208,7 +213,7 @@ export function useDMRefs() {
     cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
     cinematicOrigZoomRef, cinematicOrigPanRef,
     cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,
-    rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle,
+    rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
   };
 }
 

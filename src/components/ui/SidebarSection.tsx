@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { C } from '@/constants';
+import { C, FS, RADIUS } from '@/constants';
 
 interface Props {
   title: string;
@@ -35,9 +35,9 @@ export function SidebarSection({
         onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 8px', cursor: 'pointer', userSelect: 'none', background: open ? 'transparent' : 'rgba(255,255,255,0.02)' }}
       >
-        <span style={{ fontSize: 9, color: C.dim, width: 9, flexShrink: 0, transition: 'transform .18s ease', transform: open ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>▶</span>
-        {icon && <span style={{ fontSize: 11, lineHeight: 1, flexShrink: 0 }}>{icon}</span>}
-        <span style={{ fontSize: 10, fontWeight: 700, color: open ? C.text : C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: FS.xs, color: C.dim, width: 9, flexShrink: 0, transition: 'transform .18s ease', transform: open ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>▶</span>
+        {icon && <span style={{ fontSize: FS.sm, lineHeight: 1, flexShrink: 0 }}>{icon}</span>}
+        <span style={{ fontSize: FS.xs, fontWeight: 700, color: open ? C.text : C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', flex: 1, minWidth: 0 }}>
           {title}
           {count !== null && count > 0 && <span style={{ color: countColor, letterSpacing: 0 }}> · {count}</span>}
         </span>
@@ -64,7 +64,7 @@ export function SectionButton({ onClick, title, active, disabled, color = C.acce
 }) {
   return (
     <button onClick={onClick} title={title} disabled={disabled}
-      style={{ background: active ? `${color}22` : 'transparent', border: `1px solid ${active ? color : C.border}`, borderRadius: 5, padding: '2px 7px', cursor: disabled ? 'default' : 'pointer', color: disabled ? `${C.dim}66` : active ? color : C.dim, fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      style={{ background: active ? `${color}22` : 'transparent', border: `1px solid ${active ? color : C.border}`, borderRadius: RADIUS.md, padding: '2px 7px', cursor: disabled ? 'default' : 'pointer', color: disabled ? `${C.dim}66` : active ? color : C.dim, fontSize: FS.xs, fontWeight: 700, whiteSpace: 'nowrap' }}>
       {children}
     </button>
   );

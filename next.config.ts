@@ -22,6 +22,10 @@ function lanHosts(): string[] {
 }
 
 const nextConfig: NextConfig = {
+  // IPs LAN del PC del DM, perquè el HUD (xip de pantalles) pugui dir quina adreça cal obrir
+  // a la tablet. Només es fan servir si el DM obre l'app per localhost (veure `playerUrls`
+  // a CanvasHUD): en un desplegament serien les IPs de la màquina que ha fet el build.
+  env: { LAN_HOSTS: lanHosts().join(',') },
   allowedDevOrigins: [
     '127.0.0.1',
     'localhost',

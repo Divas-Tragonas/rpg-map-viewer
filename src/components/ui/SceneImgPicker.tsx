@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { Upload } from '@/components/icons';
-import { C } from '@/constants';
+import { C, FS, RADIUS } from '@/constants';
 
 interface SceneImgPickerProps {
   defaultCanvas: HTMLCanvasElement | HTMLImageElement | null;
@@ -34,20 +34,20 @@ export function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }: SceneImgP
   return (
     <>
       <label
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', border: `1px dashed ${C.magic}66`, borderRadius: 6, cursor: 'pointer', background: `${C.magic}0f` }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', border: `1px dashed ${C.magic}66`, borderRadius: RADIUS.md, cursor: 'pointer', background: `${C.magic}0f` }}
         onDragOver={e => e.preventDefault()}
         onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}>
         <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
         {previewUrl
-          ? <img src={previewUrl} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} alt="portrait" />
+          ? <img src={previewUrl} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: RADIUS.sm, flexShrink: 0 }} alt="portrait" />
           : <Upload size={14} color={`${C.magic}b3`} />}
-        <span style={{ color: `${C.magic}d9`, fontSize: 11, lineHeight: 1.3 }}>
+        <span style={{ color: `${C.magic}d9`, fontSize: FS.sm, lineHeight: 1.3 }}>
           {custom ? 'Canviar imatge' : defaultCanvas ? 'Imatge del token (clic per canviar)' : 'Importar imatge'}
         </span>
       </label>
       <button
         onMouseDown={e => { e.stopPropagation(); onTrigger(imgEl, !!custom); }}
-        style={{ width: '100%', padding: '8px', background: `${C.magic}2e`, border: `1px solid ${C.magic}8c`, borderRadius: 6, color: C.magicBright, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+        style={{ width: '100%', padding: '8px', background: `${C.magic}2e`, border: `1px solid ${C.magic}8c`, borderRadius: RADIUS.md, color: C.magicBright, cursor: 'pointer', fontSize: FS.md, fontWeight: 700 }}>
         ⚡ Llançar cinematica
       </button>
     </>

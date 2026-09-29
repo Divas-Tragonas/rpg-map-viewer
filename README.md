@@ -38,7 +38,8 @@ API (`divas_tragonas_api`, endpoint `/sync` al port 3000).
    pàgina en blanc; abans calia escriure-hi la IP a mà i tornar-la a canviar cada cop
    que el router en donava una de nova.
 4. **Monitors del PC**: `http://localhost:3001/` (DM) i `http://localhost:3001/player` (jugadors).
-5. **Tablet**: obrir `http://[IP-del-PC]:3001/player` al navegador.
+5. **Tablet**: obrir `http://[IP-del-PC]:3001/player` al navegador. No cal buscar la IP: el xip de
+   pantalles del HUD del DM («🖥 Cap pantalla» / «🖥 N») la mostra, amb un botó per copiar-la.
 
 La tablet dedueix automàticament l'adreça del WebSocket a partir de la URL amb què
 ha carregat la pàgina — no cal configurar `NEXT_PUBLIC_API_URL` per a l'ús en LAN.
@@ -58,6 +59,19 @@ l'estat complet al DM en tornar.
 > `v4.99`) i increments de +0.01. Les entrades de la v4 que abans es deien `v4.1`–`v4.8`
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
+
+### v4.15 — Usabilitat i coherència de la pantalla del DM
+- **Ctrl+Z i Maj+clic ja no encenen modes de vista sense voler.** Ctrl i Maj commutaven la vista compartida i la privada en *prémer-les*, o sigui que tot Ctrl+Z encenia el mode CTRL (i el segon el tornava a apagar, fent saltar la càmera de tothom enrere) i el «Maj+clic» de les portes encenia la vista privada. Ara només compta un **toc net** de la tecla sola. També s'accepta Cmd+Z al Mac.
+- **«💀 Derrotar» amb nom al menú d'un token.** Era un ✕ solt just on s'espera el botó de tancar el menú. Ara el ✕ del menú **tanca** (i Esc també), com a tota la resta de l'app.
+- **L'ull vol dir el mateix a tot arreu: «ho veuen els jugadors?».** A les zones del PSD l'ull obert volia dir que la zona estava *amagada* (la coberta es veia), al revés que a les sales dibuixades i als enemics.
+- **Botó «Següent ▶» per passar torn** (i **Enter** com a drecera). Abans només es podia fer clicant el xip actiu, i el botó destacat era «⏭ Ronda», que salta tots els que queden: ara «Ronda» és secundari i demana confirmació. Amb molts tokens, els xips fan scroll i el del torn actiu queda sempre a la vista; la barra ja no tapa la barra d'eines.
+- **Moure el mapa sense botó central del ratolí:** **Espai + arrossegar** amb qualsevol eina, **arrossegar en buit** amb l'eina de selecció, i al trackpad **dos dits = moure, pinça = zoom** (la roda del ratolí continua fent zoom). Arrossegar començant damunt d'una sala fosca ja no la revela: només el clic.
+- **Pantalla de benvinguda nova:** «Obrir mapa», «Provar la demo» i «Recuperar l'última partida» en gran, i **tot el canvas accepta fitxers** (imatge/vídeo → mapa, .psd → capes, .json → partida). Sense mapa, les eines, els torns, el zoom i «Guardar» queden apagats.
+- **Panell lateral per funció: Escena · Mapa · Biblioteca.** A **Escena** hi ha els jugadors i **tots** els enemics (del PSD i de la biblioteca) en files primes amb la vida; a **Mapa**, el fons, les capes del PSD, les sales i els llums; a **Biblioteca**, les plantilles per afegir-ne (amb quants n'hi ha a l'escena de cadascuna).
+- **Un sol control de vida a tota l'app** (targeta de jugador, files d'enemics i menú contextual), en tres mides. Clic ±1, clic dret ±10 i **clic al número per escriure-hi**: «-7» dany, «+5» cura, «12» vida exacta.
+- **Sistema visual:** escala de 5 mides de lletra (mínim 10 px; els noms dels estats en feien 7,5), 3 radis, ombres i colors de la paleta en lloc d'escrits a mà, i botons base (`Button`/`IconButton`).
+- **Polit:** fora els xips de depuració del peu del panell i el xip «DM»; el xip de pantalles diu **«Cap pantalla»** en color d'avís i en clicar-lo ofereix obrir-ne una o **l'adreça per a la tablet** (amb botó de copiar); **V** o **Esc** tornen a l'eina de selecció; **?** (o el botó ⌨ del HUD) mostra totes les dreceres; «Tots/Cap» per triar enemics en iniciar un combat.
+- **Arreglat:** amb el panell de l'Expositor obert, **qualsevol tecla** reiniciava el Ken Burns (la condició de l'Espai tenia la precedència malament), i deixar-hi anar un fitxer també el carregava com a mapa.
 
 ### v4.14 — El diagnòstic de connexió diu QUINA de les avaries és
 - **Codi de tancament del WebSocket a la pantalla.** Un socket que no connecta i un socket que el servidor **rebutja** es veien exactament igual. Ara es llegeix el codi: `4401` («invalid key», el que retorna la API quan té `SYNC_KEY`) surt com a **clau de sincronització incorrecta**, amb el detall de si aquest build en porta cap — que és el fracàs típic quan es desplega a Vercel sense la `NEXT_PUBLIC_SYNC_KEY`.

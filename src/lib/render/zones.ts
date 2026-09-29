@@ -40,19 +40,22 @@ export function renderRoomOverlays(ctx: CanvasRenderingContext2D, fc: FrameConte
         ctx.restore();
         const scx = ox + cxC * sc, scy = oy + cyC * sc;
         const eyeR = 22;
+        // L'ull respon a «ho veuen els jugadors?», com a les sales dibuixades i als enemics.
+        // `isVis` vol dir que la COBERTA es veu, o sigui que la zona està amagada: ull tancat.
+        const seen = !isVis;
         ctx.save(); ctx.translate(scx, scy);
-        ctx.fillStyle = isVis ? 'rgba(255,255,255,0.9)' : 'rgba(30,30,30,0.85)';
+        ctx.fillStyle = seen ? 'rgba(255,255,255,0.9)' : 'rgba(30,30,30,0.85)';
         ctx.beginPath(); ctx.arc(0, 0, eyeR, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = isVis ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)';
+        ctx.strokeStyle = seen ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)';
         ctx.lineWidth = 1.5; ctx.stroke();
-        const eyeColor = isVis ? '#111' : '#eee';
+        const eyeColor = seen ? '#111' : '#eee';
         ctx.strokeStyle = eyeColor; ctx.lineWidth = 2; ctx.fillStyle = eyeColor;
-        if (isVis) {
+        if (seen) {
           ctx.beginPath(); ctx.moveTo(-9, 0); ctx.bezierCurveTo(-9, -6, 9, -6, 9, 0); ctx.bezierCurveTo(9, 6, -9, 6, -9, 0); ctx.stroke();
           ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
         } else {
           ctx.beginPath(); ctx.moveTo(-9, 0); ctx.bezierCurveTo(-9, -6, 9, -6, 9, 0); ctx.bezierCurveTo(9, 6, -9, 6, -9, 0); ctx.stroke();
-          ctx.strokeStyle = isVis ? '#111' : '#eee'; ctx.lineWidth = 2.5;
+          ctx.strokeStyle = eyeColor; ctx.lineWidth = 2.5;
           ctx.beginPath(); ctx.moveTo(-9, 6); ctx.lineTo(9, -6); ctx.stroke();
         }
         ctx.restore();

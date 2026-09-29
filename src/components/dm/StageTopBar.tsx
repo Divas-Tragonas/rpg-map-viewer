@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { C } from '@/constants';
+import { C, RADIUS } from '@/constants';
 import { HoverTip } from '@/components/ui/HoverTip';
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 
 const btnBase: React.CSSProperties = {
   position: 'relative', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  borderRadius: 6, background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1,
+  borderRadius: RADIUS.md, background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1,
 };
 
 /**
@@ -48,7 +48,7 @@ export function StageTopBar({ expositorOpen, expositorActive, onToggleExpositor,
   );
 
   return (
-    <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 3, padding: 4, borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+    <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 3, padding: 4, borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
       {item('expositor', '🖼', expositorOpen, expositorActive, onToggleExpositor, 'Expositor',
         <>Ensenya una <b style={{ color: C.text }}>imatge o un vídeo</b> a pantalla completa als jugadors (un retrat, un document, una escena). Al teu panell la pots enquadrar amb zoom i pan i té moviment Ken Burns; el que veus és el que veuen ells.</>)}
       {item('text', '📜', textOpen, textActive, onToggleText, 'Revelador de text',

@@ -38,6 +38,8 @@ interface MouseHandlerSetters {
   setLights: (v: import('@/types').LightSource[]) => void;
   /** Desa l'estat del mapa a l'historial abans d'un canvi (Ctrl+Z de parets/sales/llums). */
   pushMapEdit: (label: string) => void;
+  /** Hi ha un arrossegament del mapa en curs (el DM hi posa el cursor de mà tancada). */
+  setPanning: (v: boolean) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -120,14 +122,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     return { x: px, y: py, onVertex: false };
   }, []);
 
+  // Comença a arrossegar el mapa. Amb la vista privada (MAJ) activa mou només la vista del
+  // DM; si no, la compartida (com sempre ha fet el botó central). `onClick` s'executa en
+  // deixar anar si al final no s'ha arrossegat (veure `panDragRef`).
+  const startPan = useCallback((e: React.MouseEvent, onClick?: () => void) => {
+    if (R.rShiftPanToggle.current) {
+      R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true, onClick };
+    } else {
+      R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y, onClick };
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.button === 1) {
+    // Botó central, o Espai + clic amb qualsevol eina: arrossegar el mapa.
+    if (e.button === 1 || (e.button === 0 && R.rSpaceHeld.current)) {
       e.preventDefault();
-      if (R.rShiftPanToggle.current) {
-        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.dmLocalPan.current.x, startPanY: R.dmLocalPan.current.y, private: true };
-      } else {
-        R.panDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: R.rPanOffset.current.x, startPanY: R.rPanOffset.current.y };
-      }
+      startPan(e);
+      S.setPanning(true);
       return;
     }
     // Area (marquee) selection mode — RTS-style box select (toggled with "A").
@@ -418,49 +429,58 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
     }
 
-    S.setSelectedToken(null); R.rSelectedToken.current = null;
-    R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
-
     // Clic sobre una porta (cursor normal, mode selecció) = obrir/tancar-la.
     if (R.rDrawTool.current === 'none') {
       const hitDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 9 / sc);
-      if (hitDoor) { S.toggleDoor(hitDoor.id); e.preventDefault(); return; }
+      if (hitDoor) {
+        S.setSelectedToken(null); R.rSelectedToken.current = null;
+        R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
+        S.toggleDoor(hitDoor.id); e.preventDefault(); return;
+      }
     }
 
-    // Clic sobre una sala fosca (mode selecció) = revelar-la. Per tornar-la a amagar
-    // cal tenir el mode SHIFT actiu (evita re-enfosquir-la sense voler), igual que les
-    // sales PSD. El clic sempre es consumeix.
+    // Clic en buit: deseleccionar i, si és damunt d'una sala, revelar-la. Però si en lloc de
+    // clicar s'ARROSSEGA, el que es fa és moure el mapa (i no es revela res ni es perd la
+    // selecció). Per això l'acció del clic es desa i s'executa en deixar anar sense moure's.
     const hovR = R.rHoveredRoomId.current;
-    if (hovR) {
-      const rm = R.rRooms.current.find(r => r.id === hovR);
-      if (rm && rm.dark) {
-        if (!rm.revealed || R.rShiftPanToggle.current) {
-          const nr = R.rRooms.current.map(r => r.id === hovR ? { ...r, revealed: !r.revealed } : r);
-          R.rRooms.current = nr; S.setRooms(nr); _broadcastState({});
-        }
-        e.preventDefault(); return;
-      }
-    }
-
     const hovZ = R.rHoveredRoom.current;
-    if (hovZ) {
-      const { id, lx, ly, lw, lh } = hovZ;
-      if (mx >= lx && mx <= lx + lw && my >= ly && my <= ly + lh) {
-        const currentlyVisible = !!R.rVis.current[id];
-        if (currentlyVisible) {
-          // Always hide a visible room
-          const nv = { ...R.rVis.current, [id]: false };
-          R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-          e.preventDefault();
-        } else if (R.rShiftPanToggle.current) {
-          // Only reveal a hidden room when SHIFT mode is active
-          const nv = { ...R.rVis.current, [id]: true };
-          R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-          e.preventDefault();
+    const clickAction = () => {
+      S.setSelectedToken(null); R.rSelectedToken.current = null;
+      R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
+
+      // Clic sobre una sala fosca = revelar-la. Per tornar-la a amagar cal tenir el mode
+      // MAJ actiu (evita re-enfosquir-la sense voler), igual que les zones del PSD.
+      if (hovR) {
+        const rm = R.rRooms.current.find(r => r.id === hovR);
+        if (rm && rm.dark) {
+          if (!rm.revealed || R.rShiftPanToggle.current) {
+            const nr = R.rRooms.current.map(r => r.id === hovR ? { ...r, revealed: !r.revealed } : r);
+            R.rRooms.current = nr; S.setRooms(nr); _broadcastState({});
+          }
+          return;
         }
       }
-    }
-  }, [mc, _broadcastState]);
+
+      // Zones del PSD: `vis[id]` vol dir que la COBERTA es veu (zona amagada als jugadors).
+      if (hovZ) {
+        const { id, lx, ly, lw, lh } = hovZ;
+        if (mx >= lx && mx <= lx + lw && my >= ly && my <= ly + lh) {
+          const covered = !!R.rVis.current[id];
+          if (covered) {
+            // Revelar la zona (treure'n la coberta) és lliure.
+            const nv = { ...R.rVis.current, [id]: false };
+            R.rVis.current = nv; S.setVis(nv); _broadcastState({});
+          } else if (R.rShiftPanToggle.current) {
+            // Tornar-la a tapar només amb el mode MAJ actiu.
+            const nv = { ...R.rVis.current, [id]: true };
+            R.rVis.current = nv; S.setVis(nv); _broadcastState({});
+          }
+        }
+      }
+    };
+    startPan(e, clickAction);
+    e.preventDefault();
+  }, [mc, _broadcastState, startPan]);
 
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     // Update screen-space cursor even during pan
@@ -469,7 +489,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.rCursorScreenPos.current = { x: e.clientX - rect0.left, y: e.clientY - rect0.top };
     }
     if (R.panDragRef.current) {
-      const { startX, startY, startPanX, startPanY, private: isPrivate } = R.panDragRef.current;
+      const pd = R.panDragRef.current;
+      const { startX, startY, startPanX, startPanY, private: isPrivate } = pd;
+      // Mentre no es passa de 4px és un clic (pot acabar revelant una sala): el mapa no es mou.
+      if (!pd.moved) {
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
+        pd.moved = true; S.setPanning(true);
+      }
       const nx = startPanX + (e.clientX - startX), ny = startPanY + (e.clientY - startY);
       if (isPrivate) {
         R.dmLocalPan.current = { x: nx, y: ny }; S.setDmPrivateActive(true);
@@ -751,7 +777,15 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     setGridOriginY: (v: number) => void,
     setGridCalibrating: (v: boolean) => void,
   ) => {
+    const pan = R.panDragRef.current;
     R.panDragRef.current = null; R.isDrawingRef.current = false; R.lastDrawRef.current = null;
+    if (pan) {
+      S.setPanning(false);
+      // No s'ha arrossegat: era un clic en buit (deseleccionar / revelar la sala).
+      if (!pan.moved) pan.onClick?.();
+      else _broadcastState({});  // posició final exacta (durant el drag anava throttled)
+      return;
+    }
 
     // Final del moviment d'un vèrtex: ara sí que es re-detecten les sales (durant el drag
     // només s'han mogut les parets, que és barat; `redetectRooms` reconcilia noms i estats
@@ -915,7 +949,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   }, [mc, _broadcastState]);
 
   const onMouseLeaveCanvas = useCallback(() => {
-    R.panDragRef.current = null;
+    if (R.panDragRef.current) {
+      if (R.panDragRef.current.moved) _broadcastState({});
+      R.panDragRef.current = null; S.setPanning(false);
+    }
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
     R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null; R.pendingDeselectRef.current = null;
     R.rHoveredRoom.current = null;
@@ -930,7 +967,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.bcRef.current?.postMessage({ type: 'POINTER', pos: null });
       R.wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: null }));
     }
-  }, []);
+  }, [_broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();

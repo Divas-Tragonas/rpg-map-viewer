@@ -2,17 +2,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { Maximize2, ZoomIn, ZoomOut, SaveIcon, LoadIcon } from '@/components/icons';
-import { Chip } from '@/components/ui/Chip';
-import { C } from '@/constants';
-import type { MapStructure, PSDInfo } from '@/types';
+import { Button, IconButton, buttonStyle } from '@/components/ui/Button';
+import { C, FS } from '@/constants';
 
 interface Props {
+  /** Hi ha mapa carregat? Sense mapa, el zoom, l'opacitat i desar no fan res i s'amaguen. */
+  hasMap: boolean;
   zoom: number;
   onZoomChange: (z: number) => void;
-  psdInfo: PSDInfo | null;
-  struct: MapStructure | null;
-  activeCount: number;
-  layerImagesCount: number;
   onSave: () => void;
   onLoad: (file: File) => void;
   onOpenPlayer: () => void;
@@ -21,62 +18,52 @@ interface Props {
   onBgOpacityChange: (v: number) => void;
 }
 
-export function BottomControls({ zoom, onZoomChange, psdInfo, struct, activeCount, layerImagesCount, onSave, onLoad, onOpenPlayer, onOpenServer, bgOpacity, onBgOpacityChange }: Props) {
+export function BottomControls({ hasMap, zoom, onZoomChange, onSave, onLoad, onOpenPlayer, onOpenServer, bgOpacity, onBgOpacityChange }: Props) {
   return (
-    <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.border}` }}>
-      <button onClick={onOpenPlayer}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px', borderRadius: 7, border: 'none', cursor: 'pointer', background: C.accent, color: '#0d1117', fontWeight: 700, fontSize: 12, marginBottom: 8 }}>
+    <div style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <Button variant="primary" size="lg" block onClick={onOpenPlayer} style={{ gap: 8 }}>
         <Maximize2 size={14} /> Modo Jugador
-      </button>
-      <Link href="/admin" target="_blank" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`,
-        background: 'transparent', color: C.dim, fontSize: 10, textDecoration: 'none',
-        marginBottom: 8,
-      }}>
-        🗡️ Back Office
-      </Link>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <button onClick={onSave} title="Guardar sesión en JSON"
-          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 10 }}>
+      </Button>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <Button size="sm" style={{ flex: 1, gap: 5, padding: '6px' }} onClick={onSave} disabled={!hasMap}
+          title={hasMap ? 'Guardar sesión en JSON' : 'Carrega un mapa per poder desar la partida'}>
           <SaveIcon size={11} /> Guardar
-        </button>
+        </Button>
         <label title="Cargar sesión desde JSON"
-          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 10 }}>
+          style={{ ...buttonStyle('secondary', 'sm'), flex: 1, gap: 5, padding: '6px' }}>
           <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) { onLoad(e.target.files[0]); (e.target as HTMLInputElement).value = ''; } }} />
           <LoadIcon size={11} /> Cargar
         </label>
       </div>
       {onOpenServer && (
-        <button onClick={onOpenServer} title="Desar / carregar partides al servidor"
-          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 10, marginBottom: 8 }}>
+        <Button size="sm" block onClick={onOpenServer} title="Desar / carregar partides al servidor" style={{ padding: '6px' }}>
           ☁ Partides al servidor
-        </button>
+        </Button>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-        <button onClick={() => onZoomChange(Math.max(0.2, zoom - 0.1))}
-          style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer', color: C.dim, padding: '3px 6px', display: 'flex' }}>
-          <ZoomOut size={11} />
-        </button>
-        <input type="range" min={0.2} max={10} step={0.05} value={zoom} onChange={e => onZoomChange(parseFloat(e.target.value))}
-          style={{ flex: 1, accentColor: C.accent }} />
-        <button onClick={() => onZoomChange(Math.min(10, zoom + 0.1))}
-          style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer', color: C.dim, padding: '3px 6px', display: 'flex' }}>
-          <ZoomIn size={11} />
-        </button>
-        <span style={{ color: C.dim, fontSize: 12, minWidth: 34, textAlign: 'right' }}>{Math.round(zoom * 100)}%</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }} title="Opacitat del fons (només a la teva pantalla; els jugadors el veuen sempre opac)">
-        <span style={{ color: C.dim, fontSize: 12, minWidth: 16, textAlign: 'center' }}>🗺️</span>
-        <input type="range" min={0.1} max={1} step={0.05} value={bgOpacity} onChange={e => onBgOpacityChange(parseFloat(e.target.value))}
-          style={{ flex: 1, accentColor: C.accent }} />
-        <span style={{ color: C.dim, fontSize: 12, minWidth: 34, textAlign: 'right' }}>{Math.round(bgOpacity * 100)}%</span>
-      </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {psdInfo && <Chip>{psdInfo.width}×{psdInfo.height}</Chip>}
-        {struct && <Chip col={C.enemy}>{activeCount} activos</Chip>}
-        {layerImagesCount > 0 && <Chip col={C.ok}>{layerImagesCount} imgs</Chip>}
-      </div>
+      <Link href="/admin" target="_blank" style={{ ...buttonStyle('ghost', 'sm', { block: true }), padding: '4px', textDecoration: 'none' }}>
+        🗡️ Back Office
+      </Link>
+      {hasMap && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <IconButton size={22} onClick={() => onZoomChange(Math.max(0.2, zoom - 0.1))} title="Allunyar" style={{ color: C.dim }}>
+              <ZoomOut size={11} />
+            </IconButton>
+            <input type="range" min={0.2} max={10} step={0.05} value={zoom} onChange={e => onZoomChange(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: C.accent }} />
+            <IconButton size={22} onClick={() => onZoomChange(Math.min(10, zoom + 0.1))} title="Apropar" style={{ color: C.dim }}>
+              <ZoomIn size={11} />
+            </IconButton>
+            <span style={{ color: C.dim, fontSize: FS.sm, minWidth: 34, textAlign: 'right' }}>{Math.round(zoom * 100)}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }} title="Opacitat del fons (només a la teva pantalla; els jugadors el veuen sempre opac)">
+            <span style={{ color: C.dim, fontSize: FS.md, width: 22, textAlign: 'center' }}>🗺️</span>
+            <input type="range" min={0.1} max={1} step={0.05} value={bgOpacity} onChange={e => onBgOpacityChange(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: C.accent }} />
+            <span style={{ color: C.dim, fontSize: FS.sm, minWidth: 34, textAlign: 'right' }}>{Math.round(bgOpacity * 100)}%</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

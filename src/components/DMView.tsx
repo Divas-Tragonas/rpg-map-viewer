@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT } from '@/constants';
+import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -34,12 +34,21 @@ import { SceneConfigOverlay } from '@/components/dm/SceneConfigOverlay';
 import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
 import { StageTopBar } from '@/components/dm/StageTopBar';
+import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
+import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { SidebarSection } from '@/components/ui/SidebarSection';
+import { Button } from '@/components/ui/Button';
+import { FolderOpen } from '@/components/icons';
 import { isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
 import { useAutosave } from '@/hooks/useAutosave';
 import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
+
+const welcomeLink: React.CSSProperties = {
+  background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: FS.sm,
+  textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer',
+};
 
 export function DMView() {
   // ── State ────────────────────────────────────────────────────────────────
@@ -77,8 +86,8 @@ export function DMView() {
   // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
   // a baixa freqüència perquè el HUD no re-renderitzi a 60fps mentre el DM fa pan/zoom.
   const [camAr, setCamAr] = useState<number | null>(null);
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-  const [activeDrag, setActiveDrag] = useState<string | number | null>(null);
+  const [, setExpanded] = useState<Record<number, boolean>>({});
+  const [, setActiveDrag] = useState<string | number | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [activeSpells, setActiveSpells] = useState<Spell[]>([]);
   const [tokenSizeOverride, setTokenSizeOverride] = useState<TokenSizeMap>({});
@@ -91,9 +100,21 @@ export function DMView() {
   const [gridOriginY, setGridOriginY] = useState(0);
   const [gridCalibrating, setGridCalibrating] = useState(false);
   const [drawToolState, setDrawToolState] = useState<DrawTool>('none');
-  const [drawColor, setDrawColor] = useState('#f85149');
+  const [drawColor, setDrawColor] = useState<string>(C.enemy);
   const [drawSize, setDrawSize] = useState(6);
-  const [sidebarTab, setSidebarTab] = useState<'mapa' | 'enemics'>('mapa');
+  // Pestanyes per funció: Escena (tot el que hi ha al mapa: jugadors i enemics de qualsevol
+  // origen), Mapa (fons, capes, sales, llums) i Biblioteca (plantilles per afegir enemics).
+  const [sidebarTab, setSidebarTab] = useState<'escena' | 'mapa' | 'biblioteca'>('escena');
+  // Arrossegar el mapa: Espai premut (cursor de mà oberta) i pan en curs (mà tancada).
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const [panning, setPanning] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  // Fitxer arrossegant-se damunt del canvas (tota la pantalla accepta el mapa, el PSD o la partida).
+  const [fileOver, setFileOver] = useState(false);
+  const fileDragDepth = React.useRef(0);
+  const bgInputRef = React.useRef<HTMLInputElement>(null);
+  const psdInputRef = React.useRef<HTMLInputElement>(null);
+  const sessionInputRef = React.useRef<HTMLInputElement>(null);
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
   const [ctxEditName, setCtxEditName] = useState('');
@@ -698,7 +719,7 @@ export function DMView() {
     setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
-    addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit,
+    addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
   }), [redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
@@ -795,13 +816,46 @@ export function DMView() {
   }, [R]);
 
   // ── Keyboard handlers ─────────────────────────────────────────────────────
+  const toggleShortcuts = useCallback(() => setShowShortcuts(v => !v), []);
+  // Clic a una fila de la llista d'Escena: selecciona el token al canvas (com fer-hi clic).
+  const selectToken = useCallback((id: string | number) => {
+    setSelectedToken(id); R.rSelectedToken.current = id;
+  }, [R]);
   useKeyboardHandlers(R, {
     setDrawTool, undoStroke, undoTokenMove, undoMapEdit, skipBossIntro,
     toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
     onDeleteSelection,
     removeLastWall,
     cancelWallChain,
+    advanceTurn, toggleShortcuts, setSpaceHeld,
   });
+
+  // ── Fitxers deixats a qualsevol lloc del canvas ────────────────────────────
+  // Abans només es podien deixar a la caixa petita «Img/Vídeo» del panell lateral, i el text
+  // de benvinguda del centre ho demanava, però el centre no acceptava res.
+  const loadAnyFile = useCallback((f: File) => {
+    const name = f.name.toLowerCase();
+    if (name.endsWith('.psd')) void loadPSD(f);
+    else if (name.endsWith('.json')) void loadSession(f);
+    else if (f.type.startsWith('image/') || f.type.startsWith('video/')) void loadBg(f);
+  }, [loadPSD, loadSession, loadBg]);
+  const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files');
+  const onStageDragEnter = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return;
+    fileDragDepth.current += 1; setFileOver(true);
+  };
+  const onStageDragLeave = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return;
+    fileDragDepth.current = Math.max(0, fileDragDepth.current - 1);
+    if (fileDragDepth.current === 0) setFileOver(false);
+  };
+  const onStageDrop = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    fileDragDepth.current = 0; setFileOver(false);
+    const f = e.dataTransfer.files[0];
+    if (f) loadAnyFile(f);
+  };
 
   // ── Canvas-level callbacks ────────────────────────────────────────────────
   const onResetView = useCallback(() => {
@@ -986,7 +1040,10 @@ export function DMView() {
   useEffect(() => {
     if (!expositorOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.target || (e.target as HTMLElement)?.tagName !== 'INPUT') {
+      // (Abans la condició tenia la precedència malament i QUALSEVOL tecla fora d'un camp
+      // reiniciava el Ken Burns: també l'Enter de passar torn o les dreceres de les eines.)
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (e.code === 'Space' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
         e.preventDefault();
         expositorKbPaused.current = !expositorKbPaused.current;
         expositorZoom.current = 1;
@@ -1149,9 +1206,6 @@ export function DMView() {
   // sintètica que desbloqueja el render loop). `psdStruct` és el PSD real: la UI que
   // només té sentit amb capes de Photoshop es penja d'aquest, no de `struct`.
   const psdStruct = struct && !struct.synthetic ? struct : null;
-  const activeCount = psdStruct
-    ? psdStruct.enemyRooms.reduce((n, z) => n + z.enemies.filter(e => vis[e.id]).length, 0)
-    : 0;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
@@ -1159,38 +1213,50 @@ export function DMView() {
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <div style={{ width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-        <ImportPanel
-          bgLoaded={bgLoaded} bgName={bgName} parsing={parsing} struct={psdStruct}
-          psdInfo={psdStruct ? psdInfo : null} parseError={parseError} warnings={warnings}
-          warningsDismissed={warningsDismissed} setWarningsDismissed={setWarningsDismissed}
-          onLoadBg={loadBg} onLoadPSD={loadPSD} onLoadDemo={loadDemo}
-        />
-
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-          {(['mapa', 'enemics'] as const).map(tab => (
+          {([['escena', 'Escena'], ['mapa', 'Mapa'], ['biblioteca', 'Biblioteca']] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => setSidebarTab(tab)}
-              style={{ flex: 1, padding: '7px 4px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', border: 'none', cursor: 'pointer', background: sidebarTab === tab ? `${C.accent}18` : 'transparent', color: sidebarTab === tab ? C.accent : C.dim, borderBottom: sidebarTab === tab ? `2px solid ${C.accent}` : '2px solid transparent' }}>
-              {tab === 'mapa' ? 'Mapa' : 'Enemics'}
+              style={{ flex: 1, padding: '8px 4px', fontSize: FS.xs, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', border: 'none', cursor: 'pointer', background: sidebarTab === tab ? tint(C.accent, 0.09) : 'transparent', color: sidebarTab === tab ? C.accent : C.dim, borderBottom: sidebarTab === tab ? `2px solid ${C.accent}` : '2px solid transparent' }}>
+              {label}
             </button>
           ))}
         </div>
 
         {/* Tab content */}
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {sidebarTab === 'escena' && (
+            <>
+              <PlayersPanel
+                players={players} newPName={newPName} setNewPName={setNewPName}
+                newPColor={newPColor} setNewPColor={setNewPColor}
+                newPHpMax={newPHpMax} setNewPHpMax={setNewPHpMax}
+                onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
+                onRemove={removePlayer} onAdjustHp={adjustPlayerHp} onSetHpMax={setPlayerHpMax} onSetSpeed={setPlayerSpeed} onSetVision={setPlayerVision} onSetCanMove={setPlayerCanMove} onRename={renamePlayer} onLoadParty={loadParty}
+              />
+              <SceneEnemiesPanel
+                struct={psdStruct} vis={vis} psdEnemyOverrides={psdEnemyOverrides}
+                libEnemies={libEnemies} defeated={defeated} selectedToken={selectedToken}
+                onSelect={selectToken}
+                onTogglePsdVis={toggleVis} onAdjustPsdHp={adjustPsdEnemyHp}
+                onResetPsd={resetToken} onDeletePsd={id => deleteLayer(id, 'enemy')}
+                onToggleLibVis={toggleLibEnemyVisibility} onAdjustLibHp={adjustLibEnemyHp}
+                onRemoveLib={removeLibEnemy}
+                onOpenLibrary={() => setSidebarTab('biblioteca')}
+              />
+            </>
+          )}
           {sidebarTab === 'mapa' && (
             <>
+              <ImportPanel
+                bgLoaded={bgLoaded} bgName={bgName} parsing={parsing} struct={psdStruct}
+                psdInfo={psdStruct ? psdInfo : null} parseError={parseError} warnings={warnings}
+                warningsDismissed={warningsDismissed} setWarningsDismissed={setWarningsDismissed}
+                onLoadBg={loadBg} onLoadPSD={loadPSD} onLoadDemo={loadDemo}
+              />
               {psdStruct && (
                 <SidebarSection title="Capes del PSD" icon="🗂" defaultOpen maxBodyHeight={260}>
-                  <LayerTree
-                    struct={psdStruct} vis={vis} expanded={expanded}
-                    activeDrag={activeDrag} selectedToken={selectedToken}
-                    psdEnemyOverrides={psdEnemyOverrides} defeated={defeated}
-                    setExpanded={setExpanded} setSelectedToken={setSelectedToken}
-                    rSelectedToken={R.rSelectedToken}
-                    onToggleVis={toggleVis} onDeleteLayer={deleteLayer} onResetToken={resetToken}
-                    onAdjustPsdHp={adjustPsdEnemyHp}
-                  />
+                  <LayerTree struct={psdStruct} vis={vis} onToggleVis={toggleVis} onDeleteLayer={deleteLayer} />
                 </SidebarSection>
               )}
               {bgLoaded && (
@@ -1209,31 +1275,20 @@ export function DMView() {
                   onSelectLight={selectLight} onRemoveLight={removeLight}
                 />
               )}
-              <PlayersPanel
-                players={players} newPName={newPName} setNewPName={setNewPName}
-                newPColor={newPColor} setNewPColor={setNewPColor}
-                newPHpMax={newPHpMax} setNewPHpMax={setNewPHpMax}
-                onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
-                onRemove={removePlayer} onAdjustHp={adjustPlayerHp} onSetHpMax={setPlayerHpMax} onSetSpeed={setPlayerSpeed} onSetVision={setPlayerVision} onSetCanMove={setPlayerCanMove} onRename={renamePlayer} onLoadParty={loadParty}
-              />
             </>
           )}
-          {sidebarTab === 'enemics' && (
+          {sidebarTab === 'biblioteca' && (
             <EnemyLibraryPanel
               libEnemies={libEnemies}
-              defeated={defeated}
               onAddEnemy={addLibEnemy}
               onAddDbEnemy={addDbEnemy}
-              onRemove={removeLibEnemy}
-              onToggleVisibility={toggleLibEnemyVisibility}
-              onAdjustHp={adjustLibEnemyHp}
             />
           )}
         </div>
 
         <BottomControls
-          zoom={zoom} onZoomChange={onZoomChange} psdInfo={psdInfo} struct={psdStruct}
-          activeCount={activeCount} layerImagesCount={Object.keys(layerImages).length}
+          hasMap={bgLoaded}
+          zoom={zoom} onZoomChange={onZoomChange}
           onSave={saveSession} onLoad={loadSession} onOpenPlayer={openPlayerWindow}
           onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
           bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
@@ -1241,11 +1296,13 @@ export function DMView() {
       </div>
 
       {/* ── Main canvas area ──────────────────────────────────────────────── */}
-      <div ref={R.stageRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}>
+      <div ref={R.stageRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}
+        onDragEnter={onStageDragEnter} onDragLeave={onStageDragLeave}
+        onDragOver={e => { if (isFileDrag(e)) e.preventDefault(); }} onDrop={onStageDrop}>
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : (areaSelectMode || drawToolState === 'wall' || drawToolState === 'light') ? 'crosshair' : canvasCursor }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: panning ? 'grabbing' : spaceHeld ? 'grab' : (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : (areaSelectMode || drawToolState === 'wall' || drawToolState === 'light') ? 'crosshair' : canvasCursor }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={handleMouseUp}
@@ -1263,6 +1320,7 @@ export function DMView() {
           playerScreens={playerScreens} camAr={camAr}
           hasMap={bgLoaded} autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
           onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
+          onOpenPlayer={openPlayerWindow} onShowShortcuts={toggleShortcuts}
         />
         <FloatingToolbar
           drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
@@ -1275,6 +1333,7 @@ export function DMView() {
           ctrlPanActive={ctrlPanActive} onToggleCtrlPan={toggleCtrlPan}
           shiftPanActive={shiftPanActive} onToggleShiftPan={toggleShiftPan}
           areaSelectMode={areaSelectMode} onToggleAreaSelect={toggleAreaSelect}
+          disabled={!bgLoaded}
           grid={{
             gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
             rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridSnap: R.rGridSnap,
@@ -1286,7 +1345,7 @@ export function DMView() {
             gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef,
           }}
         />
-        <TurnTracker
+        {bgLoaded && <TurnTracker
           turn={turn}
           players={players}
           libEnemies={libEnemies}
@@ -1302,7 +1361,7 @@ export function DMView() {
           onAdvanceRound={advanceRound}
           onRecoverTurn={recoverTurn}
           onReorder={reorderTurn}
-        />
+        />}
         <StageTopBar
           expositorOpen={expositorOpen} expositorActive={expositorActive}
           onToggleExpositor={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
@@ -1312,12 +1371,12 @@ export function DMView() {
 
         {/* Expositor floating panel */}
         {expositorOpen && (
-          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 480, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 480, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>Expositor de Campanya</span>
+              <span style={{ color: C.bright, fontWeight: 700, fontSize: FS.md }}>Expositor de Campanya</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: C.dim, fontSize: 10 }}>Espai: reset/pausa KB</span>
-                <button onClick={() => setExpositorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: 14, lineHeight: 1 }}>×</button>
+                <span style={{ color: C.dim, fontSize: FS.xs }}>Espai: reset/pausa KB</span>
+                <button onClick={() => setExpositorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: FS.lg, lineHeight: 1 }}>×</button>
               </div>
             </div>
             {/* Preview area with KB animation and pan/zoom */}
@@ -1325,7 +1384,7 @@ export function DMView() {
               ref={expositorPreviewRef}
               style={{ height: 260, background: '#000', position: 'relative', overflow: 'hidden', cursor: expositorLocalSrc ? (expositorDragRef.current ? 'grabbing' : 'grab') : 'pointer' }}
               onClick={e => { if (!expositorLocalSrc) expositorInputRef.current?.click(); e.stopPropagation(); }}
-              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadExpositorFile(f); }}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); fileDragDepth.current = 0; setFileOver(false); const f = e.dataTransfer.files[0]; if (f) loadExpositorFile(f); }}
               onDragOver={e => e.preventDefault()}
               onMouseDown={e => {
                 if (e.button !== 0 || !expositorLocalSrc) return;
@@ -1363,7 +1422,7 @@ export function DMView() {
                       <video src={expositorLocalSrc} muted autoPlay loop playsInline draggable={false} style={{ maxWidth: 480, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
                     )}
                   </div>
-                  <div style={{ position: 'absolute', bottom: 6, right: 8, color: 'rgba(255,255,255,0.3)', fontSize: 9, pointerEvents: 'none', letterSpacing: '0.08em' }}>
+                  <div style={{ position: 'absolute', bottom: 6, right: 8, color: 'rgba(255,255,255,0.3)', fontSize: FS.xs, pointerEvents: 'none', letterSpacing: '0.08em' }}>
                     scroll zoom · drag pan · espai reset
                   </div>
                 </>
@@ -1371,7 +1430,7 @@ export function DMView() {
               {!expositorLocalSrc && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8, color: C.dim }}>
                   <div style={{ fontSize: 28 }}>🖼</div>
-                  <div style={{ fontSize: 11 }}>Arrossega o clica per carregar imatge / vídeo</div>
+                  <div style={{ fontSize: FS.sm }}>Arrossega o clica per carregar imatge / vídeo</div>
                 </div>
               )}
             </div>
@@ -1380,18 +1439,18 @@ export function DMView() {
               <button
                 onClick={sendExpositorToPlayer}
                 disabled={!expositorLocalSrc}
-                style={{ flex: 1, padding: '7px', borderRadius: 6, border: 'none', background: expositorLocalSrc ? C.accent : 'rgba(255,255,255,0.05)', cursor: expositorLocalSrc ? 'pointer' : 'default', color: expositorLocalSrc ? '#0d1117' : C.dim, fontWeight: 700, fontSize: 11 }}>
+                style={{ flex: 1, padding: '7px', borderRadius: RADIUS.md, border: 'none', background: expositorLocalSrc ? C.accent : 'rgba(255,255,255,0.05)', cursor: expositorLocalSrc ? 'pointer' : 'default', color: expositorLocalSrc ? '#0d1117' : C.dim, fontWeight: 700, fontSize: FS.sm }}>
                 {expositorActive ? '✓ Mostrant als jugadors' : '▶ Mostrar als jugadors'}
               </button>
               <button
                 onClick={() => expositorInputRef.current?.click()}
-                style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: 11 }}>
+                style={{ padding: '7px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: FS.sm }}>
                 Fitxer
               </button>
               <button
                 onClick={hideExpositorOnPlayer}
                 disabled={!expositorActive}
-                style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: expositorActive ? 'pointer' : 'default', color: expositorActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: 11 }}>
+                style={{ padding: '7px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: expositorActive ? 'pointer' : 'default', color: expositorActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: FS.sm }}>
                 Ocultar
               </button>
             </div>
@@ -1400,12 +1459,12 @@ export function DMView() {
 
         {/* Revelador de text floating panel */}
         {textRevealOpen && (
-          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 620, maxHeight: 'calc(100vh - 78px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 620, maxHeight: 'calc(100vh - 78px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ color: C.bright, fontWeight: 700, fontSize: 12 }}>Revelador de Text</span>
+              <span style={{ color: C.bright, fontWeight: 700, fontSize: FS.md }}>Revelador de Text</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: C.dim, fontSize: 10 }}>Espai: revela/pausa · ←→ navega · R reinicia</span>
-                <button onClick={() => setTextRevealOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: 14, lineHeight: 1 }}>×</button>
+                <span style={{ color: C.dim, fontSize: FS.xs }}>Espai: revela/pausa · ←→ navega · R reinicia</span>
+                <button onClick={() => setTextRevealOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: FS.lg, lineHeight: 1 }}>×</button>
               </div>
             </div>
 
@@ -1415,14 +1474,14 @@ export function DMView() {
                 ref={trSrcRef}
                 placeholder="Enganxa aquí el text que vols anar revelant…&#10;&#10;Per exemple, la narració d'obertura d'una escena."
                 onChange={() => { if (trPausedRef.current && (trEngineRef.current?.pos ?? 0) === 0) trBuild(); }}
-                style={{ width: '100%', height: 110, resize: 'vertical', border: 'none', borderBottom: `1px solid ${C.border}`, outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: "'EB Garamond',Georgia,serif", fontSize: 14, lineHeight: 1.5, padding: '10px 12px', display: 'block' }}
+                style={{ width: '100%', height: 110, resize: 'vertical', border: 'none', borderBottom: `1px solid ${C.border}`, outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: "'EB Garamond',Georgia,serif", fontSize: FS.lg, lineHeight: 1.5, padding: '10px 12px', display: 'block' }}
               />
 
               {/* Controls */}
               <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10, borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ display: 'flex', gap: 16 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.dim, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.sm, color: C.dim, marginBottom: 4 }}>
                       <span>Velocitat</span><b ref={trSpeedLblRef} style={{ color: C.accent, fontWeight: 600 }}>mitjana</b>
                     </div>
                     <input ref={trSpeedRef} type="range" min={1} max={100} defaultValue={50}
@@ -1430,7 +1489,7 @@ export function DMView() {
                       style={{ width: '100%', accentColor: C.accent }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.dim, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.sm, color: C.dim, marginBottom: 4 }}>
                       <span>Suavitat</span><b ref={trSmoothLblRef} style={{ color: C.accent, fontWeight: 600 }}>suau</b>
                     </div>
                     <input ref={trSmoothRef} type="range" min={1} max={100} defaultValue={55}
@@ -1441,7 +1500,7 @@ export function DMView() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => { const nv = !trDramatic; setTrDramatic(nv); trDramaticRef.current = nv; }}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: `1px solid ${trDramatic ? C.accent : C.border}`, background: trDramatic ? `${C.accent}18` : 'transparent', color: trDramatic ? C.accent : C.dim, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: RADIUS.md, border: `1px solid ${trDramatic ? C.accent : C.border}`, background: trDramatic ? `${C.accent}18` : 'transparent', color: trDramatic ? C.accent : C.dim, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600 }}>
                     Pauses dramàtiques
                   </button>
                   <button
@@ -1451,7 +1510,7 @@ export function DMView() {
                       trRunningRef.current = nv; trPausedRef.current = !nv;
                       trUpdateStatus();
                     }}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: `1px solid ${trManual ? C.accent : C.border}`, background: trManual ? `${C.accent}18` : 'transparent', color: trManual ? C.accent : C.dim, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: RADIUS.md, border: `1px solid ${trManual ? C.accent : C.border}`, background: trManual ? `${C.accent}18` : 'transparent', color: trManual ? C.accent : C.dim, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600 }}>
                     Control manual (frase a frase)
                   </button>
                 </div>
@@ -1470,9 +1529,9 @@ export function DMView() {
               </div>
 
               {/* Status bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 12px', borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.dim }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 12px', borderTop: `1px solid ${C.border}`, fontSize: FS.sm, color: C.dim }}>
                 <span ref={trCounterRef} style={{ minWidth: 80 }}>—</span>
-                <div style={{ flex: 1, height: 3, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ flex: 1, height: 3, background: C.border, borderRadius: RADIUS.sm, overflow: 'hidden' }}>
                   <div ref={trProgRef} style={{ height: '100%', width: '0%', background: C.accent }} />
                 </div>
               </div>
@@ -1483,24 +1542,24 @@ export function DMView() {
               <button
                 ref={trPlayBtnRef}
                 onClick={() => { trManualRef.current ? trNextSentence() : (trPausedRef.current ? trPlay() : trPause()); }}
-                style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid ${C.accent}`, background: `${C.accent}18`, color: C.accent, cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>
+                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.accent}`, background: `${C.accent}18`, color: C.accent, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
                 Comença
               </button>
               <button
                 onClick={trReset}
-                style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: 11 }}>
+                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: FS.sm }}>
                 Reinicia
               </button>
               <div style={{ flex: 1 }} />
               <button
                 onClick={sendTextRevealToPlayer}
-                style={{ padding: '8px 12px', borderRadius: 6, border: 'none', background: C.accent, color: '#0d1117', cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>
+                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: 'none', background: C.accent, color: C.onAccent, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
                 {textRevealActive ? '✓ Mostrant als jugadors' : '▶ Mostrar als jugadors'}
               </button>
               <button
                 onClick={hideTextRevealOnPlayer}
                 disabled={!textRevealActive}
-                style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: textRevealActive ? 'pointer' : 'default', color: textRevealActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: 11 }}>
+                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: textRevealActive ? 'pointer' : 'default', color: textRevealActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: FS.sm }}>
                 Ocultar
               </button>
             </div>
@@ -1508,37 +1567,71 @@ export function DMView() {
         )}
 
         {!bgLoaded && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none' }}>
-            <div style={{ textAlign: 'center', color: C.dim }}>
-              <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>🗺</div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Carrega una imatge o vídeo de fons</div>
-              <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>Arrossega a la zona "Img/Vídeo" del panell esquerre</div>
-              <div style={{ fontSize: 11, marginTop: 6, opacity: 0.5 }}>Amb la imatge n&apos;hi ha prou: grid, sales, parets, llums i tokens<br />funcionen sense cap arxiu de Photoshop (el PSD és opcional)</div>
+          // Pantalla de benvinguda. Tres accions grans en lloc d'un text que enviava a una
+          // caixa petita del panell lateral; i tot el canvas accepta fitxers (veure onStageDrop).
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none', padding: 24 }}>
+            <div style={{ textAlign: 'center', color: C.dim, maxWidth: 440, pointerEvents: 'auto' }}>
+              <div style={{ fontSize: 34, marginBottom: 10, opacity: 0.35 }}>🗺</div>
+              <div style={{ fontSize: FS.xl, fontWeight: 700, color: C.bright }}>Comença una partida</div>
+              <div style={{ fontSize: FS.md, marginTop: 6, lineHeight: 1.5 }}>
+                Obre el mapa (una imatge o un vídeo) o arrossega&apos;l a qualsevol lloc d&apos;aquesta pantalla.
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18, flexWrap: 'wrap' }}>
+                <Button variant="primary" size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, minWidth: 170 }}>
+                  <FolderOpen size={15} /> Obrir mapa
+                </Button>
+                <Button variant="secondary" size="lg" onClick={() => void loadDemo()} style={{ minWidth: 170 }}>
+                  🧪 Provar la demo
+                </Button>
+              </div>
 
               {/* Recuperació del desat automàtic: l'única sortida després d'un F5 accidental. */}
               {autosaveMeta && (
-                <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, pointerEvents: 'auto' }}>
-                  <button onClick={() => void recoverAutosave()} disabled={recovering}
+                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <Button variant="tint" size="lg" onClick={() => void recoverAutosave()} disabled={recovering}
                     title={`Desada automàticament el ${new Date(autosaveMeta.savedAt).toLocaleString('ca-ES')}`}
-                    style={{
-                      padding: '10px 18px', borderRadius: 8, border: `1px solid ${C.accent}`,
-                      background: `${C.accent}1e`, color: C.accent, fontSize: 12, fontWeight: 700,
-                      cursor: recovering ? 'default' : 'pointer', opacity: recovering ? 0.6 : 1,
-                    }}>
+                    style={{ minWidth: 348 }}>
                     {recovering ? 'Recuperant…' : `↩ Recuperar l'última partida · ${agoLabel(autosaveMeta.savedAt)}`}
-                  </button>
-                  <div style={{ fontSize: 10, opacity: 0.65 }}>
+                  </Button>
+                  <div style={{ fontSize: FS.xs, opacity: 0.8 }}>
                     {autosaveMeta.mapName || 'Sense nom'}
                     {' · '}
                     <button onClick={() => void discardAutosave()}
-                      style={{ background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: 10, textDecoration: 'underline', cursor: 'pointer' }}>
+                      style={{ background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: FS.xs, textDecoration: 'underline', cursor: 'pointer' }}>
                       descartar
                     </button>
                   </div>
                 </div>
               )}
 
-              <div style={{ fontSize: 16, marginTop: 12, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
+              <div style={{ marginTop: 16, fontSize: FS.sm, display: 'flex', gap: 14, justifyContent: 'center' }}>
+                <button onClick={() => psdInputRef.current?.click()} style={welcomeLink}>Carregar un PSD</button>
+                <button onClick={() => sessionInputRef.current?.click()} style={welcomeLink}>Carregar una partida (.json)</button>
+              </div>
+              <div style={{ fontSize: FS.xs, marginTop: 10, opacity: 0.6, lineHeight: 1.5 }}>
+                El PSD és opcional: amb la imatge ja funcionen la graella, les sales, les parets, els llums i els tokens.
+              </div>
+
+              <div style={{ fontSize: FS.lg, marginTop: 16, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
+            </div>
+            <input ref={bgInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) void loadBg(f); e.target.value = ''; }} />
+            <input ref={psdInputRef} type="file" accept=".psd" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) void loadPSD(f); e.target.value = ''; }} />
+            <input ref={sessionInputRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) void loadSession(f); e.target.value = ''; }} />
+          </div>
+        )}
+
+        {/* Fitxer arrossegant-se per sobre: tot el canvas és zona de deixar-lo anar. */}
+        {fileOver && (
+          <div style={{ position: 'absolute', inset: 10, zIndex: 40, pointerEvents: 'none', borderRadius: RADIUS.lg, border: `2px dashed ${C.accent}`, background: tint(C.accent, 0.08), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: C.float, border: `1px solid ${C.accent}`, borderRadius: RADIUS.lg, padding: '12px 18px', color: C.bright, fontSize: FS.lg, fontWeight: 700, textAlign: 'center' }}>
+              Deixa anar per carregar-lo
+              <div style={{ fontSize: FS.sm, color: C.dim, fontWeight: 500, marginTop: 4 }}>
+                Imatge o vídeo → mapa{bgLoaded ? ' (substitueix l\'actual)' : ''} · .psd → capes · .json → partida
+              </div>
             </div>
           </div>
         )}
@@ -1566,9 +1659,9 @@ export function DMView() {
         contextMenu={contextMenu} conditions={conditions} defeated={defeated}
         rDefeated={R.rDefeated} defeatedAnimRef={R.defeatedAnimRef}
         rConditions={R.rConditions}
-        rLibEnemies={R.rLibEnemies}
-        rPsdEnemyOverrides={R.rPsdEnemyOverrides}
-        rPlayers={R.rPlayers}
+        libEnemies={libEnemies}
+        psdEnemyOverrides={psdEnemyOverrides}
+        players={players}
         ctxEditName={ctxEditName} setCtxEditName={setCtxEditName}
         ctxEditHpMax={ctxEditHpMax} setCtxEditHpMax={setCtxEditHpMax}
         ctxEditSizeFt={ctxEditSizeFt} setCtxEditSizeFt={setCtxEditSizeFt}
@@ -1601,6 +1694,8 @@ export function DMView() {
         setPsdEnemyProps={setPsdEnemyProps}
         setLibEnemyProps={setLibEnemyProps}
       />
+
+      {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
 
       {showServerSessions && (
         <ServerSessionsPanel

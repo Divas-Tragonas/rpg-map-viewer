@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { C } from '@/constants';
+import { C, FS, RADIUS } from '@/constants';
 
 type Side = 'right' | 'bottom';
 
@@ -34,18 +34,18 @@ export function HoverTip({ show, side = 'right', title, hint, children, width = 
   return (
     <div style={{
       position: 'absolute', ...place, zIndex: 60, width, pointerEvents: 'none',
-      background: 'rgba(10,13,18,.97)', border: `1px solid ${C.border}`, borderRadius: 8,
+      background: 'rgba(10,13,18,.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg,
       boxShadow: '0 6px 22px rgba(0,0,0,0.65)', padding: '7px 9px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: children ? 4 : 0 }}>
-        <b style={{ color: C.bright, fontSize: 11, letterSpacing: '0.02em' }}>{title}</b>
+        <b style={{ color: C.bright, fontSize: FS.sm, letterSpacing: '0.02em' }}>{title}</b>
         {hint && (
-          <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 9, fontWeight: 700, color: C.dim, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>
+          <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: FS.xs, fontWeight: 700, color: C.dim, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', borderRadius: RADIUS.sm, padding: '1px 5px', letterSpacing: '0.04em' }}>
             {hint}
           </span>
         )}
       </div>
-      {children && <div style={{ fontSize: 9.5, color: C.dim, lineHeight: 1.55 }}>{children}</div>}
+      {children && <div style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.55 }}>{children}</div>}
     </div>
   );
 }

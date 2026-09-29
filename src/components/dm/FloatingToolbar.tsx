@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon } from '@/components/icons';
-import { C, PALETTE } from '@/constants';
+import { C, PALETTE, FS, RADIUS } from '@/constants';
 import { GridPanel } from '@/components/dm/GridPanel';
 import { HoverTip } from '@/components/ui/HoverTip';
 import type { DrawTool, PaintedZone, TokenSizeMap } from '@/types';
@@ -50,6 +50,8 @@ interface Props {
   shiftPanActive: boolean; onToggleShiftPan: () => void;
   areaSelectMode: boolean; onToggleAreaSelect: () => void;
   grid: GridProps;
+  /** Sense mapa carregat les eines no fan res: la barra es mostra apagada. */
+  disabled?: boolean;
 }
 
 interface ToolDef {
@@ -63,8 +65,9 @@ interface ToolDef {
 
 const TOOLS: ToolDef[] = [
   {
-    tool: 'none', label: 'Selecció', icon: <PointerIcon size={15} />, color: C.accent,
-    desc: <>El cursor de sempre: <b style={{ color: C.text }}>clica un token</b> per seleccionar-lo i arrossega&apos;l per moure&apos;l (doble clic si és d&apos;un grup, per moure&apos;ls tots). <b style={{ color: C.text }}>Clic dret</b> obre el menú del token, de la sala o de la zona màgica. Sobre una <b style={{ color: C.text }}>porta</b>, el clic l&apos;obre o la tanca.</>,
+    tool: 'none', label: 'Selecció', hint: 'V', icon: <PointerIcon size={15} />, color: C.accent,
+    desc: <>El cursor de sempre: <b style={{ color: C.text }}>clica un token</b> per seleccionar-lo i arrossega&apos;l per moure&apos;l (doble clic si és d&apos;un grup, per moure&apos;ls tots). <b style={{ color: C.text }}>Arrossega en buit</b> per moure el mapa. <b style={{ color: C.text }}>Clic dret</b> obre el menú del token, de la sala o de la zona màgica. Sobre una <b style={{ color: C.text }}>porta</b>, el clic l&apos;obre o la tanca.
+      <div style={{ marginTop: 4 }}>Amb qualsevol eina: Espai+arrossegar mou el mapa · Esc torna aquí.</div></>,
   },
   {
     tool: 'pen', label: 'Ploma', hint: '1', icon: <PenLine size={15} />,
@@ -79,7 +82,7 @@ const TOOLS: ToolDef[] = [
     desc: <>Pinta <b style={{ color: C.text }}>zones màgiques</b>: clica per marcar els vèrtexs del polígon i escull l&apos;element (foc, gel, aigua, llamps, verí o màgia). Als jugadors es veuen amb textura animada.</>,
   },
   {
-    tool: 'pointer', label: 'Senyal i regla', hint: '4', icon: <CrosshairIcon size={15} />, color: '#58a6ff',
+    tool: 'pointer', label: 'Senyal i regla', hint: '4', icon: <CrosshairIcon size={15} />, color: C.room,
     desc: <>El teu cursor es veu a la pantalla dels jugadors, per assenyalar-los coses. A més fa de <b style={{ color: C.text }}>regla</b>: clica per marcar l&apos;inici, torna a clicar per fixar el final (la distància surt en peus) i un tercer clic l&apos;esborra.</>,
   },
   {
@@ -107,22 +110,22 @@ interface ModeDef {
 // s'activaven per teclat i no hi havia manera de saber que existien.
 const MODES: ModeDef[] = [
   {
-    key: 'ctrl', label: 'Vista compartida', hint: 'CTRL', badge: 'CTRL', badgeSize: 8, color: '#4ade80',
-    desc: <>Mou el mapa i fes zoom <b style={{ color: C.text }}>arrossegant</b>: els jugadors et segueixen en directe. En desactivar-lo, la vista torna a l&apos;enquadrament que hi havia abans d&apos;entrar-hi.</>,
+    key: 'ctrl', label: 'Vista compartida', hint: 'toc CTRL', badge: 'CTRL', badgeSize: 8, color: '#4ade80',
+    desc: <>Mou el mapa i fes zoom: els jugadors et segueixen en directe. En desactivar-lo, la vista <b style={{ color: C.text }}>torna a l&apos;enquadrament</b> que hi havia abans d&apos;entrar-hi. S&apos;activa amb un toc de Ctrl sol (Ctrl+Z i les altres combinacions no el toquen).</>,
   },
   {
-    key: 'shift', label: 'Vista privada', hint: 'MAJ', badge: 'MAJ', badgeSize: 9, color: '#58a6ff',
-    desc: <>Mou-te i fes zoom <b style={{ color: C.text }}>sense que els jugadors ho vegin</b> (la seva pantalla es queda on era). També cal tenir-lo actiu per <b style={{ color: C.text }}>amagar</b> una sala ja revelada. En sortir, la teva vista torna sola on estava.</>,
+    key: 'shift', label: 'Vista privada', hint: 'toc MAJ', badge: 'MAJ', badgeSize: 9, color: C.room,
+    desc: <>Mou-te i fes zoom <b style={{ color: C.text }}>sense que els jugadors ho vegin</b> (la seva pantalla es queda on era). També cal tenir-lo actiu per <b style={{ color: C.text }}>amagar</b> una sala ja revelada. En sortir, la teva vista torna sola on estava. S&apos;activa amb un toc de Maj sol (Maj+clic no el toca).</>,
   },
   {
-    key: 'area', label: 'Selecció múltiple', hint: 'A', badge: '▣', badgeSize: 15, color: '#58a6ff',
+    key: 'area', label: 'Selecció múltiple', hint: 'A', badge: '▣', badgeSize: 15, color: C.room,
     desc: <>Arrossega un rectangle i queden seleccionats tots els tokens que hi hagi dins (jugadors i enemics alhora). Després els pots moure junts, <b style={{ color: C.text }}>agrupar-los</b> amb el clic dret o esborrar-los amb Supr.</>,
   },
 ];
 
 const btnBase: React.CSSProperties = {
   width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer',
+  borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer',
 };
 
 /**
@@ -166,7 +169,7 @@ export function FloatingToolbar({
   onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef,
   lightRadiusFt, lightSelected, onSetLightRadius,
   ctrlPanActive, onToggleCtrlPan, shiftPanActive, onToggleShiftPan,
-  areaSelectMode, onToggleAreaSelect, grid,
+  areaSelectMode, onToggleAreaSelect, grid, disabled,
 }: Props) {
   const [gridOpen, setGridOpen] = React.useState(false);
   // Botó sobre el qual hi ha el cursor: en surt la finestreta d'explicació enganxada a la dreta.
@@ -200,7 +203,11 @@ export function FloatingToolbar({
   // a tota la cantonada inferior esquerra (hitbox invisible enorme).
   return (
     <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 10, display: 'flex', alignItems: 'flex-end', gap: 8, pointerEvents: 'none' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', pointerEvents: 'auto' }}>
+      <div
+        title={disabled ? 'Carrega un mapa per fer servir les eines' : undefined}
+        style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', pointerEvents: 'auto', opacity: disabled ? 0.35 : 1, filter: disabled ? 'grayscale(1)' : 'none' }}>
+        {/* Sense mapa: la barra es veu (se sap que existeix) però no reacciona ni mostra ajuda. */}
+        <fieldset disabled={disabled} style={{ border: 'none', margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, pointerEvents: disabled ? 'none' : 'auto' }}>
         {TOOLS.map(t => (
           <ToolButton key={t.tool} id={`tool_${t.tool}`} {...hoverProps}
             onClick={() => selectTool(t.tool)}
@@ -242,7 +249,7 @@ export function FloatingToolbar({
 
         {paintedZones.length > 0 && (
           <ToolButton id="clearzones" {...hoverProps} onClick={onClearPaintedZones} active color={C.magic}
-            style={{ fontSize: 10, fontWeight: 700 }}
+            style={{ fontSize: FS.xs, fontWeight: 700 }}
             tip={{
               title: 'Esborrar zones màgiques',
               desc: <>Treu totes les zones màgiques pintades al mapa ({paintedZones.length} ara mateix). Per esborrar-ne només una, clic dret a sobre.</>,
@@ -261,34 +268,35 @@ export function FloatingToolbar({
           }}>
           <GridIcon size={15} />
         </ToolButton>
+        </fieldset>
       </div>
 
-      {(showDrawFlyout || gridOpen) && (
+      {!disabled && (showDrawFlyout || gridOpen) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {gridOpen && <GridPanel {...grid} />}
           {showDrawFlyout && (
-            <div style={{ padding: '8px 10px', borderRadius: 9, background: 'rgba(10,13,18,.92)', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150, pointerEvents: 'auto' }}>
+            <div style={{ padding: '8px 10px', borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150, pointerEvents: 'auto' }}>
               {(drawTool === 'pen' || drawTool === 'eraser') && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   {PALETTE.map(c => (
                     <div key={c} onClick={() => setDrawColor(c)} title={c}
-                      style={{ width: 15, height: 15, borderRadius: '50%', background: c, cursor: 'pointer', border: `2px solid ${drawColor === c ? '#e6edf3' : 'transparent'}`, boxSizing: 'border-box', flexShrink: 0 }} />
+                      style={{ width: 15, height: 15, borderRadius: '50%', background: c, cursor: 'pointer', border: `2px solid ${drawColor === c ? C.bright : 'transparent'}`, boxSizing: 'border-box', flexShrink: 0 }} />
                   ))}
                   <input type="range" min={2} max={30} value={drawSize} onChange={e => setDrawSize(parseInt(e.target.value))}
                     style={{ flex: 1, minWidth: 60, accentColor: drawColor }} />
-                  <span style={{ color: C.dim, fontSize: 10, minWidth: 22, flexShrink: 0 }}>{drawSize}px</span>
+                  <span style={{ color: C.dim, fontSize: FS.xs, minWidth: 22, flexShrink: 0 }}>{drawSize}px</span>
                 </div>
               )}
               {drawTool === 'light' && (
                 <div style={{ minWidth: 190 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: C.dim, fontSize: 10, flexShrink: 0 }}>Radi</span>
+                    <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>Radi</span>
                     <input type="range" min={5} max={60} step={5} value={lightRadiusFt}
                       onChange={e => onSetLightRadius(parseInt(e.target.value))}
                       style={{ flex: 1, minWidth: 80, accentColor: '#ffcc33' }} />
-                    <span style={{ color: '#ffcc33', fontSize: 10, minWidth: 30, flexShrink: 0, fontWeight: 700 }}>{lightRadiusFt}ft</span>
+                    <span style={{ color: '#ffcc33', fontSize: FS.xs, minWidth: 30, flexShrink: 0, fontWeight: 700 }}>{lightRadiusFt}ft</span>
                   </div>
-                  <div style={{ fontSize: 9.5, color: C.dim, lineHeight: 1.5, marginTop: 5 }}>
+                  <div style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.5, marginTop: 5 }}>
                     {lightSelected
                       ? <b style={{ color: '#ffcc33' }}>El radi edita la llum seleccionada.</b>
                       : "Selecciona una llum per canviar-ne el radi; si no, és el radi de les llums noves."}

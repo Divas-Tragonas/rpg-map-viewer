@@ -1,7 +1,7 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { C } from '@/constants';
+import { C, FS, RADIUS } from '@/constants';
 import { api, isAdminLoggedIn, type ApiSessionMeta } from '@/lib/api';
 
 interface Props {
@@ -91,23 +91,23 @@ export function ServerSessionsPanel({ onClose, onSaveNew, onOverwrite, onLoad }:
     <div onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width: 'min(560px, 92vw)', maxHeight: '82vh', display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+        style={{ width: 'min(560px, 92vw)', maxHeight: '82vh', display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>☁ Partides al servidor</span>
+          <span style={{ color: C.text, fontWeight: 700, fontSize: FS.lg }}>☁ Partides al servidor</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
 
         {!loggedIn ? (
-          <div style={{ padding: 24, color: C.dim, fontSize: 13, lineHeight: 1.6 }}>
+          <div style={{ padding: 24, color: C.dim, fontSize: FS.lg, lineHeight: 1.6 }}>
             Per desar i carregar partides al servidor has d&apos;iniciar sessió al Back Office.
             <div style={{ marginTop: 14 }}>
               <Link href="/admin/login" target="_blank"
-                style={{ display: 'inline-block', padding: '8px 14px', borderRadius: 7, background: C.accent, color: '#0d1117', fontWeight: 700, fontSize: 12, textDecoration: 'none' }}>
+                style={{ display: 'inline-block', padding: '8px 14px', borderRadius: RADIUS.md, background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: FS.md, textDecoration: 'none' }}>
                 Iniciar sessió al Back Office
               </Link>
             </div>
-            <div style={{ marginTop: 14, fontSize: 11, color: C.dim }}>
+            <div style={{ marginTop: 14, fontSize: FS.sm, color: C.dim }}>
               Mentrestant pots seguir usant «Guardar» / «Cargar» amb fitxer .json.
             </div>
           </div>
@@ -120,25 +120,25 @@ export function ServerSessionsPanel({ onClose, onSaveNew, onOverwrite, onLoad }:
                 onKeyDown={e => { if (e.key === 'Enter') void handleSaveNew(); }}
                 placeholder="Nom de la partida nova…"
                 disabled={busy}
-                style={{ flex: 1, padding: '8px 10px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }}
+                style={{ flex: 1, padding: '8px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: FS.lg }}
               />
               <button onClick={() => void handleSaveNew()} disabled={busy || !newName.trim()}
-                style={{ padding: '8px 14px', borderRadius: 7, border: 'none', cursor: busy || !newName.trim() ? 'default' : 'pointer', background: busy || !newName.trim() ? C.border : C.accent, color: '#0d1117', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>
+                style={{ padding: '8px 14px', borderRadius: RADIUS.md, border: 'none', cursor: busy || !newName.trim() ? 'default' : 'pointer', background: busy || !newName.trim() ? C.border : C.accent, color: C.onAccent, fontWeight: 700, fontSize: FS.md, whiteSpace: 'nowrap' }}>
                 Desar nova
               </button>
             </div>
 
             {error && (
-              <div style={{ padding: '10px 16px', background: 'rgba(220,60,60,0.12)', color: '#ff8a8a', fontSize: 12 }}>
+              <div style={{ padding: '10px 16px', background: 'rgba(220,60,60,0.12)', color: '#ff8a8a', fontSize: FS.md }}>
                 {error}
               </div>
             )}
 
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {loading ? (
-                <div style={{ padding: 24, color: C.dim, fontSize: 13, textAlign: 'center' }}>Carregant…</div>
+                <div style={{ padding: 24, color: C.dim, fontSize: FS.lg, textAlign: 'center' }}>Carregant…</div>
               ) : list.length === 0 ? (
-                <div style={{ padding: 24, color: C.dim, fontSize: 13, textAlign: 'center' }}>
+                <div style={{ padding: 24, color: C.dim, fontSize: FS.lg, textAlign: 'center' }}>
                   Encara no hi ha cap partida desada al servidor.
                 </div>
               ) : (
@@ -146,21 +146,21 @@ export function ServerSessionsPanel({ onClose, onSaveNew, onOverwrite, onLoad }:
                   <div key={s.id}
                     style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: C.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
-                      <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>
+                      <div style={{ color: C.text, fontSize: FS.lg, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                      <div style={{ color: C.dim, fontSize: FS.xs, marginTop: 2 }}>
                         {fmtDate(s.updatedAt)}{s.sizeBytes ? ` · ${fmtSize(s.sizeBytes)}` : ''}
                       </div>
                     </div>
                     <button onClick={() => void handleLoad(s)} disabled={busy} title="Carregar aquesta partida"
-                      style={{ padding: '6px 10px', borderRadius: 6, border: 'none', cursor: busy ? 'default' : 'pointer', background: C.accent, color: '#0d1117', fontWeight: 700, fontSize: 11 }}>
+                      style={{ padding: '6px 10px', borderRadius: RADIUS.md, border: 'none', cursor: busy ? 'default' : 'pointer', background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: FS.sm }}>
                       Carregar
                     </button>
                     <button onClick={() => void handleOverwrite(s)} disabled={busy} title="Sobreescriure amb la partida actual"
-                      style={{ padding: '6px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: busy ? 'default' : 'pointer', color: C.dim, fontSize: 11 }}>
+                      style={{ padding: '6px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: busy ? 'default' : 'pointer', color: C.dim, fontSize: FS.sm }}>
                       Sobreescriure
                     </button>
                     <button onClick={() => void handleDelete(s)} disabled={busy} title="Eliminar del servidor"
-                      style={{ padding: '6px 8px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: busy ? 'default' : 'pointer', color: '#ff8a8a', fontSize: 11 }}>
+                      style={{ padding: '6px 8px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: busy ? 'default' : 'pointer', color: '#ff8a8a', fontSize: FS.sm }}>
                       ✕
                     </button>
                   </div>

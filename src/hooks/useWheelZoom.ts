@@ -16,9 +16,39 @@ export function useWheelZoom(R: DMRefs, setZoom: (v: number) => void, setDmPriva
       if (now - lastBcast > 48) { lastBcast = now; _broadcastState({}); }
       else trailing = setTimeout(() => { trailing = null; lastBcast = Date.now(); _broadcastState({}); }, 60);
     };
+    // Trackpad: dos dits = desplaçar el mapa, pinça = zoom. Roda del ratolí = zoom (com sempre).
+    // El navegador no diu d'on ve una roda, així que ho decideix el PRIMER esdeveniment de
+    // cada ràfega i es manté fins que s'atura (GESTURE_GAP ms sense esdeveniments):
+    //  · ctrlKey            → pinça del trackpad (o Ctrl+roda): zoom
+    //  · deltaMode ≠ píxels → roda per línies (Firefox): zoom
+    //  · hi ha deltaX, o un deltaY petit → dos dits del trackpad: desplaçar
+    //  · la resta (osques de 100/120 px) → roda del ratolí: zoom
+    const GESTURE_GAP = 220;
+    let gesture: 'zoom' | 'pan' | null = null;
+    let lastWheel = 0;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
-      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const now = performance.now();
+      if (now - lastWheel > GESTURE_GAP) gesture = null;
+      lastWheel = now;
+      if (!gesture) {
+        gesture = e.ctrlKey || e.deltaMode !== 0 ? 'zoom'
+          : (e.deltaX !== 0 || Math.abs(e.deltaY) < 50) ? 'pan'
+          : 'zoom';
+      }
+      if (gesture === 'pan' && !e.ctrlKey) {
+        if (R.rShiftPanToggle.current) {
+          R.dmLocalPan.current = { x: R.dmLocalPan.current.x - e.deltaX, y: R.dmLocalPan.current.y - e.deltaY };
+          setDmPrivateActive(true);
+        } else {
+          R.rPanOffset.current = { x: R.rPanOffset.current.x - e.deltaX, y: R.rPanOffset.current.y - e.deltaY };
+        }
+        throttledBroadcast(); return;
+      }
+      // La pinça envia molts deltas petits: zoom continu. La roda, un graó fix per osca.
+      const factor = e.ctrlKey && Math.abs(e.deltaY) < 50
+        ? Math.exp(-e.deltaY * 0.01)
+        : (e.deltaY < 0 ? 1.12 : 1 / 1.12);
       const m = R.mediaRef.current;
       const r = canvas.getBoundingClientRect();
       const W = r.width, H = r.height;
