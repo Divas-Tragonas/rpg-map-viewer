@@ -3,7 +3,7 @@ import { useCallback, useRef } from 'react';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
-import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA } from '@/constants';
+import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE } from '@/constants';
 
 const AREA_TYPES = new Set(['sleep', 'grease']);
 const AREA_SETTLED = (sp: import('@/types').Spell) => {
@@ -1005,7 +1005,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (!center || !data) continue;
       const radius = (data.aoeRadiusFt / 5) * R.rGridSize.current;
       if (Math.hypot(mx - center.x, my - center.y) <= radius) {
-        S.setContextMenu({ id: sp.id, name: `${data.emoji} ${sp.type}`, x: e.clientX, y: e.clientY, isAreaSpell: true });
+        S.setContextMenu({ id: sp.id, name: `${data.emoji} ${SPELL_BY_TYPE.get(sp.type)?.title ?? sp.type}`, x: e.clientX, y: e.clientY, isAreaSpell: true });
         return;
       }
     }
@@ -1013,7 +1013,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (pointInPolygon(mx, my, zone.points)) {
         const el = ELEMENTS_BY_ID.get(zone.element);
         R.rSelectedPaintedZoneId.current = zone.id;
-        S.setContextMenu({ id: zone.id, name: `Zona: ${el?.label || zone.element}`, x: e.clientX, y: e.clientY, isPaintedZone: true });
+        S.setContextMenu({ id: zone.id, name: el ? `${el.emoji} Zona de ${el.label.toLowerCase()}` : `Zona: ${zone.element}`, x: e.clientX, y: e.clientY, isPaintedZone: true });
         return;
       }
     }

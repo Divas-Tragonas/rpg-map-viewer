@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon } from '@/components/icons';
-import { C, PALETTE, FS, RADIUS } from '@/constants';
+import { C, PALETTE, FS, RADIUS, SPELL_MODES } from '@/constants';
 import { GridPanel } from '@/components/dm/GridPanel';
 import { HoverTip } from '@/components/ui/HoverTip';
 import type { DrawTool, PaintedZone, TokenSizeMap } from '@/types';
@@ -79,7 +79,19 @@ const TOOLS: ToolDef[] = [
   },
   {
     tool: 'shape', label: 'Màgies', hint: '3', icon: <TriangleIcon size={15} />, color: C.magic,
-    desc: <>Pinta <b style={{ color: C.text }}>zones màgiques</b>: clica per marcar els vèrtexs del polígon i escull l&apos;element (foc, gel, aigua, llamps, verí o màgia). Als jugadors es veuen amb textura animada.</>,
+    desc: <>Arrossega per traçar i tria a la roda que surt. El gest decideix quines opcions hi ha:
+      {([
+        [SPELL_MODES.path, 'bola de foc, raig elèctric, raig màgic'],
+        [SPELL_MODES.zone, 'foc, gel, aigua, verí, llamps, màgia'],
+        [SPELL_MODES.line, 'projectil, riure, mans ardents'],
+        [SPELL_MODES.area, 'dormir, greix'],
+      ] as const).map(([m, opts]) => (
+        <div key={m.title} style={{ marginTop: 4 }}>
+          <b style={{ color: C.text }}>{m.gesture}</b> → {m.title}
+          <div>{opts}</div>
+        </div>
+      ))}
+      <div style={{ marginTop: 4 }}>Ctrl+arrossegar mou tokens, zones i àrees · clic dret sobre una zona per esborrar-la.</div></>,
   },
   {
     tool: 'pointer', label: 'Senyal i regla', hint: '4', icon: <CrosshairIcon size={15} />, color: C.room,

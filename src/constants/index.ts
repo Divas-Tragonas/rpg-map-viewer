@@ -1,7 +1,7 @@
 import type { Condition, Element } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.18';
+export const APP_VERSION = 'v4.19';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -34,12 +34,12 @@ export const CONDITIONS: Condition[] = [
 export const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));
 
 export const ELEMENTS: Element[] = [
-  { id: 'fire',      label: 'Fuego',   color: '#ff6b00', glow: '#ff4400', emoji: '🔥' },
-  { id: 'ice',       label: 'Hielo',   color: '#7dd3fc', glow: '#38bdf8', emoji: '❄️'  },
-  { id: 'water',     label: 'Agua',    color: '#3b82f6', glow: '#60a5fa', emoji: '💧' },
-  { id: 'poison',    label: 'Veneno',  color: '#22c55e', glow: '#16a34a', emoji: '☠️'  },
-  { id: 'lightning', label: 'Rayos',   color: '#eab308', glow: '#fde047', emoji: '⚡' },
-  { id: 'magic',     label: 'Magia',   color: '#a855f7', glow: '#7c3aed', emoji: '✨' },
+  { id: 'fire',      label: 'Foc',     color: '#ff6b00', glow: '#ff4400', emoji: '🔥' },
+  { id: 'ice',       label: 'Gel',     color: '#7dd3fc', glow: '#38bdf8', emoji: '❄️'  },
+  { id: 'water',     label: 'Aigua',   color: '#3b82f6', glow: '#60a5fa', emoji: '💧' },
+  { id: 'poison',    label: 'Verí',    color: '#22c55e', glow: '#16a34a', emoji: '☠️'  },
+  { id: 'lightning', label: 'Llamps',  color: '#eab308', glow: '#fde047', emoji: '⚡' },
+  { id: 'magic',     label: 'Màgia',   color: '#a855f7', glow: '#7c3aed', emoji: '✨' },
 ];
 
 export const ELEMENTS_BY_ID = new Map(ELEMENTS.map(e => [e.id, e]));
@@ -85,15 +85,28 @@ export type EnemyTemplateId = typeof ENEMY_TEMPLATES[number]['id'];
 export { ENEMY_IMAGES } from '@/lib/enemy-images';
 
 export const SPELL_TYPES = [
-  { type: 'fireball',          emoji: '🔥', color: '#ff8800', title: 'Bola de fuego',    mode: 'path' },
-  { type: 'lightning',         emoji: '⚡', color: '#ffd200', title: 'Rayo eléctrico',   mode: 'path' },
-  { type: 'magic_beam',        emoji: '✨', color: '#9988ff', title: 'Rayo mágico',      mode: 'path' },
-  { type: 'magic_missile',     emoji: '🔮', color: '#c084fc', title: 'Proyectil mágico', mode: 'line' },
-  { type: 'hideous_laughter',  emoji: '😂', color: '#facc15', title: 'Risa horrible',    mode: 'line' },
-  { type: 'burning_hands',     emoji: '🤲', color: '#f97316', title: 'Manos ardientes',  mode: 'line' },
-  { type: 'sleep',             emoji: '💤', color: '#818cf8', title: 'Dormir',           mode: 'area' },
-  { type: 'grease',            emoji: '🫙', color: '#a3e635', title: 'Grasa',            mode: 'area' },
+  { type: 'fireball',          emoji: '🔥', color: '#ff8800', title: 'Bola de foc',     mode: 'path' },
+  { type: 'lightning',         emoji: '⚡', color: '#ffd200', title: 'Raig elèctric',   mode: 'path' },
+  { type: 'magic_beam',        emoji: '✨', color: '#9988ff', title: 'Raig màgic',      mode: 'path' },
+  { type: 'magic_missile',     emoji: '🔮', color: '#c084fc', title: 'Projectil màgic', mode: 'line' },
+  { type: 'hideous_laughter',  emoji: '😂', color: '#facc15', title: 'Riure horrible',  mode: 'line' },
+  { type: 'burning_hands',     emoji: '🤲', color: '#f97316', title: 'Mans ardents',    mode: 'line' },
+  { type: 'sleep',             emoji: '💤', color: '#818cf8', title: 'Dormir',          mode: 'area' },
+  { type: 'grease',            emoji: '🫙', color: '#a3e635', title: 'Greix',           mode: 'area' },
 ] as const;
+
+export const SPELL_BY_TYPE = new Map<string, typeof SPELL_TYPES[number]>(SPELL_TYPES.map(s => [s.type, s]));
+
+/**
+ * Els quatre gestos de l'eina Màgies i el nom que els dona la roda i l'ajuda de la barra.
+ * Font única: si el text d'un gest canvia, que canviï als dos llocs alhora.
+ */
+export const SPELL_MODES = {
+  path: { title: 'Trajectòria', subtitle: 'Segueix el traç',         gesture: 'Traç obert' },
+  line: { title: 'Direccional', subtitle: 'En línia recta',          gesture: 'Maj + arrossegar' },
+  area: { title: 'Àrea',        subtitle: 'Tria i col·loca',         gesture: 'Alt + clic o creuar el traç' },
+  zone: { title: 'Zona màgica', subtitle: 'Tria l\'element',          gesture: 'Tancar el traç' },
+} as const;
 
 // Area spell rules: AoE radius and max cast range in feet (1 square = 5ft)
 export const AREA_SPELL_DATA: Record<string, { aoeRadiusFt: number; rangeFt: number; color: string; emoji: string }> = {

@@ -60,6 +60,14 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.19 — Una sola roda per a les màgies i les zones màgiques
+- **La roda de màgies i la d'elements són ara la mateixa** (`RadialMenu`). Abans, segons el gest, l'eina Màgies obria un anell transparent amb només emojis i el nom a 8 px, o uns botons rodons amb degradat on el ✕ tapava el títol.
+- **Llegible sobre qualsevol mapa:** fons opac, cada opció amb **icona i nom**, i al centre què s'està triant («Trajectòria · segueix el traç», «Direccional», «Àrea», «Zona màgica»). En passar el cursor per una opció, el centre en diu el nom i el detall (a les d'àrea, el radi i l'abast).
+- **Mateixa mida i disposició en tots els modes:** la primera opció sempre a dalt, i la roda no surt mai de la finestra encara que el traç acabi a la vora.
+- **Teclat:** 1…N trien l'opció i Esc tanca, sense canviar d'eina (abans l'1–6 de la roda activaven altres eines i l'Esc et treia de Màgies). Clic al centre o fora també tanca.
+- **Noms en català i coherents a tot arreu:** Bola de foc, Raig elèctric, Raig màgic, Projectil màgic, Riure horrible, Mans ardents, Dormir, Greix; i els elements Foc, Gel, Aigua, Verí, Llamps, Màgia. El menú contextual d'un encanteri d'àrea deia l'identificador intern («💤 sleep») i ara diu «💤 Dormir»; el d'una zona, «🔥 Zona de foc».
+- **L'ajuda de l'eina Màgies explica els quatre gestos** (traç obert, tancar el traç, Maj+arrossegar, Alt+clic o creuar el traç) amb els mateixos noms que la roda. Abans parlava de «clicar els vèrtexs d'un polígon», que no és com funciona.
+
 ### v4.18 — Els cinc spells restants, amb el mateix llenguatge visual
 - **Coherència**: cada escola de màgia té una sola paleta (`PAL` a `fxsprites.ts`: foc, arcà, encantament, son) i tots els impactes fan servir el mateix esclat (`impactBurst`: flaix → llum → anell → espurnes). El projectil màgic comparteix el violeta del raig màgic; les mans ardents, el foc de la bola de foc.
 - **Projectil màgic**: la mà s'encén i els tres dards es materialitzen un a un; volen corbats i acceleren, amb una estela que s'aprima, cap allargat per la velocitat i llum sobre el mapa; cadascun impacta en un punt lleugerament diferent de l'objectiu.

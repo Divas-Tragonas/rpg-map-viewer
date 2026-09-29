@@ -181,6 +181,7 @@ src/
 │   └── ui/                 # Components UI genèrics
 │       ├── Button          # Button / IconButton / buttonStyle: botons base (variants i mides)
 │       ├── HpControl       # Control de vida únic (− vida/màx +, clic al número per escriure)
+│       ├── RadialMenu      # Roda de selecció única (màgies i zones màgiques)
 │       ├── Chip, DropZone, LayerRow, TreeGroup, SceneImgPicker
 │       ├── SidebarSection  # Secció plegable del sidebar (capçalera + comptador + accions)
 │       ├── HoverTip        # Finestreta d'explicació d'un botó (hover)
@@ -550,6 +551,14 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Càrrega (espurnes en espiral + destell anamòrfic horitzontal) → el raig s'estén en 0,12 s → sostingut (capes violeta/magenta/blanc que vibren, fibres en hèlix, anells, polsos, espurnes; a l'impacte estrella giratòria, ones i esquitxos) → col·lapse i implosió.
 - ⚠️ Les **fibres en hèlix** es mostregen a ~12 punts per volta (`NH`), independentment del mostreig del cos del raig: amb poques mostres surten en ziga-zaga. Es tracen en dues passades (davant / darrere) per donar profunditat sense fer un stroke per segment.
 
+### Roda de màgies i zones (`src/components/ui/RadialMenu.tsx`)
+- **Una sola roda** per a tot el que obre l'eina Màgies: `SpellMenuOverlay` (màgies de trajectòria, direccionals i d'àrea) i `ShapeMenuOverlay` (elements de zona màgica) només li passen les opcions. Abans eren dos menús amb dissenys diferents.
+- **Quina roda surt depèn del gest** (`useMouseHandlers`): traç obert → trajectòria; tancar el traç → zona màgica; Maj+arrossegar → direccional; Alt+clic o traç que es creua → àrea. Els noms i subtítols dels quatre gestos viuen a **`SPELL_MODES`** (`constants`) i els fan servir la roda i l'ajuda de la barra: si en canvia un, canvia als dos llocs.
+- Sectors opacs amb icona + nom; el primer centrat a dalt i la resta en sentit horari. Centre: títol i subtítol del mode o, en hover, nom i detall de l'opció (el detall es parteix per « · » en línies; si no en té, diu la tecla).
+- ⚠️ **Teclat en fase de captura** (`stopImmediatePropagation`): 1…N trien i Esc tanca. Si no, les xifres canviarien d'eina (1–6) i l'Esc tornaria a l'eina de selecció.
+- La roda es recol·loca perquè no surti de la finestra. Clic al centre o fora = tancar.
+- Noms de màgies (`SPELL_TYPES.title`, amb `SPELL_BY_TYPE`) i d'elements (`ELEMENTS.label`) en català: són els mateixos que surten al menú contextual («💤 Dormir», «🔥 Zona de foc»).
+
 ### Zones màgiques (Painted Zones)
 - Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)
 - Textures procedurals animades al jugador (`src/lib/textures/`)
@@ -734,6 +743,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | `C` | objecte colors | Paleta UI (`bg`, `panel`, `accent`, `text`...) |
 | `CONDITIONS` | array | Estats de D&D (16, amb `label` en català, `es`/`en` i `color`) |
 | `FS` / `RADIUS` / `SHADOW` | objectes | Escala tipogràfica, radis i ombres del DM (veure «Sistema visual») |
+| `SPELL_TYPES` / `SPELL_BY_TYPE` / `SPELL_MODES` | array / Map / objecte | Màgies (nom en català, color, mode) i els quatre gestos de l'eina Màgies |
 | `tint(color, a)` | funció | Color de la paleta amb transparència (`#rrggbb` + alfa hex) |
 | `ELEMENTS` | array | Elements màgics (fire, ice, water...) |
 | `ENEMY_TEMPLATES` | array | Plantilles enemics (goblin, troll, drac...) |
@@ -765,4 +775,5 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | ✕ per a una acció que no és tancar/eliminar | L'usuari el prem per tancar i fa una altra cosa (p. ex. marcar derrotat) | ✕ només tanca o elimina; la resta, botó amb nom (`💀 Derrotar`) |
 | Ull amb un significat diferent segons la llista | Es revela o s'amaga el contrari del que es volia | L'ull sempre vol dir «ho veuen els jugadors?» (vigilar `vis` de les zones del PSD, que és invers) |
 | Mida de lletra, radi o color escrits a mà | La UI torna a perdre la coherència (22 mides, colors repetits) | `FS`, `RADIUS`, `C`, `tint()` i `Button` |
+| Menú de selecció nou fet a mà (anells, botons rodons…) | Cada menú de l'eina Màgies es veia i es feia servir diferent | Fer servir `RadialMenu` |
 | Llegir refs dins del render d'un menú | Valors que no es refresquen i error de lint `react-hooks/refs` | Passar l'estat per props (com `ContextMenuOverlay`: `libEnemies`, `players`, `psdEnemyOverrides`) |
