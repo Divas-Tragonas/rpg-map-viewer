@@ -60,6 +60,14 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.16 — La bola de foc, refeta amb estil de videojoc
+- **Nou efecte en quatre temps**: càrrega (cercle rúnic al conjurador i espurnes que s'hi arremolinen), vol (projectil que accelera amb nucli incandescent que gira, cua de foc que queda enrere al món, fum i espurnes), impacte (flaix, bola de foc que s'infla i es refreda de blanc a vermell, ona expansiva amb anell de pols, terra que s'encén al pas de l'ona, runa encesa volant i fum que s'alça) i residu (socarrim a terra amb brases que es refreden).
+- **Llum dinàmica**: el projectil i l'explosió il·luminen el mapa del voltant amb pampallugues de foc.
+- **Sacsejada de càmera** a l'impacte, a totes les pantalles (fons, mapa i tokens es mouen junts).
+- **Mida de reglament**: l'explosió fa 20 ft de radi (abans ~13).
+- **Sprites amb soroll** (`src/lib/render/fxsprites.ts`): el foc i el fum són textures grumolloses pre-rasteritzades una sola vegada, en lloc d'un gradient radial per partícula i per frame. Més bonic i més barat.
+- El socarrim es pinta a la passada `ground` (sota els tokens); la resta a la `air`.
+
 ### v4.15 — Usabilitat i coherència de la pantalla del DM
 - **Ctrl+Z i Maj+clic ja no encenen modes de vista sense voler.** Ctrl i Maj commutaven la vista compartida i la privada en *prémer-les*, o sigui que tot Ctrl+Z encenia el mode CTRL (i el segon el tornava a apagar, fent saltar la càmera de tothom enrere) i el «Maj+clic» de les portes encenia la vista privada. Ara només compta un **toc net** de la tecla sola. També s'accepta Cmd+Z al Mac.
 - **«💀 Derrotar» amb nom al menú d'un token.** Era un ✕ solt just on s'espera el botó de tancar el menú. Ara el ✕ del menú **tanca** (i Esc també), com a tota la resta de l'app.

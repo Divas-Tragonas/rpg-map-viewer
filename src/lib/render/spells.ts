@@ -2,11 +2,15 @@ import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
 import { pathAt, pathLen } from '@/lib/geometry';
 import { AREA_SPELL_DATA } from '@/constants';
+import { mulberry32 } from './fxsprites';
+import { drawSpellFireball, drawFireballGround, FIREBALL_DUR } from './fireball';
+
+export { drawSpellFireball, fireballShake } from './fireball';
 
 const AREA_SPELL_TYPES = new Set(['sleep', 'grease']);
 
 const SPELL_DURATIONS: Record<string, number> = {
-  fireball:         3.0,
+  fireball:         FIREBALL_DUR,
   lightning:        2.4,
   magic_beam:       3.0,
   magic_missile:    1.9,
@@ -32,15 +36,6 @@ function hash32(s: string): number {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
-}
-
-function mulberry32(a: number): () => number {
-  return () => {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 function easeOutCubic(t: number): number { const u = 1 - t; return 1 - u * u * u; }
@@ -111,124 +106,6 @@ function drawBurst(ctx: CanvasRenderingContext2D, cx: number, cy: number, maxRPx
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-}
-
-// ── Fireball ────────────────────────────────────────────────────────────────
-
-export function drawSpellFireball(ctx: CanvasRenderingContext2D, pts: Point[], elapsed: number, dur: number, sc: number, gridSize: number, seed: number): void {
-  ctx.save();
-  const TRAVEL = dur * 0.62, IMPACT = dur - TRAVEL;
-  const tN = performance.now() / 1000;
-
-  if (elapsed <= TRAVEL) {
-    const t = elapsed / TRAVEL, pos = pathAt(pts, t);
-    const rnd = mulberry32(seed);
-    // Faint smoke behind the comet (normal blend, subtle)
-    for (let i = 0; i < 6; i++) {
-      const back = 0.1 + rnd() * 0.16, ti = t - back;
-      const jx = (rnd() - 0.5) * 12, jy = (rnd() - 0.5) * 8 - back * 50;
-      if (ti < 0) continue;
-      const p = pathAt(pts, ti), age = back / 0.26;
-      ctx.globalAlpha = (1 - age) * 0.09;
-      ctx.fillStyle = 'rgb(35,26,22)';
-      ctx.beginPath(); ctx.arc(p.x + jx / sc, p.y + jy / sc, (6 + 9 * age) / sc, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'lighter';
-    // Flame trail hugging the path
-    for (let i = 0; i < 30; i++) {
-      const back = rnd() * 0.2, ti = t - back;
-      const latR = rnd(), riseR = rnd();
-      if (ti < 0) continue;
-      const age = back / 0.2;
-      const p = pathAt(pts, ti), dir = pathDirAt(pts, ti);
-      const lat = (latR - 0.5) * 22 * age, rise = -(4 + riseR * 16) * age;
-      const px = p.x + (-dir.y * lat) / sc, py = p.y + (dir.x * lat) / sc + rise / sc;
-      const col = age < 0.25 ? '255,240,170' : age < 0.55 ? '255,160,50' : '230,70,10';
-      glowBlob(ctx, px, py, (9 - 6.5 * age) / sc, [
-        [0, `rgba(${col},${0.9 * (1 - age)})`],
-        [1, 'rgba(0,0,0,0)'],
-      ]);
-    }
-    // Comet head — layered glow + white core, flickering
-    const pulse = 0.85 + 0.15 * Math.sin(tN * 26 + seed);
-    glowBlob(ctx, pos.x, pos.y, (38 * pulse) / sc, [
-      [0, 'rgba(255,255,255,0.95)'],
-      [0.2, 'rgba(255,214,80,0.85)'],
-      [0.5, 'rgba(255,110,10,0.4)'],
-      [1, 'rgba(0,0,0,0)'],
-    ]);
-    glowBlob(ctx, pos.x, pos.y, (12 * pulse) / sc, [
-      [0, 'rgba(255,255,255,1)'],
-      [1, 'rgba(255,230,150,0)'],
-    ]);
-  } else {
-    const imp = (elapsed - TRAVEL) / IMPACT, end = pts[pts.length - 1];
-    // Explosion radius: ~2.6 cells when grid is calibrated, screen-relative fallback.
-    const R = gridSize > 0 ? gridSize * 2.6 : 140 / sc;
-    const rnd = mulberry32(seed ^ 0x9e3779b9);
-
-    // Smoke (normal blend) grows through the second half
-    if (imp > 0.3) {
-      const sT = (imp - 0.3) / 0.7;
-      for (let i = 0; i < 7; i++) {
-        const ang = rnd() * Math.PI * 2, d = R * (0.15 + rnd() * 0.45);
-        const px = end.x + Math.cos(ang) * d, py = end.y + Math.sin(ang) * d - sT * R * (0.12 + rnd() * 0.2);
-        ctx.globalAlpha = 0.20 * (1 - sT) * Math.min(1, sT * 3);
-        ctx.fillStyle = 'rgb(30,24,20)';
-        ctx.beginPath(); ctx.arc(px, py, R * (0.2 + 0.35 * sT) * (0.6 + rnd() * 0.5), 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    } else { for (let i = 0; i < 28; i++) rnd(); } // keep PRNG stream aligned across phases (smoke consumes 4×7 draws)
-
-    ctx.globalCompositeOperation = 'lighter';
-    // Flash
-    if (imp < 0.1) {
-      const ft = imp / 0.1;
-      glowBlob(ctx, end.x, end.y, R * (0.4 + 0.6 * ft), [
-        [0, `rgba(255,255,255,${0.95 * (1 - ft * 0.5)})`],
-        [1, 'rgba(0,0,0,0)'],
-      ]);
-    }
-    // Fire bloom — overlapping turbulent blobs, cooling white→orange→deep red
-    const grow = easeOutCubic(Math.min(1, imp * 1.3));
-    const cool = smoothstep(imp, 0.15, 0.85);
-    const bloomFade = 1 - smoothstep(imp, 0.5, 0.95);
-    for (let i = 0; i < 9; i++) {
-      const ang = rnd() * Math.PI * 2, dist = Math.pow(rnd(), 0.7) * R * 0.5 * grow;
-      const br = R * (0.28 + rnd() * 0.38) * grow;
-      const bx = end.x + Math.cos(ang) * dist, by = end.y + Math.sin(ang) * dist - imp * R * 0.08;
-      const hot = `rgba(255,${Math.round(235 - 150 * cool)},${Math.round(140 - 130 * cool)},${0.55 * bloomFade})`;
-      const mid = `rgba(${Math.round(255 - 60 * cool)},${Math.round(120 - 80 * cool)},10,${0.3 * bloomFade})`;
-      glowBlob(ctx, bx, by, br, [[0, hot], [0.55, mid], [1, 'rgba(0,0,0,0)']]);
-    }
-    // Shockwave
-    const fade = Math.max(0, 1 - imp);
-    const ringR = R * 1.12 * easeOutQuart(Math.min(1, imp * 1.1));
-    ctx.globalAlpha = fade * 0.55; ctx.strokeStyle = '#ffb066'; ctx.lineWidth = (5 * fade) / sc; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(end.x, end.y, ringR, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = fade * 0.25; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = (1.5 * fade) / sc;
-    ctx.beginPath(); ctx.arc(end.x, end.y, ringR * 0.82, 0, Math.PI * 2); ctx.stroke();
-    // Flying embers
-    for (let i = 0; i < 24; i++) {
-      const ang = rnd() * Math.PI * 2, spd = 0.4 + rnd() * 0.6, szr = rnd();
-      const d = R * (0.55 + 0.6 * spd) * easeOutCubic(imp);
-      const px = end.x + Math.cos(ang) * d, py = end.y + Math.sin(ang) * d + imp * imp * R * 0.22;
-      const eFade = Math.max(0, 1 - imp * (0.8 + szr * 0.4));
-      if (eFade <= 0) continue;
-      const col = imp < 0.35 ? '255,220,120' : imp < 0.65 ? '255,140,40' : '220,60,10';
-      glowBlob(ctx, px, py, (1.6 + szr * 2.6) * eFade / sc + R * 0.012, [
-        [0, `rgba(${col},${0.9 * eFade})`],
-        [1, 'rgba(0,0,0,0)'],
-      ]);
-    }
-    // Lingering ground glow
-    glowBlob(ctx, end.x, end.y, R * 0.5, [
-      [0, `rgba(255,90,10,${0.3 * fade})`],
-      [1, 'rgba(0,0,0,0)'],
-    ]);
-  }
-  ctx.globalAlpha = 1; ctx.restore();
 }
 
 // ── Lightning ───────────────────────────────────────────────────────────────
@@ -838,9 +715,12 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     const isArea = AREA_SPELL_TYPES.has(sp.type);
     if (elapsed > dur && !isArea) continue;  // non-area spells expire
     alive.push(sp);
+    const seed = hash32(sp.id);
+    // La bola de foc deixa un socarrim a terra: aquesta part va a la passada 'ground'
+    // (sota els tokens) i la resta de l'efecte a la 'air'.
+    if (sp.type === 'fireball' && layer === 'ground') { drawFireballGround(ctx, sp.points, elapsed, sc, gridSize, seed); continue; }
     if (isArea !== (layer === 'ground')) continue;  // each spell draws in its own pass
     const renderElapsed = isArea ? Math.min(elapsed, dur * 0.5) : elapsed;  // area spells: clamp to full-alpha state
-    const seed = hash32(sp.id);
     if      (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
     else if (sp.type === 'lightning')        drawSpellLightning(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed, sp.id);
     else if (sp.type === 'magic_beam')       drawSpellMagicBeam(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);

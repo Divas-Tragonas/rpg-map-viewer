@@ -214,7 +214,9 @@ src/
 │   │   ├── types.ts        # FrameContext interface
 │   │   ├── zones.ts        # renderZoneOverlays, renderExtras, renderPaintedZones, renderShapePreview
 │   │   ├── drawing.ts      # advanceStrokeAnim, replayStroke
-│   │   ├── spells.ts       # renderSpells (fireball, lightning, magic_beam)
+│   │   ├── spells.ts       # renderSpells (dispatcher de tots els spells + preview)
+│   │   ├── fireball.ts     # Bola de foc (càrrega/vol/impacte/socarrim) + fireballShake
+│   │   ├── fxsprites.ts    # Sprites de partícules pre-rasteritzats (foc, fum, halo, socarrim)
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/index.ts  # cpBurst, cpUpdate, cpDraw (partícules cinematica)
@@ -303,7 +305,7 @@ Afegir la crida a `useRafLoop.ts` entre `ctx.save()` i `ctx.restore()`.
 | `renderPaintedZones` | render/zones.ts | Zones màgiques: textures animades (jugador) / flat (DM) |
 | `renderShapePreview` | render/zones.ts | Preview del shape tool al DM |
 | `advanceStrokeAnim` | render/drawing.ts | Reprodueix traços de dibuix frame a frame |
-| `renderSpells` | render/spells.ts | Animacions: fireball, lightning, magic_beam |
+| `renderSpells` | render/spells.ts | Animacions dels spells. Dues passades: `'ground'` (sota tokens) i `'air'` (sobre) |
 | `renderEnemyTokens` | render/tokens.ts | Tokens enemics PSD: drag, LERP, condicions, derrota |
 | `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures |
 | `renderPlayerTokens` | render/tokens.ts | Tokens jugador: LERP, condicions |
@@ -518,6 +520,13 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Llançada via `triggerBossIntroRef.current(data)`
 - `BOSS_INTRO` BC message inclou `portraitDataUrl` (JPEG base64, max 600px)
 - `SceneImgPicker` per importar imatge custom al context menu
+
+### Bola de foc (`src/lib/render/fireball.ts`)
+- **Quatre temps** (constants `CHARGE`, `TRAVEL`, `IMPACT_AT`, `FIREBALL_DUR`): càrrega amb cercle rúnic al conjurador → projectil que accelera amb cua de foc que queda al món → impacte (flaix, bola que s'infla i es refreda, ona expansiva amb anell de pols, terra que s'encén, runa, fum) → socarrim amb brases. Radi de reglament: 20 ft (`BLAST_FT`).
+- **Partícules deterministes**: cada partícula és funció pura de (llavor del `sp.id`, temps). Cap estat entre frames → DM i jugadors veuen la mateixa explosió. ⚠️ Dins de cada sistema, **tots els `rnd()` d'una partícula es treuen abans del `continue`** de les que no són vives; si no, el flux del PRNG es desalinea i les partícules canvien a mig efecte.
+- **Sprites** (`fxsprites.ts`): foc (4 temperatures × 3 variants de soroll), fum, halo i socarrim, generats una sola vegada amb `ImageData` i copiats amb `drawImage`. La temperatura contínua es fa fonent dos sprites veïns (`fire()`). No tornar a `createRadialGradient` per partícula: és més car i tot surt amb forma de cercle perfecte.
+- **Dues passades**: el socarrim i les brases (`drawFireballGround`) van a la `'ground'`, sota els tokens; la resta a la `'air'`.
+- **Sacsejada de càmera** (`fireballShake`): el tick del DM (`useRafLoop`) i el del jugador (`PlayerView`) la sumen a `ox/oy`, així el fons DOM i el canvas es mouen junts. No afecta `rDmCam` (que surt de `rZoom`/`rPanOffset`) ni es sincronitza: cada pantalla la calcula del seu `startTime`.
 
 ### Zones màgiques (Painted Zones)
 - Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)
