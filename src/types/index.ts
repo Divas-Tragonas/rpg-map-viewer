@@ -130,7 +130,11 @@ export interface Room {
   revealed: boolean;  // true → revelada als jugadors (només aplica quan dark)
 }
 
-export type SpellType = 'fireball' | 'lightning' | 'magic_beam' | 'magic_missile' | 'hideous_laughter' | 'burning_hands' | 'sleep' | 'grease';
+export type SpellType =
+  | 'fireball' | 'lightning' | 'magic_beam' | 'magic_missile' | 'hideous_laughter' | 'burning_hands' | 'sleep' | 'grease'
+  // Grimoris dels personatges (Notion): veure `SPELLBOOKS` a constants
+  | 'ray_of_frost' | 'shocking_grasp' | 'mage_hand' | 'prestidigitation' | 'mage_armor' | 'shield' | 'detect_magic'
+  | 'light' | 'sacred_flame' | 'thaumaturgy' | 'bless' | 'cure_wounds';
 
 export interface Spell {
   id: string;
@@ -140,12 +144,19 @@ export interface Spell {
 }
 
 export type SpellPreview =
-  | { mode: 'line'; start: Point; end: Point }
+  /** `rangeFt`: abast màxim (es pinta un cercle d'abast al voltant de `start`). */
+  | { mode: 'line'; start: Point; end: Point; rangeFt?: number }
   | { mode: 'area_place'; origin: Point; center: Point; spellType: string };
 
+/**
+ * Màgia triada que espera el clic de destí. `mode: 'line'` → el clic fixa la punta del
+ * raig; `'area'` (o absent) → el centre de l'àrea. En tots dos casos el destí es limita a
+ * l'abast del conjur (`spellRangeFt`) mesurat des d'`origin`.
+ */
 export interface AreaSpellPending {
   type: SpellType;
   origin: Point;
+  mode?: 'line' | 'area';
 }
 
 export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light';
@@ -210,6 +221,8 @@ export interface ContextMenuState {
   isRoom?: boolean;
   roomDark?: boolean;
   roomRevealed?: boolean;
+  /** Centre del token de jugador (coords de mapa): origen dels conjurs del seu grimori. */
+  casterPos?: Point;
 }
 
 export interface ExpositorState {

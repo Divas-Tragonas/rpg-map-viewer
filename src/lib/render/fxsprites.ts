@@ -200,6 +200,10 @@ export const PAL = {
   arcane: { white: [250, 240, 255], light: [215, 170, 255], mid: [160, 80, 255], deep: [90, 40, 230] },
   charm:  { white: [255, 240, 248], light: [255, 170, 215], mid: [236, 72, 153], deep: [150, 30, 100] },
   dream:  { white: [236, 238, 255], light: [170, 182, 252], mid: [110, 112, 240], deep: [55, 50, 170] },
+  frost:  { white: [240, 250, 255], light: [170, 225, 255], mid: [90, 180, 250],  deep: [30, 100, 210] },
+  storm:  { white: [245, 248, 255], light: [170, 200, 255], mid: [100, 140, 255], deep: [50, 70, 220] },
+  radiant:{ white: [255, 252, 235], light: [255, 232, 150], mid: [255, 200, 70],  deep: [210, 140, 20] },
+  life:   { white: [240, 255, 240], light: [150, 245, 170], mid: [60, 210, 110],  deep: [20, 140, 70] },
 } satisfies Record<string, Palette>;
 
 export const rgb = (c: RGB3) => `rgb(${c[0]},${c[1]},${c[2]})`;

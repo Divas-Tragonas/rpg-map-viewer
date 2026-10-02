@@ -83,15 +83,16 @@ const TOOLS: ToolDef[] = [
       {([
         [SPELL_MODES.path, 'bola de foc, raig elèctric, raig màgic'],
         [SPELL_MODES.zone, 'foc, gel, aigua, verí, llamps, màgia'],
-        [SPELL_MODES.line, 'projectil, riure, mans ardents'],
-        [SPELL_MODES.area, 'dormir, greix'],
+        [SPELL_MODES.line, 'projectil, riure, mans ardents, raig de gebre'],
+        [SPELL_MODES.area, 'dormir, greix, flama sagrada, beneir…'],
       ] as const).map(([m, opts]) => (
         <div key={m.title} style={{ marginTop: 4 }}>
           <b style={{ color: C.text }}>{m.gesture}</b> → {m.title}
           <div>{opts}</div>
         </div>
       ))}
-      <div style={{ marginTop: 4 }}>Ctrl+arrossegar mou tokens, zones i àrees · clic dret sobre una zona per esborrar-la.</div></>,
+      <div style={{ marginTop: 4 }}>Ctrl+arrossegar mou tokens, zones i àrees · clic dret sobre una zona per esborrar-la.</div>
+      <div style={{ marginTop: 4 }}><b style={{ color: C.text }}>Clic dret a un jugador</b> → ✨ Conjurs del seu grimori, llançats des del token amb l&apos;abast en peus.</div></>,
   },
   {
     tool: 'pointer', label: 'Senyal i regla', hint: '4', icon: <CrosshairIcon size={15} />, color: C.room,

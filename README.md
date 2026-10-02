@@ -60,6 +60,12 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.23 — Grimoris dels personatges: llançar els seus conjurs des del token
+- **Clic dret a Liriandor o Yunquerin → ✨ Conjurs.** Hi surten els conjurs apuntats a les seves fitxes del Notion, agrupats com a la resta de l'app: **direccionals** (en línia recta), **a un punt** (dins d'un abast) i **personals** (surten del mateix token). Espardeny, Jaume III i Cigarramic no en tenen.
+- **Es llancen des del token, amb l'abast en peus.** En triar-ne un, el raig o l'àrea segueix el ratolí però no passa de l'abast (cercle de guions); un clic el llança. Esc o clic dret el cancel·la. Funciona amb qualsevol eina activa.
+- **12 efectes nous:** Raig de gebre, Toc electritzant, Mà de mag, Prestidigitació, Armadura de mag, Escut, Detectar màgia, Llum, Flama sagrada, Taumatúrgia, Beneir i Curar ferides. Els que no són de toc ni personals també surten a les rodes dels gestos.
+- **Les màgies direccionals de la roda també respecten l'abast** (Mans ardents no passa de 15 ft), i les àrees no es poden deixar més lluny del seu abast.
+
 ### v4.22 — Cinemàtica de boss: un sol motor i errors corregits
 - **Totes les pantalles enquadren el boss igual.** La càmera de la cinemàtica viatja ara en coordenades de mapa (`cam`, com la càmera compartida): abans cada pantalla calculava el seu zoom amb la seva mida i el boss quedava descentrat a les finestres d'un altre format.
 - **Saltar-la i tornar-la a llançar ja no la trenca.** La neteja retardada de la primera esborrava les dades de la segona (franges i retrat penjats).

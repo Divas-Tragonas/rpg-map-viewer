@@ -4,7 +4,7 @@ import { X } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
-import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
+import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, LibEnemy, PsdEnemyOverrides } from '@/types';
 
 interface Props {
@@ -49,6 +49,8 @@ interface Props {
   onDeleteRoom: (id: string) => void;
   onAddDoor: (id: string) => void;
   onResetExplored: (id: string) => void;
+  /** Llança una màgia del grimori d'un jugador des del seu token (`origin` = centre). */
+  onCastSpell: (type: import('@/types').SpellType, origin: import('@/types').Point) => void;
 }
 
 /** Amplada dels menús: prou per a la graella d'estats a 4 columnes amb els noms llegibles. */
@@ -86,6 +88,53 @@ function MenuHeader({ title, children, onClose }: { title: React.ReactNode; chil
   );
 }
 
+/**
+ * Grimori del jugador (conjurs de la seva fitxa al Notion, `SPELLBOOKS`) agrupat pel gest
+ * de l'app: direccionals, a un punt dins d'abast i personals. Triar-ne un tanca el menú i
+ * deixa la màgia pendent del clic de destí (les personals surten a l'instant).
+ */
+function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: import('@/types').SpellType) => void }) {
+  const book = spellbookFor(playerName);
+  if (book.length === 0) return null;
+  const groupOf = (t: string) => {
+    const mode = SPELL_BY_TYPE.get(t)?.mode;
+    if (mode === 'self' || AREA_SPELL_DATA[t]?.rangeFt === 0) return 'self';
+    return mode === 'area' ? 'area' : 'line';
+  };
+  const groups = (['line', 'area', 'self'] as const)
+    .map(g => ({ g, spells: book.filter(b => groupOf(b.type) === g) }))
+    .filter(x => x.spells.length > 0);
+  const GROUP_LABEL = { line: SPELL_MODES.line.title, area: 'A un punt', self: SPELL_MODES.self.title };
+  return (
+    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
+      <div style={sectionLabel}>✨ Conjurs</div>
+      {groups.map(({ g, spells }) => (
+        <div key={g} style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: FS.xs, color: C.dim, margin: '2px 0 3px' }}>{GROUP_LABEL[g]}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {spells.map(b => {
+              const meta = SPELL_BY_TYPE.get(b.type);
+              const range = spellRangeFt(b.type);
+              const reach = g === 'self' ? 'personal' : range === 5 ? 'toc · 5 ft' : range !== undefined ? `${range} ft` : '';
+              return (
+                <Button key={b.type} size="sm" variant="tint" color={meta?.color ?? C.magic}
+                  title={`${meta?.title ?? b.name} · ${b.level === 0 ? 'truc' : 'nivell 1'}${reach ? ` · ${reach}` : ''}\n${g === 'self' ? 'Surt del token' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
+                  onMouseDown={e => { e.stopPropagation(); onCast(b.type); }}
+                  style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
+                  <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>
+                  {/* Els noms del Notion són llargs («Contacto electrizante»): dues línies abans que tallar-los */}
+                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{b.name}</span>
+                  {g !== 'self' && <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{range === 5 ? 'toc' : range}</span>}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ContextMenuOverlay({
   contextMenu, conditions, defeated, rDefeated, defeatedAnimRef, rConditions,
   libEnemies, psdEnemyOverrides, players,
@@ -97,7 +146,7 @@ export function ContextMenuOverlay({
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
   onLaunchBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
   // així que el botó demana confirmació en dos passos (com el ✕ del TurnTracker). Es desa
@@ -338,6 +387,11 @@ export function ContextMenuOverlay({
           rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
         }}
       />
+
+      {contextMenu.casterPos && (() => {
+        const origin = contextMenu.casterPos;
+        return <Spellbook playerName={contextMenu.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
+      })()}
 
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
         {contextMenu.existingGroupId && (

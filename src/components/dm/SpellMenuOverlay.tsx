@@ -19,7 +19,7 @@ export function SpellMenuOverlay({ spellMenu, onClose, onAddSpell }: Props) {
   if (!spellMenu) return null;
   const mode = spellMenu.mode ?? 'path';
   const meta = SPELL_MODES[mode];
-  const items = SPELL_TYPES.filter(s => s.mode === mode).map(s => {
+  const items = SPELL_TYPES.filter(s => s.mode === mode && !s.tokenOnly).map(s => {
     const area = AREA_SPELL_DATA[s.type];
     return {
       id: s.type, icon: s.emoji, label: s.title, color: s.color,

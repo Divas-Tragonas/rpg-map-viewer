@@ -219,6 +219,7 @@ src/
 │   │   ├── fireball.ts     # Bola de foc (ignició/vol/impacte/socarrim) + fireballShake
 │   │   ├── lightning.ts    # Raig elèctric (llamp fractal, re-descàrregues) + lightningShake
 │   │   ├── magicbeam.ts    # Raig màgic (càrrega, raig sostingut, col·lapse)
+│   │   ├── bookspells.ts   # Conjurs dels grimoris (raig de gebre, flama sagrada, escut, curar ferides…)
 │   │   ├── minorspells.ts  # Projectil màgic, risa horrible, mans ardents
 │   │   ├── areaspells.ts   # Dormir i greix (àrees persistents, passada 'ground')
 │   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
@@ -230,6 +231,7 @@ src/
 │   │   ├── icons.ts        # CONDITION_ICONS: isotips vectorials (paths SVG) dels estats
 │   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
+│   ├── spellcast.ts        # clampToRange: limita el destí d'una màgia al seu abast en peus
 │   ├── textures/           # Textures procedurals (noise, elements)
 │   └── enemy-images.ts     # ENEMY_IMAGES (imatges base64 enemics)
 ├── constants/index.ts      # CONDITIONS, ELEMENTS, PALETTE, ENEMY_TEMPLATES, C, BC_CHANNEL...
@@ -310,7 +312,7 @@ Afegir la crida a `useRafLoop.ts` entre `ctx.save()` i `ctx.restore()`.
 | `renderPaintedZones` | render/zones.ts | Zones màgiques: textures animades (jugador) / flat (DM) |
 | `renderShapePreview` | render/zones.ts | Preview del shape tool al DM |
 | `advanceStrokeAnim` | render/drawing.ts | Reprodueix traços de dibuix frame a frame |
-| `renderSpells` | render/spells.ts | Animacions dels spells. Dues passades: `'ground'` (sota tokens) i `'air'` (sobre) |
+| `renderSpells` | render/spells.ts | Animacions dels spells (inclosos els dels grimoris, `bookspells.ts`). Dues passades: `'ground'` (sota tokens) i `'air'` (sobre) |
 | `renderEnemyTokens` | render/tokens.ts | Tokens enemics PSD: drag, LERP, condicions, derrota |
 | `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures |
 | `renderPlayerTokens` | render/tokens.ts | Tokens jugador: LERP, condicions |
@@ -565,6 +567,14 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - ⚠️ **Teclat en fase de captura** (`stopImmediatePropagation`): 1…N trien i Esc tanca. Si no, les xifres canviarien d'eina (1–6) i l'Esc tornaria a l'eina de selecció.
 - La roda es recol·loca perquè no surti de la finestra. Clic al centre o fora = tancar.
 - Noms de màgies (`SPELL_TYPES.title`, amb `SPELL_BY_TYPE`) i d'elements (`ELEMENTS.label`) en català: són els mateixos que surten al menú contextual («💤 Dormir», «🔥 Zona de foc»).
+
+### Grimoris dels personatges (`SPELLBOOKS` a `constants` + `bookspells.ts`)
+- **Font**: les fitxes de la base «DIVAS y TRAGONAS» del Notion. Cada grimori és una llista `{ name, level, type }`: `name` tal com està apuntat (en castellà), `type` l'efecte que el pinta. Només en tenen **Liriandor** (mag) i **Yunquerin** (clergue); la resta són guerrers i pícar. `spellbookFor(nom)` el troba pel **primer nom** del jugador, sense accents ni majúscules («Liriandor Líadon» → `liriandor`). Si es reanomena un jugador amb un altre primer nom, el grimori deixa de sortir.
+- **Gest de cada màgia** (`SPELL_TYPES[].mode`): `path` (traç), `line` (en línia recta), `area` (a un punt dins d'abast) i `self` (surt del llançador). `tokenOnly` → de toc o personals: només es llancen des del grimori (sense llançador no tenen sentit) i no ocupen les rodes dels gestos.
+- **Abast**: `AREA_SPELL_DATA[t].rangeFt` per a les àrees (0 = personal) i `LINE_SPELL_RANGE_FT` per a les direccionals; `spellRangeFt(t)` és l'única lectura. `clampToRange` (`lib/spellcast.ts`) el fa complir **al moviment i al clic** (si no, la previsualització i el que es llança no coincidirien). Sense graella no es limita (no hi ha mida de casella per passar de peus a píxels).
+- **Llançar des del token**: menú contextual d'un jugador → ✨ Conjurs (`Spellbook` a `ContextMenuOverlay`, origen = `ContextMenuState.casterPos`, el centre del token). `castFromToken` (`DMView`): les personals surten a l'instant; la resta deixen `rAreaPlacementPending` amb `mode: 'line' | 'area'` i el clic següent fixa el destí. **Funciona amb qualsevol eina** (el clic i la previsualització van abans de les branques de cada eina). Esc o clic dret el cancel·len.
+- **Persistents vs instantànies**: `AREA_SPELL_DATA[t].persistent` (dormir, greix) → passada `'ground'`, arrossegables i amb menú per esborrar (`PERSISTENT_SPELLS`). La resta fan l'animació i caduquen com un projectil. ⚠️ No tornar a escriure llistes `['sleep','grease']` a mà: es deriven de `PERSISTENT_SPELLS`.
+- **Efecte nou**: funció a `bookspells.ts` + durada a `SPELL_DURATIONS` i entrada a `BOOK_SPELLS` (`spells.ts`). Arriba al jugador pel mateix `SPELL` de sempre: cap camp de sync nou.
 
 ### Zones màgiques (Painted Zones)
 - Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)

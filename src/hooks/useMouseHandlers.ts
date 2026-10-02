@@ -3,15 +3,21 @@ import { useCallback, useRef } from 'react';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
-import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE } from '@/constants';
+import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
+import { clampToRange } from '@/lib/spellcast';
 
-const AREA_TYPES = new Set(['sleep', 'grease']);
+const AREA_TYPES = PERSISTENT_SPELLS;
 const AREA_SETTLED = (sp: import('@/types').Spell) => {
   const DUR: Record<string, number> = { sleep: 3.0, grease: 3.5 };
   return (performance.now() - sp.startTime) / 1000 > (DUR[sp.type] ?? 2.5);
 };
 import type { PosMap, VisMap, Wall } from '@/types';
 import type { DMRefs } from './useDMRefs';
+
+/** Treu la màgia que esperava el clic de destí (i la seva previsualització). */
+function cancelPendingSpell(R: DMRefs): void {
+  R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
+}
 
 interface MouseHandlerSetters {
   setVis: (v: VisMap | ((p: VisMap) => VisMap)) => void;
@@ -162,11 +168,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setSpellMenu({ points: [{ x: amx, y: amy }], cx: e.clientX, cy: e.clientY, mode: 'area' });
       e.preventDefault(); return;
     }
-    // Click to confirm pending area spell placement
-    if (e.button === 0 && R.rAreaPlacementPending.current && R.rDrawTool.current === 'shape' && !e.shiftKey && !e.altKey && !e.ctrlKey) {
+    // Clic que fixa el destí d'una màgia triada (a la roda o al grimori d'un token):
+    // centre de l'àrea o punta del raig, limitat a l'abast. Amb qualsevol eina: la màgia
+    // del grimori es llança sense haver de canviar a l'eina Màgies.
+    if (e.button === 0 && R.rAreaPlacementPending.current && !e.shiftKey && !e.altKey && !e.ctrlKey) {
       const { mx: pmx, my: pmy } = mc(e);
       const { type, origin } = R.rAreaPlacementPending.current;
-      const sp = { id: Date.now().toString(), type, points: [origin, { x: pmx, y: pmy }], startTime: performance.now() };
+      const target = clampToRange(origin, { x: pmx, y: pmy }, spellRangeFt(type), R.rGridSize.current);
+      const sp = { id: Date.now().toString(), type, points: [origin, target], startTime: performance.now() };
       const ns = [...R.rActiveSpells.current, sp];
       R.rActiveSpells.current = ns; S.setActiveSpells(ns);
       R.bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
@@ -514,6 +523,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     const { mx, my, sc } = mc(e);
 
+    // Màgia triada esperant el destí: centre de l'àrea o punta del raig, limitat a l'abast.
+    // Abans de les branques de cada eina: la del grimori es pot llançar amb qualsevol eina.
+    if (R.rAreaPlacementPending.current) {
+      const pend = R.rAreaPlacementPending.current;
+      const range = spellRangeFt(pend.type);
+      const tgt = clampToRange(pend.origin, { x: mx, y: my }, range, R.rGridSize.current);
+      R.rSpellPreview.current = pend.mode === 'line'
+        ? { mode: 'line', start: pend.origin, end: tgt, rangeFt: range }
+        : { mode: 'area_place', origin: pend.origin, center: tgt, spellType: pend.type };
+      return;
+    }
+
     // Paret en curs (eina "Parets"): línia elàstica de l'últim vèrtex al cursor amb imant.
     if (R.rDrawTool.current === 'wall') {
       // Mode porta (dos clics): sense inici encara, la previsualització és el punt d'inici
@@ -660,12 +681,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // Update spell line preview end point
     if (R.isSpellLineDrawingRef.current && R.spellLineStartRef.current) {
       R.rSpellPreview.current = { mode: 'line', start: R.spellLineStartRef.current, end: { x: mx, y: my } };
-      return;
-    }
-    // Update area placement preview center
-    if (R.rAreaPlacementPending.current) {
-      const pend = R.rAreaPlacementPending.current;
-      R.rSpellPreview.current = { mode: 'area_place', origin: pend.origin, center: { x: mx, y: my }, spellType: pend.type };
       return;
     }
 
@@ -971,6 +986,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    // Clic dret amb una màgia per col·locar: la cancel·la (com Esc)
+    if (R.rAreaPlacementPending.current) { cancelPendingSpell(R); return; }
     const { mx, my, sc } = mc(e);
     // Eina Parets: clic dret sobre una porta l'elimina (la paret es tanca de nou).
     if (R.rDrawTool.current === 'wall') {
@@ -1054,7 +1071,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
       if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
         if (maybeMultiMenu(`pl_${pl.id}`)) return;
-        S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(`pl_${pl.id}`) }); return;
+        S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(`pl_${pl.id}`), casterPos: { x: ppos.x + pR, y: ppos.y + pR } }); return;
       }
     }
     // Enemics del PSD (si n'hi ha): sense estructura es continua avall — les sales

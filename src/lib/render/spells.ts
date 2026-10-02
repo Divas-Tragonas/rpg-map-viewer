@@ -1,6 +1,6 @@
 import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
-import { AREA_SPELL_DATA } from '@/constants';
+import { AREA_SPELL_DATA, PERSISTENT_SPELLS } from '@/constants';
 import { drawSpellFireball, drawFireballGround, fireballShake, FIREBALL_DUR } from './fireball';
 import { drawSpellLightning, drawLightningGround, pruneLightningFx, lightningShake, LIGHTNING_DUR, LIGHTNING_FIRST_STRIKE } from './lightning';
 import { drawSpellMagicBeam, MAGIC_BEAM_DUR } from './magicbeam';
@@ -9,6 +9,13 @@ import {
   MAGIC_MISSILE_DUR, HIDEOUS_LAUGHTER_DUR, BURNING_HANDS_DUR,
 } from './minorspells';
 import { drawSpellSleep, drawSpellGrease } from './areaspells';
+import {
+  drawSpellRayOfFrost, drawSpellShockingGrasp, drawSpellMageHand, drawSpellPrestidigitation, drawSpellMageArmor,
+  drawSpellShield, drawSpellDetectMagic, drawSpellLight, drawSpellSacredFlame, drawSpellThaumaturgy, drawSpellBless,
+  drawSpellCureWounds,
+  RAY_OF_FROST_DUR, SHOCKING_GRASP_DUR, MAGE_HAND_DUR, PRESTIDIGITATION_DUR, MAGE_ARMOR_DUR, SHIELD_DUR,
+  DETECT_MAGIC_DUR, LIGHT_DUR, SACRED_FLAME_DUR, THAUMATURGY_DUR, BLESS_DUR, CURE_WOUNDS_DUR,
+} from './bookspells';
 
 export {
   drawSpellFireball, drawSpellLightning, drawSpellMagicBeam,
@@ -30,8 +37,6 @@ export function spellShake(spells: readonly Spell[], now: number): Point {
   return { x, y };
 }
 
-const AREA_SPELL_TYPES = new Set(['sleep', 'grease']);
-
 const SPELL_DURATIONS: Record<string, number> = {
   fireball:         FIREBALL_DUR,
   lightning:        LIGHTNING_DUR,
@@ -41,6 +46,28 @@ const SPELL_DURATIONS: Record<string, number> = {
   burning_hands:    BURNING_HANDS_DUR,
   sleep:            3.0,
   grease:           3.5,
+  ray_of_frost:     RAY_OF_FROST_DUR,
+  shocking_grasp:   SHOCKING_GRASP_DUR,
+  mage_hand:        MAGE_HAND_DUR,
+  prestidigitation: PRESTIDIGITATION_DUR,
+  mage_armor:       MAGE_ARMOR_DUR,
+  shield:           SHIELD_DUR,
+  detect_magic:     DETECT_MAGIC_DUR,
+  light:            LIGHT_DUR,
+  sacred_flame:     SACRED_FLAME_DUR,
+  thaumaturgy:      THAUMATURGY_DUR,
+  bless:            BLESS_DUR,
+  cure_wounds:      CURE_WOUNDS_DUR,
+};
+
+type SpellDraw = (ctx: CanvasRenderingContext2D, pts: Point[], e: number, dur: number, sc: number, gridSize: number, seed: number) => void;
+
+/** Efectes dels grimoris dels personatges (instantanis, passada 'air'). */
+const BOOK_SPELLS: Record<string, SpellDraw> = {
+  ray_of_frost: drawSpellRayOfFrost, shocking_grasp: drawSpellShockingGrasp, mage_hand: drawSpellMageHand,
+  prestidigitation: drawSpellPrestidigitation, mage_armor: drawSpellMageArmor, shield: drawSpellShield,
+  detect_magic: drawSpellDetectMagic, light: drawSpellLight, sacred_flame: drawSpellSacredFlame,
+  thaumaturgy: drawSpellThaumaturgy, bless: drawSpellBless, cure_wounds: drawSpellCureWounds,
 };
 
 function ftToWorld(ft: number, gridSize: number): number {
@@ -68,6 +95,13 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
 
   if (preview.mode === 'line') {
     const { start, end } = preview;
+    // Abast màxim (llançat des d'un token): cercle blanc de guions, com el de les àrees
+    if (preview.rangeFt && gridSize > 0) {
+      ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 / sc;
+      ctx.setLineDash([8 / sc, 6 / sc]);
+      ctx.beginPath(); ctx.arc(start.x, start.y, ftToWorld(preview.rangeFt, gridSize), 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     // 3-layer preview line — same visual language as active spells
     ctx.lineCap = 'round';
     ctx.globalAlpha = 0.20; ctx.strokeStyle = '#ffd200'; ctx.lineWidth = 9 / sc;
@@ -153,7 +187,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
   for (const sp of rActiveSpells.current) {
     const elapsed = (now - sp.startTime) / 1000;
     const dur = SPELL_DURATIONS[sp.type] ?? 2.5;
-    const isArea = AREA_SPELL_TYPES.has(sp.type);
+    const isArea = PERSISTENT_SPELLS.has(sp.type);
     if (elapsed > dur && !isArea) continue;  // non-area spells expire
     alive.push(sp);
     const seed = hash32(sp.id);
@@ -173,6 +207,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     else if (sp.type === 'burning_hands')    drawSpellBurningHands(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
     else if (sp.type === 'sleep')            drawSpellSleep(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
     else if (sp.type === 'grease')           drawSpellGrease(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
+    else BOOK_SPELLS[sp.type]?.(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
   }
   if (alive.length !== rActiveSpells.current.length) {
     rActiveSpells.current = alive; setActiveSpells(alive);

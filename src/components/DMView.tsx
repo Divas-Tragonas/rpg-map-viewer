@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
+import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
+import { clampToRange } from '@/lib/spellcast';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -736,6 +737,20 @@ export function DMView() {
     }
     R.rMultiSelected.current = new Set();
   }, [removeLibEnemy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Grimori: llançar una màgia des d'un token de jugador ───────────────────
+  // Personals (abast 0) surten a l'instant del token. La resta queden pendents del clic
+  // de destí (`rAreaPlacementPending`, el mateix camí que les àrees de la roda): el ratolí
+  // mou la punta del raig o el centre de l'àrea, limitats a l'abast en peus.
+  const castFromToken = useCallback((type: import('@/types').SpellType, origin: { x: number; y: number }) => {
+    const area = AREA_SPELL_DATA[type];
+    if (area && area.rangeFt === 0) { addSpell(type, [origin, origin], () => {}); return; }
+    const mode = area ? 'area' as const : 'line' as const;
+    R.rAreaPlacementPending.current = { type, origin, mode };
+    R.rSpellPreview.current = mode === 'area'
+      ? { mode: 'area_place', origin, center: origin, spellType: type }
+      : { mode: 'line', start: origin, end: origin, rangeFt: spellRangeFt(type) };
+  }, [addSpell]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Token groups (double-click a member to select the whole group) ─────────
   const onCreateGroup = useCallback((ids: (number | string)[]) => {
@@ -1647,7 +1662,12 @@ export function DMView() {
             R.rSpellPreview.current = { mode: 'area_place', origin, center: origin, spellType: type };
             setSpellMenu(null);
           } else {
-            addSpell(type, spellMenu?.points ?? [], setSpellMenu);
+            // Direccionals: el traç no pot passar de l'abast del conjur (mans ardents, 15 ft…)
+            const pts = spellMenu?.points ?? [];
+            const range = spellRangeFt(type);
+            const clamped = spellMenu?.mode === 'line' && pts.length === 2
+              ? [pts[0], clampToRange(pts[0], pts[1], range, R.rGridSize.current)] : pts;
+            addSpell(type, clamped, setSpellMenu);
           }
         }}
       />
@@ -1682,6 +1702,7 @@ export function DMView() {
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
         onAddDoor={handleAddDoorToRoom}
         onResetExplored={onResetExplored}
+        onCastSpell={castFromToken}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

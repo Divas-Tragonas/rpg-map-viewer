@@ -1,7 +1,7 @@
-import type { Condition, Element } from '@/types';
+import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.22';
+export const APP_VERSION = 'v4.23';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -84,16 +84,35 @@ export type EnemyTemplateId = typeof ENEMY_TEMPLATES[number]['id'];
 
 export { ENEMY_IMAGES } from '@/lib/enemy-images';
 
-export const SPELL_TYPES = [
+/**
+ * Totes les màgies amb efecte al mapa. `mode` és el gest que les llança (veure
+ * `SPELL_MODES`): 'path' segueixen un traç, 'line' van en línia recta, 'area' cauen en un
+ * punt dins d'un abast en peus i 'self' surten del mateix llançador. `tokenOnly` → només
+ * es llancen des del grimori d'un token (toc o personal: sense llançador no tenen sentit),
+ * així no omplen les rodes dels gestos.
+ */
+export const SPELL_TYPES: readonly { type: SpellType; emoji: string; color: string; title: string; mode: 'path' | 'line' | 'area' | 'self'; tokenOnly?: boolean }[] = [
   { type: 'fireball',          emoji: '🔥', color: '#ff8800', title: 'Bola de foc',     mode: 'path' },
   { type: 'lightning',         emoji: '⚡', color: '#ffd200', title: 'Raig elèctric',   mode: 'path' },
   { type: 'magic_beam',        emoji: '✨', color: '#9988ff', title: 'Raig màgic',      mode: 'path' },
   { type: 'magic_missile',     emoji: '🔮', color: '#c084fc', title: 'Projectil màgic', mode: 'line' },
   { type: 'hideous_laughter',  emoji: '😂', color: '#facc15', title: 'Riure horrible',  mode: 'line' },
   { type: 'burning_hands',     emoji: '🤲', color: '#f97316', title: 'Mans ardents',    mode: 'line' },
+  { type: 'ray_of_frost',      emoji: '❄️', color: '#7dd3fc', title: 'Raig de gebre',   mode: 'line' },
+  { type: 'shocking_grasp',    emoji: '🫳', color: '#93c5fd', title: 'Toc electritzant', mode: 'line', tokenOnly: true },
   { type: 'sleep',             emoji: '💤', color: '#818cf8', title: 'Dormir',          mode: 'area' },
   { type: 'grease',            emoji: '🫙', color: '#a3e635', title: 'Greix',           mode: 'area' },
-] as const;
+  { type: 'sacred_flame',      emoji: '🕯️', color: '#fde68a', title: 'Flama sagrada',   mode: 'area' },
+  { type: 'bless',             emoji: '🙏', color: '#facc15', title: 'Beneir',          mode: 'area' },
+  { type: 'mage_hand',         emoji: '✋', color: '#c084fc', title: 'Mà de mag',       mode: 'area' },
+  { type: 'thaumaturgy',       emoji: '🌀', color: '#fbbf24', title: 'Taumatúrgia',     mode: 'area' },
+  { type: 'prestidigitation',  emoji: '🎩', color: '#f0abfc', title: 'Prestidigitació', mode: 'area' },
+  { type: 'cure_wounds',       emoji: '💚', color: '#4ade80', title: 'Curar ferides',   mode: 'area', tokenOnly: true },
+  { type: 'mage_armor',        emoji: '🛡️', color: '#a5b4fc', title: 'Armadura de mag', mode: 'area', tokenOnly: true },
+  { type: 'light',             emoji: '💡', color: '#fef08a', title: 'Llum',            mode: 'area', tokenOnly: true },
+  { type: 'shield',            emoji: '🔰', color: '#c084fc', title: 'Escut',           mode: 'self', tokenOnly: true },
+  { type: 'detect_magic',      emoji: '👁️', color: '#d8b4fe', title: 'Detectar màgia',  mode: 'self', tokenOnly: true },
+];
 
 export const SPELL_BY_TYPE = new Map<string, typeof SPELL_TYPES[number]>(SPELL_TYPES.map(s => [s.type, s]));
 
@@ -106,13 +125,80 @@ export const SPELL_MODES = {
   line: { title: 'Direccional', subtitle: 'En línia recta',          gesture: 'Maj + arrossegar' },
   area: { title: 'Àrea',        subtitle: 'Tria i col·loca',         gesture: 'Alt + clic o creuar el traç' },
   zone: { title: 'Zona màgica', subtitle: 'Tria l\'element',          gesture: 'Tancar el traç' },
+  self: { title: 'Personal',    subtitle: 'Surt del llançador',      gesture: 'Grimori del token' },
 } as const;
 
-// Area spell rules: AoE radius and max cast range in feet (1 square = 5ft)
-export const AREA_SPELL_DATA: Record<string, { aoeRadiusFt: number; rangeFt: number; color: string; emoji: string }> = {
-  sleep:  { aoeRadiusFt: 20, rangeFt: 90,  color: '#818cf8', emoji: '💤' },
-  grease: { aoeRadiusFt: 10, rangeFt: 60,  color: '#a3e635', emoji: '🫙' },
+/**
+ * Regles d'àrea en peus (1 casella = 5 ft): radi de l'efecte, abast màxim des del
+ * llançador (0 = centrat en ell mateix) i `persistent` → es queda al mapa fins que el DM
+ * l'esborra (dormir, greix). La resta són instantanis: fan l'animació i desapareixen.
+ * Els conjurs d'un sol objectiu porten 2,5 ft de radi: una casella.
+ */
+export const AREA_SPELL_DATA: Record<string, { aoeRadiusFt: number; rangeFt: number; color: string; emoji: string; persistent?: boolean }> = {
+  sleep:            { aoeRadiusFt: 20,  rangeFt: 90, color: '#818cf8', emoji: '💤', persistent: true },
+  grease:           { aoeRadiusFt: 10,  rangeFt: 60, color: '#a3e635', emoji: '🫙', persistent: true },
+  sacred_flame:     { aoeRadiusFt: 2.5, rangeFt: 60, color: '#fde68a', emoji: '🕯️' },
+  bless:            { aoeRadiusFt: 2.5, rangeFt: 30, color: '#facc15', emoji: '🙏' },
+  mage_hand:        { aoeRadiusFt: 2.5, rangeFt: 30, color: '#c084fc', emoji: '✋' },
+  thaumaturgy:      { aoeRadiusFt: 5,   rangeFt: 30, color: '#fbbf24', emoji: '🌀' },
+  prestidigitation: { aoeRadiusFt: 2.5, rangeFt: 10, color: '#f0abfc', emoji: '🎩' },
+  cure_wounds:      { aoeRadiusFt: 2.5, rangeFt: 5,  color: '#4ade80', emoji: '💚' },
+  mage_armor:       { aoeRadiusFt: 2.5, rangeFt: 5,  color: '#a5b4fc', emoji: '🛡️' },
+  light:            { aoeRadiusFt: 20,  rangeFt: 5,  color: '#fef08a', emoji: '💡' },
+  shield:           { aoeRadiusFt: 2.5, rangeFt: 0,  color: '#c084fc', emoji: '🔰' },
+  detect_magic:     { aoeRadiusFt: 30,  rangeFt: 0,  color: '#d8b4fe', emoji: '👁️' },
 };
+
+/** Spells que es queden al mapa (passada 'ground', arrossegables i amb menú per esborrar-los). */
+export const PERSISTENT_SPELLS: ReadonlySet<string> = new Set(
+  Object.entries(AREA_SPELL_DATA).filter(([, d]) => d.persistent).map(([t]) => t),
+);
+
+/** Abast màxim (peus) de les màgies en línia recta, mesurat des del llançador. */
+export const LINE_SPELL_RANGE_FT: Record<string, number> = {
+  magic_missile: 120, hideous_laughter: 30, burning_hands: 15, ray_of_frost: 60, shocking_grasp: 5,
+};
+
+/** Abast d'una màgia en peus (`undefined` = sense límit, p. ex. les de trajectòria). */
+export function spellRangeFt(type: string): number | undefined {
+  return AREA_SPELL_DATA[type]?.rangeFt ?? LINE_SPELL_RANGE_FT[type];
+}
+
+/**
+ * Grimoris dels personatges, copiats de les seves fitxes al Notion («DIVAS y TRAGONAS»).
+ * `name` és el nom tal com està apuntat; `type` l'efecte que el pinta al mapa.
+ * Espardeny, Jaume III i Cigarramic no en tenen: són guerrers i pícar sense màgia.
+ */
+export interface BookSpell { name: string; level: 0 | 1; type: SpellType }
+export const SPELLBOOKS: Record<string, readonly BookSpell[]> = {
+  // Mag (Alt Elf) — trucs + llibre de conjurs
+  liriandor: [
+    { name: 'Rayo de escarcha',       level: 0, type: 'ray_of_frost' },
+    { name: 'Contacto electrizante',  level: 0, type: 'shocking_grasp' },
+    { name: 'Mano del mago',          level: 0, type: 'mage_hand' },
+    { name: 'Prestidigitación',       level: 0, type: 'prestidigitation' },
+    { name: 'Proyectil mágico',       level: 1, type: 'magic_missile' },
+    { name: 'Manos ardientes',        level: 1, type: 'burning_hands' },
+    { name: 'Dormir',                 level: 1, type: 'sleep' },
+    { name: 'Armadura del mago',      level: 1, type: 'mage_armor' },
+    { name: 'Escudo',                 level: 1, type: 'shield' },
+    { name: 'Detectar magia',         level: 1, type: 'detect_magic' },
+  ],
+  // Clergue, domini de la Vida (Nan de les colines)
+  yunquerin: [
+    { name: 'Llama Sagrada',          level: 0, type: 'sacred_flame' },
+    { name: 'Luz',                    level: 0, type: 'light' },
+    { name: 'Taumaturgia',            level: 0, type: 'thaumaturgy' },
+    { name: 'Bendecir',               level: 1, type: 'bless' },
+    { name: 'Curar Heridas',          level: 1, type: 'cure_wounds' },
+  ],
+};
+
+/** Grimori d'un jugador pel seu nom (n'hi ha prou amb el primer nom: «Liriandor Líadon» → liriandor). */
+export function spellbookFor(playerName: string): readonly BookSpell[] {
+  const key = playerName.trim().split(/\s+/)[0]?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() ?? '';
+  return SPELLBOOKS[key] ?? [];
+}
 
 export const C = {
   bg:          '#0d1117',
