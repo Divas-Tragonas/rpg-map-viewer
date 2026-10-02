@@ -39,9 +39,7 @@ interface Props {
   setPsdEnemyProps: (id: number, props: import('@/types').PsdEnemyOverride) => void;
   setLibEnemyProps: (id: number, props: Partial<LibEnemy>) => void;
   removeLibEnemy: (id: number) => void;
-  bcRef: React.MutableRefObject<BroadcastChannel | null>;
-  wsRef: React.MutableRefObject<import('@/lib/ws').SyncSocket | null>;
-  onTriggerBossIntro: (data: Record<string, unknown>) => void;
+  onLaunchBossIntro: (req: import('@/hooks/useCinematic').BossIntroRequest) => Promise<string | null>;
   onCreateGroup: (ids: (number | string)[]) => void;
   onDissolveGroup: (groupId: string) => void;
   onLeaveGroup: (id: number | string) => void;
@@ -97,7 +95,7 @@ export function ContextMenuOverlay({
   setDefeated, setConditions,
   adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
   setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
-  bcRef, wsRef, onTriggerBossIntro,
+  onLaunchBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
   onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored,
 }: Props) {
@@ -350,11 +348,8 @@ export function ContextMenuOverlay({
         <Button block variant="tint" color={C.magicBright} onMouseDown={e => {
           e.stopPropagation();
           if (lib?.imageData) {
-            const tp = contextMenu.tokenPos ?? null;
             const img = new Image(); img.src = lib.imageData;
-            onTriggerBossIntro({ tokenId: contextMenu.id, bossName: contextMenu.name, portrait: img, tokenPos: tp });
-            bcRef.current?.postMessage({ type: 'BOSS_INTRO', tokenId: contextMenu.id, bossName: contextMenu.name, tokenPos: tp, portraitDataUrl: lib.imageData });
-            wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO', tokenId: contextMenu.id, bossName: contextMenu.name, tokenPos: tp, portraitDataUrl: lib.imageData }));
+            void onLaunchBossIntro({ tokenId: contextMenu.id, bossName: contextMenu.name, portrait: img, tokenPos: contextMenu.tokenPos ?? null });
             onClose(); return;
           }
           onOpenSceneConfig();

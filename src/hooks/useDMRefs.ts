@@ -6,7 +6,7 @@ import type {
   Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
   Wall, Room, Door, TurnState, CamRect,
 } from '@/types';
-import type { CinematicTimeline } from '@/lib/cinematic';
+import { newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
 
 export function useDMRefs() {
@@ -182,14 +182,8 @@ export function useDMRefs() {
 
   // Cinematic refs
   const cinematicActiveRef   = useRef(false);
-  const cinematicDataRef     = useRef<Record<string, Element | null> | null>(null);
-  const cinematicStartRef    = useRef(0);
-  const cinematicCamRef      = useRef({ active: false, tgtZoom: 1, tgtPan: { x: 0, y: 0 }, curZoom: 1, curPan: { x: 0, y: 0 } });
-  const cinematicOrigZoomRef = useRef(1);
-  const cinematicOrigPanRef  = useRef({ x: 0, y: 0 });
-  const cinematicTimelineRef = useRef<CinematicTimeline | null>(null);
-  const triggerBossIntroRef  = useRef<((data: Record<string, unknown>) => void) | null>(null);
-  const skipBossIntroRef     = useRef<(() => void) | null>(null);
+  const cinematicRef         = useRef<BossIntro | null>(null);
+  const cinematicCamRef      = useRef<CinematicCam>(newCinematicCam());
 
   return {
     stageRef, canvasRef, mediaRef,
@@ -210,9 +204,7 @@ export function useDMRefs() {
     rPointerPos, rMeasure, rShiftHeld, rHoveredPaintedZoneId, rSelectedPaintedZoneId, rCursorScreenPos, pointerThrottleRef, bgTransitionRef, gridCalibRef, gridCalibCurrRef,
     gridCalibHoverRef, highlightStartRef, dmPreviewBcastRef, rDmCam, rPlayerScreens, zoneAppearRef,
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
-    cinematicActiveRef, cinematicDataRef, cinematicStartRef, cinematicCamRef,
-    cinematicOrigZoomRef, cinematicOrigPanRef,
-    cinematicTimelineRef, triggerBossIntroRef, skipBossIntroRef,
+    cinematicActiveRef, cinematicRef, cinematicCamRef,
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
   };
 }

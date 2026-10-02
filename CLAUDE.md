@@ -224,7 +224,7 @@ src/
 │   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
-│   ├── cinematic/index.ts  # cpBurst, cpUpdate, cpDraw (partícules cinematica)
+│   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador)
 │   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)
 │   ├── conditions/
 │   │   ├── icons.ts        # CONDITION_ICONS: isotips vectorials (paths SVG) dels estats
@@ -521,10 +521,17 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Ordre: vida (`HpControl` `md`, si en té) → nom (enemics) → mida → estats → grup, cinemàtica i «Treure de l'escena».
 - Llegeix vida i noms de l'**estat** (`libEnemies`, `players`, `psdEnemyOverrides` per props), no de refs: així es refresca en canviar la vida i no hi ha lectures de refs durant el render.
 
-### Cinematica boss reveal
-- Llançada via `triggerBossIntroRef.current(data)`
-- `BOSS_INTRO` BC message inclou `portraitDataUrl` (JPEG base64, max 600px)
-- `SceneImgPicker` per importar imatge custom al context menu
+### Cinematica boss reveal (`src/lib/cinematic/bossIntro.ts`)
+- **Un sol motor per al DM i el jugador** (`playBossIntro`): abans eren dues còpies de ~200 línies a `useCinematic` i `PlayerView` que ja havien divergit. Cada pantalla només hi posa el seu escenari, la seva càmera i el seu tick (`cinematicRef.current?.tick(now)`).
+- **Cada execució és propietària de tot el que crea** (elements, timeouts, espurnes) i `dispose()` ho desfà tot. ⚠️ No tornar a una neteja amb `setTimeout` que toqui refs compartides: la d'una cinemàtica saltada esborrava les dades de la següent.
+- **Llançament únic** (`launchBossIntro` a `useCinematic`): la reprodueix al DM, codifica el retrat (`encodePortrait`: JPEG ≤600 px; els GIF animats tal qual fins a ~3 MB) i envia `BOSS_INTRO` per BC i WS. Retorna el retrat codificat perquè `SceneConfigOverlay` el desi al token si era una imatge triada a mà. `ContextMenuOverlay` i `SceneConfigOverlay` no fan cap `postMessage` propi.
+- **Càmera en coordenades de mapa**: el DM calcula `cam` (`bossCamRect`: la meitat del que veu, entre 1/1,8 i 1/4 del mapa, retallat al mapa) i viatja dins `BOSS_INTRO`. Cada pantalla el tradueix amb `camToView` cada frame (`cinematicCamRef.rect`), igual que la càmera compartida. Al DM la vista s'interpola des de la seva vista actual i, en acabar, hi torna suau (`active` es manté fins que hi arriba); al jugador ho fa el seu LERP de càmera. Si el DM és antic i no envia `cam`, el jugador el calcula des de `rCam`.
+- **Mides de l'escenari** (`stage.clientWidth/Height`), mai de `window`: al DM el sidebar en treu un tros.
+- **Espurnes deterministes**: funció pura de (llavor = `seedFor(tokenId)`, índex, temps) — iguals a totes les pantalles i independents dels fps.
+- El jugador compensa el que triga a descodificar el retrat (`offsetMs`, màx. 600 ms) perquè no vagi endarrerit. Una `BOSS_INTRO` nova mentre en corre una la reemplaça.
+- Esc al DM la salta a tot arreu (`BOSS_INTRO_SKIP`); Esc a la pantalla de jugador només la salta allà. Amb `prefers-reduced-motion`, flaix suau i sense glitch ni parallax.
+- `SceneImgPicker` per importar imatge custom al menú de configuració.
+- **Pendent**: no té en compte la boira de guerra (si el boss és dins d'una sala fosca, la càmera hi fa zoom i es veu negre) ni l'agafa una pantalla que es connecti a mitja cinemàtica.
 
 ### Bola de foc (`src/lib/render/fireball.ts`)
 - **Quatre temps** (constants `CHARGE`, `TRAVEL`, `IMPACT_AT`, `FIREBALL_DUR`): ignició directa a la mà (flamarada + flaix direccional, 0,14 s; **res de cercles rúnics**: l'usuari els va trobar massa místics) → projectil que accelera amb cua de foc que queda al món → impacte (flaix, bola que s'infla i es refreda, ona expansiva amb anell de pols, terra que s'encén, runa, fum) → socarrim amb brases. Radi visual: 15 ft (`BLAST_FT`).

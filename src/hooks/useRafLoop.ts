@@ -6,8 +6,7 @@ import { renderSpells, spellShake } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
-import { cpBurst, cpUpdate, cpDraw } from '@/lib/cinematic';
-import { viewRect, clampCamToMap } from '@/lib/camera';
+import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
 import type { DMRefs } from './useDMRefs';
 import type { Spell } from '@/types';
 
@@ -67,17 +66,22 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       // Zoom & pan (DM: cinematic cam or local+shared)
       let z: number, pan: { x: number; y: number };
       const cinCam = R.cinematicCamRef.current;
+      const normZ = R.rZoom.current * R.dmLocalZoom.current;
+      const normPan = { x: R.rPanOffset.current.x + R.dmLocalPan.current.x, y: R.rPanOffset.current.y + R.dmLocalPan.current.y };
       if (cinCam.active) {
+        // Objectiu en coords de mapa (`rect`) traduït a aquesta finestra; sense `rect`,
+        // torna suau a la vista normal i llavors s'apaga.
+        const tgt = cinCam.rect ? camToView(cinCam.rect, W, H, mw, mh) : { zoom: normZ, pan: normPan };
         const CL = 0.035;
-        const dz = cinCam.tgtZoom - cinCam.curZoom;
-        const dx = cinCam.tgtPan.x - cinCam.curPan.x, dy = cinCam.tgtPan.y - cinCam.curPan.y;
+        const dz = tgt.zoom - cinCam.curZoom;
+        const dx = tgt.pan.x - cinCam.curPan.x, dy = tgt.pan.y - cinCam.curPan.y;
         if (Math.abs(dz) < 0.0005 && Math.abs(dx) < 0.3 && Math.abs(dy) < 0.3) {
-          cinCam.curZoom = cinCam.tgtZoom; cinCam.curPan.x = cinCam.tgtPan.x; cinCam.curPan.y = cinCam.tgtPan.y;
+          cinCam.curZoom = tgt.zoom; cinCam.curPan = { ...tgt.pan };
+          if (!cinCam.rect) cinCam.active = false;
         } else { cinCam.curZoom += dz * CL; cinCam.curPan.x += dx * CL; cinCam.curPan.y += dy * CL; }
         z = cinCam.curZoom; pan = cinCam.curPan;
       } else {
-        z = R.rZoom.current * R.dmLocalZoom.current;
-        pan = { x: R.rPanOffset.current.x + R.dmLocalPan.current.x, y: R.rPanOffset.current.y + R.dmLocalPan.current.y };
+        z = normZ; pan = normPan;
       }
       const sc = Math.min(W / mw, H / mh) * z;
       // Sacsejada de càmera dels spells (explosió de la bola de foc, llamp): mou fons, mapa i tokens junts.
@@ -291,19 +295,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       }
 
       // Cinematic tick
-      if (R.cinematicActiveRef.current) {
-        R.cinematicTimelineRef.current?.tick();
-        const cd = R.cinematicDataRef.current as Record<string, HTMLCanvasElement> | null;
-        if (cd?.cinCanvas) {
-          const cc = cd.cinCanvas;
-          if (cc.width !== W || cc.height !== H) { cc.width = W; cc.height = H; cc.style.width = W + 'px'; cc.style.height = H + 'px'; }
-          const pCtx = cc.getContext('2d')!;
-          pCtx.clearRect(0, 0, W, H);
-          const elapsed = performance.now() - R.cinematicStartRef.current;
-          if (elapsed > 700 && elapsed < 5400 && Math.random() < 0.28) cpBurst(W, H, 2);
-          cpUpdate(1 / 60); cpDraw(pCtx);
-        }
-      }
+      R.cinematicRef.current?.tick(performance.now());
     };
 
     R.rafRef.current = requestAnimationFrame(tick);

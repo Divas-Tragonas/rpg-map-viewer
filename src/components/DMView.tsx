@@ -195,7 +195,7 @@ export function DMView() {
   const R = useDMRefs();
 
   // ── Cinematic ─────────────────────────────────────────────────────────────
-  const { triggerBossIntro, skipBossIntro } = useCinematic(R);
+  const { launchBossIntro, skipBossIntro } = useCinematic(R);
 
   // Opacitat del fons (només DM): actualitza estat + ref mirall que llegeix el tick.
   const onBgOpacityChange = useCallback((v: number) => {
@@ -1676,8 +1676,7 @@ export function DMView() {
         setPsdEnemyProps={setPsdEnemyProps}
         setLibEnemyProps={setLibEnemyProps}
         removeLibEnemy={removeLibEnemy}
-        bcRef={R.bcRef} wsRef={R.wsRef}
-        onTriggerBossIntro={triggerBossIntro}
+        onLaunchBossIntro={launchBossIntro}
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}
         onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
@@ -1688,9 +1687,8 @@ export function DMView() {
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}
         rPsdEnemyImgCache={R.rPsdEnemyImgCache}
         libEnemies={libEnemies} psdEnemyOverrides={psdEnemyOverrides}
-        bcRef={R.bcRef} wsRef={R.wsRef}
         onClose={() => setSceneConfigMenu(null)}
-        onTriggerBossIntro={triggerBossIntro}
+        onLaunchBossIntro={launchBossIntro}
         setPsdEnemyProps={setPsdEnemyProps}
         setLibEnemyProps={setLibEnemyProps}
       />

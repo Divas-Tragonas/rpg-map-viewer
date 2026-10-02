@@ -14,14 +14,14 @@ import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '
 import { renderSpells, spellShake } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
-import { CinematicTimeline, cpBurst, cpUpdate, cpDraw, cpKill } from '@/lib/cinematic';
+import { playBossIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
-import { camToView } from '@/lib/camera';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect } from '@/types';
+import { camToView, mediaSize, viewRect } from '@/lib/camera';
+import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -191,15 +191,9 @@ export function PlayerView() {
   const rDMPreviewZoom   = useRef(1);
   const rDMPreviewPan    = useRef({ x: 0, y: 0 });
 
-  const cinematicActiveRef   = useRef(false);
-  const cinematicDataRef     = useRef<Record<string, HTMLElement | HTMLCanvasElement> | null>(null);
-  const cinematicStartRef    = useRef(0);
-  const cinematicCamRef      = useRef({ active: false, tgtZoom: 1, tgtPan: { x: 0, y: 0 }, curZoom: 1, curPan: { x: 0, y: 0 } });
-  const cinematicOrigZoomRef = useRef(1);
-  const cinematicOrigPanRef  = useRef({ x: 0, y: 0 });
-  const cinematicTimelineRef = useRef<CinematicTimeline | null>(null);
-  const triggerBossIntroRef  = useRef<((data: Record<string, unknown>) => void) | null>(null);
-  const skipBossIntroRef     = useRef<(() => void) | null>(null);
+  const cinematicRef         = useRef<BossIntro | null>(null);
+  // Només es fa servir `rect`: el LERP de càmera del jugador ja suavitza l'anada i la tornada.
+  const cinematicCamRef      = useRef<CinematicCam>(newCinematicCam());
 
   const bcRef = useRef<BroadcastChannel | null>(null);
   // Handler únic dels missatges del DM: el criden tant el BroadcastChannel (finestres
@@ -349,211 +343,42 @@ export function PlayerView() {
     rMovePath.current[id] = { pts, t: 0 };
   }, []);
 
-  const triggerBossIntro = useCallback((data: Record<string, unknown>) => {
-    if (cinematicActiveRef.current) return;
-    const { bossName, portrait, tokenPos } = data;
+  const triggerBossIntro = useCallback((d: {
+    tokenId: number | string; bossName: string; tokenPos: Point | null; cam?: CamRect | null;
+    portrait: HTMLCanvasElement | HTMLImageElement | null; offsetMs: number;
+  }) => {
     const stage = stageRef.current; if (!stage) return;
-
-    if (!document.getElementById('cin-style')) {
-      const st = document.createElement('style');
-      st.id = 'cin-style';
-      st.textContent = `
-        @keyframes cinFlick{0%,100%{opacity:1}12%{opacity:.5}14%{opacity:1}72%{opacity:.7}74%{opacity:1}}
-        @keyframes cinGlitch{0%,94%,100%{transform:translateX(0) scale(1)}95%{transform:translateX(-3px) skewX(-1deg)}97%{transform:translateX(3px) skewX(1deg)}}
-        @keyframes cinGlow{0%,100%{text-shadow:0 0 35px #d4a017,0 0 70px rgba(212,160,23,.6),0 5px 12px rgba(0,0,0,.9)}50%{text-shadow:0 0 60px #d4a017,0 0 130px rgba(212,160,23,.8),0 0 220px rgba(212,160,23,.4),0 5px 12px rgba(0,0,0,.9)}}
-        @keyframes cinParallaxPrt{0%,100%{transform:translate(0,-50%) translateX(0px) scale(1)}50%{transform:translate(0,-50%) translateX(-32px) scale(1.018)}}
-        @keyframes cinParallaxTxt{0%,100%{transform:translateX(0px)}50%{transform:translateX(18px)}}
-      `;
-      document.head.appendChild(st);
-    }
-
-    const PRIMARY = '#d4a017', SECONDARY = '#ff9900', GLOW = 'rgba(212,160,23,0.6)', BGTINT = 'rgba(30,20,0,0.3)';
-    cinematicOrigZoomRef.current = rZoom.current;
-    cinematicOrigPanRef.current = { ...rPanOffset.current };
-    cinematicActiveRef.current = true;
-    cpKill();
-
-    const SW = window.innerWidth, SH = window.innerHeight;
-    const lbH = Math.round(SH * 0.105);
-
-    const cinCanvas = document.createElement('canvas');
-    cinCanvas.width = SW; cinCanvas.height = SH;
-    cinCanvas.style.cssText = `position:absolute;top:0;left:0;width:${SW}px;height:${SH}px;pointer-events:none;z-index:58`;
-    stage.appendChild(cinCanvas);
-
-    const dim = document.createElement('div');
-    dim.style.cssText = `position:absolute;inset:0;background:#000;opacity:0;transition:opacity 0.65s ease;pointer-events:none;z-index:59`;
-    stage.appendChild(dim);
-
-    const vig = document.createElement('div');
-    vig.style.cssText = `position:absolute;inset:0;background:radial-gradient(ellipse at 30% 60%,transparent 15%,rgba(0,0,0,0.88) 100%);opacity:0;transition:opacity 0.75s ease;pointer-events:none;z-index:59`;
-    stage.appendChild(vig);
-
-    const tint = document.createElement('div');
-    tint.style.cssText = `position:absolute;inset:0;background:${BGTINT};opacity:0;transition:opacity 0.7s ease;pointer-events:none;z-index:59`;
-    stage.appendChild(tint);
-
-    const lbTop = document.createElement('div');
-    lbTop.style.cssText = `position:absolute;top:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(-100%);transition:transform 0.5s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
-    const accTop = document.createElement('div');
-    accTop.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.5s`;
-    lbTop.appendChild(accTop); stage.appendChild(lbTop);
-
-    const lbBot = document.createElement('div');
-    lbBot.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:${lbH}px;background:#000;transform:translateY(100%);transition:transform 0.5s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:61;overflow:hidden`;
-    const accBot = document.createElement('div');
-    accBot.style.cssText = `position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,${PRIMARY} 30%,${SECONDARY} 70%,transparent 100%);opacity:0;transition:opacity 0.4s ease 0.5s`;
-    lbBot.appendChild(accBot); stage.appendChild(lbBot);
-
-    const prtH = Math.round(SH * 0.92), prtW = Math.round(prtH * 0.72);
-    const prtWrap = document.createElement('div');
-    prtWrap.style.cssText = `position:absolute;right:5%;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(120%,-50%);transition:transform 0.6s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`;
-    const prtGlow = document.createElement('div');
-    prtGlow.style.cssText = `position:absolute;inset:-50px;background:radial-gradient(ellipse at 40% 55%,${GLOW} 0%,transparent 65%);filter:blur(30px);opacity:0;transition:opacity 1s ease`;
-    prtWrap.appendChild(prtGlow);
-    const MASK = `-webkit-mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);-webkit-mask-composite:intersect;mask-composite:intersect`;
-    const IMG_CSS = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;${MASK}`;
-    const portraitEl = portrait as (HTMLCanvasElement | HTMLImageElement | null);
-    if (portraitEl) {
-      if (portraitEl instanceof HTMLCanvasElement) {
-        const pc = document.createElement('canvas');
-        pc.width = portraitEl.width; pc.height = portraitEl.height;
-        pc.getContext('2d')!.drawImage(portraitEl, 0, 0);
-        pc.style.cssText = IMG_CSS; prtWrap.appendChild(pc);
-      } else {
-        const pi = document.createElement('img') as HTMLImageElement;
-        pi.src = (portraitEl as HTMLImageElement).src;
-        pi.style.cssText = IMG_CSS; prtWrap.appendChild(pi);
-      }
-    } else {
-      const ph = document.createElement('div');
-      ph.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:${Math.round(prtH*0.42)}px;font-weight:900;color:${PRIMARY};text-shadow:0 0 80px ${GLOW};${MASK}`;
-      ph.textContent = ((bossName as string) || '?').slice(0, 1).toUpperCase();
-      prtWrap.appendChild(ph);
-    }
-    stage.appendChild(prtWrap);
-
-    const txtWrap = document.createElement('div');
-    txtWrap.style.cssText = `position:absolute;left:10%;bottom:${lbH + Math.round(SH*0.07)}px;transform:translateX(-60px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`;
-    stage.appendChild(txtWrap);
-
-    const nmFS = Math.max(46, Math.min(110, Math.round(SW / 8)));
-    const nmEl = document.createElement('div');
-    nmEl.style.cssText = `font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);line-height:1.05;max-width:${Math.round(SW*0.52)}px`;
-    nmEl.textContent = (bossName as string) || 'BOSS';
-    txtWrap.appendChild(nmEl);
-
-    const barW = Math.min(Math.round(nmFS * ((bossName as string || 'BOSS').length) * 0.58), Math.round(SW * 0.5));
-    const nmBar = document.createElement('div');
-    nmBar.style.cssText = `height:3px;width:${barW}px;margin-top:${Math.round(SH*0.008)}px;background:linear-gradient(90deg,${PRIMARY},${SECONDARY},transparent);transform:scaleX(0);transform-origin:left;transition:transform 0.5s cubic-bezier(.16,1,.3,1) 0.1s`;
-    txtWrap.appendChild(nmBar);
-
-    cinematicDataRef.current = { cinCanvas, dim, vig, tint, lbTop, lbBot, accTop, accBot, prtWrap, prtGlow, txtWrap, nmEl, nmBar } as unknown as Record<string, HTMLElement | HTMLCanvasElement>;
-    cinematicStartRef.current = performance.now();
-
-    const cinCam = cinematicCamRef.current;
-    if (tokenPos) {
-      const tp = tokenPos as { x: number; y: number };
+    // El DM no en llança cap altra fins que s'acaba la que corre: si n'arriba una,
+    // aquesta pantalla anava endarrerida. Es reemplaça.
+    cinematicRef.current?.dispose();
+    let cam = d.cam ?? null;
+    if (!cam && d.tokenPos) {
+      // DM antic (sense `cam`): es calcula aquí a partir de l'enquadrament compartit.
+      const { mw, mh } = mediaSize(mediaRef.current);
       const cvs = canvasRef.current;
-      if (cvs) {
-        const r2 = cvs.getBoundingClientRect();
-        const W2 = r2.width || SW, H2 = r2.height || SH;
-        const m2 = mediaRef.current as HTMLImageElement & HTMLVideoElement | null;
-        let mw2 = 1920, mh2 = 1080;
-        if (m2?.tagName === 'IMG'   && m2.naturalWidth)  { mw2 = m2.naturalWidth;  mh2 = m2.naturalHeight; }
-        if (m2?.tagName === 'VIDEO' && m2.videoWidth)    { mw2 = m2.videoWidth;    mh2 = m2.videoHeight; }
-        const tZ = Math.min(4, Math.max(rZoom.current * 2.0, 1.8));
-        const sc2 = Math.min(W2 / mw2, H2 / mh2) * tZ;
-        cinCam.active  = true;
-        cinCam.tgtZoom = tZ;
-        cinCam.tgtPan  = { x: W2*0.5 - tp.x*sc2 - (W2-mw2*sc2)/2, y: H2*0.5 - tp.y*sc2 - (H2-mh2*sc2)/2 };
-        cinCam.curZoom = rZoom.current;
-        cinCam.curPan  = { ...rPanOffset.current };
-      }
+      const cur = rCam.current ?? (cvs?.clientWidth ? viewRect(cvs.clientWidth, cvs.clientHeight, mw, mh, rZoom.current, rPanOffset.current) : null);
+      if (cur) cam = bossCamRect(d.tokenPos, cur, mw, mh);
     }
-
-    const tl = new CinematicTimeline();
-    tl
-      .add(60, () => {
-        dim.style.opacity = '0.52'; vig.style.opacity = '1'; tint.style.opacity = '1';
-        lbTop.style.transform = 'translateY(0)'; lbBot.style.transform = 'translateY(0)';
-        setTimeout(() => { accTop.style.opacity = '1'; accBot.style.opacity = '1'; }, 500);
-      })
-      .add(500, () => {
-        prtWrap.style.transform = 'translate(0,-50%)'; prtWrap.style.transition = 'transform 0.6s cubic-bezier(.16,1,.3,1)';
-        setTimeout(() => { prtGlow.style.opacity = '1'; }, 280);
-        setTimeout(() => { prtWrap.style.animation = 'cinParallaxPrt 9s ease-in-out infinite'; }, 700);
-      })
-      .add(1100, () => {
-        txtWrap.style.transform = 'translateX(0)'; txtWrap.style.opacity = '1';
-        setTimeout(() => { nmBar.style.transform = 'scaleX(1)'; }, 120);
-        setTimeout(() => { txtWrap.style.animation = 'cinParallaxTxt 9s ease-in-out infinite'; }, 650);
-        const flash = document.createElement('div');
-        flash.style.cssText = `position:absolute;inset:0;background:#fff;opacity:0.88;transition:opacity 0.12s linear;pointer-events:none;z-index:63`;
-        stage.appendChild(flash);
-        setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 180); }, 16);
-        const flash2 = document.createElement('div');
-        flash2.style.cssText = `position:absolute;inset:0;background:${PRIMARY};opacity:0.28;transition:opacity 0.5s ease;pointer-events:none;z-index:63`;
-        stage.appendChild(flash2);
-        setTimeout(() => { flash2.style.opacity = '0'; setTimeout(() => flash2.remove(), 520); }, 200);
-        setTimeout(() => { nmEl.style.animation = 'cinGlitch 5s ease 2s infinite, cinGlow 2.5s ease 0.8s infinite'; }, 500);
-      })
-      .add(4200, () => {
-        prtWrap.style.animation = ''; prtWrap.style.transition = 'transform 0.65s cubic-bezier(.4,0,1,1),opacity 0.65s ease';
-        prtWrap.style.transform = 'translate(120%,-50%)'; prtWrap.style.opacity = '0';
-        txtWrap.style.animation = ''; txtWrap.style.transition = 'transform 0.55s cubic-bezier(.4,0,1,1),opacity 0.55s ease';
-        txtWrap.style.transform = 'translateX(-60px)'; txtWrap.style.opacity = '0';
-        [dim, vig, tint].forEach(el => { el.style.transition = 'opacity 0.75s ease'; el.style.opacity = '0'; });
-        lbTop.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbTop.style.transform = 'translateY(-100%)';
-        lbBot.style.transition = 'transform 0.6s cubic-bezier(.4,0,1,1)'; lbBot.style.transform = 'translateY(100%)';
-        rZoom.current = cinematicOrigZoomRef.current;
-        rPanOffset.current = { ...cinematicOrigPanRef.current };
-        cinCam.active = false;
-      })
-      .add(5100, () => {
-        [cinCanvas, dim, vig, tint, lbTop, lbBot, prtWrap, txtWrap].forEach(el => {
-          if (el && el.parentNode) el.parentNode.removeChild(el);
-        });
-        cpKill();
-        cinematicDataRef.current = null;
-        cinematicActiveRef.current = false;
-      })
-      .play();
-
-    cinematicTimelineRef.current = tl;
+    cinematicCamRef.current.rect = cam;
+    const intro = playBossIntro({
+      stage, bossName: d.bossName, portrait: d.portrait, seed: seedFor(d.tokenId), offsetMs: d.offsetMs,
+      onCamEnd: () => { cinematicCamRef.current.rect = null; },
+      onDone: () => {
+        if (cinematicRef.current !== intro) return;
+        cinematicRef.current = null;
+        cinematicCamRef.current.rect = null;
+      },
+    });
+    cinematicRef.current = intro;
   }, []);
 
   const skipBossIntro = useCallback(() => {
-    if (!cinematicActiveRef.current) return;
-    const tl = cinematicTimelineRef.current;
-    if (tl) tl.skip();
-    const cd = cinematicDataRef.current;
-    if (cd) {
-      const { cinCanvas, dim, vig, tint, lbTop, lbBot, prtWrap, txtWrap } = cd as Record<string, HTMLElement & HTMLCanvasElement>;
-      if (prtWrap) { prtWrap.style.animation = ''; prtWrap.style.transition = 'transform 0.28s cubic-bezier(.4,0,1,1),opacity 0.25s ease'; prtWrap.style.transform = 'translate(120%,-50%)'; prtWrap.style.opacity = '0'; }
-      if (txtWrap) { txtWrap.style.animation = ''; txtWrap.style.transition = 'transform 0.25s cubic-bezier(.4,0,1,1),opacity 0.22s ease'; txtWrap.style.transform = 'translateX(-60px)'; txtWrap.style.opacity = '0'; }
-      [dim, vig, tint].forEach(el => { if (el) { el.style.transition = 'opacity 0.22s ease'; el.style.opacity = '0'; } });
-      [lbTop, lbBot].forEach((el, i) => {
-        if (!el) return;
-        el.style.transition = 'transform 0.28s ease';
-        el.style.transform = i === 0 ? 'translateY(-100%)' : 'translateY(100%)';
-      });
-      setTimeout(() => {
-        [cinCanvas, dim, vig, tint, lbTop, lbBot, prtWrap, txtWrap].forEach(el => {
-          if (el && el.parentNode) el.parentNode.removeChild(el);
-        });
-        cpKill();
-        cinematicDataRef.current = null;
-      }, 320);
-    }
-    rZoom.current = cinematicOrigZoomRef.current;
-    rPanOffset.current = { ...cinematicOrigPanRef.current };
-    cinematicCamRef.current.active = false;
-    cinematicActiveRef.current = false;
+    cinematicRef.current?.skip();
+    cinematicCamRef.current.rect = null;
   }, []);
 
-  triggerBossIntroRef.current = triggerBossIntro;
-  skipBossIntroRef.current    = skipBossIntro;
+  const triggerBossIntroRef = useRef(triggerBossIntro);
+  const skipBossIntroRef    = useRef(skipBossIntro);
 
   useEffect(() => {
     const oc = document.createElement('canvas');
@@ -834,19 +659,22 @@ export function PlayerView() {
         rActiveSpells.current = rActiveSpells.current.filter(s => s.id !== msg.id);
         setActiveSpells([...rActiveSpells.current]);
       } else if (msg.type === 'BOSS_INTRO') {
-        if (triggerBossIntroRef.current) {
-          const _run = (portrait: unknown) => triggerBossIntroRef.current!({ ...msg, portrait });
-          if (msg.portraitDataUrl) {
-            const img = new Image();
-            img.onload  = () => _run(img);
-            img.onerror = () => _run(rLayerImages.current[msg.tokenId] || null);
-            img.src = msg.portraitDataUrl;
-          } else {
-            _run(rLayerImages.current[msg.tokenId] || null);
-          }
-        }
+        // El que es trigui a descodificar el retrat s'avança a la línia de temps, perquè
+        // aquesta pantalla no vagi endarrerida respecte del DM.
+        const receivedAt = performance.now();
+        const _run = (portrait: HTMLCanvasElement | HTMLImageElement | null) => triggerBossIntroRef.current({
+          tokenId: msg.tokenId, bossName: msg.bossName, tokenPos: msg.tokenPos, cam: msg.cam, portrait,
+          offsetMs: Math.min(600, performance.now() - receivedAt),
+        });
+        const fallback = () => _run(rLayerImages.current[msg.tokenId as number] || null);
+        if (msg.portraitDataUrl) {
+          const img = new Image();
+          img.onload  = () => _run(img);
+          img.onerror = fallback;
+          img.src = msg.portraitDataUrl;
+        } else fallback();
       } else if (msg.type === 'BOSS_INTRO_SKIP') {
-        if (skipBossIntroRef.current) skipBossIntroRef.current();
+        skipBossIntroRef.current();
       } else if (msg.type === 'EXPOSITOR_SHOW') {
         const blob = new Blob([msg.buffer], { type: msg.mimeType });
         const url = URL.createObjectURL(blob);
@@ -1054,13 +882,14 @@ export function PlayerView() {
         rZoom.current = t.zoom; rPanOffset.current = t.pan;
       }
 
-      const cinCam = cinematicCamRef.current;
-      const _tgtZ   = cinCam.active ? cinCam.tgtZoom  : rZoom.current;
-      const _tgtPan = cinCam.active ? cinCam.tgtPan   : rPanOffset.current;
+      const cinRect = cinematicCamRef.current.rect;
+      const cinView = cinRect ? camToView(cinRect, W, H, mw, mh) : null;
+      const _tgtZ   = cinView ? cinView.zoom : rZoom.current;
+      const _tgtPan = cinView ? cinView.pan  : rPanOffset.current;
       const dzP = _tgtZ - visualZoomRef.current;
       const dxP = _tgtPan.x - visualPanRef.current.x;
       const dyP = _tgtPan.y - visualPanRef.current.y;
-      if (cinCam.active) {
+      if (cinView) {
         if (Math.abs(dzP) < 0.0005 && Math.abs(dxP) < 0.3 && Math.abs(dyP) < 0.3) {
           visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
         } else { visualZoomRef.current += dzP * 0.032; visualPanRef.current.x += dxP * 0.032; visualPanRef.current.y += dyP * 0.032; }
@@ -1180,23 +1009,7 @@ export function PlayerView() {
       renderDMPointer(ctx, fc);
       renderMeasureRuler(ctx, fc);
 
-      if (cinematicActiveRef.current) {
-        const tl2 = cinematicTimelineRef.current;
-        if (tl2) tl2.tick();
-        const cd2 = cinematicDataRef.current;
-        if (cd2) {
-          const { cinCanvas: cc } = cd2 as { cinCanvas: HTMLCanvasElement };
-          if (cc && (cc.width !== W || cc.height !== H)) { cc.width = W; cc.height = H; (cc as HTMLElement).style.width = W + 'px'; (cc as HTMLElement).style.height = H + 'px'; }
-          if (cc) {
-            const pCtx = cc.getContext('2d')!;
-            pCtx.clearRect(0, 0, W, H);
-            const elapsed2 = performance.now() - cinematicStartRef.current;
-            if (elapsed2 > 700 && elapsed2 < 5400) { if (Math.random() < 0.28) cpBurst(W, H, 2); }
-            cpUpdate(1 / 60);
-            cpDraw(pCtx);
-          }
-        }
-      }
+      cinematicRef.current?.tick(performance.now());
 
       // Expositor smooth LERP
       if (expositorInnerRef.current) {
@@ -1218,9 +1031,7 @@ export function PlayerView() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && cinematicActiveRef.current) {
-        if (skipBossIntroRef.current) skipBossIntroRef.current();
-      }
+      if (e.key === 'Escape' && cinematicRef.current) skipBossIntroRef.current();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);

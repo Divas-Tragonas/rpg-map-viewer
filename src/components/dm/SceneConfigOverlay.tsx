@@ -11,17 +11,15 @@ interface Props {
   rPsdEnemyImgCache: React.MutableRefObject<Record<number, HTMLCanvasElement>>;
   libEnemies: LibEnemy[];
   psdEnemyOverrides: PsdEnemyOverrides;
-  bcRef: React.MutableRefObject<BroadcastChannel | null>;
-  wsRef: React.MutableRefObject<import('@/lib/ws').SyncSocket | null>;
   onClose: () => void;
-  onTriggerBossIntro: (data: Record<string, unknown>) => void;
+  onLaunchBossIntro: (req: import('@/hooks/useCinematic').BossIntroRequest) => Promise<string | null>;
   setPsdEnemyProps?: (id: number, props: import('@/types').PsdEnemyOverride) => void;
   setLibEnemyProps?: (id: number, props: Partial<LibEnemy>) => void;
 }
 
 export function SceneConfigOverlay({
   sceneConfigMenu, rLayerImages, rPsdEnemyImgCache, libEnemies, psdEnemyOverrides,
-  bcRef, wsRef, onClose, onTriggerBossIntro, setPsdEnemyProps, setLibEnemyProps,
+  onClose, onLaunchBossIntro, setPsdEnemyProps, setLibEnemyProps,
 }: Props) {
   if (!sceneConfigMenu) return null;
 
@@ -56,38 +54,13 @@ export function SceneConfigOverlay({
         <SceneImgPicker
           defaultCanvas={defaultImg}
           onTrigger={(imgEl, isCustom) => {
-            const tp = sceneConfigMenu.tokenPos;
-            onTriggerBossIntro({ tokenId: sceneConfigMenu.id, bossName: _scName, portrait: imgEl, tokenPos: tp });
-            let portraitDataUrl: string | null = null;
-            if (imgEl) {
-              const _img = imgEl as HTMLImageElement & { _rawDataUrl?: string };
-              const rawGif = _img._rawDataUrl || (_img.src?.startsWith('data:image/gif') ? _img.src : null);
-              if (rawGif) {
-                portraitDataUrl = rawGif;
-                if (isCustom) {
-                  if (_scIsPsd && setPsdEnemyProps) setPsdEnemyProps(sceneConfigMenu.id as number, { imageData: rawGif });
-                  if (_scIsLib && _scLibId !== null && setLibEnemyProps) setLibEnemyProps(_scLibId, { imageData: rawGif });
-                }
-              } else {
-                try {
-                  const tmp = document.createElement('canvas');
-                  const maxW = 600;
-                  const srcW = (imgEl as HTMLCanvasElement).width || (imgEl as HTMLImageElement).naturalWidth || maxW;
-                  const srcH = (imgEl as HTMLCanvasElement).height || (imgEl as HTMLImageElement).naturalHeight || maxW;
-                  const sc = Math.min(1, maxW / Math.max(srcW, 1));
-                  tmp.width = Math.round(srcW * sc); tmp.height = Math.round(srcH * sc);
-                  tmp.getContext('2d')!.drawImage(imgEl, 0, 0, tmp.width, tmp.height);
-                  portraitDataUrl = tmp.toDataURL('image/jpeg', 0.88);
-                  if (isCustom) {
-                    if (_scIsPsd && setPsdEnemyProps) setPsdEnemyProps(sceneConfigMenu.id as number, { imageData: portraitDataUrl });
-                    if (_scIsLib && _scLibId !== null && setLibEnemyProps) setLibEnemyProps(_scLibId, { imageData: portraitDataUrl });
-                  }
-                } catch { /* empty */ }
-              }
-            }
-            bcRef.current?.postMessage({ type: 'BOSS_INTRO', tokenId: sceneConfigMenu.id, bossName: _scName, tokenPos: tp, portraitDataUrl });
-            wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO', tokenId: sceneConfigMenu.id, bossName: _scName, tokenPos: tp, portraitDataUrl }));
             onClose();
+            void onLaunchBossIntro({ tokenId: sceneConfigMenu.id, bossName: _scName, portrait: imgEl, tokenPos: sceneConfigMenu.tokenPos }).then(url => {
+              // Una imatge triada aquí es queda al token per a la propera vegada.
+              if (!isCustom || !url) return;
+              if (_scIsPsd && setPsdEnemyProps) setPsdEnemyProps(sceneConfigMenu.id as number, { imageData: url });
+              if (_scIsLib && _scLibId !== null && setLibEnemyProps) setLibEnemyProps(_scLibId, { imageData: url });
+            });
           }}
           onCancel={onClose}
         />

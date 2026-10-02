@@ -60,6 +60,15 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.22 — Cinemàtica de boss: un sol motor i errors corregits
+- **Totes les pantalles enquadren el boss igual.** La càmera de la cinemàtica viatja ara en coordenades de mapa (`cam`, com la càmera compartida): abans cada pantalla calculava el seu zoom amb la seva mida i el boss quedava descentrat a les finestres d'un altre format.
+- **Saltar-la i tornar-la a llançar ja no la trenca.** La neteja retardada de la primera esborrava les dades de la segona (franges i retrat penjats).
+- **Ocupa l'escenari, no la finestra.** Al DM les franges i el retrat es mesuraven amb la finestra sencera (sidebar inclòs) i quedaven desplaçats.
+- **Espurnes iguals a tot arreu i a qualsevol fps.** Abans anaven el doble de ràpid a 120 Hz i cada pantalla en veia unes d'aleatòries.
+- La càmera del DM torna suau a la vista normal en lloc de fer un salt. El retrat s'envia sempre reduït (abans, des de la biblioteca, s'enviava la imatge sencera). La pantalla de jugador compensa el que triga a carregar el retrat i no va endarrerida.
+- Els noms llargs s'encongeixen per cabre en una línia, i amb «reduir moviment» del sistema el flaix és molt més suau.
+- Un sol mòdul (`lib/cinematic/bossIntro.ts`) per al DM i el jugador: abans eren dues còpies de ~200 línies que ja havien divergit.
+
 ### v4.21 — Barra de torns sense tremolors i icona nova de l'Expositor
 - **Fora el balanceig del mode edició.** Els xips girats sobresortien un píxel del carril i feien aparèixer i desaparèixer la barra de scroll: tremolava tota la barra, no els tokens. Ara el mode edició es distingeix només per la vora daurada, la vora de guions dels xips i el botó «✓ Fet».
 - **La barra ja no varia de mida passant torns molt de pressa.** Les transicions que es tallaven a mitges deixaven la suma de les amplades descompensada (fins a 5 px). Ara el carril té una amplada fixa i el xip actiu s'eixampla repartint-se l'espai amb els altres, així que la suma sempre quadra.
