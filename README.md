@@ -60,6 +60,12 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.20 — Barra de torns de mida fixa i reordenació en viu
+- **La barra de torns ja no canvia de mida durant el combat.** Abans s'eixamplava i s'encongia a cada torn (el xip actiu feia l'amplada del nom, i un jugador portava la columna de peus i un enemic no) i també en clicar «⏭ Ronda» o «✕» (el botó es convertia en la frase de confirmació). Ara el xip actiu té sempre la mateixa mida (els noms llargs s'escurcen amb «…»), i el xip que deixa el torn i el que l'agafa s'animen a la vegada perquè la barra no es mogui ni durant la transició.
+- **Les confirmacions surten en un globus a sobre de la barra** («Saltar a la ronda N?», «Finalitzar el combat?», «Recuperar el torn de…»). Es tanquen clicant fora o amb Esc (abans clicar fora no les tancava).
+- **Reordenar com a l'iPhone:** amb ⚙, els xips es balancegen; el que agafes s'aixeca i segueix el ratolí, i la resta s'aparten en viu per deixar el forat on quedarà. En deixar-lo anar, vola al seu lloc. Si hi ha més tokens dels que hi caben, portar-lo a la vora fa scroll sol. Funciona també amb el dit.
+- En mode edició, el botó «Següent» es converteix en **«✓ Fet»** per sortir-ne (al mateix lloc i amb la mateixa amplada).
+
 ### v4.19 — Una sola roda per a les màgies i les zones màgiques
 - **La roda de màgies i la d'elements són ara la mateixa** (`RadialMenu`). Abans, segons el gest, l'eina Màgies obria un anell transparent amb només emojis i el nom a 8 px, o uns botons rodons amb degradat on el ✕ tapava el títol.
 - **Llegible sobre qualsevol mapa:** fons opac, cada opció amb **icona i nom**, i al centre què s'està triant («Trajectòria · segueix el traç», «Direccional», «Àrea», «Zona màgica»). En passar el cursor per una opció, el centre en diu el nom i el detall (a les d'àrea, el radi i l'abast).
