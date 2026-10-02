@@ -60,6 +60,10 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.24 — Cinemàtica de boss sense baixada de fps
+- **De ~36 a 60 fps durant la cinemàtica.** El resplendor del nom animava un `text-shadow` amb desenfocs de fins a 220 px, i el navegador repintava tot el nom a cada frame. Ara el resplendor és una capa pintada un sol cop (ombra de 50 px + halo de degradat radial) i només se n'anima l'opacitat, que la fa la GPU.
+- Fora també l'aturada d'uns 200 ms que hi havia just quan el nom començava a brillar.
+
 ### v4.23 — Grimoris dels personatges: llançar els seus conjurs des del token
 - **Clic dret a Liriandor o Yunquerin → ✨ Conjurs.** Hi surten els conjurs apuntats a les seves fitxes del Notion, agrupats com a la resta de l'app: **direccionals** (en línia recta), **a un punt** (dins d'un abast) i **personals** (surten del mateix token). Espardeny, Jaume III i Cigarramic no en tenen.
 - **Es llancen des del token, amb l'abast en peus.** En triar-ne un, el raig o l'àrea segueix el ratolí però no passa de l'abast (cercle de guions); un clic el llança. Esc o clic dret el cancel·la. Funciona amb qualsevol eina activa.

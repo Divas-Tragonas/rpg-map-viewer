@@ -532,6 +532,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Espurnes deterministes**: funció pura de (llavor = `seedFor(tokenId)`, índex, temps) — iguals a totes les pantalles i independents dels fps.
 - El jugador compensa el que triga a descodificar el retrat (`offsetMs`, màx. 600 ms) perquè no vagi endarrerit. Una `BOSS_INTRO` nova mentre en corre una la reemplaça.
 - Esc al DM la salta a tot arreu (`BOSS_INTRO_SKIP`); Esc a la pantalla de jugador només la salta allà. Amb `prefers-reduced-motion`, flaix suau i sense glitch ni parallax.
+- ⚠️ **Rendiment: animar només `transform` i `opacity`.** El resplendor del nom animava un `text-shadow` amb desenfocs de 220 px i feia caure els fps de 60 a ~36 (tot el nom es repintava a cada frame). Ara és una còpia del nom amb una ombra de 50 px + un halo de degradat radial, pintats un cop, i se n'anima l'opacitat. Desenfocs grossos (`text-shadow`, `filter: blur`) només estàtics i de mida moderada.
 - `SceneImgPicker` per importar imatge custom al menú de configuració.
 - **Pendent**: no té en compte la boira de guerra (si el boss és dins d'una sala fosca, la càmera hi fa zoom i es veu negre) ni l'agafa una pantalla que es connecti a mitja cinemàtica.
 
@@ -797,4 +798,5 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Animar l'amplada de diversos elements esperant que la suma es mantingui | Si les transicions es tallen (clics ràpids), la suma deixa de quadrar i el contenidor canvia de mida | Contenidor d'amplada fixa i repartir l'espai amb `flex-grow` animat (veure `TurnTracker`) |
 | Mida de lletra, radi o color escrits a mà | La UI torna a perdre la coherència (22 mides, colors repetits) | `FS`, `RADIUS`, `C`, `tint()` i `Button` |
 | Menú de selecció nou fet a mà (anells, botons rodons…) | Cada menú de l'eina Màgies es veia i es feia servir diferent | Fer servir `RadialMenu` |
+| Animar `text-shadow`, `filter` o `box-shadow` amb desenfocs grossos | Els fps cauen a la meitat mentre dura l'animació | Pintar l'efecte un cop en una capa pròpia i animar-ne només `opacity`/`transform` (veure el nom de la cinemàtica de boss) |
 | Llegir refs dins del render d'un menú | Valors que no es refresquen i error de lint `react-hooks/refs` | Passar l'estat per props (com `ContextMenuOverlay`: `libEnemies`, `players`, `psdEnemyOverrides`) |

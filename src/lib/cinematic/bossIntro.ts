@@ -139,7 +139,7 @@ function ensureStyle() {
   st.id = 'cin-style';
   st.textContent = `
     @keyframes cinGlitch{0%,94%,100%{transform:translateX(0) scale(1)}95%{transform:translateX(-3px) skewX(-1deg)}97%{transform:translateX(3px) skewX(1deg)}}
-    @keyframes cinGlow{0%,100%{text-shadow:0 0 35px #d4a017,0 0 70px rgba(212,160,23,.6),0 5px 12px rgba(0,0,0,.9)}50%{text-shadow:0 0 60px #d4a017,0 0 130px rgba(212,160,23,.8),0 0 220px rgba(212,160,23,.4),0 5px 12px rgba(0,0,0,.9)}}
+    @keyframes cinGlow{0%,100%{opacity:0}50%{opacity:1}}
     @keyframes cinParallaxPrt{0%,100%{transform:translate(0,-50%) translateX(0px) scale(1)}50%{transform:translate(0,-50%) translateX(-32px) scale(1.018)}}
     @keyframes cinParallaxTxt{0%,100%{transform:translateX(0px)}50%{transform:translateX(18px)}}
   `;
@@ -201,7 +201,14 @@ export function playBossIntro(o: BossIntroOptions): BossIntro {
   const txtWrap = add(`position:absolute;left:10%;bottom:${lbH + Math.round(SH * 0.07)}px;transform:translateX(-60px);opacity:0;transition:transform 0.42s cubic-bezier(.16,1,.3,1),opacity 0.42s ease;pointer-events:none;z-index:62`);
   const maxNameW = Math.round(SW * 0.52);
   let nmFS = Math.max(46, Math.min(110, Math.round(SW / 8)));
-  const nmEl = el(txtWrap, `display:inline-block;white-space:nowrap;font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);line-height:1.05`);
+  // El resplendor que respira és una CÒPIA del nom amb l'ombra grossa pintada un sol
+  // cop, i només se n'anima l'opacitat (la fa la GPU). ⚠️ No animar \`text-shadow\`:
+  // amb desenfocs grossos es repinta tot el nom a cada frame i els fps cauen a la meitat.
+  const nmBox = el(txtWrap, 'position:relative;display:inline-block');
+  // Halo difús: degradat radial (barat de pintar) en lloc de les ombres de 130 i 220 px.
+  const haloEl = el(nmBox, `position:absolute;left:-12%;right:-12%;top:-45%;bottom:-45%;background:radial-gradient(ellipse at 50% 55%,rgba(212,160,23,.55) 0%,rgba(212,160,23,.22) 40%,transparent 70%);opacity:0;will-change:opacity;pointer-events:none`);
+  const glowEl = el(nmBox, `position:absolute;left:0;top:0;opacity:0;will-change:opacity;pointer-events:none`);
+  const nmEl = el(nmBox, `position:relative;display:inline-block;white-space:nowrap;font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;color:#fff;text-shadow:0 0 35px ${PRIMARY},0 0 70px ${GLOW},0 5px 12px rgba(0,0,0,0.9);line-height:1.05`);
   nmEl.textContent = bossName;
   // Noms llargs: encongir la lletra perquè hi càpiga en una línia (abans feien dues
   // línies i la barra, calculada per nombre de caràcters, no hi quadrava).
@@ -211,6 +218,8 @@ export function playBossIntro(o: BossIntroOptions): BossIntro {
     nmEl.style.fontSize = `${nmFS}px`;
     if (nmEl.offsetWidth > maxNameW) { nmEl.style.whiteSpace = 'normal'; nmEl.style.maxWidth = `${maxNameW}px`; }
   }
+  glowEl.style.cssText += `;width:${nmEl.offsetWidth}px;white-space:${nmEl.style.whiteSpace};font-family:Georgia,serif;font-size:${nmFS}px;font-weight:900;text-transform:uppercase;letter-spacing:0.10em;line-height:1.05;color:transparent;text-shadow:0 0 50px ${PRIMARY}`;
+  glowEl.textContent = bossName;
   const barW = Math.min(nmEl.offsetWidth || maxNameW, maxNameW);
   const nmBar = el(txtWrap, `height:3px;width:${barW}px;margin-top:${Math.round(SH * 0.008)}px;background:linear-gradient(90deg,${PRIMARY},${SECONDARY},transparent);transform:scaleX(0);transform-origin:left;transition:transform 0.5s cubic-bezier(.16,1,.3,1) 0.1s`);
 
@@ -263,7 +272,10 @@ export function playBossIntro(o: BossIntroOptions): BossIntro {
       later(() => { flash.style.opacity = '0'; }, 16);
       const flash2 = add(`position:absolute;inset:0;background:${PRIMARY};opacity:0.28;transition:opacity 0.5s ease;pointer-events:none;z-index:63`);
       later(() => { flash2.style.opacity = '0'; }, 200);
-      later(() => { nmEl.style.animation = calm ? 'cinGlow 2.5s ease 0.8s infinite' : 'cinGlitch 5s ease 2s infinite, cinGlow 2.5s ease 0.8s infinite'; }, 500);
+      later(() => {
+        glowEl.style.animation = haloEl.style.animation = 'cinGlow 2.5s ease 0.8s infinite';
+        if (!calm) nmBox.style.animation = 'cinGlitch 5s ease 2s infinite';
+      }, 500);
     })
     .add(BOSS_INTRO_CAM_END, () => exit(false))
     .add(BOSS_INTRO_DUR, dispose)
