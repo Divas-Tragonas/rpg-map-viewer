@@ -60,6 +60,11 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.21 — Barra de torns sense tremolors i icona nova de l'Expositor
+- **Fora el balanceig del mode edició.** Els xips girats sobresortien un píxel del carril i feien aparèixer i desaparèixer la barra de scroll: tremolava tota la barra, no els tokens. Ara el mode edició es distingeix només per la vora daurada, la vora de guions dels xips i el botó «✓ Fet».
+- **La barra ja no varia de mida passant torns molt de pressa.** Les transicions que es tallaven a mitges deixaven la suma de les amplades descompensada (fins a 5 px). Ara el carril té una amplada fixa i el xip actiu s'eixampla repartint-se l'espai amb els altres, així que la suma sempre quadra.
+- **Icona nova de l'Expositor:** un marc d'imatge vectorial del mateix estil que la barra d'eines. L'emoji 🖼 sortia negre a Windows i no es veia.
+
 ### v4.20 — Barra de torns de mida fixa i reordenació en viu
 - **La barra de torns ja no canvia de mida durant el combat.** Abans s'eixamplava i s'encongia a cada torn (el xip actiu feia l'amplada del nom, i un jugador portava la columna de peus i un enemic no) i també en clicar «⏭ Ronda» o «✕» (el botó es convertia en la frase de confirmació). Ara el xip actiu té sempre la mateixa mida (els noms llargs s'escurcen amb «…»), i el xip que deixa el torn i el que l'agafa s'animen a la vegada perquè la barra no es mogui ni durant la transició.
 - **Les confirmacions surten en un globus a sobre de la barra** («Saltar a la ronda N?», «Finalitzar el combat?», «Recuperar el torn de…»). Es tanquen clicant fora o amb Esc (abans clicar fora no les tancava).

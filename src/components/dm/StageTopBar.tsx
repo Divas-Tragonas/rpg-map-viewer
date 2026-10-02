@@ -2,6 +2,7 @@
 import React from 'react';
 import { C, RADIUS } from '@/constants';
 import { HoverTip } from '@/components/ui/HoverTip';
+import { ImageIcon } from '@/components/icons';
 
 interface Props {
   expositorOpen: boolean; expositorActive: boolean; onToggleExpositor: () => void;
@@ -25,7 +26,7 @@ export function StageTopBar({ expositorOpen, expositorActive, onToggleExpositor,
   const [hover, setHover] = React.useState<string | null>(null);
 
   const item = (
-    id: string, emoji: string, open: boolean, active: boolean, onClick: () => void,
+    id: string, icon: React.ReactNode, open: boolean, active: boolean, onClick: () => void,
     title: string, desc: React.ReactNode,
   ) => (
     <div style={{ position: 'relative', display: 'flex' }}
@@ -37,7 +38,7 @@ export function StageTopBar({ expositorOpen, expositorActive, onToggleExpositor,
           border: `1px solid ${open ? C.accent : active ? `${C.accent}88` : C.border}`,
           background: open ? `${C.accent}22` : 'transparent',
         }}>
-        <span style={{ opacity: open || active ? 1 : 0.75 }}>{emoji}</span>
+        <span style={{ display: 'flex', opacity: open || active ? 1 : 0.75 }}>{icon}</span>
         {active && (
           <span title="S'està mostrant als jugadors"
             style={{ position: 'absolute', top: 3, right: 3, width: 6, height: 6, borderRadius: '50%', background: C.ok, boxShadow: `0 0 6px ${C.ok}` }} />
@@ -49,7 +50,9 @@ export function StageTopBar({ expositorOpen, expositorActive, onToggleExpositor,
 
   return (
     <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 3, padding: 4, borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
-      {item('expositor', '🖼', expositorOpen, expositorActive, onToggleExpositor, 'Expositor',
+      {/* Icona vectorial, no l'emoji 🖼: sense el selector de color, a Windows sortia com un
+          glif monocrom negre i no es veia sobre el fons fosc. */}
+      {item('expositor', <ImageIcon size={18} color={expositorOpen ? C.accent : C.text} />, expositorOpen, expositorActive, onToggleExpositor, 'Expositor',
         <>Ensenya una <b style={{ color: C.text }}>imatge o un vídeo</b> a pantalla completa als jugadors (un retrat, un document, una escena). Al teu panell la pots enquadrar amb zoom i pan i té moviment Ken Burns; el que veus és el que veuen ells.</>)}
       {item('text', '📜', textOpen, textActive, onToggleText, 'Revelador de text',
         <>Va revelant un text als jugadors <b style={{ color: C.text }}>lletra a lletra</b>, amb pauses dramàtiques al final de cada frase. Pots deixar-lo córrer sol o anar-lo passant frase a frase. Amaga l&apos;expositor mentre està actiu (i a l&apos;inrevés).</>)}

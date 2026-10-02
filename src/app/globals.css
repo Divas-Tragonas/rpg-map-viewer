@@ -11,9 +11,5 @@ input[type=color] { cursor: pointer; }
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #484f58; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
-/* Barra de torns en mode edició: els xips es balancegen com les icones de l'iPhone quan
-   es reordenen, i el que s'agafa s'aixeca (`TurnTracker.tsx`). */
-@keyframes tt-jiggle { 0%,100% { transform: rotate(-1.3deg) } 50% { transform: rotate(1.3deg) } }
+/* Barra de torns en mode edició: el xip que s'agafa per reordenar s'aixeca (`TurnTracker.tsx`). */
 @keyframes tt-lift { from { transform: scale(1) } to { transform: scale(1.1) } }
-.tt-jiggle { animation: tt-jiggle .28s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .tt-jiggle { animation: none; } }

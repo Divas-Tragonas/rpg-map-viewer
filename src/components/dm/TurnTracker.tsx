@@ -37,19 +37,25 @@ interface TokenInfo { name: string; color: string; img: string | null }
    botó es convertia en una frase). Ara tot el que depèn de l'estat té mida constant: el
    xip actiu fa sempre ACTIVE_W × ACTIVE_H i la resta SLOT_W × SLOT_H, o sigui que la
    suma no depèn de QUI té el torn, i les confirmacions surten en un globus a sobre.
-   El xip que deixa el torn i el que l'agafa animen l'amplada amb la mateixa corba
-   (`RESIZE`): el que guanya l'un el perd l'altre, i la barra no es mou ni durant la
-   transició. ⚠️ Si es toca el farciment o la vora del xip, quadrar-ho amb aquestes xifres. */
+   El carril té una amplada FIXA calculada amb aquestes xifres (`railWidth`) i l'amplada
+   extra del xip actiu es reparteix amb `flex-grow` (1 l'actiu, 0 la resta). Animar el
+   `flex-grow` en lloc de l'amplada fa que, encara que es passin torns molt de pressa i
+   les transicions es tallin a mitges, els xips omplin sempre el mateix carril: abans,
+   amb `width` animat, la suma ja no quadrava i la barra variava uns píxels.
+   ⚠️ Si es toca el farciment o la vora del xip, quadrar-ho amb aquestes xifres. */
 const SLOT_W = 52;                                    // vora 2 + farciment 7 + avatar 34, per banda
 const SLOT_H = 48;
 const INFO_W = 112;                                   // columna de nom i peus del xip actiu
 const ACTIVE_W = 2 + 7 + 42 + 7 + INFO_W + 12 + 2;   // vora, farciment, avatar, separació, columna
 const ACTIVE_H = 60;
 const GAP = 8;
-const ROW_H = ACTIVE_H + 8;  // marge perquè el balanceig del mode edició no quedi tallat
+const ROW_H = ACTIVE_H + 8;  // una mica d'aire per a la lluentor del xip actiu
 const NEXT_W = 112;          // «Següent» i «Fet» ocupen el mateix lloc
 const EASE = 'cubic-bezier(.2,.8,.2,1)';
 const RESIZE = `width .24s ${EASE}, height .24s ${EASE}`;
+
+/** Amplada del carril amb `n` xips: un d'actiu i la resta en espera. */
+const railWidth = (n: number) => n * SLOT_W + (ACTIVE_W - SLOT_W) + Math.max(0, n - 1) * GAP;
 
 /* ── Reordenar arrossegant (mode edició) ───────────────────────────────────────
    Com les icones de l'iPhone: el xip agafat s'aixeca i segueix el punter, i la resta
@@ -509,7 +515,9 @@ export function TurnTracker({
         </button>
 
         <div ref={railRef} style={{ flex: '0 1 auto', minWidth: 0, overflowX: 'auto', overflowY: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: GAP, height: ROW_H, width: 'max-content' }}>
+          {/* Amplada fixa i `overflow: hidden`: res del que passi a dins (transicions a mitges,
+              xips desplaçats en reordenar) pot fer aparèixer la barra de scroll i canviar-ne l'alçada. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: GAP, height: ROW_H, width: railWidth(turn.order.length), overflow: 'hidden' }}>
             {turn.order.map((id, i) => {
               const p = chipProps(id, i);
               const shift = shifts ? shifts[i] : 0;
@@ -523,16 +531,15 @@ export function TurnTracker({
                   onContextMenu={(e) => { e.preventDefault(); if (!editMode && !p.active) setPop({ recover: id }); }}
                   title={editMode ? 'Arrossega per reordenar' : p.defeated ? `${p.info.name} · derrotat, se li salta el torn` : p.active ? 'Clica per passar el torn · clic dret per recuperar un torn anterior' : `${p.info.name} · clic dret per recuperar el seu torn`}
                   style={{
-                    flexShrink: 0, width: widths[i], height: p.active ? ACTIVE_H : SLOT_H,
+                    flex: `${p.active ? 1 : 0} 0 ${SLOT_W}px`, minWidth: 0, height: p.active ? ACTIVE_H : SLOT_H,
                     transform: shift ? `translateX(${shift}px)` : undefined,
-                    transition: noAnim ? 'none' : `${RESIZE}, transform .22s ${EASE}`,
+                    transition: noAnim ? 'none' : `flex-grow .24s ${EASE}, height .24s ${EASE}, transform .22s ${EASE}`,
                     // L'agafat deixa el seu lloc buit (el clon el dibuixa a sobre).
                     visibility: drag?.from === i ? 'hidden' : undefined,
                     cursor: editMode ? 'grab' : p.active ? 'pointer' : 'default',
                     touchAction: editMode ? 'none' : undefined,
                   }}>
-                  {/* Desfasats perquè no es balancegin tots alhora */}
-                  <ChipBody {...p} jiggleDelay={-(i % 5) * 0.06} />
+                  <ChipBody {...p} />
                 </div>
               );
             })}
@@ -618,14 +625,13 @@ interface ChipBodyProps {
   editMode: boolean;
   /** El clon que segueix el punter mentre es reordena. */
   lifted?: boolean;
-  jiggleDelay?: number;
 }
 
 /** Aspecte d'un xip de la cua (el del carril i el clon que s'arrossega). Ocupa tota la
  *  mida del seu contenidor, que és qui la fixa (veure `SLOT_W` / `ACTIVE_W`). */
-function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, lifted, jiggleDelay = 0 }: ChipBodyProps) {
+function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, lifted }: ChipBodyProps) {
   return (
-    <div className={editMode && !lifted ? 'tt-jiggle' : undefined} style={{
+    <div style={{
       width: '100%', height: '100%',
       display: 'flex', alignItems: 'center', gap: 7,
       padding: active ? '5px 12px 5px 7px' : '5px 7px',
@@ -638,7 +644,6 @@ function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, 
       boxShadow: lifted ? '0 12px 28px rgba(0,0,0,0.6)' : active ? `0 0 16px ${tint(C.accent, 0.4)}` : 'none',
       opacity: defeated ? 0.34 : active || lifted ? 1 : 0.75,
       filter: defeated ? 'grayscale(1)' : 'none',
-      animationDelay: `${jiggleDelay}s`,
       transition: 'background .2s, border-color .2s, box-shadow .2s, opacity .2s',
     }}>
       <span style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
