@@ -60,6 +60,9 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.25 — Base de dades de la Biblioteca en una sola columna
+- Els enemics de la base de dades (pestanya Biblioteca) es llisten en **una sola columna**: a dues, els noms llargs quedaven tallats.
+
 ### v4.24 — Cinemàtica de boss sense baixada de fps
 - **De ~36 a 60 fps durant la cinemàtica.** El resplendor del nom animava un `text-shadow` amb desenfocs de fins a 220 px, i el navegador repintava tot el nom a cada frame. Ara el resplendor és una capa pintada un sol cop (ombra de 50 px + halo de degradat radial) i només se n'anima l'opacitat, que la fa la GPU.
 - Fora també l'aturada d'uns 200 ms que hi havia just quan el nom començava a brillar.

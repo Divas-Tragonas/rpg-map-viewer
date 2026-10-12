@@ -70,7 +70,8 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy }: Prop
             <div style={{ fontSize: FS.xs, color: C.dim }}>Cap enemic a la BD</div>
           )}
           {dbEnemies.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+            // Una sola columna: els noms de la BD són llargs ("Guàrdia de la Meridiana") i a dues quedaven tallats.
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 3 }}>
               {dbEnemies.map(en => (
                 <TemplateButton key={en.id} name={en.name} color={en.color} hpMax={en.hpMax}
                   inScene={countOf(en.id)} onClick={() => onAddDbEnemy(en)} />
