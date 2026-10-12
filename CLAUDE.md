@@ -186,11 +186,13 @@ src/
 │       ├── SidebarSection  # Secció plegable del sidebar (capçalera + comptador + accions)
 │       ├── HoverTip        # Finestreta d'explicació d'un botó (hover)
 │       ├── ConditionIcon   # Isotip d'un estat com a <svg> (mateixos paths que el canvas)
-│       └── ConditionPicker # Graella d'estats del menú contextual (+ traduccions al hover)
+│       ├── ConditionPicker # Graella d'estats del menú contextual (+ traduccions al hover)
+│       └── EnemyGroups     # Agrupar enemics de la BD: barra «Agrupar per», capçalera i cos de grup plegables
 ├── hooks/
 │   ├── useDMRefs.ts        # Tots els refs del DM (state mirrors + interaction)
 │   ├── useDMActions.ts     # Callbacks d'acció (PSD import, BC, drag...)
 │   ├── useAutosave.ts      # Desat automàtic periòdic de la partida (IndexedDB)
+│   ├── useEnemyGrouping.ts # Agrupació dels enemics de la BD i grups plegats (recordat a localStorage)
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
@@ -202,6 +204,7 @@ src/
 │   ├── turn-banner.ts      # Projecció del combat al rètol de les pantalles de jugador
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
+│   ├── enemy-groups.ts     # groupEnemies / distinctValues / apiSupportsGroups (projecte i categoria)
 │   ├── rooms/
 │   │   ├── detect.ts       # detectRooms + reconcileRooms (cares del graf de parets)
 │   │   ├── doors.ts        # Portes: effectiveWalls, pruneDoors, doorAt
@@ -422,7 +425,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Escena · Mapa · Biblioteca** (`sidebarTab` a `DMView`). Abans eren «Mapa / Enemics» i els enemics vivien en dues pestanyes segons d'on sortien (els del PSD dins de l'arbre de capes, els de la biblioteca a «Enemics»): per seguir un combat calia saltar entre totes dues.
   - **Escena** (per defecte): `PlayersPanel` + `SceneEnemiesPanel` — **tots** els enemics a l'escena, del PSD (agrupats per carpeta) i de la biblioteca (grup «Afegits»), en **files primes** (~28 px) amb ull, nom i `HpControl` `sm`. Clic a una fila = seleccionar el token al canvas. Reposicionar/eliminar surten en passar-hi el cursor.
   - **Mapa**: `ImportPanel` (fons i PSD), capes de **mapa** del PSD (`LayerTree`: només extres i zones) i `RoomsPanel` (sales i llums).
-  - **Biblioteca**: `EnemyLibraryPanel`, només plantilles per **afegir** (i la BD si hi ha API). Cada plantilla diu quants n'hi ha a l'escena (`×N`, per `templateId`).
+  - **Biblioteca**: `EnemyLibraryPanel`, només plantilles per **afegir** (i la BD si hi ha API, agrupada per projecte o categoria — veure «Enemics de la BD agrupats»). Cada plantilla diu quants n'hi ha a l'escena (`×N`, per `templateId`).
 - **Regla**: el que és *a l'escena* va a Escena, el que és *del mapa* va a Mapa. Un panell nou s'ha de posar on toca per funció, no per origen de les dades.
 
 ### Finestra lateral esquerra — seccions plegables (`src/components/ui/SidebarSection.tsx`)
@@ -644,6 +647,13 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Bloqueig a 0 de vida** (`Player.hp`): amb `hpMax > 0 && hp <= 0` el jugador **no pot moure el token** (ni començar el drag ni validar el `TOKEN_MOVE` al DM) fins que recuperi vida. **El DM sempre pot** (el seu drag no passa per aquesta via).
 - **Bloqueig de moviment per jugador** (`Player.canMove`, absent → `true`): amb `canMove === false` el hit-test de `usePlayerTokenDrag` ignora el token (no es pot ni començar el drag des de `/player`). A més, si arriba un `TOKEN_MOVE` d'un token bloquejat (BC o WS, handlers a `DMView.tsx`), el DM no només el descarta sinó que **reenvia l'estat** (`_broadcastState({})`) perquè la posició autoritzada torni al jugador a l'instant — així un client que encara no hagués rebut el bloqueig no deixa el token mogut fins al següent broadcast. El DM el commuta al desplegable de configuració del `PlayersPanel` (`setPlayerCanMove`); la targeta mostra 🔒. Com `speed`, viatja dins `players` sense camps de sync nous.
 
+### Enemics de la BD agrupats per projecte o categoria (`src/lib/enemy-groups.ts`)
+- **Model**: `ApiEnemy.project` i `ApiEnemy.category`, **text lliure** a la API (trim, màx. 60; `''` = sense). No hi ha cap col·lecció de grups: `groupEnemies(enemies, camp)` els treu de la mateixa llista. La clau del grup (`groupKey`) és el valor sense majúscules ni espais de més, així «Cripta» i «cripta » van junts; l'etiqueta és la primera grafia trobada. Ordre alfabètic i el grup «Sense projecte/categoria» sempre l'últim.
+- **On surt**: al back office (`/admin/enemics`, taula amb una fila-capçalera per grup; la columna del camp agrupat s'amaga) i a la Biblioteca del DM (secció Base de dades). Tots dos fan servir els mateixos components (`ui/EnemyGroups.tsx`: `EnemyGroupToolbar`, `GroupHeader`, `GroupBody`) — un tercer llistat d'enemics de la BD ha de fer servir els mateixos.
+- **Formulari** del back office: camps Projecte i Categoria amb `<datalist>` dels valors existents (`distinctValues`). En desar un enemic que cau en un grup plegat, el grup es desplega (si no, semblaria que no s'ha desat).
+- **Estat recordat** (`useEnemyGrouping(scope)`): `by` (projecte/categoria/cap) i les claus plegades per camp, a `localStorage['rpg_enemy_groups_<scope>']` (`admin` i `dm` per separat). Es llegeix amb `useSyncExternalStore` (`null` al servidor) per no tenir error d'hidratació, i hi ha una còpia en memòria perquè funcioni sense localStorage. Cal desar-ho: la Biblioteca es desmunta a cada canvi de pestanya.
+- **API antiga**: una API sense aquests camps no els retorna i descarta en silenci els que rep. `apiSupportsGroups` ho detecta (cap enemic de la llista porta les claus) i el back office mostra un avís i desactiva els dos camps.
+
 ### Panell de jugadors (`src/components/dm/PlayersPanel.tsx`)
 - Va dins d'una `SidebarSection` ("Jugadors · N") amb els botons ＋ (desplega el formulari d'alta, que si no no ocupa espai) i Party.
 - Targetes a **una columna** (amplada completa del sidebar), apilades verticalment.
@@ -799,4 +809,5 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Mida de lletra, radi o color escrits a mà | La UI torna a perdre la coherència (22 mides, colors repetits) | `FS`, `RADIUS`, `C`, `tint()` i `Button` |
 | Menú de selecció nou fet a mà (anells, botons rodons…) | Cada menú de l'eina Màgies es veia i es feia servir diferent | Fer servir `RadialMenu` |
 | Animar `text-shadow`, `filter` o `box-shadow` amb desenfocs grossos | Els fps cauen a la meitat mentre dura l'animació | Pintar l'efecte un cop en una capa pròpia i animar-ne només `opacity`/`transform` (veure el nom de la cinemàtica de boss) |
+| Llegir `localStorage` a l'inicialitzador d'un `useState` | Error d'hidratació (el servidor no en té i pinta un altre estat) | `useSyncExternalStore` amb snapshot de servidor `null` (veure `useEnemyGrouping`) |
 | Llegir refs dins del render d'un menú | Valors que no es refresquen i error de lint `react-hooks/refs` | Passar l'estat per props (com `ContextMenuOverlay`: `libEnemies`, `players`, `psdEnemyOverrides`) |

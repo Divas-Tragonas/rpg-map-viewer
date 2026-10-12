@@ -60,6 +60,12 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.26 — Enemics de la BD agrupats per projecte o per categoria
+- **Cada enemic del back office pot tenir un projecte i una categoria** (text lliure, p. ex. «La cripta» i «Morts vivents»). Al formulari es proposen els que ja existeixen.
+- **Agrupar per Projecte · Categoria · Cap**, al back office (`/admin/enemics`) i a la Biblioteca del DM (Base de dades). Cada grup té una capçalera amb fletxa i nombre d'enemics; plegar-lo amaga els seus enemics. «Plegar tot» / «Desplegar tot» d'un sol clic.
+- Cada pantalla recorda com ho tens agrupat i què tens plegat, també en canviar de pestanya o recarregar. Si deses un enemic en un grup plegat, el grup es desplega perquè el vegis.
+- Si la API encara no té aquests camps (servidor sense reiniciar), el back office ho avisa i no deixa escriure-hi, en lloc de perdre'ls en silenci.
+
 ### v4.25 — Base de dades de la Biblioteca en una sola columna
 - Els enemics de la base de dades (pestanya Biblioteca) es llisten en **una sola columna**: a dues, els noms llargs quedaven tallats.
 

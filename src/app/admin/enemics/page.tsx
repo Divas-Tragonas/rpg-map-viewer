@@ -1,8 +1,12 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
-import { C } from '@/constants';
+import { C, tint } from '@/constants';
 import { api, isApiConfigured } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
+import { EnemyGroupToolbar, GroupHeader } from '@/components/ui/EnemyGroups';
+import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
+import { apiSupportsGroups, distinctValues, groupEnemies, groupKey } from '@/lib/enemy-groups';
+import type { EnemyGroupField } from '@/lib/enemy-groups';
 
 const EMPTY_FORM: Omit<ApiEnemy, 'id'> = {
   name: '',
@@ -11,7 +15,16 @@ const EMPTY_FORM: Omit<ApiEnemy, 'id'> = {
   R: 30,
   sm: 1.0,
   imageData: '',
+  project: '',
+  category: '',
 };
+
+// Columnes de la taula. La del camp pel qual s'agrupa s'amaga: ja és la capçalera del grup.
+const COLUMNS: { label: string; field?: EnemyGroupField }[] = [
+  { label: '' }, { label: 'Color' }, { label: 'Nom' },
+  { label: 'Projecte', field: 'project' }, { label: 'Categoria', field: 'category' },
+  { label: 'HP màx' }, { label: 'Radi (R)' }, { label: 'Escala (sm)' }, { label: 'Accions' },
+];
 
 export default function EnemicsPage() {
   const [enemies, setEnemies] = useState<ApiEnemy[]>([]);
@@ -21,6 +34,10 @@ export default function EnemicsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const apiOk = isApiConfigured();
+  const grouping = useEnemyGrouping('admin');
+  const groupsOk = apiSupportsGroups(enemies);
+  const groups = grouping.by === 'none' ? null : groupEnemies(enemies, grouping.by);
+  const columns = COLUMNS.filter(c => !c.field || c.field !== grouping.by);
 
   const loadEnemies = useCallback(async () => {
     setLoading(true);
@@ -40,12 +57,14 @@ export default function EnemicsPage() {
     if (!modal) return;
     setSaving(true);
     try {
-      if (modal.mode === 'create') {
-        const created = await api.enemies.create(modal.data);
-        setEnemies(prev => [...prev, created]);
-      } else {
-        const updated = await api.enemies.update(modal.id!, modal.data);
-        setEnemies(prev => prev.map(e => e.id === modal.id ? updated : e));
+      const saved = modal.mode === 'create'
+        ? await api.enemies.create(modal.data)
+        : await api.enemies.update(modal.id!, modal.data);
+      setEnemies(prev => modal.mode === 'create' ? [...prev, saved] : prev.map(e => e.id === modal.id ? saved : e));
+      // Si va a parar a un grup plegat, es desplega: si no, semblaria que no s'ha desat.
+      if (grouping.by !== 'none') {
+        const key = groupKey(saved[grouping.by]);
+        if (grouping.isCollapsed(key)) grouping.toggle(key);
       }
       setModal(null);
     } catch (e) {
@@ -76,6 +95,54 @@ export default function EnemicsPage() {
 
   function updateField<K extends keyof Omit<ApiEnemy, 'id'>>(k: K, v: Omit<ApiEnemy, 'id'>[K]) {
     setModal(m => m ? { ...m, data: { ...m.data, [k]: v } } : m);
+  }
+
+  function renderRow(enemy: ApiEnemy, first: boolean) {
+    return (
+      <tr key={enemy.id} style={{ borderTop: first ? 'none' : `1px solid ${C.border}` }}>
+        <td style={{ padding: '10px 14px', width: 48 }}>
+          {enemy.imageData
+            ? <img src={enemy.imageData} alt="" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 5, background: '#080c12', border: `1px solid ${C.border}` }} />
+            : <div style={{ width: 36, height: 36, borderRadius: 5, background: C.dark, border: `1px dashed ${C.border}` }} />
+          }
+        </td>
+        <td style={{ padding: '10px 14px' }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: enemy.color, border: `1px solid ${C.border}`, flexShrink: 0 }} />
+        </td>
+        <td style={{ padding: '10px 14px', color: C.bright, fontWeight: 600 }}>
+          {enemy.name}
+        </td>
+        {grouping.by !== 'project' && <td style={{ padding: '10px 14px' }}><GroupTag value={enemy.project} /></td>}
+        {grouping.by !== 'category' && <td style={{ padding: '10px 14px' }}><GroupTag value={enemy.category} /></td>}
+        <td style={{ padding: '10px 14px', color: C.hpHigh }}>{enemy.hpMax}</td>
+        <td style={{ padding: '10px 14px', color: C.text }}>{enemy.R}px</td>
+        <td style={{ padding: '10px 14px', color: C.text }}>{enemy.sm}×</td>
+        <td style={{ padding: '10px 14px' }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => openEdit(enemy)}
+              style={{ padding: '4px 10px', border: `1px solid ${C.border}`, borderRadius: 5, background: 'transparent', color: C.text, fontSize: 11, cursor: 'pointer' }}
+            >
+              Editar
+            </button>
+            {deleteConfirm === enemy.id ? (
+              <>
+                <button onClick={() => handleDelete(enemy.id)} style={{ padding: '4px 10px', border: '1px solid #f85149', borderRadius: 5, background: '#f8514922', color: '#f85149', fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>
+                  Confirmar
+                </button>
+                <button onClick={() => setDeleteConfirm(null)} style={{ padding: '4px 10px', border: `1px solid ${C.border}`, borderRadius: 5, background: 'transparent', color: C.dim, fontSize: 11, cursor: 'pointer' }}>
+                  Cancel·lar
+                </button>
+              </>
+            ) : (
+              <button onClick={() => setDeleteConfirm(enemy.id)} style={{ padding: '4px 10px', border: '1px solid #f8514940', borderRadius: 5, background: 'transparent', color: '#f85149', fontSize: 11, cursor: 'pointer' }}>
+                Eliminar
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
   }
 
   return (
@@ -142,6 +209,21 @@ export default function EnemicsPage() {
         </div>
       )}
 
+      {/* Agrupació */}
+      {!loading && enemies.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <EnemyGroupToolbar size="md" by={grouping.by} onBy={grouping.setBy}
+            allFolded={!!groups && groups.every(g => grouping.isCollapsed(g.key))}
+            onFoldAll={fold => grouping.foldAll(groups?.map(g => g.key) ?? [], fold)} />
+        </div>
+      )}
+      {!groupsOk && (
+        <div style={{ background: tint(C.warn, 0.12), border: `1px solid ${tint(C.warn, 0.5)}`, borderRadius: 8, padding: '10px 14px', fontSize: 12, color: C.warn, marginBottom: 12 }}>
+          ⚠️ La API no retorna el projecte ni la categoria dels enemics: el servidor encara no executa la versió nova.
+          Reinicia-la. Fins llavors no es poden desar aquests camps i tots els enemics surten sense grup.
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div style={{ color: C.dim, fontSize: 13, padding: 20 }}>Carregant...</div>
@@ -150,8 +232,8 @@ export default function EnemicsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {['', 'Color', 'Nom', 'HP màx', 'Radi (R)', 'Escala (sm)', 'Accions'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
+                {columns.map(({ label: h }) => (
+                  <th key={h || 'img'} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
                 ))}
@@ -160,54 +242,27 @@ export default function EnemicsPage() {
             <tbody>
               {enemies.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '32px 14px', textAlign: 'center', color: C.dim, fontSize: 13 }}>
+                  <td colSpan={columns.length} style={{ padding: '32px 14px', textAlign: 'center', color: C.dim, fontSize: 13 }}>
                     {apiOk ? 'Sense enemics. Crea el primer!' : '—'}
                   </td>
                 </tr>
               )}
-              {enemies.map((enemy, i) => (
-                <tr key={enemy.id} style={{ borderTop: i === 0 ? 'none' : `1px solid ${C.border}` }}>
-                  <td style={{ padding: '10px 14px', width: 48 }}>
-                    {enemy.imageData
-                      ? <img src={enemy.imageData} alt="" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 5, background: '#080c12', border: `1px solid ${C.border}` }} />
-                      : <div style={{ width: 36, height: 36, borderRadius: 5, background: C.dark, border: `1px dashed ${C.border}` }} />
-                    }
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: enemy.color, border: `1px solid ${C.border}`, flexShrink: 0 }} />
-                  </td>
-                  <td style={{ padding: '10px 14px', color: C.bright, fontWeight: 600 }}>
-                    {enemy.name}
-                  </td>
-                  <td style={{ padding: '10px 14px', color: C.hpHigh }}>{enemy.hpMax}</td>
-                  <td style={{ padding: '10px 14px', color: C.text }}>{enemy.R}px</td>
-                  <td style={{ padding: '10px 14px', color: C.text }}>{enemy.sm}×</td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => openEdit(enemy)}
-                        style={{ padding: '4px 10px', border: `1px solid ${C.border}`, borderRadius: 5, background: 'transparent', color: C.text, fontSize: 11, cursor: 'pointer' }}
-                      >
-                        Editar
-                      </button>
-                      {deleteConfirm === enemy.id ? (
-                        <>
-                          <button onClick={() => handleDelete(enemy.id)} style={{ padding: '4px 10px', border: '1px solid #f85149', borderRadius: 5, background: '#f8514922', color: '#f85149', fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>
-                            Confirmar
-                          </button>
-                          <button onClick={() => setDeleteConfirm(null)} style={{ padding: '4px 10px', border: `1px solid ${C.border}`, borderRadius: 5, background: 'transparent', color: C.dim, fontSize: 11, cursor: 'pointer' }}>
-                            Cancel·lar
-                          </button>
-                        </>
-                      ) : (
-                        <button onClick={() => setDeleteConfirm(enemy.id)} style={{ padding: '4px 10px', border: '1px solid #f8514940', borderRadius: 5, background: 'transparent', color: '#f85149', fontSize: 11, cursor: 'pointer' }}>
-                          Eliminar
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {groups
+                ? groups.map((g, gi) => {
+                  const open = !grouping.isCollapsed(g.key);
+                  return (
+                    <React.Fragment key={`g:${g.key}`}>
+                      <tr style={{ borderTop: gi === 0 ? 'none' : `1px solid ${C.border}`, background: 'rgba(255,255,255,0.025)' }}>
+                        <td colSpan={columns.length} style={{ padding: 0 }}>
+                          <GroupHeader label={g.label} count={g.items.length} open={open} unnamed={!g.key}
+                            onToggle={() => grouping.toggle(g.key)} padding="9px 14px" fontSize={13} />
+                        </td>
+                      </tr>
+                      {open && g.items.map(en => renderRow(en, false))}
+                    </React.Fragment>
+                  );
+                })
+                : enemies.map((en, i) => renderRow(en, i === 0))}
             </tbody>
           </table>
         </div>
@@ -249,6 +304,27 @@ export default function EnemicsPage() {
                   style={inputStyle}
                 />
               </Field>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                {(['project', 'category'] as const).map(field => (
+                  <Field key={field} label={field === 'project' ? 'Projecte' : 'Categoria'} style={{ flex: 1 }}>
+                    <input
+                      type="text"
+                      list={`enemy-${field}-options`}
+                      value={modal.data[field] ?? ''}
+                      maxLength={60}
+                      disabled={!groupsOk}
+                      title={groupsOk ? 'Escriu-ne un de nou o tria un dels que ja existeixen' : 'La API encara no desa aquest camp'}
+                      onChange={e => updateField(field, e.target.value)}
+                      placeholder={field === 'project' ? 'p.ex. La cripta' : 'p.ex. Morts vivents'}
+                      style={{ ...inputStyle, opacity: groupsOk ? 1 : 0.5 }}
+                    />
+                    <datalist id={`enemy-${field}-options`}>
+                      {distinctValues(enemies, field).map(v => <option key={v} value={v} />)}
+                    </datalist>
+                  </Field>
+                ))}
+              </div>
 
               <div style={{ display: 'flex', gap: 12 }}>
                 <Field label="Color" style={{ flex: 1 }}>
@@ -415,6 +491,14 @@ function ImageUpload({ value, onChange }: { value: string; onChange: (v: string)
       )}
     </div>
   );
+}
+
+/** Valor de projecte o categoria a la taula; un guió si no en té. */
+function GroupTag({ value }: { value?: string }) {
+  const v = value?.trim();
+  return v
+    ? <span style={{ padding: '2px 8px', borderRadius: 999, background: tint(C.room, 0.12), border: `1px solid ${tint(C.room, 0.35)}`, color: C.room, fontSize: 11, whiteSpace: 'nowrap' }}>{v}</span>
+    : <span style={{ color: C.dim }}>—</span>;
 }
 
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {

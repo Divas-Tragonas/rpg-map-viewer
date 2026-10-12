@@ -15,7 +15,17 @@ WS BASE : substituir http per ws → ws://[host]:3000
   R: number           // radi token en px, enter 8–200
   sm: number          // multiplicador escala, decimal 0.1–5.0
   imageData?: string  // opcional, base64 "data:image/png;base64,..."
+  project: string     // text lliure (trim, màx. 60); '' = sense projecte
+  category: string    // text lliure (trim, màx. 60); '' = sense categoria
 }
+
+`project` i `category` serveixen per agrupar els enemics al back office i a la
+Biblioteca del DM (`src/lib/enemy-groups.ts`). No hi ha cap col·lecció de grups:
+el frontend treu els valors de la mateixa llista. GET els retorna sempre (també
+als documents antics, amb ''). POST els accepta opcionals ('' per defecte); PUT
+només els toca si venen al body (`category: ''` la buida). Més de 60 caràcters →
+400. Una API anterior no els retorna: el back office ho detecta
+(`apiSupportsGroups`) i ho avisa en lloc de perdre'ls en silenci.
 
 
 ## TIPUS Session (Partida)

@@ -6,6 +6,10 @@ export type ApiEnemy = {
   R: number;
   sm: number;
   imageData?: string;
+  // Text lliure per agrupar-los (`src/lib/enemy-groups.ts`); '' = sense projecte/categoria.
+  // Opcionals perquè una API anterior no els retorna.
+  project?: string;
+  category?: string;
 };
 
 // Partida desada al servidor. `data` és un blob opac (l'estat que el frontend
