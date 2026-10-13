@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
+import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
@@ -37,6 +37,7 @@ import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
 import { TopBar } from '@/components/dm/TopBar';
 import { ShowPanelHeader, type ShowTab } from '@/components/dm/ShowPanelHeader';
+import { TokenSheet } from '@/components/dm/TokenSheet';
 import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { SidebarSection } from '@/components/ui/SidebarSection';
@@ -133,9 +134,6 @@ export function DMView() {
   const sessionInputRef = React.useRef<HTMLInputElement>(null);
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
-  const [ctxEditName, setCtxEditName] = useState('');
-  const [ctxEditHpMax, setCtxEditHpMax] = useState(0);
-  const [ctxEditSizeFt, setCtxEditSizeFt] = useState(5);
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
   const [areaSelectMode, setAreaSelectMode] = useState(false);
   const [dmPrivateActive, setDmPrivateActive] = useState(false);
@@ -934,6 +932,10 @@ export function DMView() {
   const selectToken = useCallback((id: string | number) => {
     setSelectedToken(id); R.rSelectedToken.current = id;
   }, [R]);
+  // Tancar la fitxa = deseleccionar el token (com clicar en buit al mapa).
+  const deselectToken = useCallback(() => {
+    setSelectedToken(null); R.rSelectedToken.current = null;
+  }, [R]);
   // Enter passa el torn només a Jugar: a Preparar la barra de torns no es veu i un Enter
   // perdut passaria el torn sense que el DM ho veiés.
   const advanceTurnIfPlaying = useCallback(() => { if (mode === 'jugar') advanceTurn(); }, [mode, advanceTurn]);
@@ -1019,44 +1021,6 @@ export function DMView() {
     });
     setContextMenu(null);
   }, [contextMenu, pos]);
-
-  // Update ctxEditName when contextMenu changes
-  useEffect(() => {
-    if (!contextMenu) return;
-    if (typeof contextMenu.id === 'number') {
-      const ov = R.rPsdEnemyOverrides.current[contextMenu.id] || {};
-      setCtxEditName(ov.name ?? contextMenu.name);
-      setCtxEditHpMax(ov.hpMax ?? 0);
-    } else if (contextMenu.isLibEnemy && contextMenu.libEnemyId !== undefined) {
-      const le = R.rLibEnemies.current.find(e => e.id === contextMenu.libEnemyId);
-      setCtxEditName(le?.name ?? contextMenu.name);
-      setCtxEditHpMax(0);
-    } else {
-      setCtxEditName(contextMenu.name);
-      setCtxEditHpMax(0);
-    }
-
-    // Current token diameter (px), falling back to each token type's default when unset.
-    const key = String(contextMenu.id);
-    let radiusPx = R.rTokenSizeOverride.current[key];
-    if (radiusPx == null) {
-      if (contextMenu.isLibEnemy && contextMenu.libEnemyId !== undefined) {
-        radiusPx = R.rLibEnemies.current.find(e => e.id === contextMenu.libEnemyId)?.R ?? 25;
-      } else if (typeof contextMenu.id === 'string' && contextMenu.id.startsWith('pl_')) {
-        radiusPx = 22;
-      } else if (typeof contextMenu.id === 'number' && R.rStruct.current) {
-        let found: number | undefined;
-        for (const room of R.rStruct.current.enemyRooms) {
-          const en = room.enemies.find(e => e.id === contextMenu.id);
-          if (en) { found = Math.max(Math.min(en.w, en.h) / 2, 22); break; }
-        }
-        radiusPx = found ?? 25;
-      } else {
-        radiusPx = 25;
-      }
-    }
-    setCtxEditSizeFt(feetFromRadius(radiusPx, R.rGridSize.current));
-  }, [contextMenu]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onZoomChange = useCallback((z: number) => {
     R.rZoom.current = z; setZoom(z); _broadcastState({});
@@ -1409,7 +1373,8 @@ export function DMView() {
                 newPColor={newPColor} setNewPColor={setNewPColor}
                 newPHpMax={newPHpMax} setNewPHpMax={setNewPHpMax}
                 onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
-                onRemove={removePlayer} onAdjustHp={adjustPlayerHp} onSetHpMax={setPlayerHpMax} onSetSpeed={setPlayerSpeed} onSetVision={setPlayerVision} onSetCanMove={setPlayerCanMove} onRename={renamePlayer} onLoadParty={loadParty}
+                onAdjustHp={adjustPlayerHp} onLoadParty={loadParty}
+                selectedToken={selectedToken} onSelect={selectToken} defeated={defeated}
               />
               <SceneEnemiesPanel
                 struct={psdStruct} vis={vis} psdEnemyOverrides={psdEnemyOverrides}
@@ -1457,6 +1422,22 @@ export function DMView() {
             />
           )}
         </ScrollArea>
+
+        {/* Fitxa del token seleccionat (a baix, en qualsevol pestanya): nom, vida màxima, mida
+            i, als jugadors, velocitat, visió i moviment. El `key` reinicia els camps a mig
+            editar quan se'n selecciona un altre. */}
+        {selectedToken !== null && (
+          <TokenSheet key={String(selectedToken)} tokenId={selectedToken}
+            players={players} libEnemies={libEnemies} struct={psdStruct} psdEnemyOverrides={psdEnemyOverrides}
+            conditions={conditions} defeated={defeated} tokenSizeOverride={tokenSizeOverride} gridSize={gridSize}
+            onClose={deselectToken}
+            onRenamePlayer={renamePlayer} onAdjustPlayerHp={adjustPlayerHp} onSetPlayerHpMax={setPlayerHpMax}
+            onSetPlayerSpeed={setPlayerSpeed} onSetPlayerVision={setPlayerVision} onSetPlayerCanMove={setPlayerCanMove}
+            onRemovePlayer={id => { removePlayer(id); deselectToken(); }}
+            onAdjustLibHp={adjustLibEnemyHp} onSetLibProps={setLibEnemyProps}
+            onAdjustPsdHp={adjustPsdEnemyHp} onSetPsdProps={setPsdEnemyProps}
+            onSetTokenSize={setTokenSize} />
+        )}
       </div>
 
       {/* ── Main canvas area ──────────────────────────────────────────────── */}
@@ -1809,10 +1790,7 @@ export function DMView() {
         libEnemies={libEnemies}
         psdEnemyOverrides={psdEnemyOverrides}
         players={players}
-        ctxEditName={ctxEditName} setCtxEditName={setCtxEditName}
-        ctxEditHpMax={ctxEditHpMax} setCtxEditHpMax={setCtxEditHpMax}
-        ctxEditSizeFt={ctxEditSizeFt} setCtxEditSizeFt={setCtxEditSizeFt}
-        onSetTokenSize={setTokenSize}
+        onOpenSheet={selectToken}
         onClose={() => setContextMenu(null)}
         onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone} onDeleteAreaSpell={deleteAreaSpell}
         onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}
@@ -1820,8 +1798,6 @@ export function DMView() {
         adjustLibEnemyHp={adjustLibEnemyHp}
         adjustPsdEnemyHp={adjustPsdEnemyHp}
         adjustPlayerHp={adjustPlayerHp}
-        setPsdEnemyProps={setPsdEnemyProps}
-        setLibEnemyProps={setLibEnemyProps}
         removeLibEnemy={removeLibEnemy}
         onLaunchBossIntro={launchBossIntro}
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}

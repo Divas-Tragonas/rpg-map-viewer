@@ -60,6 +60,13 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.30 — Fitxa del token i menú contextual curt (simplificació, fase 4)
+- **Fitxa del token** a baix del lateral (a qualsevol pestanya): surt en seleccionar un token i hi ha tot el que és configurar-lo — nom, vida, vida màxima, mida i, als jugadors, velocitat, visió a les fosques, si es poden moure des de la seva pantalla i eliminar-lo.
+- Els camps de la fitxa s'apliquen en prémer Enter o sortir del camp (Esc cancel·la): esborrar un número per escriure'n un altre ja no deixa el token a 0 a mig camí.
+- **Menú del clic dret més curt**: només accions ràpides (vida, estats, conjurs, grup, cinemàtica, treure de l'escena) i «✏️ Editar la fitxa». El nom, la vida màxima i la mida han passat a la fitxa.
+- **Jugadors en files primes** com les dels enemics de l'Escena (avatar, nom, cadenat si no es pot moure i vida). Abans eren targetes de 68 px amb un engranatge cadascuna; amb cinc jugadors ocupaven mig lateral.
+- Clicar la fila d'un jugador el selecciona al mapa i n'obre la fitxa.
+
 ### v4.29 — Selector de càmera i un sol Desfer (simplificació, fase 3)
 - **Selector de càmera** a la cantonada del mapa, al costat del zoom: «Què veuen els jugadors: **Compartida** · **Privada**». Substitueix els botons «CTRL» i «MAJ» de la barra d'eines (les tecles funcionen igual).
 - **«Enviar aquesta vista»**: en vista privada, un clic i els jugadors passen a veure el que estàs veient tu.

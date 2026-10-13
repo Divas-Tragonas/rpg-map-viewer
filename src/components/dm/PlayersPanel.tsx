@@ -1,11 +1,11 @@
 'use client';
 import React, { useState } from 'react';
-import { UserPlus, X, GearIcon } from '@/components/icons';
-import { C, FS, RADIUS, PALETTE, DEFAULT_SPEED_FT, DEFAULT_VISION_FT } from '@/constants';
+import { UserPlus, LockIcon } from '@/components/icons';
+import { C, FS, RADIUS, PALETTE, tint } from '@/constants';
 import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
 import { HpControl } from '@/components/ui/HpControl';
-import { Button, IconButton } from '@/components/ui/Button';
-import type { Player } from '@/types';
+import { IconButton } from '@/components/ui/Button';
+import type { DefeatedMap, Player } from '@/types';
 
 interface Props {
   players: Player[];
@@ -13,120 +13,54 @@ interface Props {
   newPColor: string; setNewPColor: (v: string) => void;
   newPHpMax: number; setNewPHpMax: (v: number) => void;
   onAdd: () => void;
-  onRemove: (id: number) => void;
   onAdjustHp: (id: number, delta: number) => void;
-  onSetHpMax: (id: number, hpMax: number) => void;
-  onSetSpeed: (id: number, speed: number) => void;
-  onSetVision: (id: number, visionFt: number) => void;
-  onSetCanMove: (id: number, canMove: boolean) => void;
-  onRename: (id: number, name: string) => void;
   onLoadParty: () => void;
+  /** Token seleccionat (la seva fitxa és a baix del lateral) i com seleccionar-ne un. */
+  selectedToken: string | number | null;
+  onSelect: (id: string) => void;
+  defeated: DefeatedMap;
 }
 
-function Toggle({ on, onClick, title }: { on: boolean; onClick: () => void; title?: string }) {
-  return (
-    <div onClick={onClick} title={title}
-      style={{ width: 36, height: 20, borderRadius: RADIUS.lg, background: on ? C.hpHigh : 'rgba(255,255,255,0.15)', position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}>
-      <div style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-    </div>
-  );
-}
-
-const cfgInputStyle: React.CSSProperties = {
-  width: 56, height: 26, background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm,
-  color: C.text, fontSize: FS.md, fontWeight: 700, textAlign: 'center', outline: 'none', padding: '0 2px',
-};
-
-function CfgRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ flex: 1, fontSize: FS.sm, color: C.dim, minWidth: 0 }}>{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function PlayerCard({ pl, openConfig, onToggleConfig, onRemove, onAdjustHp, onSetHpMax, onSetSpeed, onSetVision, onSetCanMove, onRename }: {
-  pl: Player;
-  openConfig: boolean;
-  onToggleConfig: () => void;
-  onRemove: (id: number) => void;
-  onAdjustHp: (id: number, delta: number) => void;
-  onSetHpMax: (id: number, hpMax: number) => void;
-  onSetSpeed: (id: number, speed: number) => void;
-  onSetVision: (id: number, visionFt: number) => void;
-  onSetCanMove: (id: number, canMove: boolean) => void;
-  onRename: (id: number, name: string) => void;
+/**
+ * Fila d'un jugador: inicials amb el seu color, nom, 🔒 si no es pot moure des de la seva
+ * pantalla i la vida. Fa la mateixa alçada que les files d'enemics (abans era una targeta
+ * de 68 px amb un engranatge i, amb cinc jugadors, els enemics quedaven fora de la vista).
+ * Clicar-la selecciona el token i n'obre la fitxa (nom, vida màxima, velocitat, visió…).
+ */
+function PlayerRow({ pl, selected, defeated, onSelect, onAdjustHp }: {
+  pl: Player; selected: boolean; defeated: boolean;
+  onSelect: () => void; onAdjustHp: (delta: number) => void;
 }) {
+  const [hover, setHover] = useState(false);
   const hp = pl.hp ?? pl.hpMax;
-  const speed = pl.speed ?? DEFAULT_SPEED_FT;
-  const vision = pl.visionFt ?? DEFAULT_VISION_FT;
-  const canMove = pl.canMove !== false;
-  const [confirmDelete, setConfirmDelete] = useState(false);
   return (
-    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: RADIUS.md, border: '1px solid rgba(255,255,255,0.07)' }}>
-      {/* minHeight fix perquè la confirmació d'esborrat no faci créixer la targeta */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 0 8px', minHeight: 22, boxSizing: 'border-box' }}>
-        <div style={{ width: 10, height: 10, borderRadius: '50%', background: pl.color, flexShrink: 0 }} />
-        <input value={pl.name} title="Editar nom"
-          onChange={e => onRename(pl.id, e.target.value)}
-          onBlur={e => { const t = e.target.value.trim(); onRename(pl.id, t || 'Jugador'); }}
-          style={{ flex: 1, minWidth: 0, fontSize: FS.md, color: C.text, fontWeight: 700, background: 'transparent', border: 'none', outline: 'none', padding: 0 }} />
-        {!canMove && <span title="Moviment desactivat des de la pantalla de jugador" style={{ fontSize: FS.sm, flexShrink: 0 }}>🔒</span>}
-        {confirmDelete ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            <span style={{ fontSize: FS.xs, color: C.enemy, fontWeight: 700 }}>Eliminar?</span>
-            <Button size="sm" variant="danger" onClick={() => onRemove(pl.id)} title="Confirmar eliminació">Sí</Button>
-            <Button size="sm" onClick={() => setConfirmDelete(false)} title="Cancel·lar">No</Button>
-          </div>
-        ) : (
-          <button onClick={() => setConfirmDelete(true)} title="Eliminar jugador"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: 0, display: 'flex', flexShrink: 0 }}><X size={11} /></button>
-        )}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px 4px 8px' }}>
-        <HpControl hp={hp} hpMax={pl.hpMax} onAdjust={delta => onAdjustHp(pl.id, delta)} size="lg" />
-        <IconButton size={36} onClick={onToggleConfig} active={openConfig} title="Configuració del jugador"
-          style={{ color: openConfig ? C.accent : C.dim }}>
-          <GearIcon size={16} style={{ transition: 'transform 0.28s ease', transform: openConfig ? 'rotate(90deg)' : 'none' }} />
-        </IconButton>
-      </div>
-      {/* Desplegable de configuració: el truc 0fr→1fr anima l'alçada sense mesurar-la */}
-      <div style={{ display: 'grid', gridTemplateRows: openConfig ? '1fr' : '0fr', transition: 'grid-template-rows 0.28s ease' }}>
-        <div style={{ overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: 8, display: 'flex', flexDirection: 'column', gap: 7 }}>
-            <CfgRow label="Vida màxima">
-              <input type="number" min={1} max={999} value={pl.hpMax}
-                onChange={e => onSetHpMax(pl.id, parseInt(e.target.value) || 1)}
-                style={{ ...cfgInputStyle, color: C.hpHigh }} />
-            </CfgRow>
-            <CfgRow label={`Velocitat (peus) · ${Math.floor(speed / 5)} caselles`}>
-              <input type="number" min={0} max={995} step={5} value={speed}
-                onChange={e => onSetSpeed(pl.id, parseInt(e.target.value) || 0)}
-                style={{ ...cfgInputStyle, color: '#d4ae38' }} />
-            </CfgRow>
-            <CfgRow label={`Visió a les fosques (peus)${vision <= 0 ? ' · sense llum' : ''}`}>
-              <input type="number" min={0} max={995} step={5} value={vision}
-                title="Radi de llum que emet el token dins de sales fosques (0 = sense llum)"
-                onChange={e => onSetVision(pl.id, parseInt(e.target.value) || 0)}
-                style={{ ...cfgInputStyle, color: '#e8c86a' }} />
-            </CfgRow>
-            <CfgRow label="Moviment des de la pantalla de jugador">
-              <Toggle on={canMove} onClick={() => onSetCanMove(pl.id, !canMove)}
-                title={canMove ? 'Desactivar moviment del jugador' : 'Activar moviment del jugador'} />
-            </CfgRow>
-          </div>
-        </div>
+    <div onClick={onSelect} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      title="Clic per obrir-ne la fitxa"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7, minHeight: 32, padding: '2px 6px 2px 4px', cursor: 'pointer',
+        borderRadius: RADIUS.sm, background: selected ? tint(C.room, 0.12) : hover ? 'rgba(255,255,255,0.03)' : 'transparent',
+        opacity: defeated ? 0.55 : 1,
+      }}>
+      <span aria-hidden style={{ width: 22, height: 22, borderRadius: '50%', background: pl.color, color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {pl.name.trim().slice(0, 2).toUpperCase()}
+      </span>
+      <span title={pl.name} style={{
+        flex: 1, minWidth: 0, fontSize: FS.sm, fontWeight: 700, color: defeated ? C.dim : C.text,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: defeated ? 'line-through' : 'none',
+      }}>{pl.name}</span>
+      {pl.canMove === false && <span title="No es pot moure des de la pantalla de jugador" style={{ display: 'flex', color: C.dim, flexShrink: 0 }}><LockIcon size={11} /></span>}
+      {/* Mateixa amplada que la vida de les files d'enemics: totes les vides queden en columna. */}
+      <div onClick={e => e.stopPropagation()} style={{ width: 104, flexShrink: 0, display: 'flex' }}>
+        <HpControl hp={hp} hpMax={pl.hpMax} onAdjust={onAdjustHp} size="sm" />
       </div>
     </div>
   );
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onRemove, onAdjustHp, onSetHpMax, onSetSpeed, onSetVision, onSetCanMove, onRename, onLoadParty }: Props) {
-  const [openConfigId, setOpenConfigId] = useState<number | null>(null);
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, defeated }: Props) {
   const [addOpen, setAddOpen] = useState(false);
   return (
-    <SidebarSection title="Jugadors" icon="🧙" count={players.length} countColor={C.hpHigh} bodyPadding="0 10px 8px"
+    <SidebarSection title="Jugadors" icon="🧙" count={players.length} countColor={C.hpHigh} bodyPadding="0 6px 8px"
       actions={
         <>
           <SectionButton onClick={() => setAddOpen(o => !o)} active={addOpen} title="Afegir un jugador nou">＋</SectionButton>
@@ -156,13 +90,11 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
           </div>
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
         {players.map(pl => (
-          <PlayerCard key={pl.id} pl={pl}
-            openConfig={openConfigId === pl.id}
-            onToggleConfig={() => setOpenConfigId(openConfigId === pl.id ? null : pl.id)}
-            onRemove={onRemove} onAdjustHp={onAdjustHp} onSetHpMax={onSetHpMax}
-            onSetSpeed={onSetSpeed} onSetVision={onSetVision} onSetCanMove={onSetCanMove} onRename={onRename} />
+          <PlayerRow key={pl.id} pl={pl}
+            selected={selectedToken === `pl_${pl.id}`} defeated={!!defeated[`pl_${pl.id}`]}
+            onSelect={() => onSelect(`pl_${pl.id}`)} onAdjustHp={d => onAdjustHp(pl.id, d)} />
         ))}
       </div>
       {players.length === 0 && !addOpen && (

@@ -18,13 +18,8 @@ interface Props {
   libEnemies: LibEnemy[];
   psdEnemyOverrides: PsdEnemyOverrides;
   players: import('@/types').Player[];
-  ctxEditName: string;
-  setCtxEditName: (v: string) => void;
-  ctxEditHpMax: number;
-  setCtxEditHpMax: (v: number) => void;
-  ctxEditSizeFt: number;
-  setCtxEditSizeFt: (v: number) => void;
-  onSetTokenSize: (id: string, feet: number) => void;
+  /** Selecciona el token i n'obre la fitxa (nom, vida màxima, mida…), a baix del lateral. */
+  onOpenSheet: (id: string | number) => void;
   onClose: () => void;
   onToggleCondition: (tokenId: string, condId: string) => void;
   onDeletePaintedZone: (id: string) => void;
@@ -36,8 +31,6 @@ interface Props {
   adjustLibEnemyHp: (id: number, delta: number) => void;
   adjustPsdEnemyHp: (id: number, delta: number) => void;
   adjustPlayerHp: (id: number, delta: number) => void;
-  setPsdEnemyProps: (id: number, props: import('@/types').PsdEnemyOverride) => void;
-  setLibEnemyProps: (id: number, props: Partial<LibEnemy>) => void;
   removeLibEnemy: (id: number) => void;
   onLaunchBossIntro: (req: import('@/hooks/useCinematic').BossIntroRequest) => Promise<string | null>;
   onCreateGroup: (ids: (number | string)[]) => void;
@@ -137,13 +130,11 @@ function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: 
 
 export function ContextMenuOverlay({
   contextMenu, conditions, defeated, rDefeated, defeatedAnimRef, rConditions,
-  libEnemies, psdEnemyOverrides, players,
-  ctxEditName, setCtxEditName, ctxEditHpMax, setCtxEditHpMax,
-  ctxEditSizeFt, setCtxEditSizeFt, onSetTokenSize,
+  libEnemies, psdEnemyOverrides, players, onOpenSheet,
   onClose, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
   setDefeated, setConditions,
   adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
-  setPsdEnemyProps, setLibEnemyProps, removeLibEnemy,
+  removeLibEnemy,
   onLaunchBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
   onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell,
@@ -314,15 +305,8 @@ export function ContextMenuOverlay({
     const pl = players.find(p => p.id === plId);
     if (pl && pl.hpMax) hpBlock = { hp: pl.hp ?? pl.hpMax, hpMax: pl.hpMax, adjust: d => adjustPlayerHp(pl.id, d) };
   }
-  const psdNeedsHp = typeof contextMenu.id === 'number' && !((psdEnemyOverrides[contextMenu.id]?.hpMax ?? 0) > 0);
-
-  const saveName = () => {
-    if (typeof contextMenu.id === 'number') setPsdEnemyProps(contextMenu.id, { name: ctxEditName });
-    else if (contextMenu.isLibEnemy && contextMenu.libEnemyId !== undefined) setLibEnemyProps(contextMenu.libEnemyId, { name: ctxEditName });
-  };
-
   return (
-    <div data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, 560)}>
+    <div data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, 460)}>
       <MenuHeader title={contextMenu.name} onClose={onClose}>
         {/* Derrotat és un interruptor amb nom: abans era un ✕ solt just on s'espera el botó
             de tancar el menú, i en tota la resta de l'app ✕ vol dir tancar o eliminar. */}
@@ -339,46 +323,6 @@ export function ContextMenuOverlay({
         </div>
       )}
 
-      {/* Nom (enemics del PSD i de la biblioteca; el dels jugadors s'edita a la seva targeta) */}
-      {(typeof contextMenu.id === 'number' || contextMenu.isLibEnemy) && (
-        <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>
-          <div style={sectionLabel}>Nom</div>
-          <input
-            value={ctxEditName}
-            onChange={e => setCtxEditName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') saveName(); }}
-            onBlur={saveName}
-            style={fieldStyle}
-          />
-          {psdNeedsHp && (
-            <>
-              <div style={{ ...sectionLabel, marginTop: 6 }}>Vida màxima (0 = sense vida)</div>
-              <input
-                type="number" min={0} max={9999} value={ctxEditHpMax}
-                onChange={e => setCtxEditHpMax(parseInt(e.target.value) || 0)}
-                onBlur={() => { if (ctxEditHpMax > 0) setPsdEnemyProps(contextMenu.id as number, { hpMax: ctxEditHpMax, hp: ctxEditHpMax }); }}
-                onKeyDown={e => { if (e.key === 'Enter' && ctxEditHpMax > 0) setPsdEnemyProps(contextMenu.id as number, { hpMax: ctxEditHpMax, hp: ctxEditHpMax }); }}
-                style={fieldStyle}
-              />
-            </>
-          )}
-        </div>
-      )}
-
-      <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>
-        <div style={sectionLabel}>Mida (peus)</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="number" min={1} step={0.5} value={ctxEditSizeFt}
-            onChange={e => setCtxEditSizeFt(parseFloat(e.target.value) || 0)}
-            onBlur={() => { if (ctxEditSizeFt > 0) onSetTokenSize(id, ctxEditSizeFt); }}
-            onKeyDown={e => { if (e.key === 'Enter' && ctxEditSizeFt > 0) onSetTokenSize(id, ctxEditSizeFt); }}
-            style={{ ...fieldStyle, width: 64 }}
-          />
-          <span style={{ color: C.dim, fontSize: FS.xs }}>ft de diàmetre</span>
-        </div>
-      </div>
-
       <ConditionPicker
         active={conditions[id] || []}
         onToggle={condId => onToggleCondition(id, condId)}
@@ -394,6 +338,12 @@ export function ContextMenuOverlay({
       })()}
 
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {/* El clic dret és per a accions ràpides; el que s'escriu (nom, vida màxima, mida,
+            velocitat…) és a la fitxa del token, a baix del lateral. */}
+        <Button block variant="secondary" onMouseDown={e => { e.stopPropagation(); onOpenSheet(contextMenu.id); onClose(); }}
+          title="Nom, vida màxima, mida i, als jugadors, velocitat i visió">
+          ✏️ Editar la fitxa
+        </Button>
         {contextMenu.existingGroupId && (
           <Button block variant="secondary" onMouseDown={e => { e.stopPropagation(); onLeaveGroup(contextMenu.id); onClose(); }}>
             🔓 Sortir del grup

@@ -7,6 +7,7 @@ import {
   WallIcon, SwordsIcon, GridIcon, RotateCcw,
 } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
+import { Switch } from '@/components/ui/Switch';
 import { C, FS, RADIUS, SHADOW, APP_VERSION, tint } from '@/constants';
 import { extraSeen } from '@/lib/camera';
 import { agoLabel } from '@/lib/autosave';
@@ -116,15 +117,6 @@ function MenuItem({ icon, label, hint, onClick, disabled, title }: {
 }
 
 const MenuDivider = () => <div style={{ height: 1, background: C.border, margin: '4px 4px' }} />;
-
-function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
-  return (
-    <button role="switch" aria-checked={on} aria-label={label} onClick={onChange}
-      style={{ position: 'relative', width: 34, height: 20, flexShrink: 0, borderRadius: RADIUS.pill, border: 'none', background: on ? C.ok : C.border, cursor: 'pointer', transition: 'background .15s' }}>
-      <span style={{ position: 'absolute', top: 3, left: on ? 17 : 3, width: 14, height: 14, borderRadius: '50%', background: C.bright, transition: 'left .15s' }} />
-    </button>
-  );
-}
 
 const Dot = ({ color }: { color: string }) => (
   <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}`, flexShrink: 0 }} />

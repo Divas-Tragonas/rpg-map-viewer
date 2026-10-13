@@ -28,7 +28,7 @@ interface Props {
 
 /**
  * Fila prima d'un enemic de l'escena: ull, color, nom i vida, en ~28 px d'alçada perquè se
- * n'hi puguin apilar molts. La vida és el mateix `HpControl` que la targeta de jugador, en
+ * n'hi puguin apilar molts. La vida és el mateix `HpControl` que la fila de jugador, en
  * mida `sm`. Les accions secundàries (reposicionar, eliminar) surten en passar-hi el cursor.
  */
 function EnemyRow({ name, color, visible, defeated, selected, hp, hpMax, indent = 0, onSelect, onToggleVis, onAdjustHp, onReset, onRemove, removeTitle }: {
@@ -73,7 +73,7 @@ function EnemyRow({ name, color, visible, defeated, selected, hp, hpMax, indent 
       <div onClick={e => e.stopPropagation()} style={{ width: 104, flexShrink: 0, display: 'flex' }}>
         {hpMax > 0 && onAdjustHp
           ? <HpControl hp={hp} hpMax={hpMax} onAdjust={onAdjustHp} size="sm" />
-          : <span title="Sense vida: posa-li vida màxima amb el clic dret sobre el token"
+          : <span title="Sense vida: clica la fila i posa-li vida màxima a la fitxa"
               style={{ flex: 1, textAlign: 'center', fontSize: FS.xs, color: tint(C.dim, 0.6) }}>—</span>}
       </div>
     </div>
