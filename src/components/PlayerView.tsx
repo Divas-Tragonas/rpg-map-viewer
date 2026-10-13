@@ -3,9 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layers } from '@/components/icons';
 import { TurnBanner } from '@/components/player/TurnBanner';
 import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
-import {
-  BC_CHANNEL, TOKEN_LERP, APP_VERSION,
-} from '@/constants';
+import { BC_CHANNEL, TOKEN_LERP, APP_VERSION, FONT_SERIF } from '@/constants';
 import {
   renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
@@ -1107,7 +1105,7 @@ export function PlayerView() {
           <div
             ref={textRevealTextRef}
             style={{
-              fontFamily: "'EB Garamond','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif",
+              fontFamily: FONT_SERIF,
               fontSize: 'clamp(2rem, 4.6vw, 4rem)', lineHeight: 1.55, whiteSpace: 'pre-wrap',
               wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em',
               color: '#ece3d0', textShadow: '0 2px 24px rgba(0,0,0,0.6)',

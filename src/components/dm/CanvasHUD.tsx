@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Eye, LockIcon, ExternalLink, X } from '@/components/icons';
+import { Eye, LockIcon, ExternalLink, X, TargetIcon } from '@/components/icons';
 import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
 
 interface Props {
@@ -54,8 +54,8 @@ export function CanvasHUD({ gridCalibrating, hasMap, zoom, onZoomChange, onReset
   return (
     <>
       {gridCalibrating && (
-        <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 20, pointerEvents: 'none', background: C.float, border: `1px solid ${C.accent}`, borderRadius: RADIUS.md, padding: '6px 14px', fontSize: FS.sm, color: C.accent, fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap', boxShadow: `0 0 12px ${tint(C.accent, 0.27)}` }}>
-          🎯 Arrossega sobre el mapa per definir una casella de la graella
+        <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 20, pointerEvents: 'none', background: C.float, border: `1px solid ${tint(C.room, 0.6)}`, borderRadius: RADIUS.md, padding: '6px 14px', fontSize: FS.sm, color: C.room, fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap', boxShadow: SHADOW.float }}>
+          <TargetIcon size={13} style={{ verticalAlign: '-2px', marginRight: 6 }} />Arrossega sobre el mapa per definir una casella de la graella
         </div>
       )}
       {hasMap && (

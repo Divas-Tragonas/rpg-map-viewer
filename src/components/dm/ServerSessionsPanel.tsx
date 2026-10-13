@@ -1,7 +1,8 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
+import { Cloud, X, Trash2 } from '@/components/icons';
 import Link from 'next/link';
-import { C, FS, RADIUS } from '@/constants';
+import { C, FS, RADIUS, FONT_SERIF } from '@/constants';
 import { api, isAdminLoggedIn, type ApiSessionMeta } from '@/lib/api';
 
 interface Props {
@@ -94,8 +95,8 @@ export function ServerSessionsPanel({ onClose, onSaveNew, onOverwrite, onLoad }:
         style={{ width: 'min(560px, 92vw)', maxHeight: '82vh', display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ color: C.text, fontWeight: 700, fontSize: FS.lg }}>☁ Partides al servidor</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+          <span style={{ color: C.bright, fontFamily: FONT_SERIF, fontWeight: 600, fontSize: 20, display: 'flex', alignItems: 'center', gap: 8 }}><Cloud size={16} /> Partides al servidor</span>
+          <button onClick={onClose} title="Tancar" aria-label="Tancar" style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', display: 'flex', padding: 2 }}><X size={16} /></button>
         </div>
 
         {!loggedIn ? (
@@ -152,7 +153,7 @@ export function ServerSessionsPanel({ onClose, onSaveNew, onOverwrite, onLoad }:
                       </div>
                     </div>
                     <button onClick={() => void handleLoad(s)} disabled={busy} title="Carregar aquesta partida"
-                      style={{ padding: '6px 10px', borderRadius: RADIUS.md, border: 'none', cursor: busy ? 'default' : 'pointer', background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: FS.sm }}>
+                      style={{ padding: '6px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, cursor: busy ? 'default' : 'pointer', background: 'rgba(255,255,255,0.03)', color: C.text, fontWeight: 700, fontSize: FS.sm }}>
                       Carregar
                     </button>
                     <button onClick={() => void handleOverwrite(s)} disabled={busy} title="Sobreescriure amb la partida actual"
@@ -160,8 +161,8 @@ export function ServerSessionsPanel({ onClose, onSaveNew, onOverwrite, onLoad }:
                       Sobreescriure
                     </button>
                     <button onClick={() => void handleDelete(s)} disabled={busy} title="Eliminar del servidor"
-                      style={{ padding: '6px 8px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: busy ? 'default' : 'pointer', color: '#ff8a8a', fontSize: FS.sm }}>
-                      ✕
+                      style={{ padding: '6px 8px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: busy ? 'default' : 'pointer', color: C.enemy, display: 'flex', alignItems: 'center' }} aria-label="Eliminar del servidor">
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 ))

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import { Upload } from '@/components/icons';
+import { Upload, ZapIcon } from '@/components/icons';
 import { C, FS, RADIUS } from '@/constants';
 
 interface SceneImgPickerProps {
@@ -47,8 +47,8 @@ export function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }: SceneImgP
       </label>
       <button
         onMouseDown={e => { e.stopPropagation(); onTrigger(imgEl, !!custom); }}
-        style={{ width: '100%', padding: '8px', background: `${C.magic}2e`, border: `1px solid ${C.magic}8c`, borderRadius: RADIUS.md, color: C.magicBright, cursor: 'pointer', fontSize: FS.md, fontWeight: 700 }}>
-        ⚡ Llançar cinematica
+        style={{ width: '100%', padding: '8px', background: `${C.magic}2e`, border: `1px solid ${C.magic}8c`, borderRadius: RADIUS.md, color: C.magicBright, cursor: 'pointer', fontSize: FS.md, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <ZapIcon size={13} /> Llançar la cinemàtica
       </button>
     </>
   );

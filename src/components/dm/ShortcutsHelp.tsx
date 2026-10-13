@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import { X } from '@/components/icons';
-import { C, FS, RADIUS, SHADOW } from '@/constants';
+import { C, FS, RADIUS, SHADOW, SPELL_MODES, FONT_SERIF } from '@/constants';
 
 interface Props { onClose: () => void }
 
@@ -34,10 +34,32 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Enter', 'Passar el torn'],
       ['Ctrl+Z', 'Desfer l\'última acció (el botó Desfer de dalt diu quina)'],
       ['Supr', 'Treure de l\'escena els enemics seleccionats'],
-      ['Backspace', 'Desfer l\'última paret (eina Parets)'],
-      ['Clic dret', 'Menú del token, la sala o la zona'],
+      ['Clic dret', 'Menú del token (vida, fitxa, estats, conjurs), la sala o la zona'],
       ['Doble clic', 'Seleccionar tot el grup d\'un token'],
       ['?', 'Aquesta finestra'],
+    ],
+  },
+  {
+    // Abans era a la finestreta del botó de Màgies; ara la finestreta és d'una línia.
+    title: 'Màgies (eina 3): el gest tria la roda',
+    rows: [
+      [SPELL_MODES.path.gesture, `${SPELL_MODES.path.title}: bola de foc, raig elèctric, raig màgic`],
+      [SPELL_MODES.zone.gesture, `${SPELL_MODES.zone.title}: foc, gel, aigua, verí, llamps, màgia`],
+      [SPELL_MODES.line.gesture, `${SPELL_MODES.line.title}: projectil, riure, mans ardents, gebre`],
+      [SPELL_MODES.area.gesture, `${SPELL_MODES.area.title}: dormir, greix, flama sagrada, beneir…`],
+      ['Ctrl + arrossegar', 'Moure tokens, zones i àrees sense canviar d\'eina'],
+      ['Clic dret a un jugador', 'Conjurs del seu grimori, llançats des del token'],
+    ],
+  },
+  {
+    title: 'Parets i portes (eina 5)',
+    rows: [
+      ['Clic', 'Posar un vèrtex; prop d\'una paret s\'hi enganxa'],
+      ['Tancar un recinte', 'Crea una sala fosca i demana la porta (dos clics)'],
+      ['Arrossegar un vèrtex', 'Moure\'l (amb totes les parets que hi arriben)'],
+      ['Backspace', 'Desfer l\'última paret de la cadena'],
+      ['Esc', 'Cancel·lar la cadena'],
+      ['Clic dret', 'Eliminar la paret o la porta de sota'],
     ],
   },
 ];
@@ -65,9 +87,9 @@ export function ShortcutsHelp({ onClose }: Props) {
     <div onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width: 'min(760px, 100%)', maxHeight: '86vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.menu }}>
+        style={{ width: 'min(960px, 100%)', maxHeight: '86vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.menu }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ flex: 1, color: C.bright, fontWeight: 700, fontSize: FS.lg }}>Dreceres de teclat</span>
+          <span style={{ flex: 1, color: C.bright, fontFamily: FONT_SERIF, fontWeight: 600, fontSize: 20 }}>Dreceres de teclat</span>
           <button onClick={onClose} title="Tancar (Esc)" style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', display: 'flex', padding: 2 }}>
             <X size={15} />
           </button>
@@ -75,7 +97,7 @@ export function ShortcutsHelp({ onClose }: Props) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18, padding: 16 }}>
           {GROUPS.map(g => (
             <div key={g.title}>
-              <div style={{ fontSize: FS.xs, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>{g.title}</div>
+              <div style={{ fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>{g.title}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {g.rows.map(([k, d]) => (
                   <div key={k} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

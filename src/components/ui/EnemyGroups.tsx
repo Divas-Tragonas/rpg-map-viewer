@@ -2,6 +2,7 @@
 import React from 'react';
 import { C, FS } from '@/constants';
 import { Button } from '@/components/ui/Button';
+import { ChevronRight } from '@/components/icons';
 import { GROUP_BY_OPTIONS } from '@/lib/enemy-groups';
 import type { EnemyGroupBy } from '@/lib/enemy-groups';
 
@@ -56,11 +57,11 @@ export function GroupHeader({ label, count, open, onToggle, unnamed, padding = '
         background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
         color: open ? C.text : C.dim, fontSize, fontWeight: 700,
       }}>
-      <span style={{ fontSize: FS.xs, color: C.dim, width: 9, flexShrink: 0, display: 'inline-block', transition: 'transform .18s ease', transform: open ? 'rotate(90deg)' : 'none' }}>▶</span>
+      <span style={{ color: C.dim, width: 11, flexShrink: 0, display: 'flex', transition: 'transform .18s ease', transform: open ? 'rotate(90deg)' : 'none' }}><ChevronRight size={11} /></span>
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: unnamed ? 'italic' : undefined }}>
         {label}
       </span>
-      <span style={{ fontSize: FS.xs, color: C.accent, flexShrink: 0 }}>{count}</span>
+      <span style={{ fontSize: FS.xs, color: C.dim, flexShrink: 0 }}>{count}</span>
     </button>
   );
 }

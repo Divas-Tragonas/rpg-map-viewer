@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import { BookIcon, Cloud } from '@/components/icons';
 import { ENEMY_TEMPLATES, C, FS, RADIUS } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { EnemyGroupToolbar, GroupBody, GroupHeader } from '@/components/ui/EnemyGroups';
@@ -68,7 +69,7 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy }: Prop
       <div style={{ padding: '8px 12px 2px', fontSize: FS.sm, color: C.dim, lineHeight: 1.45 }}>
         Clica una plantilla per afegir-la al centre de la vista. Després la trobaràs a <b style={{ color: C.text }}>Escena</b>.
       </div>
-      <SidebarSection title="Plantilles" icon="📖" defaultOpen bodyPadding="0 8px 8px">
+      <SidebarSection title="Plantilles" icon={<BookIcon size={13} />} defaultOpen bodyPadding="0 8px 8px">
         <div style={GRID}>
           {ENEMY_TEMPLATES.map(tmpl => (
             <TemplateButton key={tmpl.id} name={tmpl.name} color={tmpl.color} hpMax={tmpl.hpMax}
@@ -78,7 +79,7 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy }: Prop
       </SidebarSection>
 
       {isApiConfigured() && (
-        <SidebarSection title="Base de dades" icon="☁" count={dbEnemies.length} defaultOpen bodyPadding="0 8px 8px">
+        <SidebarSection title="Base de dades" icon={<Cloud size={13} />} count={dbEnemies.length} defaultOpen bodyPadding="0 8px 8px">
           {dbLoading && <div style={{ fontSize: FS.xs, color: C.dim }}>carregant…</div>}
           {!dbLoading && dbEnemies.length === 0 && (
             <div style={{ fontSize: FS.xs, color: C.dim }}>Cap enemic a la BD</div>

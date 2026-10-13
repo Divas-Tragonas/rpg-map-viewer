@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
-import { StepForward } from '@/components/icons';
+import { StepForward, SwordsIcon, RotateCcw, GearIcon, CheckIcon, FastForwardIcon, X, BanIcon } from '@/components/icons';
 import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnState, DefeatedMap, ConditionsMap } from '@/types';
 import { movementLimit, type MovementLimit } from '@/lib/rules/conditions';
 import { budgetFor } from '@/lib/turn';
@@ -273,7 +273,7 @@ export function TurnTracker({
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: 5 }}>
                   <span style={{ flex: 1, color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enemics</span>
-                  <Button size="sm" variant="ghost" onClick={toggleAllEnemies} style={{ color: C.accent }}>
+                  <Button size="sm" variant="ghost" onClick={toggleAllEnemies} style={{ color: C.text }}>
                     {allEnemiesSelected ? 'Cap' : 'Tots'}
                   </Button>
                 </div>
@@ -320,7 +320,7 @@ export function TurnTracker({
             color: selecting ? C.accent : C.text, cursor: 'pointer', fontWeight: 700, fontSize: FS.lg,
             boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
           }}>
-          ⚔️ Iniciar torns
+          <SwordsIcon size={16} /> Iniciar torns
         </button>
       </div>
     );
@@ -454,10 +454,10 @@ export function TurnTracker({
         <Bubble align="center">
           <button
             onClick={() => { onRecoverTurn(pop.recover); setPop(null); }}
-            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: RADIUS.md, border: 'none', background: 'transparent', color: C.text, cursor: 'pointer', fontSize: FS.md, fontWeight: 600 }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = tint(C.accent, 0.13))}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: RADIUS.md, border: 'none', background: 'transparent', color: C.text, cursor: 'pointer', fontSize: FS.md, fontWeight: 600 }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-            ↩ Recuperar el torn de {resolve(pop.recover).name}
+            <RotateCcw size={13} /> Recuperar el torn de {resolve(pop.recover).name}
           </button>
         </Bubble>
       )}
@@ -496,10 +496,10 @@ export function TurnTracker({
         <div style={{
           width: 64, flexShrink: 0,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          padding: '4px 0', borderRadius: RADIUS.lg, background: tint(C.accent, 0.09), border: `1px solid ${tint(C.accent, 0.33)}`,
+          padding: '4px 0', borderRadius: RADIUS.lg, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`,
         }}>
           <span style={{ color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ronda</span>
-          <span style={{ color: C.accent, fontSize: 24, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{turn.round}</span>
+          <span style={{ color: C.bright, fontSize: 24, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{turn.round}</span>
         </div>
 
         {/* Botó configuració/edició d'ordre (com el dels jugadors) */}
@@ -509,9 +509,9 @@ export function TurnTracker({
             flexShrink: 0, width: 38, height: 38, borderRadius: RADIUS.lg, cursor: 'pointer',
             border: `1px solid ${editMode ? C.accent : C.border}`,
             background: editMode ? tint(C.accent, 0.13) : 'transparent',
-            color: editMode ? C.accent : C.dim, fontSize: 17, lineHeight: 1,
+            color: editMode ? C.accent : C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-          ⚙
+          <GearIcon size={16} />
         </button>
 
         <div ref={railRef} style={{ flex: '0 1 auto', minWidth: 0, overflowX: 'auto', overflowY: 'hidden' }}>
@@ -570,7 +570,7 @@ export function TurnTracker({
         {editMode ? (
           <Button variant="primary" size="lg" onClick={() => setEditMode(false)} title="Acabar d'editar l'ordre"
             style={{ flexShrink: 0, width: NEXT_W }}>
-            ✓ Fet
+            <CheckIcon size={14} /> Fet
           </Button>
         ) : (
           <Button variant="primary" size="lg" onClick={onAdvance} title="Passar el torn al següent (Enter)"
@@ -581,19 +581,19 @@ export function TurnTracker({
         <Button data-tt-pop variant="secondary" active={pop === 'round'} disabled={editMode}
           onClick={() => setPop(p => (p === 'round' ? null : 'round'))}
           title="Acabar la ronda ara: salta tots els que queden i comença la següent (tots recuperen moviment)"
-          style={{ flexShrink: 0 }}>
-          ⏭ Ronda
+          style={{ flexShrink: 0, gap: 6 }}>
+          <FastForwardIcon size={12} /> Ronda
         </Button>
 
         {/* Acabar combat (amb confirmació al globus) */}
         <button data-tt-pop onClick={() => setPop(p => (p === 'end' ? null : 'end'))} title="Acabar combat"
           style={{
-            flexShrink: 0, width: 36, height: 36, borderRadius: RADIUS.lg, cursor: 'pointer', fontSize: 15, lineHeight: 1,
+            flexShrink: 0, width: 36, height: 36, borderRadius: RADIUS.lg, cursor: 'pointer',
             border: `1px solid ${pop === 'end' ? C.enemy : C.border}`,
             background: pop === 'end' ? tint(C.enemy, 0.12) : 'transparent',
-            color: pop === 'end' ? C.enemy : C.dim,
+            color: pop === 'end' ? C.enemy : C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-          ✕
+          <X size={15} />
         </button>
       </div>
     </div>
@@ -651,8 +651,8 @@ function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, 
         {defeated && (
           <span aria-hidden style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: C.enemy, fontSize: active ? 30 : 24, fontWeight: 900, lineHeight: 1, pointerEvents: 'none',
-          }}>✕</span>
+            color: C.enemy, pointerEvents: 'none',
+          }}><X size={active ? 30 : 24} /></span>
         )}
       </span>
       {active && (
@@ -662,12 +662,12 @@ function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, 
             // Un estat li impedeix moure's: val més dir-ho que ensenyar peus que no pot gastar.
             <span style={{ color: C.enemy, fontSize: FS.md, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
               title={`${limit.reason}: no es pot moure`}>
-              ✋ {limit.reason}
+              <BanIcon size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />{limit.reason}
             </span>
           ) : (
             <>
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ color: limit.ft >= 5 ? C.accent : C.enemy, fontSize: 22, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ color: limit.ft >= 5 ? C.bright : C.enemy, fontSize: 22, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
                   {limit.ft}
                 </span>
                 <span style={{ color: C.dim, fontSize: FS.sm, fontWeight: 700 }}>/ {totalFt} ft</span>
@@ -676,7 +676,7 @@ function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, 
                 <span style={{
                   display: 'block', height: '100%', borderRadius: RADIUS.sm,
                   width: `${Math.max(0, Math.min(1, totalFt > 0 ? limit.ft / totalFt : 0)) * 100}%`,
-                  background: limit.ft >= 5 ? C.accent : C.enemy, transition: 'width 0.3s ease',
+                  background: limit.ft >= 5 ? C.text : C.enemy, transition: 'width 0.3s ease',
                 }} />
               </span>
             </>
@@ -712,5 +712,5 @@ const check = (sel: boolean) => (
     width: 16, height: 16, marginLeft: 6, borderRadius: RADIUS.sm, flexShrink: 0,
     border: `1px solid ${sel ? C.accent : '#3a4048'}`, background: sel ? C.accent : 'transparent',
     color: C.onAccent, fontSize: FS.sm, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  }}>{sel ? '✓' : ''}</span>
+  }}>{sel && <CheckIcon size={11} />}</span>
 );

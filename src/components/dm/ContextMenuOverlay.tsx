@@ -1,11 +1,11 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
-import { X } from '@/components/icons';
+import { X, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
 import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/components/dm/TokenFields';
-import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor } from '@/constants';
+import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap } from '@/types';
 
 interface Props {
@@ -76,7 +76,7 @@ function MenuHeader({ title, children, onClose }: { title: React.ReactNode; chil
   return (
     <div style={{ padding: '7px 8px 7px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
       {typeof title === 'string'
-        ? <span style={{ flex: 1, minWidth: 0, color: C.bright, fontWeight: 700, fontSize: FS.md, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        ? <span style={{ flex: 1, minWidth: 0, color: C.bright, fontFamily: FONT_SERIF, fontWeight: 600, fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         : <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>{title}</div>}
       {children}
       <button onMouseDown={e => { e.stopPropagation(); onClose(); }} title="Tancar (Esc)"
@@ -106,7 +106,7 @@ function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: 
   const GROUP_LABEL = { line: SPELL_MODES.line.title, area: 'A un punt', self: SPELL_MODES.self.title };
   return (
     <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
-      <div style={sectionLabel}>✨ Conjurs</div>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SparklesIcon size={11} /> Conjurs</div>
       {groups.map(({ g, spells }) => (
         <div key={g} style={{ marginBottom: 4 }}>
           <div style={{ fontSize: FS.xs, color: C.dim, margin: '2px 0 3px' }}>{GROUP_LABEL[g]}</div>
@@ -173,7 +173,7 @@ export function ContextMenuOverlay({
     const revealed = !!contextMenu.roomRevealed;
     return (
       <div data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, 300)}>
-        <MenuHeader title="🧱 Sala" onClose={onClose}>
+        <MenuHeader title="Sala" onClose={onClose}>
           <span style={{ color: C.dim, fontSize: FS.xs }}>{dark ? (revealed ? 'fosca · revelada' : 'fosca · amagada') : 'normal'}</span>
         </MenuHeader>
         <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>
@@ -187,19 +187,19 @@ export function ContextMenuOverlay({
         </div>
         <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <Button block active={dark} variant="secondary" onMouseDown={e => { e.stopPropagation(); onSetRoomDark(rid, !dark); }}>
-            {dark ? '🌑 És una sala fosca (treure)' : '🌑 Marcar com a sala fosca'}
+            <MoonIcon size={13} /> {dark ? 'És una sala fosca (treure)' : 'Marcar com a sala fosca'}
           </Button>
           {dark && (
             <Button block variant="tint" color={C.room} onMouseDown={e => { e.stopPropagation(); onToggleRoomReveal(rid); }}>
-              {revealed ? '🙈 Amagar als jugadors' : '👁 Revelar als jugadors'}
+              {revealed ? <><EyeOff size={13} /> Amagar als jugadors</> : <><Eye size={13} /> Revelar als jugadors</>}
             </Button>
           )}
           <Button block variant="tint" color={C.ok} onMouseDown={e => { e.stopPropagation(); onAddDoor(rid); }}>
-            🚪 Afegir porta (clic sobre una paret)
+            <DoorIcon size={13} /> Afegir porta (clic sobre una paret)
           </Button>
           {dark && (
             <Button block variant="secondary" onMouseDown={e => { e.stopPropagation(); onResetExplored(rid); }}>
-              🌑 Resetejar explorat (torna a negra)
+              <RotateCcw size={13} /> Resetejar explorat (torna a negra)
             </Button>
           )}
           {confirmDelRoomId === rid ? (
@@ -217,7 +217,7 @@ export function ContextMenuOverlay({
             </div>
           ) : (
             <Button block variant="danger" onMouseDown={e => { e.stopPropagation(); setConfirmDelRoomId(rid); }}>
-              🗑 Eliminar sala (esborra les seves parets)
+              <Trash2 size={13} /> Eliminar sala (esborra les seves parets)
             </Button>
           )}
         </div>
@@ -245,11 +245,11 @@ export function ContextMenuOverlay({
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {contextMenu.existingGroupId ? (
             <Button block variant="tint" color={C.magicBright} onMouseDown={e => { e.stopPropagation(); onDissolveGroup(contextMenu.existingGroupId!); onClose(); }}>
-              🔓 Dissoldre grup
+              <UnlinkIcon size={13} /> Dissoldre grup
             </Button>
           ) : (
             <Button block variant="tint" color={C.magicBright} onMouseDown={e => { e.stopPropagation(); onCreateGroup(ids); onClose(); }}>
-              🔗 Crear grup
+              <LinkIcon size={13} /> Crear grup
             </Button>
           )}
           <Button block variant="danger" onMouseDown={e => {
@@ -258,7 +258,7 @@ export function ContextMenuOverlay({
             idsStr.forEach(tid => { if (!nd[tid]) { nd[tid] = true; defeatedAnimRef.current[tid] = 0; } });
             rDefeated.current = nd; setDefeated({ ...nd }); onBroadcast();
           }}>
-            💀 Marcar tots derrotats
+            <SkullIcon size={13} /> Marcar tots derrotats
           </Button>
           {libCount > 0 && (
             <Button block variant="danger" onMouseDown={e => {
@@ -266,7 +266,7 @@ export function ContextMenuOverlay({
               ids.forEach(tid => { if (typeof tid === 'string' && tid.startsWith('lib_')) removeLibEnemy(parseInt(tid.replace('lib_', ''))); });
               onClose();
             }}>
-              🗑 Treure de l&apos;escena ({libCount})
+              <Trash2 size={13} /> Treure de l&apos;escena ({libCount})
             </Button>
           )}
         </div>
@@ -283,7 +283,7 @@ export function ContextMenuOverlay({
         </MenuHeader>
         <div style={{ padding: 8 }}>
           <Button block variant="danger" onMouseDown={e => { e.stopPropagation(); if (contextMenu.isPaintedZone) onDeletePaintedZone(id); else onDeleteAreaSpell(id); onClose(); }}>
-            🗑 Eliminar {contextMenu.isPaintedZone ? 'zona' : 'encanteri'}
+            <Trash2 size={13} /> Eliminar {contextMenu.isPaintedZone ? 'zona' : 'encanteri'}
           </Button>
         </div>
       </div>
@@ -315,7 +315,7 @@ export function ContextMenuOverlay({
         <Button size="sm" variant="secondary" active={isDefeated} color={C.enemy}
           onMouseDown={e => { e.stopPropagation(); toggleDefeated(); }}
           title={isDefeated ? 'Derrotat · clic per tornar-lo a la vida' : 'Marcar com a derrotat (surt amb la X al mapa i se li salta el torn)'}>
-          💀 {isDefeated ? 'Derrotat' : 'Derrotar'}
+          <SkullIcon size={12} /> {isDefeated ? 'Derrotat' : 'Derrotar'}
         </Button>
       </MenuHeader>
 
@@ -350,7 +350,7 @@ export function ContextMenuOverlay({
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {contextMenu.existingGroupId && (
               <Button size="sm" variant="secondary" style={actionBtn} onMouseDown={e => { e.stopPropagation(); onLeaveGroup(contextMenu.id); onClose(); }}>
-                🔓 Sortir del grup
+                <UnlinkIcon size={11} /> Sortir del grup
               </Button>
             )}
             <Button size="sm" variant="tint" color={C.magicBright} style={actionBtn} title="Presentació del boss a les pantalles de jugador"
@@ -363,17 +363,17 @@ export function ContextMenuOverlay({
                 }
                 onOpenSceneConfig();
               }}>
-              ⚡ Cinemàtica
+              <ZapIcon size={11} /> Cinemàtica
             </Button>
             {lib && (
               <Button size="sm" variant="danger" style={actionBtn} onMouseDown={e => { e.stopPropagation(); removeLibEnemy(lib.id); onClose(); }}>
-                🗑 Treure de l&apos;escena
+                <Trash2 size={11} /> Treure de l&apos;escena
               </Button>
             )}
             {pl && (
               <Button size="sm" variant="danger" style={actionBtn} title="Treu el jugador de la partida"
                 onMouseDown={e => { e.stopPropagation(); setConfirmDelPlayer(t.key); }}>
-                🗑 Eliminar jugador
+                <Trash2 size={11} /> Eliminar jugador
               </Button>
             )}
           </div>

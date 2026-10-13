@@ -4,11 +4,11 @@ import Link from 'next/link';
 import {
   ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
   ExternalLink, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
-  WallIcon, SwordsIcon, GridIcon, RotateCcw,
+  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon,
 } from '@/components/icons';
-import { Button } from '@/components/ui/Button';
+import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
-import { C, FS, RADIUS, SHADOW, APP_VERSION, tint } from '@/constants';
+import { C, FS, RADIUS, SHADOW, APP_VERSION, FONT_SERIF, tint } from '@/constants';
 import { extraSeen } from '@/lib/camera';
 import { agoLabel } from '@/lib/autosave';
 import type { DMMode } from '@/lib/dm-mode';
@@ -24,6 +24,8 @@ interface Props {
   /** Nom del fitxer del mapa; null = encara no n'hi ha cap de carregat. */
   mapName: string | null;
   hasPsd: boolean;
+  /** Lateral desplegat o plegat (el botó viu al bloc del nom, alineat amb el lateral). */
+  sidebarOpen: boolean; onToggleSidebar: () => void;
   /** Preparar (construir el mapa) o Jugar (a la taula). */
   mode: DMMode; onModeChange: (m: DMMode) => void;
   /** «Mostrar als jugadors» (expositor + revelador): panell obert i si ara mateix s'hi mostra res. */
@@ -123,13 +125,13 @@ const Dot = ({ color }: { color: string }) => (
 );
 
 /** Botó de la barra. `color` pinta el text i el contorn (estat de pantalles, de desat…). */
-function BarButton({ active, color, onClick, title, ariaLabel, children }: {
-  active?: boolean; color?: string; onClick: () => void; title?: string; ariaLabel?: string; children: React.ReactNode;
+/** Botó de la barra. Sempre neutre: els estats (avís, desat) els diu un punt o la icona,
+ *  no el color de tot el botó (el daurat queda per a l'acció principal i el que és actiu). */
+function BarButton({ active, onClick, title, ariaLabel, children }: {
+  active?: boolean; onClick: () => void; title?: string; ariaLabel?: string; children: React.ReactNode;
 }) {
-  const style: React.CSSProperties = { height: 32, gap: 7 };
-  if (color && !active) Object.assign(style, { color, border: `1px solid ${tint(color, 0.4)}` });
   return (
-    <Button size="md" active={active} onClick={onClick} title={title} aria-label={ariaLabel} aria-expanded={active} style={style}>
+    <Button size="md" active={active} onClick={onClick} title={title} aria-label={ariaLabel} aria-expanded={active} style={{ height: 32, gap: 7 }}>
       {children}
     </Button>
   );
@@ -174,14 +176,15 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
   });
   const worst = rows.reduce((m, r) => Math.max(m, r.ex ? r.ex.pct : 0), 0);
   const none = ids.length === 0;
-  const col = none ? C.warn : worst >= 15 ? C.hpMid : C.hpHigh;
+  // Botó neutre: l'estat el diu el punt (avís si no n'hi ha cap). Abans tot el botó anava
+  // del color d'avís, que és gairebé el mateix daurat que l'acció principal i hi competia.
   return (
     <div style={{ position: 'relative' }}>
-      <BarButton active={open} color={col} onClick={() => { setUrls(playerUrls()); onToggle(); }}
+      <BarButton active={open} onClick={() => { setUrls(playerUrls()); onToggle(); }}
         title={none ? 'Cap pantalla de jugador connectada · clic per obrir-ne una' : `${ids.length} pantalla${ids.length === 1 ? '' : 'es'} de jugador · clic per veure-les`}>
         <Monitor size={14} />
         {none ? 'Cap pantalla de jugador' : `${ids.length} pantall${ids.length === 1 ? 'a' : 'es'}`}
-        {!none && worst > 0 && <span style={{ opacity: .8, fontWeight: 600 }}>+{worst}%</span>}
+        {!none && worst > 0 && <span style={{ color: worst >= 15 ? C.hpMid : C.dim, fontWeight: 600 }}>+{worst}%</span>}
         <Dot color={none ? C.warn : C.ok} />
       </BarButton>
       {open && (
@@ -238,15 +241,15 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
   const fileRef = useRef<HTMLInputElement>(null);
 
   const label = !hasMap ? 'Partida' : !autosaveEnabled ? 'Sense desar' : autosaveAt ? `Desat ${agoLabel(autosaveAt)}` : 'Desant…';
-  const color = !hasMap ? undefined : !autosaveEnabled ? C.warn : autosaveAt ? C.hpHigh : undefined;
   const title = !hasMap ? 'Obrir o importar una partida'
     : autosaveEnabled ? 'Desat automàtic actiu (cada 30 s i en amagar la pestanya)'
       : 'Desat automàtic apagat: si tanques o refresques, perdràs la partida';
   return (
     <div style={{ position: 'relative' }}>
-      <BarButton active={open} color={color} onClick={onToggle} title={title}>
-        {hasMap && autosaveEnabled && autosaveAt ? <CheckIcon size={14} /> : <SaveIcon size={14} />}
+      <BarButton active={open} onClick={onToggle} title={title}>
+        {hasMap && autosaveEnabled && autosaveAt ? <CheckIcon size={14} color={C.hpHigh} /> : <SaveIcon size={14} />}
         {label}
+        {hasMap && !autosaveEnabled && <Dot color={C.warn} />}
         <ChevronDown size={12} color={C.dim} />
       </BarButton>
       <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
@@ -316,7 +319,7 @@ function ViewMenu({ open, onToggle, onClose, hasPsd, bgOpacity, onBgOpacityChang
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label htmlFor="dm-bg-opacity" style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.md, fontWeight: 700, color: C.bright }}>
               Opacitat del mapa
-              <span style={{ color: C.accent, fontVariantNumeric: 'tabular-nums' }}>{Math.round(bgOpacity * 100)}%</span>
+              <span style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>{Math.round(bgOpacity * 100)}%</span>
             </label>
             <input id="dm-bg-opacity" type="range" min={0.1} max={1} step={0.05} value={bgOpacity}
               onChange={e => onBgOpacityChange(parseFloat(e.target.value))} style={{ width: '100%' }} />
@@ -428,15 +431,22 @@ export function TopBar(p: Props) {
     }}>
       <div style={{ width: IDENTITY_W, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
         <DieIcon size={20} color={C.accent} />
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+          {/* El nom del mapa és un títol: tipografia de títols (EB Garamond, `FONT_SERIF`). */}
           <span title={p.mapName ?? undefined}
-            style={{ fontSize: FS.md, fontWeight: 700, color: C.bright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            style={{ fontFamily: FONT_SERIF, fontSize: 17, fontWeight: 600, color: C.bright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {p.mapName ? prettyName(p.mapName) : 'RPG Map Viewer'}
           </span>
           <span style={{ fontSize: FS.xs, color: C.dim }}>
             {!p.mapName ? 'Cap mapa obert' : p.hasPsd ? 'Mapa amb capes del PSD' : isVideoName(p.mapName) ? 'Mapa de vídeo' : 'Mapa d\'imatge'}
           </span>
         </div>
+        <IconButton variant="ghost" size={28} onClick={p.onToggleSidebar} aria-pressed={p.sidebarOpen}
+          aria-label={p.sidebarOpen ? 'Amagar el panell lateral' : 'Mostrar el panell lateral'}
+          title={p.sidebarOpen ? 'Amagar el panell lateral (més espai per al mapa)' : 'Mostrar el panell lateral'}
+          style={{ color: p.sidebarOpen ? C.dim : C.text }}>
+          <PanelLeftIcon size={15} />
+        </IconButton>
       </div>
 
       <ModeSwitch mode={p.mode} onChange={p.onModeChange} />

@@ -161,7 +161,8 @@ Sempre que es detecti o implementi un canvi a la API, actualitzar `api-spec.txt`
 ```
 src/
 ├── app/
-│   ├── layout.tsx          # RootLayout
+│   ├── layout.tsx          # RootLayout (carrega EB Garamond amb next/font/local → --font-serif)
+│   ├── fonts/              # EBGaramond-latin.woff2 + OFL.txt (llicència: s'ha de distribuir amb la font)
 │   ├── page.tsx            # → <DMView />
 │   ├── player/page.tsx     # → <PlayerView />
 │   └── expositor/page.tsx  # Expositor de campanya
@@ -188,7 +189,7 @@ src/
 │       ├── Chip, DropZone, LayerRow, TreeGroup, SceneImgPicker
 │       ├── SidebarSection  # Secció plegable del sidebar (capçalera + comptador + accions)
 │       ├── ScrollArea      # Zona amb scroll i barra pròpia, discreta i amagada en repòs
-│       ├── HoverTip        # Finestreta d'explicació d'un botó (hover)
+│       ├── HoverTip        # Finestreta d'un botó (hover): nom, tecla i UNA línia
 │       ├── ConditionIcon   # Isotip d'un estat com a <svg> (mateixos paths que el canvas)
 │       ├── ConditionPicker # Estats del menú contextual: 2 files d'isotips (nom i traduccions al hover)
 │       └── EnemyGroups     # Agrupar enemics de la BD: barra «Agrupar per», capçalera i cos de grup plegables
@@ -197,6 +198,7 @@ src/
 │   ├── useDMActions.ts     # Callbacks d'acció (PSD import, BC, drag...)
 │   ├── useAutosave.ts      # Desat automàtic periòdic de la partida (IndexedDB)
 │   ├── useEnemyGrouping.ts # Agrupació dels enemics de la BD i grups plegats (recordat a localStorage)
+│   ├── useStoredFlag.ts    # Sí/no de la UI recordat a localStorage sense error d'hidratació (lateral plegat)
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
@@ -436,10 +438,15 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Regla**: el que és *a l'escena* va a Escena, el que és *del mapa* va a Mapa. Un panell nou s'ha de posar on toca per funció, no per origen de les dades.
 
 ### Finestra lateral esquerra — seccions plegables (`src/components/ui/SidebarSection.tsx`)
-- Totes les seccions del sidebar del DM comparteixen `SidebarSection`: capçalera amb **fletxa, icona, títol, comptador i botons d'acció** (`SectionButton`, amb `stopPropagation` perquè no pleguin la secció) i cos que s'anima amb el truc `grid-template-rows: 0fr → 1fr` (sense mesurar alçades, igual que el desplegable de configuració del jugador).
+- Totes les seccions del sidebar del DM comparteixen `SidebarSection`: capçalera amb **fletxa, icona, títol, comptador i botons d'acció** (fletxa i icona vectorials d'`icons.tsx`, mai emojis; el comptador sempre neutre, `C.dim`) (`SectionButton`, amb `stopPropagation` perquè no pleguin la secció) i cos que s'anima amb el truc `grid-template-rows: 0fr → 1fr` (sense mesurar alçades, igual que el desplegable de configuració del jugador).
 - `maxBodyHeight` dóna **scroll propi** a una secció (amb `ScrollArea`): les llistes llargues (capes del PSD, sales, llums) no empenyen la resta del panell fora de la pantalla.
 - L'usen `ImportPanel`, `LayerTree` (embolcallat des de `DMView`), `RoomsPanel`, `PlayersPanel` i `EnemyLibraryPanel`.
 - **`defaultOpen` només s'aplica en muntar.** Per fer que una secció es plegui sola quan canvia una condició, cal remuntar-la amb un `key` (ho fa `ImportPanel`: `key={bgLoaded ? 'loaded' : 'empty'}`).
+
+### Lateral plegable (`sidebarOpen` a `DMView` + botó a `TopBar`)
+- Botó de panell (`PanelLeftIcon`) a la dreta del bloc del nom del mapa de la barra superior: plega o desplega tot el lateral per donar més espai al mapa. Es recorda entre sessions (`useStoredFlag('rpg_sidebar_open')`, localStorage amb `useSyncExternalStore`: llegir-lo al primer render donaria error d'hidratació).
+- S'anima l'**amplada del contenidor** (`SIDEBAR_W` = 270 → 0) i el contingut manté els seus 270 px a dins (no es reorganitza a mig plegar). El contingut plegat porta `inert` (el Tab no hi entra).
+- El canvas s'adapta sol (el tick mira la mida cada frame). Com en redimensionar la finestra, el DM veu més mapa i les pantalles de jugador s'hi reenquadren (veure «Càmera compartida»).
 
 ### Panell de sales (`src/components/dm/RoomsPanel.tsx`)
 - Arbre de "capes" d'un mapa dibuixat a l'app: substitueix el `LayerTree` quan no hi ha PSD (i conviu amb ell quan n'hi ha). Es mostra sempre que `bgLoaded`.
@@ -469,18 +476,19 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Graella** (només Preparar) obre `GridPanel`. Per ensenyar-la o amagar-la mentre es juga, interruptor al menú **Vista** (`toggleGridVisible`, sense obrir el calibratge). ⚠️ Al DM la graella només es dibuixa mentre arrossega tokens, calibra o mesura (`rGridDmAlpha`); l'interruptor és sobretot per als jugadors.
 - **Barra apagada sense mapa** (`disabled` → `<fieldset disabled>`): es veu, però no reacciona ni mostra ajuda.
 - **Modes de ratolí**: a la barra només hi queda la **selecció múltiple** (▣, `areaSelectMode`); els de càmera (vista privada i compartida temporal) són al selector de càmera del mapa (veure «Selector de càmera»). Les funcions (`toggleAreaSelect`, `setPrivateView`/`toggleShiftPan`, `toggleCtrlPan`) viuen a `DMView` i les comparteixen **el control i la tecla** — `useKeyboardHandlers` les rep per `opts` i no duplica la lògica. Si s'hi afegeix un mode nou, ha de seguir el mateix camí (una sola funció, dos disparadors).
-- **Explicacions al hover, no al flyout**: cada botó va dins d'un embolcall `position: relative` que ancora un `HoverTip` amb el nom de l'eina, la drecera i què fa. ⚠️ El component del botó (`ToolButton`) està definit **a nivell de mòdul**: si es declarés dins de `FloatingToolbar`, cada canvi de `hover` en crearia un tipus nou, React desmuntaria tots els botons i el `mouseleave` es perdria (finestreta enganxada).
-- El `HoverTip` de la barra vertical s'alinea **per baix** (`bottom: 0`), no centrat: la barra viu a la cantonada inferior i una finestreta centrada sobre l'últim botó sortiria de la pantalla.
+- **Explicacions al hover, d'UNA línia**: cada botó va dins d'un embolcall `position: relative` que ancora un `HoverTip` amb el nom de l'eina, la drecera i **una sola línia** del que fa (`ToolDef.desc`, text de ≤ ~48 caràcters). Abans eren paràgrafs que tapaven mig mapa; el detall (els gestos de l'eina Màgies, les tecles de les parets) és ara a la finestra de dreceres (`ShortcutsHelp`, tecla ?). Totes les eines actives es marquen igual, en daurat (abans cada eina tenia el seu color). ⚠️ El component del botó (`ToolButton`) està definit **a nivell de mòdul**: si es declarés dins de `FloatingToolbar`, cada canvi de `hover` en crearia un tipus nou, React desmuntaria tots els botons i el `mouseleave` es perdria (finestreta enganxada).
+- El `HoverTip` de la barra vertical s'alinea **per baix** (`bottom: 0`), no centrat: la barra viu a la cantonada inferior i una finestreta centrada sobre l'últim botó sortiria de la pantalla. ⚠️ Per això la barra d'eines va a `zIndex` 13, **per sobre de la barra de torns** (12): les finestretes i els panells (Dibuix, Graella) s'obren cap a la dreta a la mateixa alçada i quedaven tapats.
 - Al flyout hi queden **només els controls manipulables**: el panell de Dibuix i el slider de radi (Llums). Parets i Senyal no en tenen.
 - Eina **Llums** (drecera `6`): col·locació de punts de llum (torxes) — veure feature "Punts de llum".
 
 ### Barra superior (`src/components/dm/TopBar.tsx`)
 - **Problema que resolia**: els controls que no són ni el mapa ni el lateral estaven repartits en tres llocs (barreta d'Expositor/Text a dalt a l'esquerra, xips a dalt al centre, peu del lateral) i moltes coses es podien fer des de dos llocs («Modo Jugador» i el xip 🖥; Guardar/Cargar, ☁ i el xip ⟳; el zoom al lateral i el reset a dalt).
-- **Una sola barra** de `TOP_BAR_H` (48 px) per sobre del lateral i de l'escenari. D'esquerra a dreta: nom del mapa (bloc de 250 px perquè la resta s'alineï amb l'escenari), l'interruptor **Preparar · Jugar**, **«Mostrar als jugadors»** i, a la dreta, el **Desfer** únic (veure «Desfer únic») i quatre menús: **Pantalles de jugador**, **Partida**, **Vista** (només amb mapa) i **⋯**.
-  - **Pantalles** (`ScreensMenu`): veure «Menú de pantalles» a la secció de la càmera compartida. En groc mentre no n'hi ha cap.
+- **Una sola barra** de `TOP_BAR_H` (48 px) per sobre del lateral i de l'escenari. D'esquerra a dreta: nom del mapa (bloc de 250 px perquè la resta s'alineï amb l'escenari; el nom va en EB Garamond i a la dreta hi ha el botó de plegar el lateral), l'interruptor **Preparar · Jugar**, **«Mostrar als jugadors»** i, a la dreta, el **Desfer** únic (veure «Desfer únic») i quatre menús: **Pantalles de jugador**, **Partida**, **Vista** (només amb mapa) i **⋯**.
+  - **Pantalles** (`ScreensMenu`): veure «Menú de pantalles» a la secció de la càmera compartida. Mentre no n'hi ha cap, un **punt** d'avís (el botó no canvia de color).
   - **Partida** (`GameMenu`): l'etiqueta del botó és l'estat del desat («Desat fa 2 min», es refresca cada 15 s). Dins: interruptor del desat automàtic, desar ara, exportar a `.json`, obrir un `.json` i partides al servidor (si hi ha API).
   - **Vista** (`ViewMenu`): graella visible, opacitat del mapa i Ressaltar enemics (+ cadenat), aquest només amb PSD.
   - **⋯** (`MoreMenu`): dreceres de teclat, back office i versió.
+- ⚠️ Els botons de la barra (`BarButton`) són **sempre neutres**: un estat (cap pantalla, desat automàtic apagat, desat fa poc) el diu un punt (`Dot`) o la icona, no el color de tot el botó. `C.warn` (#d29922) és pràcticament el mateix daurat que l'acció principal i, amb el botó sencer de color avís, «Cap pantalla de jugador» semblava el botó principal de la barra.
 - Els menús són `Popover` (nivell de mòdul): clic fora o **Esc** els tanquen. ⚠️ L'Esc es captura en fase de captura amb `stopImmediatePropagation`, si no `useKeyboardHandlers` també tornaria a l'eina de selecció (mateix criteri que `RadialMenu`).
 - ⚠️ El cos (lateral + escenari) és un **context d'apilament propi** (`position: relative; zIndex: 0`) i la barra té `zIndex: 1`: així els menús de la barra queden sempre per sobre de tot el que hi ha a l'escenari (panells a `zIndex` 20, el rètol de deixar fitxers a 40…) sense haver de pujar números.
 - El **zoom** és a la cantonada superior dreta del mapa (`CanvasHUD`): − / percentatge / +, i un clic al percentatge restableix la vista (zoom i posició). Al seu costat hi ha el selector de càmera.
@@ -732,6 +740,9 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Radis** `RADIUS = { sm: 4, md: 6, lg: 10, pill }`, **ombres** `SHADOW.float` / `SHADOW.menu`, i colors **sempre de la paleta** `C` (afegits `C.onAccent` —text damunt d'accent— i `C.float` —fons de panells flotants—). Transparències amb `tint(C.enemy, 0.12)`, no amb `rgba(...)` escrit a mà.
 - **Botons**: `Button` (variants `primary` / `secondary` / `ghost` / `danger` / `tint`, mides `sm` / `md` / `lg`, `active` per a commutadors) i `IconButton` (quadrat d'una icona). `buttonStyle()` per donar aspecte de botó a un `<label>` o `<Link>`. Una sola acció `primary` per bloc.
 - ⚠️ No afegir estils de botó, mides de lletra ni colors escrits a mà en components nous: si falta una variant, s'afegeix a `Button`.
+- **El daurat (`C.accent`) només vol dir dues coses: l'acció principal d'un bloc (`primary`) i el que està actiu o seleccionat** (eina, pestanya, mode, xip del torn, interruptor encès). No per a dades (ronda, peus, comptadors, valors de camps), etiquetes, insígnies ni avisos. Un avís va amb un punt o un text en `C.warn`, no amb tot un botó del color avís (veure `BarButton`).
+- **Tipografia de títols** `FONT_SERIF` (EB Garamond, servida des de l'app amb `next/font/local`, sense internet): nom del mapa a la barra superior, títol de la benvinguda, nom del token a la capçalera del menú del clic dret, títols dels diàlegs (dreceres, partides al servidor) i el text que es llegeix als jugadors (revelador). La resta de la UI, en sans. ⚠️ Mai `'EB Garamond'` escrit a mà: `next/font` canvia el nom de la família i no la trobaria (cauria a Georgia, com passava abans: la font no s'havia carregat mai).
+- **Icones, mai emojis, a la interfície** (botons, capçaleres de secció, menús): vectorials d'`icons.tsx`, que agafen el color del text. Les emojis surten diferent a cada sistema (a Windows, glifs negres sobre el fons fosc). L'excepció són les màgies i els elements (`SPELL_TYPES.emoji`, `ELEMENTS.emoji`): són el «retrat» de cada màgia a la roda i al grimori, contingut i no controls.
 
 ### Sistema per torns (iniciativa) — barra inferior
 - **Estat**: `TurnState` (`types/index.ts`) `{ active, order, turnIndex, round, activeRemainingFt }`. Mirall `rTurn` (`useDMRefs.ts`), estat React `turn` (`DMView.tsx`). El DM és la font de veritat; viatja al jugador dins `STATE`/`STRUCT` (camp lleuger `turn`, sempre enviat) i persisteix a la sessió (save/load).
@@ -786,7 +797,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - ⚠️ **Ctrl i Maj commuten els modes de vista NOMÉS amb un toc net**: prémer i deixar anar la tecla sola, sense cap altra tecla, clic ni roda pel mig i en menys de `TAP_MS`. Abans commutaven en *prémer-la* (keydown), o sigui que tot **Ctrl+Z** encenia el mode CTRL (i el segon el tornava a apagar restaurant la càmera de tothom) i el **Maj+clic** de portes/màgies encenia la vista privada. `rShiftHeld` continua sent la tecla física premuda (la fan servir les màgies i les portes). La pinça del trackpad envia `ctrlKey` sense cap keydown: no toca res.
 - **Espai mantingut** (`rSpaceHeld`) = arrossegar el mapa amb qualsevol eina (cursor `grab`/`grabbing` via els estats `spaceHeld`/`panning` de `DMView`).
 - **Enter** passa el torn; **V** o **Esc** (quan no hi ha res més a cancel·lar) tornen a l'eina de selecció; **?** obre `ShortcutsHelp` (també des del menú ⋯ de la barra superior). Ctrl+Z accepta també Cmd+Z. Sense mapa, les dreceres de les eines no fan res.
-- Si s'afegeix una drecera, afegir-la també a la llista de `ShortcutsHelp.tsx`.
+- Si s'afegeix una drecera, afegir-la també a la llista de `ShortcutsHelp.tsx`. Aquesta finestra també explica els **gestos de l'eina Màgies** (de `SPELL_MODES`) i les tecles de les **parets**: és on va el detall que no cap a la finestreta d'una línia de la barra d'eines.
 
 ### Moure el mapa (pan) — `useMouseHandlers` + `useWheelZoom`
 - Formes de fer-ho: **botó central**, **Espai + arrossegar** (qualsevol eina), **arrossegar en buit amb l'eina de selecció**, i al trackpad **dos dits** (la **pinça** fa zoom continu). Sense botó central abans no es podia moure el mapa des d'un portàtil.
@@ -834,6 +845,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | `C` | objecte colors | Paleta UI (`bg`, `panel`, `accent`, `text`...) |
 | `CONDITIONS` | array | Estats de D&D (16, amb `label` en català, `es`/`en` i `color`) |
 | `FS` / `RADIUS` / `SHADOW` | objectes | Escala tipogràfica, radis i ombres del DM (veure «Sistema visual») |
+| `FONT_SERIF` | string | EB Garamond per a títols i el text dels jugadors (via `--font-serif`) |
 | `SPELL_TYPES` / `SPELL_BY_TYPE` / `SPELL_MODES` | array / Map / objecte | Màgies (nom en català, color, mode) i els quatre gestos de l'eina Màgies |
 | `tint(color, a)` | funció | Color de la paleta amb transparència (`#rrggbb` + alfa hex) |
 | `ELEMENTS` | array | Elements màgics (fire, ice, water...) |
@@ -866,7 +878,10 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | ✕ per a una acció que no és tancar/eliminar | L'usuari el prem per tancar i fa una altra cosa (p. ex. marcar derrotat) | ✕ només tanca o elimina; la resta, botó amb nom (`💀 Derrotar`) |
 | Ull amb un significat diferent segons la llista | Es revela o s'amaga el contrari del que es volia | L'ull sempre vol dir «ho veuen els jugadors?» (vigilar `vis` de les zones del PSD, que és invers) |
 | Contingut variable dins d'una barra flotant (nom del token, confirmació que substitueix un botó) | La barra canvia de mida i es mou a cada interacció | Mides fixes per al que depèn de l'estat i confirmacions en un globus a sobre (veure `TurnTracker`) |
-| Emoji com a icona d'un botó (🖼 sense el selector `U+FE0F`) | A Windows surt com un glif monocrom negre i no es veu sobre el fons fosc | Icona vectorial d'`icons.tsx` amb color de la paleta (veure «Mostrar als jugadors» a `TopBar`) |
+| Emoji com a icona d'un botó o d'una capçalera (🖼 sense el selector `U+FE0F`) | A Windows surt com un glif monocrom negre i no es veu sobre el fons fosc | Icona vectorial d'`icons.tsx` amb color de la paleta (veure «Sistema visual») |
+| Daurat (`C.accent`) per a una dada, una etiqueta o un avís | El daurat deixa de dir «això és el principal / està actiu» i tot competeix | Daurat només per a `primary` i actiu; dades en `C.bright`/`C.text`, avisos amb un punt |
+| `fontFamily: "'EB Garamond', …"` escrit a mà | Surt Georgia (la font no es troba: `next/font` li canvia el nom) | `FONT_SERIF` (`constants`) |
+| Finestreta de la barra d'eines amb un paràgraf | Tapa el mapa i ningú la llegeix | Una línia a `ToolDef.desc`; el detall a `ShortcutsHelp` |
 | Animar l'amplada de diversos elements esperant que la suma es mantingui | Si les transicions es tallen (clics ràpids), la suma deixa de quadrar i el contenidor canvia de mida | Contenidor d'amplada fixa i repartir l'espai amb `flex-grow` animat (veure `TurnTracker`) |
 | Mida de lletra, radi o color escrits a mà | La UI torna a perdre la coherència (22 mides, colors repetits) | `FS`, `RADIUS`, `C`, `tint()` i `Button` |
 | Menú de selecció nou fet a mà (anells, botons rodons…) | Cada menú de l'eina Màgies es veia i es feia servir diferent | Fer servir `RadialMenu` |

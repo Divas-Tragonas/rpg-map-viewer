@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.31';
+export const APP_VERSION = 'v4.32';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -228,6 +228,14 @@ export const C = {
 // de diferents (de 7,5 a 32 px) i el text petit no es llegia; el mínim ara és FS.xs.
 // Les xifres grans (vida, peus, ronda) són mides de "display" i poden anar a part.
 export const FS = { xs: 10, sm: 11, md: 12, lg: 14, xl: 18 } as const;
+
+// Tipografia de títols: EB Garamond, servida des de l'app (`src/app/fonts`, carregada amb
+// `next/font/local` a `layout.tsx`, que en publica la variable `--font-serif`). Només per a
+// títols i noms (mapa, benvinguda, nom del token al menú) i per al text que es llegeix als
+// jugadors; la UI (botons, etiquetes, números) continua en sans.
+// ⚠️ Fer servir sempre aquesta constant: `next/font` canvia el nom de la família, o sigui que
+// un `'EB Garamond'` escrit a mà no la troba i cau a Georgia.
+export const FONT_SERIF = "var(--font-serif), 'EB Garamond', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif";
 
 // Radis de vora: sm (xips, camps), md (botons), lg (panells i menús), pill (píndoles).
 export const RADIUS = { sm: 4, md: 6, lg: 10, pill: 999 } as const;

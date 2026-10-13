@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { UserPlus, LockIcon } from '@/components/icons';
+import { UserPlus, LockIcon, UsersIcon } from '@/components/icons';
 import { C, FS, RADIUS, PALETTE, tint } from '@/constants';
 import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
 import { HpControl } from '@/components/ui/HpControl';
@@ -64,7 +64,7 @@ function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp }: {
 export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, onMenu, defeated }: Props) {
   const [addOpen, setAddOpen] = useState(false);
   return (
-    <SidebarSection title="Jugadors" icon="🧙" count={players.length} countColor={C.hpHigh} bodyPadding="0 6px 8px"
+    <SidebarSection title="Jugadors" icon={<UsersIcon size={13} />} count={players.length} bodyPadding="0 6px 8px"
       actions={
         <>
           <SectionButton onClick={() => setAddOpen(o => !o)} active={addOpen} title="Afegir un jugador nou">＋</SectionButton>

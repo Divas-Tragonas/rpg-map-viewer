@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
+import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, APP_VERSION, DEFAULT_SPEED_FT, tint, FONT_SERIF } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
@@ -43,16 +43,19 @@ import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Button } from '@/components/ui/Button';
-import { FolderOpen, ImageIcon } from '@/components/icons';
+import { FolderOpen, ImageIcon, Layers, MapIcon, DieIcon, RotateCcw, CheckIcon, PlayIcon } from '@/components/icons';
 import { isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
 import { useAutosave } from '@/hooks/useAutosave';
+import { useStoredFlag } from '@/hooks/useStoredFlag';
 import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
 
 /** Amplada del panell «Mostrar als jugadors» (la mateixa per a les dues pestanyes: canviar
  *  de pestanya no ha de fer saltar el panell). */
 const SHOW_PANEL_W = 560;
+// Amplada del lateral: el bloc del nom del mapa de la barra superior hi queda alineat.
+const SIDEBAR_W = 270;
 
 /** Què desfaria el «Desfer» ara: llegeix el registre i les tres piles (veure `lib/undo.ts`). */
 const peekDmUndo = (R: DMRefs) => peekUndo(R.rUndoLog.current, {
@@ -118,6 +121,8 @@ export function DMView() {
   // Pestanyes per funció: Escena (tot el que hi ha al mapa: jugadors i enemics de qualsevol
   // origen), Mapa (fons, capes, sales, llums) i Biblioteca (plantilles per afegir enemics).
   const [sidebarTab, setSidebarTab] = useState<'escena' | 'mapa' | 'biblioteca'>('escena');
+  // Lateral plegable (botó a la barra superior): més mapa quan no cal la llista. Es recorda.
+  const [sidebarOpen, setSidebarOpen] = useStoredFlag('rpg_sidebar_open', true);
   // Preparar (construir el mapa) o Jugar (a la taula): decideix quines eines i pestanyes
   // surten. El ref és perquè el wrapper de setDrawTool el pugui consultar sense dependències.
   const [mode, setMode] = useState<DMMode>('jugar');
@@ -1177,8 +1182,8 @@ export function DMView() {
     if (trProgRef.current) trProgRef.current.style.width = (n ? (eng!.pos / n * 100) : 0) + '%';
     if (trCounterRef.current) {
       if (!n) trCounterRef.current.textContent = '—';
-      else if (trManualRef.current) trCounterRef.current.innerHTML = `Frase <b style="color:${C.accent}">${eng!.sentenceIndex()}</b> / ${eng!.bounds.length}`;
-      else trCounterRef.current.innerHTML = `<b style="color:${C.accent}">${Math.round(eng!.pos / n * 100)}%</b> revelat`;
+      else if (trManualRef.current) trCounterRef.current.innerHTML = `Frase <b style="color:${C.bright}">${eng!.sentenceIndex()}</b> / ${eng!.bounds.length}`;
+      else trCounterRef.current.innerHTML = `<b style="color:${C.bright}">${Math.round(eng!.pos / n * 100)}%</b> revelat`;
     }
     if (trPlayBtnRef.current) {
       const eng2 = trEngineRef.current;
@@ -1330,6 +1335,7 @@ export function DMView() {
       {/* ── Barra superior ───────────────────────────────────────────────── */}
       <TopBar
         mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
+        sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         mode={mode} onModeChange={switchMode}
         showOpen={showPanelOpen} showActive={expositorActive || textRevealActive} onToggleShow={toggleShowPanel}
         undoLabel={undoLabel} onUndo={undoLast}
@@ -1350,7 +1356,11 @@ export function DMView() {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative', zIndex: 0 }}>
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-      <div style={{ width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
+      {/* Plegable: s'anima l'amplada del contenidor i el contingut manté els seus 270 px (no es
+          reorganitza a mig plegar). `inert` perquè el Tab no entri al que no es veu. El canvas
+          ja s'adapta sol a la mida nova (el tick la mira cada frame). */}
+      <div style={{ width: sidebarOpen ? SIDEBAR_W : 0, flexShrink: 0, overflow: 'hidden', borderRight: sidebarOpen ? `1px solid ${C.border}` : 'none', transition: 'width .2s ease' }}>
+      <div inert={!sidebarOpen} style={{ width: SIDEBAR_W, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           {/* Mapa només a Preparar (i primera). Escena i Biblioteca, als dos modes: col·locar
@@ -1399,7 +1409,7 @@ export function DMView() {
                 onLoadBg={f => void openNewMap(f)} onLoadPSD={f => void openPsd(f)} onLoadDemo={() => void openDemo()}
               />
               {psdStruct && (
-                <SidebarSection title="Capes del PSD" icon="🗂" defaultOpen maxBodyHeight={260}>
+                <SidebarSection title="Capes del PSD" icon={<Layers size={13} />} defaultOpen maxBodyHeight={260}>
                   <LayerTree struct={psdStruct} vis={vis} onToggleVis={toggleVis} onDeleteLayer={deleteLayer} />
                 </SidebarSection>
               )}
@@ -1424,7 +1434,7 @@ export function DMView() {
             />
           )}
         </ScrollArea>
-
+      </div>
       </div>
 
       {/* ── Main canvas area ──────────────────────────────────────────────── */}
@@ -1553,8 +1563,8 @@ export function DMView() {
               <button
                 onClick={sendExpositorToPlayer}
                 disabled={!expositorLocalSrc}
-                style={{ flex: 1, padding: '7px', borderRadius: RADIUS.md, border: 'none', background: expositorLocalSrc ? C.accent : 'rgba(255,255,255,0.05)', cursor: expositorLocalSrc ? 'pointer' : 'default', color: expositorLocalSrc ? '#0d1117' : C.dim, fontWeight: 700, fontSize: FS.sm }}>
-                {expositorActive ? '✓ Mostrant als jugadors' : '▶ Mostrar als jugadors'}
+                style={{ flex: 1, padding: '7px', borderRadius: RADIUS.md, border: 'none', background: expositorLocalSrc ? C.accent : 'rgba(255,255,255,0.05)', cursor: expositorLocalSrc ? 'pointer' : 'default', color: expositorLocalSrc ? C.onAccent : C.dim, fontWeight: 700, fontSize: FS.sm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {expositorActive ? <><CheckIcon size={13} /> Mostrant als jugadors</> : <><PlayIcon size={12} /> Mostrar als jugadors</>}
               </button>
               <button
                 onClick={() => expositorInputRef.current?.click()}
@@ -1583,7 +1593,7 @@ export function DMView() {
                 ref={trSrcRef}
                 placeholder="Enganxa aquí el text que vols anar revelant…&#10;&#10;Per exemple, la narració d'obertura d'una escena."
                 onChange={() => { if (trPausedRef.current && (trEngineRef.current?.pos ?? 0) === 0) trBuild(); }}
-                style={{ width: '100%', height: 110, resize: 'vertical', border: 'none', borderBottom: `1px solid ${C.border}`, outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: "'EB Garamond',Georgia,serif", fontSize: FS.lg, lineHeight: 1.5, padding: '10px 12px', display: 'block' }}
+                style={{ width: '100%', height: 110, resize: 'vertical', border: 'none', borderBottom: `1px solid ${C.border}`, outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: FONT_SERIF, fontSize: FS.lg, lineHeight: 1.5, padding: '10px 12px', display: 'block' }}
               />
 
               {/* Controls */}
@@ -1591,7 +1601,7 @@ export function DMView() {
                 <div style={{ display: 'flex', gap: 16 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.sm, color: C.dim, marginBottom: 4 }}>
-                      <span>Velocitat</span><b ref={trSpeedLblRef} style={{ color: C.accent, fontWeight: 600 }}>mitjana</b>
+                      <span>Velocitat</span><b ref={trSpeedLblRef} style={{ color: C.text, fontWeight: 600 }}>mitjana</b>
                     </div>
                     <input ref={trSpeedRef} type="range" min={1} max={100} defaultValue={50}
                       onInput={e => { if (trSpeedLblRef.current) trSpeedLblRef.current.textContent = speedLabel(+(e.target as HTMLInputElement).value); }}
@@ -1599,7 +1609,7 @@ export function DMView() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.sm, color: C.dim, marginBottom: 4 }}>
-                      <span>Suavitat</span><b ref={trSmoothLblRef} style={{ color: C.accent, fontWeight: 600 }}>suau</b>
+                      <span>Suavitat</span><b ref={trSmoothLblRef} style={{ color: C.text, fontWeight: 600 }}>suau</b>
                     </div>
                     <input ref={trSmoothRef} type="range" min={1} max={100} defaultValue={55}
                       onInput={e => { if (trSmoothLblRef.current) trSmoothLblRef.current.textContent = smoothLabel(+(e.target as HTMLInputElement).value); if (!trRunningRef.current || trPausedRef.current) { trEngineRef.current?.recompute(); } }}
@@ -1633,7 +1643,7 @@ export function DMView() {
               >
                 <div
                   ref={trTextRef}
-                  style={{ fontFamily: "'EB Garamond','Iowan Old Style',Palatino,Georgia,serif", fontSize: '1.5rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', color: '#ece3d0' }}
+                  style={{ fontFamily: FONT_SERIF, fontSize: '1.5rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', color: '#ece3d0' }}
                 />
               </div>
 
@@ -1641,7 +1651,7 @@ export function DMView() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 12px', borderTop: `1px solid ${C.border}`, fontSize: FS.sm, color: C.dim }}>
                 <span ref={trCounterRef} style={{ minWidth: 80 }}>—</span>
                 <div style={{ flex: 1, height: 3, background: C.border, borderRadius: RADIUS.sm, overflow: 'hidden' }}>
-                  <div ref={trProgRef} style={{ height: '100%', width: '0%', background: C.accent }} />
+                  <div ref={trProgRef} style={{ height: '100%', width: '0%', background: C.text }} />
                 </div>
               </div>
             </div>
@@ -1651,7 +1661,7 @@ export function DMView() {
               <button
                 ref={trPlayBtnRef}
                 onClick={() => { trManualRef.current ? trNextSentence() : (trPausedRef.current ? trPlay() : trPause()); }}
-                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.accent}`, background: `${C.accent}18`, color: C.accent, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
+                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.03)', color: C.text, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
                 Comença
               </button>
               <button
@@ -1662,8 +1672,8 @@ export function DMView() {
               <div style={{ flex: 1 }} />
               <button
                 onClick={sendTextRevealToPlayer}
-                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: 'none', background: C.accent, color: C.onAccent, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
-                {textRevealActive ? '✓ Mostrant als jugadors' : '▶ Mostrar als jugadors'}
+                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: 'none', background: C.accent, color: C.onAccent, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {textRevealActive ? <><CheckIcon size={13} /> Mostrant als jugadors</> : <><PlayIcon size={12} /> Mostrar als jugadors</>}
               </button>
               <button
                 onClick={hideTextRevealOnPlayer}
@@ -1680,8 +1690,8 @@ export function DMView() {
           // caixa petita del panell lateral; i tot el canvas accepta fitxers (veure onStageDrop).
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none', padding: 24 }}>
             <div style={{ textAlign: 'center', color: C.dim, maxWidth: 440, pointerEvents: 'auto' }}>
-              <div style={{ fontSize: 34, marginBottom: 10, opacity: 0.35 }}>🗺</div>
-              <div style={{ fontSize: FS.xl, fontWeight: 700, color: C.bright }}>Comença una partida</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: C.dim, opacity: 0.5 }}><MapIcon size={34} /></div>
+              <div style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1, color: C.bright }}>Comença una partida</div>
               <div style={{ fontSize: FS.md, marginTop: 6, lineHeight: 1.5 }}>
                 Obre el mapa (una imatge o un vídeo) o arrossega&apos;l a qualsevol lloc d&apos;aquesta pantalla.
               </div>
@@ -1690,18 +1700,19 @@ export function DMView() {
                 <Button variant="primary" size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, minWidth: 170 }}>
                   <FolderOpen size={15} /> Obrir mapa
                 </Button>
-                <Button variant="secondary" size="lg" onClick={() => void openDemo()} style={{ minWidth: 170 }}>
-                  🧪 Provar la demo
+                <Button variant="secondary" size="lg" onClick={() => void openDemo()} style={{ gap: 8, minWidth: 170 }}>
+                  <DieIcon size={15} /> Provar la demo
                 </Button>
               </div>
 
               {/* Recuperació del desat automàtic: l'única sortida després d'un F5 accidental. */}
               {autosaveMeta && (
                 <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <Button variant="tint" size="lg" onClick={() => void recoverAutosave()} disabled={recovering}
+                  <Button variant="secondary" size="lg" onClick={() => void recoverAutosave()} disabled={recovering}
                     title={`Desada automàticament el ${new Date(autosaveMeta.savedAt).toLocaleString('ca-ES')}`}
-                    style={{ minWidth: 348 }}>
-                    {recovering ? 'Recuperant…' : `↩ Recuperar l'última partida · ${agoLabel(autosaveMeta.savedAt)}`}
+                    style={{ gap: 8, minWidth: 348 }}>
+                    {!recovering && <RotateCcw size={14} />}
+                    {recovering ? 'Recuperant…' : `Recuperar l'última partida · ${agoLabel(autosaveMeta.savedAt)}`}
                   </Button>
                   <div style={{ fontSize: FS.xs, opacity: 0.8 }}>
                     {autosaveMeta.mapName || 'Sense nom'}

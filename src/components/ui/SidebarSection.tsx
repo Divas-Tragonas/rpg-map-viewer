@@ -2,14 +2,15 @@
 import React, { useState } from 'react';
 import { C, FS, RADIUS } from '@/constants';
 import { ScrollArea } from '@/components/ui/ScrollArea';
+import { ChevronRight } from '@/components/icons';
 
 interface Props {
   title: string;
-  /** Emoji o icona petita a l'esquerra del títol. */
+  /** Icona vectorial petita a l'esquerra del títol (d'`icons.tsx`, mai una emoji). */
   icon?: React.ReactNode;
-  /** Comptador que es pinta al costat del títol (p. ex. nombre de sales). */
+  /** Comptador que es pinta al costat del títol (p. ex. nombre de sales). Sempre neutre:
+   *  el daurat és només per a l'acció principal i el que està actiu. */
   count?: number | null;
-  countColor?: string;
   /** Botons de la dreta de la capçalera (no pleguen la secció: ja fan stopPropagation). */
   actions?: React.ReactNode;
   defaultOpen?: boolean;
@@ -26,7 +27,7 @@ interface Props {
  * configuració del jugador (anima l'alçada sense haver de mesurar-la).
  */
 export function SidebarSection({
-  title, icon, count = null, countColor = C.accent, actions,
+  title, icon, count = null, actions,
   defaultOpen = true, maxBodyHeight, bodyPadding = 0, children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
@@ -36,11 +37,13 @@ export function SidebarSection({
         onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 8px', cursor: 'pointer', userSelect: 'none', background: open ? 'transparent' : 'rgba(255,255,255,0.02)' }}
       >
-        <span style={{ fontSize: FS.xs, color: C.dim, width: 9, flexShrink: 0, transition: 'transform .18s ease', transform: open ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>▶</span>
-        {icon && <span style={{ fontSize: FS.sm, lineHeight: 1, flexShrink: 0 }}>{icon}</span>}
+        <span style={{ color: C.dim, width: 11, flexShrink: 0, transition: 'transform .18s ease', transform: open ? 'rotate(90deg)' : 'none', display: 'flex' }}>
+          <ChevronRight size={11} />
+        </span>
+        {icon && <span style={{ color: open ? C.text : C.dim, lineHeight: 1, flexShrink: 0, display: 'flex' }}>{icon}</span>}
         <span style={{ fontSize: FS.xs, fontWeight: 700, color: open ? C.text : C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', flex: 1, minWidth: 0 }}>
           {title}
-          {count !== null && count > 0 && <span style={{ color: countColor, letterSpacing: 0 }}> · {count}</span>}
+          {count !== null && count > 0 && <span style={{ color: C.dim, fontWeight: 600, letterSpacing: 0 }}> · {count}</span>}
         </span>
         {actions && (
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 4, flexShrink: 0 }}>

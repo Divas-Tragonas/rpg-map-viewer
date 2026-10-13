@@ -60,6 +60,15 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.32 — Repàs visual (simplificació, fase 5)
+- **Icones en lloc d'emojis** a tota la interfície del DM: capçaleres del lateral, menús del clic dret, barra de torns, sales, benvinguda, importar i partides al servidor. Les emojis es veien diferents a cada ordinador (a Windows, negres sobre el fons fosc). Les de les màgies i els elements es queden: són el retrat de cada màgia.
+- **El daurat només per a l'acció principal i el que està actiu.** Fora el daurat dels comptadors, la insígnia de la demo, la ronda, els peus, els camps de la fitxa i l'ajuda. «Cap pantalla de jugador» i el desat ja no pinten tot el botó: un punt diu l'estat.
+- **Títols en EB Garamond**: nom del mapa, benvinguda, nom del token al menú i títols dels diàlegs. La font ara es carrega de debò (abans s'hi feia referència però sortia Georgia), també al revelador de text dels jugadors, i funciona sense internet.
+- **Lateral plegable**: botó al costat del nom del mapa per amagar-lo i tenir més mapa. Es recorda.
+- **Finestretes de la barra d'eines d'una sola línia.** El detall (gestos de les màgies, tecles de les parets) és a la finestra de dreceres (?). Ara no queden tapades per la barra de torns.
+- Totes les eines actives es marquen igual (daurat), en lloc d'un color diferent per eina.
+- Textos que quedaven en castellà al panell d'Importar («Procesando», «Clic o arrastre»…), ara en català.
+
 ### v4.31 — La fitxa del token, dins del menú del clic dret
 - La fitxa (nom, vida màxima, mida i, als jugadors, velocitat, visió i si es poden moure) ja no és un panell a baix del lateral: és **dins del menú del clic dret**, a sota de la vida. Tot el que és d'un token, en un sol lloc.
 - El nom s'edita a la capçalera del menú.

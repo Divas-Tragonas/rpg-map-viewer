@@ -1,7 +1,7 @@
 'use client';
 import React, { useRef, useState } from 'react';
 import { Switch } from '@/components/ui/Switch';
-import { C, FS, RADIUS, DEFAULT_SPEED_FT, DEFAULT_VISION_FT, feetFromRadius } from '@/constants';
+import { C, FS, RADIUS, DEFAULT_SPEED_FT, DEFAULT_VISION_FT, feetFromRadius, FONT_SERIF } from '@/constants';
 import type { LibEnemy, MapStructure, Player, PsdEnemyOverride, PsdEnemyOverrides, TokenSizeMap } from '@/types';
 
 /** Dades i accions per editar un token des del menú del clic dret. */
@@ -142,7 +142,7 @@ export function NameField({ value, onCommit }: { value: string; onCommit: (v: st
       onChange={e => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={e => fieldKeys(e, cancelled)}
-      style={{ flex: 1, minWidth: 0, height: 24, background: 'transparent', border: '1px solid transparent', borderRadius: RADIUS.sm, color: C.bright, fontSize: FS.md, fontWeight: 700, outline: 'none', padding: '0 4px', marginLeft: -5 }}
+      style={{ flex: 1, minWidth: 0, height: 26, background: 'transparent', border: '1px solid transparent', borderRadius: RADIUS.sm, color: C.bright, fontFamily: FONT_SERIF, fontSize: 17, fontWeight: 600, outline: 'none', padding: '0 4px', marginLeft: -5 }}
       onMouseEnter={e => { if (draft === null) e.currentTarget.style.borderColor = C.border; }}
       onMouseLeave={e => { if (draft === null) e.currentTarget.style.borderColor = 'transparent'; }} />
   );
@@ -168,9 +168,9 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
           title="Diàmetre del token en peus" onCommit={v => p.onSetTokenSize(t.key, v)} />
         {pl && (
           <>
-            <NumField label="Vel. · ft" value={speed} min={0} max={995} step={5} color={C.accent}
+            <NumField label="Vel. · ft" value={speed} min={0} max={995} step={5}
               title={`Velocitat: ${speed} ft = ${Math.floor(speed / 5)} caselles`} onCommit={v => p.onSetPlayerSpeed(pl.id, v)} />
-            <NumField label="Visió · ft" value={vision} min={0} max={995} step={5} color={C.hpMid}
+            <NumField label="Visió · ft" value={vision} min={0} max={995} step={5}
               title="Visió a les fosques: radi de llum que emet dins de sales fosques (0 = sense llum)"
               onCommit={v => p.onSetPlayerVision(pl.id, v)} />
           </>

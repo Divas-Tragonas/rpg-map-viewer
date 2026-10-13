@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { GridIcon } from '@/components/icons';
+import { GridIcon, X } from '@/components/icons';
 import { C, FS, RADIUS, tint } from '@/constants';
 
 interface Props {
@@ -65,7 +65,7 @@ export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridL
             <span style={{ color: C.dim, fontSize: FS.xs }}>{gridSize}px</span>
             {gridCalibrating && (
               <button onClick={() => { setGridCalibrating(false); rGridCalibrating.current = false; gridCalibRef.current = null; gridCalibCurrRef.current = null; }}
-                style={{ marginLeft: 'auto', padding: '3px 7px', borderRadius: RADIUS.sm, border: `1px solid ${tint(C.enemy, 0.4)}`, background: 'transparent', cursor: 'pointer', color: C.enemy, fontSize: FS.xs }}>✕</button>
+                style={{ marginLeft: 'auto', padding: '3px 7px', borderRadius: RADIUS.sm, border: `1px solid ${tint(C.enemy, 0.4)}`, background: 'transparent', cursor: 'pointer', color: C.enemy, display: 'flex', alignItems: 'center' }} title="Cancel·lar el calibratge" aria-label="Cancel·lar el calibratge"><X size={11} /></button>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>

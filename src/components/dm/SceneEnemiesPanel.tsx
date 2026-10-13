@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Eye, EyeOff, RotateCcw, Trash2, ChevronDown, ChevronRight } from '@/components/icons';
+import { Eye, EyeOff, RotateCcw, Trash2, ChevronDown, ChevronRight, SwordsIcon } from '@/components/icons';
 import { C, FS, RADIUS, tint } from '@/constants';
 import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
 import { HpControl } from '@/components/ui/HpControl';
@@ -129,7 +129,7 @@ export function SceneEnemiesPanel({
   };
 
   return (
-    <SidebarSection title="Enemics" icon="⚔" count={total} countColor={C.enemy} bodyPadding="0 4px 8px"
+    <SidebarSection title="Enemics" icon={<SwordsIcon size={13} />} count={total} bodyPadding="0 4px 8px"
       actions={<SectionButton onClick={onOpenLibrary} title="Afegir enemics des de la Biblioteca">＋</SectionButton>}>
       {total === 0 && (
         <div style={{ padding: '2px 8px 4px', fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Eye, EyeOff, Trash2 } from '@/components/icons';
+import { Eye, EyeOff, Trash2, WallIcon, SunIcon, MoonIcon, DoorIcon, ChevronRight } from '@/components/icons';
 import { C, FS, RADIUS, tint } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import type { Room, LightSource } from '@/types';
@@ -43,8 +43,8 @@ function RoomRow({
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 6px 2px 10px', background: open ? 'rgba(100,210,255,.08)' : 'transparent' }}>
         <button onClick={() => onSetRoomDark(room.id, !room.dark)}
           title={room.dark ? 'Sala fosca (clic per treure)' : 'Marcar com a sala fosca'}
-          style={{ background: 'none', border: 'none', padding: 1, cursor: 'pointer', fontSize: FS.sm, lineHeight: 1, opacity: room.dark ? 1 : 0.3, flexShrink: 0 }}>
-          🌑
+          style={{ background: 'none', border: 'none', padding: 1, cursor: 'pointer', color: room.dark ? C.text : tint(C.dim, 0.5), display: 'flex', flexShrink: 0 }}>
+          <MoonIcon size={11} />
         </button>
         {room.dark ? (
           <button onClick={() => onToggleRoomReveal(room.id)}
@@ -65,8 +65,8 @@ function RoomRow({
           style={{ flex: 1, minWidth: 0, background: 'transparent', border: '1px solid transparent', borderRadius: RADIUS.sm, padding: '1px 3px', color: C.text, fontSize: FS.sm, outline: 'none' }}
         />
         <button onClick={onToggleOpen} title="Més accions"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: FS.xs, padding: '0 2px', flexShrink: 0 }}>
-          {open ? '▾' : '▸'}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: '0 2px', display: 'flex', flexShrink: 0 }}>
+          <ChevronRight size={11} style={{ transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' }} />
         </button>
       </div>
 
@@ -75,13 +75,13 @@ function RoomRow({
         <div style={{ overflow: 'hidden' }}>
           <div style={{ padding: '3px 8px 6px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <button onClick={() => onAddDoor(room.id)}
-              style={{ padding: '4px 7px', borderRadius: RADIUS.md, border: `1px solid ${tint(C.ok, 0.45)}`, background: tint(C.ok, 0.12), color: C.ok, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600, textAlign: 'left' }}>
-              🚪 Afegir porta
+              style={{ padding: '4px 7px', borderRadius: RADIUS.md, border: `1px solid ${tint(C.ok, 0.45)}`, background: tint(C.ok, 0.12), color: C.ok, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <DoorIcon size={12} /> Afegir porta
             </button>
             {room.dark && (
               <button onClick={() => onResetExplored(room.id)}
-                style={{ padding: '4px 7px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600, textAlign: 'left' }}>
-                🌑 Resetejar explorat
+                style={{ padding: '4px 7px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <MoonIcon size={12} /> Resetejar explorat
               </button>
             )}
             {confirmDel ? (
@@ -132,7 +132,7 @@ export function RoomsPanel({
   return (
     <>
       <SidebarSection
-        title="Sales" icon="🏛" count={rooms.length} countColor={C.room}
+        title="Sales" icon={<WallIcon size={13} />} count={rooms.length}
         defaultOpen={false} maxBodyHeight={230}>
         {/* Sense accions a la capçalera: les eines Parets i Llums i el desfer dels canvis del
             mapa viuen a la barra d'eines del mode Preparar. */}
@@ -164,12 +164,12 @@ export function RoomsPanel({
       </SidebarSection>
 
       {lights.length > 0 && (
-        <SidebarSection title="Punts de llum" icon="🔆" count={lights.length} countColor={C.warn}
+        <SidebarSection title="Punts de llum" icon={<SunIcon size={13} />} count={lights.length}
           defaultOpen={false} maxBodyHeight={160}>
           {lights.map((l, i) => (
             <div key={l.id} onClick={() => onSelectLight(l.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px 3px 12px', cursor: 'pointer', background: selectedLightId === l.id ? 'rgba(210,153,34,.12)' : 'transparent' }}>
-              <span style={{ fontSize: FS.sm, flexShrink: 0 }}>🔆</span>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px 3px 12px', cursor: 'pointer', background: selectedLightId === l.id ? tint(C.room, 0.12) : 'transparent' }}>
+              <span style={{ color: C.warn, display: 'flex', flexShrink: 0 }}><SunIcon size={12} /></span>
               <span style={{ flex: 1, fontSize: FS.sm, color: C.text }}>Llum {i + 1}</span>
               <span style={{ fontSize: FS.xs, color: C.dim }}>{l.radiusFt} ft</span>
               <button onClick={e => { e.stopPropagation(); onRemoveLight(l.id); }} title="Eliminar llum"
