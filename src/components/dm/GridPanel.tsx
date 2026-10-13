@@ -32,7 +32,7 @@ export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridL
     // Panell flotant (flyout de la barra d'eines): mateix aspecte que la resta de flyouts.
     <div style={{ padding: '9px 11px', borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', width: 250, pointerEvents: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: gridVisible ? 6 : 0 }}>
-        <div style={{ fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', flex: 1 }}>Grid</div>
+        <div style={{ fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', flex: 1 }}>Graella</div>
         <button onClick={() => {
           const nv = !gridVisible; setGridVisible(nv); rGridVisible.current = nv;
           if (nv && !gridCalibrating) { setGridCalibrating(true); rGridCalibrating.current = true; gridCalibRef.current = null; gridCalibCurrRef.current = null; }
@@ -41,9 +41,9 @@ export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridL
         }} style={{ padding: '3px 9px', borderRadius: RADIUS.md, border: `1px solid ${gridVisible ? C.accent : C.border}`, background: gridVisible ? `${C.accent}22` : 'transparent', cursor: 'pointer', color: gridVisible ? C.accent : C.dim, fontSize: FS.xs, fontWeight: 600 }}>
           {gridVisible ? 'Desactivar' : 'Activar'}
         </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.xs, color: C.dim, cursor: 'pointer' }}>
+        <label title="Imanta els tokens al centre de les caselles" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.xs, color: C.dim, cursor: 'pointer' }}>
           <input type="checkbox" checked={gridSnap} onChange={e => { setGridSnap(e.target.checked); rGridSnap.current = e.target.checked; if (e.target.checked) onSnapAll(); }} style={{ accentColor: C.accent }} />
-          Snap
+          Imantar
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.xs, color: C.dim, cursor: 'pointer' }} title="Ajusta tots els tokens al 90% de la cel·la">
           <input type="checkbox" checked={gridAutoSize} onChange={e => {

@@ -60,6 +60,16 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.28 — Modes Preparar i Jugar (simplificació, fase 2)
+- **Interruptor Preparar · Jugar** a la barra de dalt. Cada mode només ensenya les seves eines: la barra de l'esquerra passa de 13 botons a 7 o 8.
+  - **Preparar** (construir el mapa): Selecció, Parets i portes, Llums, Graella i Desfer al mapa. Al lateral, la pestanya **Mapa** (fons, capes del PSD, sales), a més d'Escena i Biblioteca.
+  - **Jugar** (a la taula): Selecció, Senyal i regla, Dibuix i Màgies, i la barra de torns. Al lateral, Escena i Biblioteca.
+- **Ploma i Goma en una sola eina, «Dibuix»**. Al seu panell: ploma o goma, color, gruix, desfer l'últim traç i esborrar-ho tot.
+- Les dreceres funcionen igual: si prems la tecla d'una eina de l'altre mode (p. ex. la 5 mentre jugues), canvia de mode sol.
+- Obrir un mapa nou o un PSD et porta a Preparar; obrir una partida desada o la demo, a Jugar.
+- **Graella visible** al menú Vista (per ensenyar-la o amagar-la als jugadors sense obrir la configuració). El panell de la graella, en català («Graella», «Imantar»).
+- El desfer dels canvis del mapa passa de la capçalera de Sales a la barra d'eines de Preparar.
+
 ### v4.27 — Una sola barra a dalt i res repetit (simplificació, fase 1)
 - **Barra superior nova** amb tot el que no és el mapa ni el lateral: nom del mapa, «Mostrar als jugadors», pantalles de jugador, partida, vista i ⋯. Desapareixen la barreta d'Expositor/Text de dalt a l'esquerra, els xips de dalt al centre i tot el peu del lateral.
 - **Expositor i Revelador de text en un sol panell** («Mostrar als jugadors») amb dues pestanyes: Imatge o vídeo · Text. Ja s'excloïen l'un a l'altre; un punt verd diu què s'està mostrant.

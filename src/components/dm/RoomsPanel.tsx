@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Trash2 } from '@/components/icons';
 import { C, FS, RADIUS, tint } from '@/constants';
-import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
+import { SidebarSection } from '@/components/ui/SidebarSection';
 import type { Room, LightSource } from '@/types';
 
 interface Props {
@@ -12,9 +12,6 @@ interface Props {
   selectedLightId: string | null;
   /** Ref del hover de sala: pintar-hi l'id ressalta la sala al canvas (renderRooms). */
   hoveredRoomRef: React.MutableRefObject<string | null>;
-  /** Desfà l'últim canvi al mapa; `mapUndo` és la seva etiqueta (null = res a desfer). */
-  onUndoMapEdit: () => void;
-  mapUndo: string | null;
   onSetRoomDark: (id: string, dark: boolean) => void;
   onToggleRoomReveal: (id: string) => void;
   onRenameRoom: (id: string, name: string) => void;
@@ -122,7 +119,7 @@ function RoomRow({
  */
 export function RoomsPanel({
   rooms, lights, wallsCount, selectedLightId, hoveredRoomRef,
-  onUndoMapEdit, mapUndo, onSetRoomDark, onToggleRoomReveal,
+  onSetRoomDark, onToggleRoomReveal,
   onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onSelectLight, onRemoveLight,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -136,14 +133,9 @@ export function RoomsPanel({
     <>
       <SidebarSection
         title="Sales" icon="🏛" count={rooms.length} countColor={C.room}
-        defaultOpen={false} maxBodyHeight={230}
-        actions={
-          // Les eines Parets i Llums ja són a la barra d'eines: aquí no es repeteixen. El
-          // desfer sí: és l'únic botó visible per desfer canvis del mapa (botó i Ctrl+Z
-          // criden la mateixa funció).
-          <SectionButton onClick={onUndoMapEdit} disabled={!mapUndo}
-            title={mapUndo ? `Desfer: ${mapUndo} (Ctrl+Z)` : 'Res a desfer al mapa'}>↶</SectionButton>
-        }>
+        defaultOpen={false} maxBodyHeight={230}>
+        {/* Sense accions a la capçalera: les eines Parets i Llums i el desfer dels canvis del
+            mapa viuen a la barra d'eines del mode Preparar. */}
         {rooms.length === 0 ? (
           <div style={{ padding: '2px 12px 8px', color: C.dim, fontSize: FS.sm, lineHeight: 1.5 }}>
             {wallsCount > 0

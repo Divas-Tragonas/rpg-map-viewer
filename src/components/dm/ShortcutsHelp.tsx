@@ -7,11 +7,12 @@ interface Props { onClose: () => void }
 
 const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
-    title: 'Eines',
+    // Una tecla d'una eina de l'altre mode hi canvia sol (la 5 jugant passa a Preparar…).
+    title: 'Eines (la tecla canvia de mode si cal)',
     rows: [
       ['V · Esc', 'Selecció (tornar-hi des de qualsevol eina)'],
-      ['1', 'Ploma'], ['2', 'Goma'], ['3', 'Màgies'], ['4', 'Senyal i regla'],
-      ['5', 'Parets'], ['6', 'Llums'],
+      ['1 · 2', 'Dibuix: ploma · goma (Jugar)'], ['3', 'Màgies (Jugar)'], ['4', 'Senyal i regla (Jugar)'],
+      ['5', 'Parets i portes (Preparar)'], ['6', 'Llums (Preparar)'],
       ['A', 'Selecció múltiple (rectangle)'],
     ],
   },

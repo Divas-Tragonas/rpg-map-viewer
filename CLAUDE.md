@@ -203,6 +203,7 @@ src/
 ├── lib/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
 │   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
+│   ├── dm-mode.ts          # Modes Preparar / Jugar del DM i a quin mode pertany cada eina (modeForTool)
 │   ├── turn-banner.ts      # Projecció del combat al rètol de les pantalles de jugador
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
@@ -441,24 +442,40 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Sales i llums van cadascuna dins d'una `SidebarSection` plegada per defecte** amb el comptador a la capçalera (`Sales · 12`) i un resum de quantes són fosques i quantes revelades. Amb un mapa de moltes sales, la llista sencera se'n menjava el panell.
 - Llista les **sales detectades** (`rRooms`): commutador 🌑 de sala fosca, ull de revelar/amagar (només si és fosca), nom editable en línia i desplegable amb "Afegir porta", "Resetejar explorat" (només si és fosca) i "Eliminar sala" amb **confirmació en dos passos** (es desa l'`id` pendent, no un booleà — mateix criteri que `ContextMenuOverlay`).
 - Hover d'una fila → escriu a `R.rHoveredRoomId` (ref llegida per `renderRooms`), així la sala es ressalta al canvas.
-- A la capçalera de «Sales» només hi ha el ↶ de desfer canvis del mapa. Les eines Parets (`5`) i Llums (`6`) **no** s'hi repeteixen: viuen a la barra d'eines (abans hi havia una còpia dels dos botons).
+- La capçalera de «Sales» no té botons: les eines Parets (`5`) i Llums (`6`) i el desfer dels canvis del mapa viuen a la barra d'eines del mode Preparar (abans n'hi havia una còpia aquí).
+
+### Modes Preparar · Jugar (`src/lib/dm-mode.ts`)
+- **Problema que resolia**: les eines de construir el mapa (parets, llums, graella, capes) i les de jugar (regla, dibuix, màgies, torns) sortien totes alhora: 13 botons a la barra i 3 pestanyes al lateral, la majoria sense res a veure amb el que s'estava fent.
+- Interruptor **Preparar · Jugar** a la barra superior (`ModeSwitch` a `TopBar`). Estat `mode` + `modeRef` a `DMView`. És **només UI del DM**: no es sincronitza ni canvia res del que veuen els jugadors.
+  | | Preparar | Jugar |
+  |---|---|---|
+  | Barra d'eines | Selecció · Parets i portes · Llums · Graella · ▣ CTRL MAJ · Desfer al mapa | Selecció · Senyal i regla · Dibuix · Màgies · ▣ CTRL MAJ · (✨ esborrar zones) |
+  | Lateral | **Mapa** · Escena · Biblioteca (s'obre a Mapa) | Escena · Biblioteca |
+  | Barra de torns | no | sí |
+  | «Mostrar als jugadors» | només si s'hi mostra alguna cosa (per poder-la amagar) | sí |
+- Escena i Biblioteca són als dos modes: col·locar enemics és preparar, però afegir-ne un a mitja partida també passa.
+- **Font única de quina eina és de quin mode**: `modeForTool()`. ⚠️ El wrapper `setDrawTool` de `DMView` hi crida `applyMode`: triar una eina de l'altre mode (tecla 5 jugant, «Afegir porta» del menú d'una sala, tecla 1 preparant…) **canvia de mode sol**. Així les dreceres funcionen sempre i el mode no queda mai amb una eina que no hi és. Una eina nova s'ha d'afegir a `modeForTool`.
+- `switchMode` (interruptor): si l'eina activa no és del mode nou, torna a la selecció (i, si era la de senyal, esborra el punter i la regla de les pantalles de jugador).
+- **Mode en obrir fitxers**: un mapa nou o un PSD → Preparar (`openNewMap`, `openPsd`); una partida (fitxer, servidor, desat automàtic) o la demo → Jugar (`openSession`, `openServerSession`, `openDemo`). Per defecte, Jugar.
+- A Preparar la barra de torns no es veu i **Enter no passa el torn** (`advanceTurnIfPlaying`): el combat continua igual i en tornar a Jugar hi és.
 
 ### Eines de dibuix (barra flotant)
-- `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral).
-- Botons apilats: **eines** Selecció (`none`), Ploma, Goma, Màgies, Senyal, Parets, Llums · **modes** CTRL, MAJ, ▣ · **accions** Desfer, Esborrar tot i (condicional) Esborrar zones màgiques · **Graella**.
+- `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral). Les eines depenen del mode (`PLAY_TOOLS` / `PREP_TOOLS`, veure «Modes Preparar · Jugar»).
+- **Dibuix** és un sol botó per a la ploma i la goma (`ToolDef.also`): s'encén amb qualsevol de les dues i, en clicar-lo, posa la ploma. Al seu panell: Ploma · Goma (tecles 1 i 2), paleta (només ploma), gruix, **Desfer traç** i **Esborrar tot**. Abans eren dues eines i dos botons d'acció a la barra.
+- **Graella** (només Preparar) obre `GridPanel`. Per ensenyar-la o amagar-la mentre es juga, interruptor al menú **Vista** (`toggleGridVisible`, sense obrir el calibratge). ⚠️ Al DM la graella només es dibuixa mentre arrossega tokens, calibra o mesura (`rGridDmAlpha`); l'interruptor és sobretot per als jugadors.
 - **Barra apagada sense mapa** (`disabled` → `<fieldset disabled>`): es veu, però no reacciona ni mostra ajuda.
 - **Modes de ratolí a la barra**: `ctrlPanActive` / `shiftPanActive` / `areaSelectMode` amb els seus `onToggle*`. Les tres funcions (`toggleCtrlPan`, `toggleShiftPan`, `toggleAreaSelect`) viuen a `DMView` i les comparteixen **el botó i la tecla** — `useKeyboardHandlers` les rep per `opts` i no duplica la lògica. Si s'hi afegeix un mode nou, ha de seguir el mateix camí (una sola funció, dos disparadors).
 - **Explicacions al hover, no al flyout**: cada botó va dins d'un embolcall `position: relative` que ancora un `HoverTip` amb el nom de l'eina, la drecera i què fa. ⚠️ El component del botó (`ToolButton`) està definit **a nivell de mòdul**: si es declarés dins de `FloatingToolbar`, cada canvi de `hover` en crearia un tipus nou, React desmuntaria tots els botons i el `mouseleave` es perdria (finestreta enganxada).
 - El `HoverTip` de la barra vertical s'alinea **per baix** (`bottom: 0`), no centrat: la barra viu a la cantonada inferior i una finestreta centrada sobre l'últim botó sortiria de la pantalla.
-- Al flyout hi queden **només els controls manipulables**: paleta de color + gruix (Ploma/Goma) i slider de radi (Llums). Parets i Senyal ja no en tenen.
+- Al flyout hi queden **només els controls manipulables**: el panell de Dibuix i el slider de radi (Llums). Parets i Senyal no en tenen.
 - Eina **Llums** (drecera `6`): col·locació de punts de llum (torxes) — veure feature "Punts de llum".
 
 ### Barra superior (`src/components/dm/TopBar.tsx`)
 - **Problema que resolia**: els controls que no són ni el mapa ni el lateral estaven repartits en tres llocs (barreta d'Expositor/Text a dalt a l'esquerra, xips a dalt al centre, peu del lateral) i moltes coses es podien fer des de dos llocs («Modo Jugador» i el xip 🖥; Guardar/Cargar, ☁ i el xip ⟳; el zoom al lateral i el reset a dalt).
-- **Una sola barra** de `TOP_BAR_H` (48 px) per sobre del lateral i de l'escenari. D'esquerra a dreta: nom del mapa (bloc de 250 px perquè la resta s'alineï amb l'escenari), **«Mostrar als jugadors»**, els avisos de mode (CTRL/MAJ/▣, al centre) i quatre menús: **Pantalles de jugador**, **Partida**, **Vista** (només amb mapa) i **⋯**.
+- **Una sola barra** de `TOP_BAR_H` (48 px) per sobre del lateral i de l'escenari. D'esquerra a dreta: nom del mapa (bloc de 250 px perquè la resta s'alineï amb l'escenari), l'interruptor **Preparar · Jugar**, **«Mostrar als jugadors»**, els avisos de mode (CTRL/MAJ/▣, al centre) i quatre menús: **Pantalles de jugador**, **Partida**, **Vista** (només amb mapa) i **⋯**.
   - **Pantalles** (`ScreensMenu`): veure «Menú de pantalles» a la secció de la càmera compartida. En groc mentre no n'hi ha cap.
   - **Partida** (`GameMenu`): l'etiqueta del botó és l'estat del desat («Desat fa 2 min», es refresca cada 15 s). Dins: interruptor del desat automàtic, desar ara, exportar a `.json`, obrir un `.json` i partides al servidor (si hi ha API).
-  - **Vista** (`ViewMenu`): opacitat del mapa i Ressaltar enemics (+ cadenat), aquest només amb PSD.
+  - **Vista** (`ViewMenu`): graella visible, opacitat del mapa i Ressaltar enemics (+ cadenat), aquest només amb PSD.
   - **⋯** (`MoreMenu`): dreceres de teclat, back office i versió.
 - Els menús són `Popover` (nivell de mòdul): clic fora o **Esc** els tanquen. ⚠️ L'Esc es captura en fase de captura amb `stopImmediatePropagation`, si no `useKeyboardHandlers` també tornaria a l'eina de selecció (mateix criteri que `RadialMenu`).
 - ⚠️ El cos (lateral + escenari) és un **context d'apilament propi** (`position: relative; zIndex: 0`) i la barra té `zIndex: 1`: així els menús de la barra queden sempre per sobre de tot el que hi ha a l'escenari (panells a `zIndex` 20, el rètol de deixar fitxers a 40…) sense haver de pujar números.
@@ -540,7 +557,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Model** (`rMapHistory` a `useDMRefs`, `_pushMapEdit`/`undoMapEdit` a `useDMActions`): una entrada és **només les quatre referències d'array** (`walls`, `rooms`, `doors`, `lights`) d'abans del canvi. Com que tota mutació d'aquests camps crea arrays nous —el que fa funcionar la dieta del `STATE`—, desar-les no costa cap còpia i restaurar-les torna l'estat exacte. Màxim `MAP_HISTORY_MAX` entrades. DM-only: no es sincronitza ni es desa a la partida.
 - **Qui hi entra**: afegir/esborrar/moure paret, esborrar sala, reanomenar sala, afegir/eliminar porta, afegir/eliminar llum i esborrar totes les parets. **No** hi entren les accions de joc (obrir una porta, marcar una sala com a fosca o revelar-la): Ctrl+Z no ha de desfer una decisió de partida.
 - **Encaminament per eina** (`useKeyboardHandlers`): Parets/Llums → canvi de mapa; eines de dibuix → traç; selecció → moviment de combat i, **si no n'hi ha cap a l'historial**, canvi de mapa (així el Ctrl+Z d'un canvi fet des del panell de sales funciona sense canviar d'eina).
-- **Botó visible**: `↶` a la capçalera de la secció «Sales», amb el nom del canvi que desfarà al `title`. Botó i tecla criden la mateixa funció (mateix criteri que els modes de la barra d'eines).
+- **Botó visible**: «Desfer al mapa» a la barra d'eines del mode Preparar, amb el nom del canvi que desfarà a la finestreta d'ajuda. Botó i tecla criden la mateixa funció (mateix criteri que els modes de la barra d'eines). Abans era un `↶` a la capçalera de «Sales».
 
 ### Menú contextual d'un token (`ContextMenuOverlay`)
 - Capçalera comuna (`MenuHeader`): títol, accessoris i **✕ de tancar** (també Esc). L'estat derrotat és un botó amb nom, **«💀 Derrotar» / «💀 Derrotat»**: abans era un ✕ solt just on s'espera el de tancar.
@@ -707,7 +724,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Acabar combat**: el botó ✕ demana **confirmació** («Finalitzar el combat?») per evitar clics accidentals. **«⏭ Ronda»** (salta tots els que queden) és secundari i també demana confirmació («Saltar a la ronda N?»). Les confirmacions i el «Recuperar el torn» van en un **globus a sobre de la barra** (`Bubble`, un sol `pop` obert alhora) que es tanca clicant fora o amb Esc — mai substituint el botó dins de la barra (la feia créixer).
 - **Amplada**: la barra fa com a màxim `100% − 150px` de l'escenari (no tapa la barra d'eines de l'esquerra); si hi ha molts tokens, els xips fan scroll i el del torn actiu es desplaça sol a la vista (`data-active` + `scrollTo`, només quan canvia QUI té el torn, no en reordenar).
 - **Mida fixa durant el combat** (constants al cap de `TurnTracker.tsx`): el xip actiu fa sempre `ACTIVE_W × ACTIVE_H` (columna de nom i peus d'amplada fixa, `INFO_W`; el nom s'escurça amb «…») i la resta `SLOT_W × SLOT_H`, o sigui que la suma no depèn de qui té el torn. El carril té una **amplada fixa** (`railWidth(n)`, amb `overflow: hidden`) i l'amplada extra del xip actiu es reparteix amb **`flex-grow`** (1 l'actiu, 0 la resta, sobre una base de `SLOT_W`); l'animació és del `flex-grow`, no de `width`. Així, encara que es passin torns molt de pressa i les transicions es tallin a mitges, els xips omplen sempre el mateix carril. ⚠️ Amb `width` animat a cada xip la suma només quadrava si les dues transicions anaven sincronitzades: amb clics ràpids la barra variava uns 5 px. ⚠️ Res que depengui de l'estat (confirmacions, mode edició, nom, peus) pot canviar l'amplada de la barra: s'hi posa un globus o es reserva l'espai (`NEXT_W` per a «Següent»/«Fet»).
-- **Iniciar**: el popover té «Tots / Cap» per marcar d'un cop tots els enemics visibles. Sense mapa carregat, la barra no apareix.
+- **Iniciar**: el popover té «Tots / Cap» per marcar d'un cop tots els enemics visibles. Sense mapa carregat, o en mode Preparar, la barra no apareix.
 
 ### Càmera compartida — independent de la mida i el format de finestra (`src/lib/camera.ts`)
 - **Problema que resol**: la càmera es sincronitzava com `{ zoom, panOffset }` amb `panOffset` en **píxels de pantalla del DM**, i cada pantalla hi aplicava després la seva pròpia escala d'ajust `min(W/mw, H/mh)`. Amb finestres de mida o format diferents, el mateix `panOffset` desplaçava una quantitat de mapa diferent i el rectangle visible depenia del format: en fer zoom, **cada pantalla retallava per un costat diferent**. El DM tenia contingut a la vora de la seva pantalla i els jugadors no el veien, sense cap indici.

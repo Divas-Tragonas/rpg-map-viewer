@@ -62,3 +62,4 @@ export const Cloud        = mkIcon(<path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0
 export const ExternalLink = mkIcon(<path d="M7 17 17 7M8 7h9v9"/>);
 export const CheckIcon    = mkIcon(<polyline points="20 6 9 17 4 12"/>);
 export const DieIcon      = mkIcon(<><path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 2v20M3 7l9 5 9-5"/></>);
+export const SwordsIcon   = mkIcon(<><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="17" x2="4" y2="20"/><line x1="3" y1="19" x2="5" y2="21"/></>);

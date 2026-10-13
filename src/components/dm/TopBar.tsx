@@ -4,11 +4,13 @@ import Link from 'next/link';
 import {
   ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
   ExternalLink, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
+  WallIcon, SwordsIcon, GridIcon,
 } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
 import { C, FS, RADIUS, SHADOW, APP_VERSION, tint } from '@/constants';
 import { extraSeen } from '@/lib/camera';
 import { agoLabel } from '@/lib/autosave';
+import type { DMMode } from '@/lib/dm-mode';
 
 /** Alçada de la barra superior (el lateral i l'escenari comencen just a sota). */
 export const TOP_BAR_H = 48;
@@ -21,6 +23,8 @@ interface Props {
   /** Nom del fitxer del mapa; null = encara no n'hi ha cap de carregat. */
   mapName: string | null;
   hasPsd: boolean;
+  /** Preparar (construir el mapa) o Jugar (a la taula). */
+  mode: DMMode; onModeChange: (m: DMMode) => void;
   /** «Mostrar als jugadors» (expositor + revelador): panell obert i si ara mateix s'hi mostra res. */
   showOpen: boolean; showActive: boolean; onToggleShow: () => void;
   ctrlPanActive: boolean; shiftPanActive: boolean; areaSelectMode: boolean;
@@ -35,6 +39,8 @@ interface Props {
   /** Partides al servidor (només si hi ha API configurada). */
   onOpenServer?: () => void;
   bgOpacity: number; onBgOpacityChange: (v: number) => void;
+  /** Ensenyar o amagar la graella (també als jugadors). La configuració és a Preparar. */
+  gridVisible: boolean; onToggleGrid: () => void;
   enemyHighlight: boolean; highlightLocked: boolean;
   onToggleEnemyHighlight: () => void; onToggleHighlightLocked: () => void;
   onShowShortcuts: () => void;
@@ -303,9 +309,9 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
  * Vista (només a la pantalla del DM): opacitat del mapa i ressaltar enemics. Abans eren un
  * lliscador al peu del lateral i dos xips a dalt al centre.
  */
-function ViewMenu({ open, onToggle, onClose, hasPsd, bgOpacity, onBgOpacityChange, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: {
+function ViewMenu({ open, onToggle, onClose, hasPsd, bgOpacity, onBgOpacityChange, gridVisible, onToggleGrid, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: {
   open: boolean; onToggle: () => void; onClose: () => void; hasPsd: boolean;
-} & Pick<Props, 'bgOpacity' | 'onBgOpacityChange' | 'enemyHighlight' | 'highlightLocked' | 'onToggleEnemyHighlight' | 'onToggleHighlightLocked'>) {
+} & Pick<Props, 'bgOpacity' | 'onBgOpacityChange' | 'gridVisible' | 'onToggleGrid' | 'enemyHighlight' | 'highlightLocked' | 'onToggleEnemyHighlight' | 'onToggleHighlightLocked'>) {
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} title="Opcions de vista de la teva pantalla">
@@ -314,6 +320,15 @@ function ViewMenu({ open, onToggle, onClose, hasPsd, bgOpacity, onBgOpacityChang
       </BarButton>
       {open && (
         <Popover onClose={onClose} width={280} padding={14}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <GridIcon size={14} color={C.dim} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Graella</span>
+              <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.4 }}>A les pantalles dels jugadors. Tu la veus quan mous tokens o mesures.</span>
+            </div>
+            <Switch on={gridVisible} onChange={onToggleGrid} label="Graella visible" />
+          </div>
+          <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label htmlFor="dm-bg-opacity" style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.md, fontWeight: 700, color: C.bright }}>
               Opacitat del mapa
@@ -378,10 +393,39 @@ function MoreMenu({ open, onToggle, onClose, onShowShortcuts }: {
   );
 }
 
+/**
+ * Preparar · Jugar. Cada mode només ensenya les seves eines i pestanyes (veure `lib/dm-mode`).
+ * No canvia res del que veuen els jugadors.
+ */
+function ModeSwitch({ mode, onChange }: { mode: DMMode; onChange: (m: DMMode) => void }) {
+  const opts: [DMMode, string, React.ReactNode, string][] = [
+    ['preparar', 'Preparar', <WallIcon key="p" size={13} />, 'Construir el mapa: parets, portes, llums, graella i capes'],
+    ['jugar', 'Jugar', <SwordsIcon key="j" size={13} />, 'A la taula: regla, dibuix, màgies i torns'],
+  ];
+  return (
+    <div role="radiogroup" aria-label="Mode" style={{ display: 'flex', gap: 2, padding: 2, borderRadius: RADIUS.md + 2, background: C.bg, border: `1px solid ${C.border}`, flexShrink: 0 }}>
+      {opts.map(([m, label, icon, title]) => {
+        const on = mode === m;
+        return (
+          <button key={m} role="radio" aria-checked={on} onClick={() => onChange(m)} title={title}
+            style={{
+              height: 26, display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', border: 'none', borderRadius: RADIUS.md,
+              background: on ? tint(C.accent, 0.16) : 'transparent', color: on ? C.accent : C.dim,
+              fontSize: FS.sm, fontWeight: 700, cursor: 'pointer', transition: 'background .15s, color .15s',
+            }}>
+            {icon} {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── La barra ─────────────────────────────────────────────────────────────────
 
 /**
- * Barra superior del DM: l'únic lloc amb controls fora del mapa i del lateral. Hi han anat a
+ * Barra superior del DM: l'únic lloc amb controls fora del mapa i del lateral. Porta
+ * l'interruptor Preparar · Jugar (veure `lib/dm-mode`). Hi han anat a
  * parar la barreta de l'Expositor i el Revelador (ara «Mostrar als jugadors»), els xips de
  * dalt al centre (pantalles, desat, ressaltar, dreceres) i tot el peu del lateral (Modo
  * Jugador, Guardar/Cargar, servidor, Back Office, zoom i opacitat). El zoom ara és a la
@@ -411,11 +455,17 @@ export function TopBar(p: Props) {
         </div>
       </div>
 
-      <BarButton active={p.showOpen} onClick={p.onToggleShow}
-        title="Ensenya una imatge, un vídeo o un text a pantalla completa als jugadors">
-        <ImageIcon size={14} /> Mostrar als jugadors
-        {p.showActive && <Dot color={C.ok} />}
-      </BarButton>
+      <ModeSwitch mode={p.mode} onChange={p.onModeChange} />
+
+      {/* És cosa de la partida: a Preparar només surt si hi ha alguna cosa en pantalla
+          (perquè es pugui amagar). */}
+      {(p.mode === 'jugar' || p.showActive || p.showOpen) && (
+        <BarButton active={p.showOpen} onClick={p.onToggleShow}
+          title="Ensenya una imatge, un vídeo o un text a pantalla completa als jugadors">
+          <ImageIcon size={14} /> Mostrar als jugadors
+          {p.showActive && <Dot color={C.ok} />}
+        </BarButton>
+      )}
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center', gap: 6 }}>
         {p.ctrlPanActive && <ModeBadge color="#4ade80" title="Vista compartida temporal activa · toca CTRL per sortir (la vista torna on era)">CTRL · VISTA COMPARTIDA</ModeBadge>}
@@ -433,6 +483,7 @@ export function TopBar(p: Props) {
         {hasMap && (
           <ViewMenu open={menu === 'view'} onToggle={toggle('view')} onClose={close} hasPsd={p.hasPsd}
             bgOpacity={p.bgOpacity} onBgOpacityChange={p.onBgOpacityChange}
+            gridVisible={p.gridVisible} onToggleGrid={p.onToggleGrid}
             enemyHighlight={p.enemyHighlight} highlightLocked={p.highlightLocked}
             onToggleEnemyHighlight={p.onToggleEnemyHighlight} onToggleHighlightLocked={p.onToggleHighlightLocked} />
         )}

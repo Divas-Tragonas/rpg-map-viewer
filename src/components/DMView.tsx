@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
+import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -111,6 +112,10 @@ export function DMView() {
   // Pestanyes per funció: Escena (tot el que hi ha al mapa: jugadors i enemics de qualsevol
   // origen), Mapa (fons, capes, sales, llums) i Biblioteca (plantilles per afegir enemics).
   const [sidebarTab, setSidebarTab] = useState<'escena' | 'mapa' | 'biblioteca'>('escena');
+  // Preparar (construir el mapa) o Jugar (a la taula): decideix quines eines i pestanyes
+  // surten. El ref és perquè el wrapper de setDrawTool el pugui consultar sense dependències.
+  const [mode, setMode] = useState<DMMode>('jugar');
+  const modeRef = React.useRef<DMMode>('jugar');
   // Arrossegar el mapa: Espai premut (cursor de mà oberta) i pan en curs (mà tancada).
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
@@ -213,12 +218,37 @@ export function DMView() {
     R.rBgDmOpacity.current = v;
   }, [R]);
 
+  // ── Mode Preparar / Jugar ──────────────────────────────────────────────────
+  // La pestanya del lateral segueix el mode: Mapa només existeix a Preparar (i s'hi obre en
+  // entrar-hi); en tornar a Jugar, si s'hi era, es passa a Escena. El panell «Mostrar als
+  // jugadors» és cosa de la partida: es tanca en anar a Preparar (el que es mostri, es manté).
+  const applyMode = useCallback((m: DMMode) => {
+    if (modeRef.current === m) return;
+    modeRef.current = m; setMode(m);
+    if (m === 'preparar') {
+      setSidebarTab('mapa');
+      setExpositorOpen(false); setTextRevealOpen(false);
+    } else {
+      setSidebarTab(t => (t === 'mapa' ? 'escena' : t));
+    }
+  }, []);
+
   // ── setDrawTool wrapper (updates ref + state synchronously) ───────────────
   const setDrawTool = useCallback((fn: DrawTool | ((t: DrawTool) => DrawTool)) => {
     setDrawToolState(prev => {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       R.rDrawTool.current = next;
-      if (prev === 'pointer' && next !== 'pointer') { R.rPointerPos.current = null; R.rMeasure.current = { a: null, b: null }; }
+      // Triar una eina de l'altre mode (tecla 5 jugant, 1 preparant…) hi canvia sol: així
+      // les dreceres funcionen sempre i el mode no queda mai amb una eina que no hi és.
+      const need = modeForTool(next);
+      if (need) applyMode(need);
+      if (prev === 'pointer' && next !== 'pointer') {
+        R.rPointerPos.current = null; R.rMeasure.current = { a: null, b: null };
+        // El punter i la regla desapareixen també de les pantalles dels jugadors, sigui quin
+        // sigui el camí per on es deixa l'eina (botó, tecla o canvi de mode).
+        R.bcRef.current?.postMessage({ type: 'POINTER', pos: null }); R.wsRef.current?.send(JSON.stringify({ type: 'POINTER', pos: null }));
+        R.bcRef.current?.postMessage({ type: 'MEASURE', a: null, b: null }); R.wsRef.current?.send(JSON.stringify({ type: 'MEASURE', a: null, b: null }));
+      }
       if (prev === 'wall' && next !== 'wall') { R.rWallPenLast.current = null; R.rWallChain.current = []; R.rWallCursor.current = null; R.rHoveredRoomId.current = null; }
       if (prev === 'light' && next !== 'light') { R.rLightSelected.current = null; setLightSelectedId(null); R.rLightDrag.current = null; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
@@ -227,6 +257,13 @@ export function DMView() {
       return next;
     });
   }, [R]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Canvi de mode des de l'interruptor de la barra: si l'eina activa no existeix al mode
+  // nou, es torna a la selecció.
+  const switchMode = useCallback((m: DMMode) => {
+    applyMode(m);
+    setDrawTool(t => { const owner = modeForTool(t); return owner && owner !== m ? 'none' : t; });
+  }, [applyMode, setDrawTool]);
 
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
@@ -284,6 +321,7 @@ export function DMView() {
   }, []);
 
   const recoverAutosave = useCallback(async () => {
+    switchMode('jugar');
     setRecovering(true);
     try {
       const saved = await readAutosave();
@@ -292,7 +330,7 @@ export function DMView() {
       setRecovering(false);
       setAutosaveMeta(null);   // ja recuperada: el botó desapareix
     }
-  }, [applySessionState]);
+  }, [applySessionState, switchMode]);
 
   const discardAutosave = useCallback(async () => {
     await clearAutosave();
@@ -845,24 +883,35 @@ export function DMView() {
   const selectToken = useCallback((id: string | number) => {
     setSelectedToken(id); R.rSelectedToken.current = id;
   }, [R]);
+  // Enter passa el torn només a Jugar: a Preparar la barra de torns no es veu i un Enter
+  // perdut passaria el torn sense que el DM ho veiés.
+  const advanceTurnIfPlaying = useCallback(() => { if (mode === 'jugar') advanceTurn(); }, [mode, advanceTurn]);
   useKeyboardHandlers(R, {
     setDrawTool, undoStroke, undoTokenMove, undoMapEdit, skipBossIntro,
     toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
     onDeleteSelection,
     removeLastWall,
     cancelWallChain,
-    advanceTurn, toggleShortcuts, setSpaceHeld,
+    advanceTurn: advanceTurnIfPlaying, toggleShortcuts, setSpaceHeld,
   });
 
   // ── Fitxers deixats a qualsevol lloc del canvas ────────────────────────────
   // Abans només es podien deixar a la caixa petita «Img/Vídeo» del panell lateral, i el text
   // de benvinguda del centre ho demanava, però el centre no acceptava res.
+  // Obrir un mapa nou (o el seu PSD) és començar a preparar-lo: graella, parets, llums.
+  // Obrir una partida desada (fitxer, servidor, desat automàtic o la demo) és per jugar-la.
+  const openNewMap = useCallback((f: File) => { switchMode('preparar'); return loadBg(f); }, [switchMode, loadBg]);
+  const openPsd = useCallback((f: File) => { switchMode('preparar'); return loadPSD(f); }, [switchMode, loadPSD]);
+  const openSession = useCallback((f: File) => { switchMode('jugar'); return loadSession(f); }, [switchMode, loadSession]);
+  const openServerSession = useCallback((id: string) => { switchMode('jugar'); return serverLoadSession(id); }, [switchMode, serverLoadSession]);
+  const openDemo = useCallback(() => { switchMode('jugar'); return loadDemo(); }, [switchMode, loadDemo]);
+
   const loadAnyFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
-    if (name.endsWith('.psd')) void loadPSD(f);
-    else if (name.endsWith('.json')) void loadSession(f);
-    else if (f.type.startsWith('image/') || f.type.startsWith('video/')) void loadBg(f);
-  }, [loadPSD, loadSession, loadBg]);
+    if (name.endsWith('.psd')) void openPsd(f);
+    else if (name.endsWith('.json')) void openSession(f);
+    else if (f.type.startsWith('image/') || f.type.startsWith('video/')) void openNewMap(f);
+  }, [openPsd, openSession, openNewMap]);
   const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files');
   const onStageDragEnter = (e: React.DragEvent) => {
     if (!isFileDrag(e)) return;
@@ -895,6 +944,15 @@ export function DMView() {
     else { R.rHighlightAlpha.current = 0; R.highlightStartRef.current = null; }
     _broadcastState({});
   }, [_broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Graella visible / amagada (menú Vista, als dos modes). La configuració és al panell de
+  // Graella de Preparar; aquí només s'ensenya o s'amaga, sense obrir el calibratge.
+  const toggleGridVisible = useCallback(() => {
+    const nv = !R.rGridVisible.current;
+    R.rGridVisible.current = nv; setGridVisible(nv);
+    if (!nv && R.rGridCalibrating.current) { R.rGridCalibrating.current = false; setGridCalibrating(false); }
+    _broadcastState({});
+  }, [R, _broadcastState]);
 
   const onToggleHighlightLocked = useCallback(() => {
     const next = !R.rHighlightLocked.current;
@@ -1250,14 +1308,16 @@ export function DMView() {
       {/* ── Barra superior ───────────────────────────────────────────────── */}
       <TopBar
         mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
+        mode={mode} onModeChange={switchMode}
         showOpen={showPanelOpen} showActive={expositorActive || textRevealActive} onToggleShow={toggleShowPanel}
         ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
         onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
-        onExport={saveSession} onImport={loadSession}
+        onExport={saveSession} onImport={f => void openSession(f)}
         onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
         bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
+        gridVisible={gridVisible} onToggleGrid={toggleGridVisible}
         enemyHighlight={enemyHighlight} highlightLocked={highlightLocked}
         onToggleEnemyHighlight={onToggleEnemyHighlight} onToggleHighlightLocked={onToggleHighlightLocked}
         onShowShortcuts={toggleShortcuts}
@@ -1271,7 +1331,12 @@ export function DMView() {
       <div style={{ width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-          {([['escena', 'Escena'], ['mapa', 'Mapa'], ['biblioteca', 'Biblioteca']] as const).map(([tab, label]) => (
+          {/* Mapa només a Preparar (i primera). Escena i Biblioteca, als dos modes: col·locar
+              enemics és preparar, però afegir-ne un a mitja partida també passa. */}
+          {(mode === 'preparar'
+            ? [['mapa', 'Mapa'], ['escena', 'Escena'], ['biblioteca', 'Biblioteca']] as const
+            : [['escena', 'Escena'], ['biblioteca', 'Biblioteca']] as const
+          ).map(([tab, label]) => (
             <button key={tab} onClick={() => setSidebarTab(tab)}
               style={{ flex: 1, padding: '8px 4px', fontSize: FS.xs, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', border: 'none', cursor: 'pointer', background: sidebarTab === tab ? tint(C.accent, 0.09) : 'transparent', color: sidebarTab === tab ? C.accent : C.dim, borderBottom: sidebarTab === tab ? `2px solid ${C.accent}` : '2px solid transparent' }}>
               {label}
@@ -1302,13 +1367,13 @@ export function DMView() {
               />
             </>
           )}
-          {sidebarTab === 'mapa' && (
+          {sidebarTab === 'mapa' && mode === 'preparar' && (
             <>
               <ImportPanel
                 bgLoaded={bgLoaded} bgName={bgName} parsing={parsing} struct={psdStruct}
                 psdInfo={psdStruct ? psdInfo : null} parseError={parseError} warnings={warnings}
                 warningsDismissed={warningsDismissed} setWarningsDismissed={setWarningsDismissed}
-                onLoadBg={loadBg} onLoadPSD={loadPSD} onLoadDemo={loadDemo}
+                onLoadBg={f => void openNewMap(f)} onLoadPSD={f => void openPsd(f)} onLoadDemo={() => void openDemo()}
               />
               {psdStruct && (
                 <SidebarSection title="Capes del PSD" icon="🗂" defaultOpen maxBodyHeight={260}>
@@ -1320,7 +1385,6 @@ export function DMView() {
                   rooms={rooms} lights={lights} wallsCount={walls.length}
                   selectedLightId={lightSelectedId}
                   hoveredRoomRef={R.rHoveredRoomId}
-                  onUndoMapEdit={() => { undoMapEdit(); }} mapUndo={mapUndo}
                   onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
                   onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
                   onAddDoor={handleAddDoorToRoom} onResetExplored={onResetExplored}
@@ -1359,10 +1423,12 @@ export function DMView() {
           zoom={zoom} onZoomChange={onZoomChange} onResetView={onResetView}
         />
         <FloatingToolbar
+          mode={mode}
           drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
           drawSize={drawSize} setDrawSize={setDrawSize}
           canUndo={canUndo} paintedZones={paintedZones}
           onSetDrawTool={setDrawTool} onUndo={undoStroke}
+          onUndoMap={() => { undoMapEdit(); }} mapUndo={mapUndo}
           onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
           bcRef={R.bcRef} wsRef={R.wsRef}
           lightRadiusFt={newLightRadiusFt} lightSelected={lightSelectedId !== null} onSetLightRadius={setLightRadius}
@@ -1381,7 +1447,8 @@ export function DMView() {
             gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef,
           }}
         />
-        {bgLoaded && <TurnTracker
+        {/* Els torns són de la partida: a Preparar no surten (el combat continua igual). */}
+        {bgLoaded && mode === 'jugar' && <TurnTracker
           turn={turn}
           players={players}
           libEnemies={libEnemies}
@@ -1600,7 +1667,7 @@ export function DMView() {
                 <Button variant="primary" size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, minWidth: 170 }}>
                   <FolderOpen size={15} /> Obrir mapa
                 </Button>
-                <Button variant="secondary" size="lg" onClick={() => void loadDemo()} style={{ minWidth: 170 }}>
+                <Button variant="secondary" size="lg" onClick={() => void openDemo()} style={{ minWidth: 170 }}>
                   🧪 Provar la demo
                 </Button>
               </div>
@@ -1635,11 +1702,11 @@ export function DMView() {
               <div style={{ fontSize: FS.lg, marginTop: 16, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
             </div>
             <input ref={bgInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void loadBg(f); e.target.value = ''; }} />
+              onChange={e => { const f = e.target.files?.[0]; if (f) void openNewMap(f); e.target.value = ''; }} />
             <input ref={psdInputRef} type="file" accept=".psd" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void loadPSD(f); e.target.value = ''; }} />
+              onChange={e => { const f = e.target.files?.[0]; if (f) void openPsd(f); e.target.value = ''; }} />
             <input ref={sessionInputRef} type="file" accept=".json" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void loadSession(f); e.target.value = ''; }} />
+              onChange={e => { const f = e.target.files?.[0]; if (f) void openSession(f); e.target.value = ''; }} />
           </div>
         )}
 
@@ -1726,7 +1793,7 @@ export function DMView() {
           onClose={() => setShowServerSessions(false)}
           onSaveNew={name => serverSaveSession(name)}
           onOverwrite={(id, name) => serverSaveSession(name, id)}
-          onLoad={serverLoadSession}
+          onLoad={openServerSession}
         />
       )}
 

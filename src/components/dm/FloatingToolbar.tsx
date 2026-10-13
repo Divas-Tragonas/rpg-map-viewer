@@ -3,9 +3,11 @@ import React from 'react';
 import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon } from '@/components/icons';
 import { C, PALETTE, FS, RADIUS, SPELL_MODES } from '@/constants';
 import { GridPanel } from '@/components/dm/GridPanel';
+import { Button } from '@/components/ui/Button';
 import { HoverTip } from '@/components/ui/HoverTip';
 import type { DrawTool, PaintedZone, TokenSizeMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
+import type { DMMode } from '@/lib/dm-mode';
 
 interface GridProps {
   gridVisible: boolean; gridSize: number; gridSnap: boolean;
@@ -32,13 +34,19 @@ interface GridProps {
 }
 
 interface Props {
+  /** Preparar o Jugar: cada mode només ensenya les seves eines. */
+  mode: DMMode;
   drawTool: DrawTool;
   drawColor: string; setDrawColor: (c: string) => void;
   drawSize: number; setDrawSize: (n: number) => void;
   canUndo: boolean; paintedZones: PaintedZone[];
   onSetDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
+  /** Desfà l'últim traç (al panell de Dibuix). */
   onUndo: () => void;
   onClearDraw: () => void;
+  /** Desfà l'últim canvi del mapa (mode Preparar); `mapUndo` n'és l'etiqueta, null si no n'hi ha. */
+  onUndoMap: () => void;
+  mapUndo: string | null;
   onClearPaintedZones: () => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<SyncSocket | null>;
@@ -56,6 +64,8 @@ interface Props {
 
 interface ToolDef {
   tool: DrawTool;
+  /** Altres eines que encenen el mateix botó (Dibuix = ploma o goma). */
+  also?: DrawTool[];
   label: string;
   hint?: string;
   icon: React.ReactNode;
@@ -63,19 +73,22 @@ interface ToolDef {
   desc: React.ReactNode;
 }
 
-const TOOLS: ToolDef[] = [
+const SELECT_TOOL: ToolDef = {
+  tool: 'none', label: 'Selecció', hint: 'V', icon: <PointerIcon size={15} />, color: C.accent,
+  desc: <>El cursor de sempre: <b style={{ color: C.text }}>clica un token</b> per seleccionar-lo i arrossega&apos;l per moure&apos;l (doble clic si és d&apos;un grup, per moure&apos;ls tots). <b style={{ color: C.text }}>Arrossega en buit</b> per moure el mapa. <b style={{ color: C.text }}>Clic dret</b> obre el menú del token, de la sala o de la zona màgica. Sobre una <b style={{ color: C.text }}>porta</b>, el clic l&apos;obre o la tanca.
+    <div style={{ marginTop: 4 }}>Amb qualsevol eina: Espai+arrossegar mou el mapa · Esc torna aquí.</div></>,
+};
+
+/** Eines del mode Jugar (el que es fa a la taula). */
+const PLAY_TOOLS: ToolDef[] = [
+  SELECT_TOOL,
   {
-    tool: 'none', label: 'Selecció', hint: 'V', icon: <PointerIcon size={15} />, color: C.accent,
-    desc: <>El cursor de sempre: <b style={{ color: C.text }}>clica un token</b> per seleccionar-lo i arrossega&apos;l per moure&apos;l (doble clic si és d&apos;un grup, per moure&apos;ls tots). <b style={{ color: C.text }}>Arrossega en buit</b> per moure el mapa. <b style={{ color: C.text }}>Clic dret</b> obre el menú del token, de la sala o de la zona màgica. Sobre una <b style={{ color: C.text }}>porta</b>, el clic l&apos;obre o la tanca.
-      <div style={{ marginTop: 4 }}>Amb qualsevol eina: Espai+arrossegar mou el mapa · Esc torna aquí.</div></>,
+    tool: 'pointer', label: 'Senyal i regla', hint: '4', icon: <CrosshairIcon size={15} />, color: C.room,
+    desc: <>El teu cursor es veu a la pantalla dels jugadors, per assenyalar-los coses. A més fa de <b style={{ color: C.text }}>regla</b>: clica per marcar l&apos;inici, torna a clicar per fixar el final (la distància surt en peus) i un tercer clic l&apos;esborra.</>,
   },
   {
-    tool: 'pen', label: 'Ploma', hint: '1', icon: <PenLine size={15} />,
-    desc: <>Dibuixa a mà alçada sobre el mapa; als jugadors el traç es reprodueix <b style={{ color: C.text }}>animat</b>, com si l&apos;anessis fent davant seu. Tria el color i el gruix al panell del costat.</>,
-  },
-  {
-    tool: 'eraser', label: 'Goma', hint: '2', icon: <Eraser size={15} />,
-    desc: <>Esborra el que has dibuixat amb la ploma passant-hi el cursor per sobre. El gruix del pinzell mana quanta superfície neteja.</>,
+    tool: 'pen', also: ['eraser'], label: 'Dibuix', hint: '1 · 2', icon: <PenLine size={15} />,
+    desc: <>Dibuixa a mà alçada sobre el mapa; als jugadors el traç es reprodueix <b style={{ color: C.text }}>animat</b>, com si l&apos;anessis fent davant seu. Al panell del costat: <b style={{ color: C.text }}>ploma o goma</b> (tecles 1 i 2), color, gruix, desfer l&apos;últim traç i esborrar-ho tot.</>,
   },
   {
     tool: 'shape', label: 'Màgies', hint: '3', icon: <TriangleIcon size={15} />, color: C.magic,
@@ -94,14 +107,15 @@ const TOOLS: ToolDef[] = [
       <div style={{ marginTop: 4 }}>Ctrl+arrossegar mou tokens, zones i àrees · clic dret sobre una zona per esborrar-la.</div>
       <div style={{ marginTop: 4 }}><b style={{ color: C.text }}>Clic dret a un jugador</b> → ✨ Conjurs del seu grimori, llançats des del token amb l&apos;abast en peus.</div></>,
   },
+];
+
+/** Eines del mode Preparar (construir el mapa). La Graella és un botó a part (obre un panell). */
+const PREP_TOOLS: ToolDef[] = [
+  SELECT_TOOL,
   {
-    tool: 'pointer', label: 'Senyal i regla', hint: '4', icon: <CrosshairIcon size={15} />, color: C.room,
-    desc: <>El teu cursor es veu a la pantalla dels jugadors, per assenyalar-los coses. A més fa de <b style={{ color: C.text }}>regla</b>: clica per marcar l&apos;inici, torna a clicar per fixar el final (la distància surt en peus) i un tercer clic l&apos;esborra.</>,
-  },
-  {
-    tool: 'wall', label: 'Parets', hint: '5', icon: <WallIcon size={15} />, color: C.accent,
-    desc: <>Clica per anar posant parets <b style={{ color: C.text }}>on vulguis</b>; a prop d&apos;una paret o vèrtex existent l&apos;extrem s&apos;hi <b style={{ color: C.text }}>auto-enganxa</b>. En tancar un recinte es crea una <b style={{ color: C.text }}>sala fosca</b> i et demana on va la porta (dos clics: inici i final).
-      <div style={{ marginTop: 4 }}>Backspace desfà l&apos;última paret · Esc cancel·la la cadena · clic dret sobre una porta l&apos;elimina.</div></>,
+    tool: 'wall', label: 'Parets i portes', hint: '5', icon: <WallIcon size={15} />, color: C.accent,
+    desc: <>Clica per anar posant parets <b style={{ color: C.text }}>on vulguis</b>; a prop d&apos;una paret o vèrtex existent l&apos;extrem s&apos;hi <b style={{ color: C.text }}>auto-enganxa</b>. En tancar un recinte es crea una <b style={{ color: C.text }}>sala fosca</b> i et demana on va la porta (dos clics: inici i final). Arrossega un vèrtex per moure&apos;l.
+      <div style={{ marginTop: 4 }}>Backspace desfà l&apos;última paret · Esc cancel·la la cadena · clic dret sobre una paret o una porta l&apos;elimina.</div></>,
   },
   {
     tool: 'light', label: 'Llums', hint: '6', icon: <SunIcon size={15} />, color: '#ffcc33',
@@ -178,8 +192,8 @@ function ToolButton({ id, hover, setHover, onClick, active, color, disabled, sty
 }
 
 export function FloatingToolbar({
-  drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones,
-  onSetDrawTool, onUndo, onClearDraw, onClearPaintedZones, bcRef, wsRef,
+  mode, drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones,
+  onSetDrawTool, onUndo, onClearDraw, onUndoMap, mapUndo, onClearPaintedZones, bcRef, wsRef,
   lightRadiusFt, lightSelected, onSetLightRadius,
   ctrlPanActive, onToggleCtrlPan, shiftPanActive, onToggleShiftPan,
   areaSelectMode, onToggleAreaSelect, grid, disabled,
@@ -189,10 +203,19 @@ export function FloatingToolbar({
   const [hover, setHover] = React.useState<string | null>(null);
   // Al flyout hi queden només els controls que cal manipular (color/gruix, radi de llum);
   // les explicacions ja no hi viuen, ara surten al passar el cursor pel botó.
-  const showDrawFlyout = drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'light';
+  const drawing = drawTool === 'pen' || drawTool === 'eraser';
+  const showDrawFlyout = drawing || drawTool === 'light';
+  const prep = mode === 'preparar';
+  const tools = prep ? PREP_TOOLS : PLAY_TOOLS;
+  // El panell de la graella només existeix a Preparar (la visibilitat, al menú Vista).
+  const showGrid = prep && gridOpen;
 
-  const selectTool = (t: DrawTool) => onSetDrawTool(dt => {
-    const nt = dt === t ? 'none' : t;
+  // Tornar a clicar l'eina activa la deixa (torna a la selecció). Dibuix compta com a activa
+  // amb la ploma o amb la goma: el seu botó encén la ploma.
+  const selectTool = (def: ToolDef) => onSetDrawTool(dt => {
+    const t = def.tool;
+    const isOn = dt === t || (def.also?.includes(dt) ?? false);
+    const nt = isOn ? 'none' : t;
     if (nt === 'none' && dt === 'pointer') {
       bcRef.current?.postMessage({ type: 'POINTER', pos: null });
       bcRef.current?.postMessage({ type: 'MEASURE', a: null, b: null });
@@ -221,14 +244,25 @@ export function FloatingToolbar({
         style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', pointerEvents: 'auto', opacity: disabled ? 0.35 : 1, filter: disabled ? 'grayscale(1)' : 'none' }}>
         {/* Sense mapa: la barra es veu (se sap que existeix) però no reacciona ni mostra ajuda. */}
         <fieldset disabled={disabled} style={{ border: 'none', margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, pointerEvents: disabled ? 'none' : 'auto' }}>
-        {TOOLS.map(t => (
+        {tools.map(t => (
           <ToolButton key={t.tool} id={`tool_${t.tool}`} {...hoverProps}
-            onClick={() => selectTool(t.tool)}
-            active={drawTool === t.tool} color={t.color ?? drawColor}
+            onClick={() => selectTool(t)}
+            active={drawTool === t.tool || (t.also?.includes(drawTool) ?? false)} color={t.color ?? drawColor}
             tip={{ title: t.label, hint: t.hint, desc: t.desc }}>
             {t.icon}
           </ToolButton>
         ))}
+
+        {prep && (
+          <ToolButton id="grid" {...hoverProps} onClick={() => setGridOpen(o => !o)}
+            active={gridOpen} color={C.accent}
+            tip={{
+              title: 'Graella',
+              desc: <>Mida de casella, <b style={{ color: C.text }}>calibratge</b> arrossegant sobre una casella del mapa, gruix de línia, imantar els tokens a les caselles i ajustar-los la mida sols. Per ensenyar-la o amagar-la mentre jugues, menú <b style={{ color: C.text }}>Vista</b>.</>,
+            }}>
+            <GridIcon size={15} />
+          </ToolButton>
+        )}
 
         <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />
 
@@ -242,25 +276,21 @@ export function FloatingToolbar({
           </ToolButton>
         ))}
 
-        <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />
+        {(prep || paintedZones.length > 0) && <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />}
 
-        <ToolButton id="undo" {...hoverProps} onClick={onUndo} disabled={!canUndo}
-          tip={{
-            title: 'Desfer', hint: 'CTRL+Z',
-            desc: <>Treu l&apos;últim traç que has dibuixat. Amb l&apos;eina de selecció, el Ctrl+Z desfà l&apos;últim <b style={{ color: C.text }}>moviment de token</b> del torn en curs i li torna els peus gastats.</>,
-          }}>
-          <RotateCcw size={15} />
-        </ToolButton>
-
-        <ToolButton id="clear" {...hoverProps} onClick={onClearDraw}
-          tip={{
-            title: 'Esborrar el dibuix',
-            desc: <>Neteja de cop tot el dibuix a ploma del mapa, a la teva pantalla i a la dels jugadors.</>,
-          }}>
-          <Trash2 size={15} />
-        </ToolButton>
-
-        {paintedZones.length > 0 && (
+        {prep ? (
+          // Un sol desfer per als canvis del mapa (parets, sales, portes, llums): el mateix que
+          // el Ctrl+Z amb aquestes eines. El del dibuix viu al panell de Dibuix.
+          <ToolButton id="undomap" {...hoverProps} onClick={onUndoMap} disabled={!mapUndo}
+            tip={{
+              title: 'Desfer al mapa', hint: 'CTRL+Z',
+              desc: mapUndo
+                ? <>Desfà l&apos;últim canvi del mapa: <b style={{ color: C.text }}>{mapUndo}</b>.</>
+                : <>Desfà l&apos;últim canvi del mapa (paret, sala, porta o llum). Ara no n&apos;hi ha cap.</>,
+            }}>
+            <RotateCcw size={15} />
+          </ToolButton>
+        ) : paintedZones.length > 0 && (
           <ToolButton id="clearzones" {...hoverProps} onClick={onClearPaintedZones} active color={C.magic}
             style={{ fontSize: FS.xs, fontWeight: 700 }}
             tip={{
@@ -270,34 +300,42 @@ export function FloatingToolbar({
             ✨{paintedZones.length}
           </ToolButton>
         )}
-
-        <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />
-
-        <ToolButton id="grid" {...hoverProps} onClick={() => setGridOpen(o => !o)}
-          active={gridOpen || grid.gridVisible} color={C.accent}
-          tip={{
-            title: 'Graella',
-            desc: <>Obre la configuració del grid: mida de casella, <b style={{ color: C.text }}>calibratge</b> arrossegant sobre una casella del mapa, gruix de línia, imantar els tokens a les caselles i ajustar-los la mida sols.</>,
-          }}>
-          <GridIcon size={15} />
-        </ToolButton>
         </fieldset>
       </div>
 
-      {!disabled && (showDrawFlyout || gridOpen) && (
+      {!disabled && (showDrawFlyout || showGrid) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {gridOpen && <GridPanel {...grid} />}
+          {showGrid && <GridPanel {...grid} />}
           {showDrawFlyout && (
             <div style={{ padding: '8px 10px', borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150, pointerEvents: 'auto' }}>
-              {(drawTool === 'pen' || drawTool === 'eraser') && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  {PALETTE.map(c => (
-                    <div key={c} onClick={() => setDrawColor(c)} title={c}
-                      style={{ width: 15, height: 15, borderRadius: '50%', background: c, cursor: 'pointer', border: `2px solid ${drawColor === c ? C.bright : 'transparent'}`, boxSizing: 'border-box', flexShrink: 0 }} />
-                  ))}
-                  <input type="range" min={2} max={30} value={drawSize} onChange={e => setDrawSize(parseInt(e.target.value))}
-                    style={{ flex: 1, minWidth: 60, accentColor: drawColor }} />
-                  <span style={{ color: C.dim, fontSize: FS.xs, minWidth: 22, flexShrink: 0 }}>{drawSize}px</span>
+              {drawing && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 236 }}>
+                  <div role="radiogroup" aria-label="Ploma o goma" style={{ display: 'flex', gap: 4 }}>
+                    {([['pen', 'Ploma', '1', <PenLine key="p" size={13} />], ['eraser', 'Goma', '2', <Eraser key="e" size={13} />]] as const).map(([t, label, key, icon]) => (
+                      <Button key={t} size="sm" role="radio" aria-checked={drawTool === t} active={drawTool === t}
+                        color={t === 'pen' ? drawColor : C.text} title={`${label} (${key})`}
+                        onClick={() => onSetDrawTool(() => t)} style={{ flex: 1, gap: 5, height: 26 }}>
+                        {icon} {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {drawTool === 'pen' && PALETTE.map(c => (
+                      <button key={c} onClick={() => setDrawColor(c)} title={c} aria-label={`Color ${c}`}
+                        style={{ width: 15, height: 15, padding: 0, borderRadius: '50%', background: c, cursor: 'pointer', border: `2px solid ${drawColor === c ? C.bright : 'transparent'}`, boxSizing: 'border-box', flexShrink: 0 }} />
+                    ))}
+                    <input type="range" min={2} max={30} value={drawSize} onChange={e => setDrawSize(parseInt(e.target.value))}
+                      aria-label="Gruix" style={{ flex: 1, minWidth: 60, accentColor: drawTool === 'pen' ? drawColor : C.dim }} />
+                    <span style={{ color: C.dim, fontSize: FS.xs, minWidth: 22, flexShrink: 0 }}>{drawSize}px</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Button size="sm" onClick={onUndo} disabled={!canUndo} title="Desfer l'últim traç (Ctrl+Z)" style={{ flex: 1, gap: 5, height: 26 }}>
+                      <RotateCcw size={11} /> Desfer traç
+                    </Button>
+                    <Button size="sm" variant="danger" onClick={onClearDraw} title="Esborra tot el dibuix, també a la pantalla dels jugadors" style={{ flex: 1, gap: 5, height: 26 }}>
+                      <Trash2 size={11} /> Esborrar tot
+                    </Button>
+                  </div>
                 </div>
               )}
               {drawTool === 'light' && (
