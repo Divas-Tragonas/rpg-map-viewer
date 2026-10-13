@@ -60,6 +60,16 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.27 — Una sola barra a dalt i res repetit (simplificació, fase 1)
+- **Barra superior nova** amb tot el que no és el mapa ni el lateral: nom del mapa, «Mostrar als jugadors», pantalles de jugador, partida, vista i ⋯. Desapareixen la barreta d'Expositor/Text de dalt a l'esquerra, els xips de dalt al centre i tot el peu del lateral.
+- **Expositor i Revelador de text en un sol panell** («Mostrar als jugadors») amb dues pestanyes: Imatge o vídeo · Text. Ja s'excloïen l'un a l'altre; un punt verd diu què s'està mostrant.
+- **Pantalles de jugador**: un sol botó en lloc de «Modo Jugador» + el xip «Cap pantalla». En groc mentre no n'hi ha cap; dins, obrir-ne una en aquest PC i l'adreça per a la tablet.
+- **Menú Partida**: desat automàtic (amb interruptor i quan s'ha desat per últim cop), desar ara, exportar a un fitxer .json, obrir un fitxer i partides al servidor. Abans eren quatre controls repartits.
+- **Zoom a la cantonada del mapa** (− 100% +; clic al percentatge = restablir la vista). L'opacitat del mapa i «Ressaltar enemics» van al menú **Vista**; les dreceres de teclat i el back office, al menú **⋯**.
+- Fora els botons de Parets i Llums repetits a la capçalera de Sales (ja són a la barra d'eines).
+- **Barra de desplaçament integrada** al lateral: va per sobre del contingut, és invisible en repòs, surt suau en passar-hi el cursor o en fer scroll i es pot arrossegar.
+- Tot en català: fora «Modo Jugador», «Guardar», «Cargar», «Resaltar», «Bloqueado permanente». Plantilles «Zombi», «Trol» i «Bandit»; la partida es descarrega com a `partida-rpg.json`.
+
 ### v4.26 — Enemics de la BD agrupats per projecte o per categoria
 - **Cada enemic del back office pot tenir un projecte i una categoria** (text lliure, p. ex. «La cripta» i «Morts vivents»). Al formulari es proposen els que ja existeixen.
 - **Agrupar per Projecte · Categoria · Cap**, al back office (`/admin/enemics`) i a la Biblioteca del DM (Base de dades). Cada grup té una capçalera amb fletxa i nombre d'enemics; plegar-lo amaga els seus enemics. «Plegar tot» / «Desplegar tot» d'un sol clic.

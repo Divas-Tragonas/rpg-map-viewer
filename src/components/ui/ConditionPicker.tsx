@@ -19,7 +19,7 @@ interface Props {
  * Cada estat és una fitxa amb el seu **isotip** i el nom **en català**; les
  * traduccions al castellà i a l'anglès van al **`title` natiu** del botó — la
  * finestreta grisa del sistema, com la resta de botons de l'app (`PlayersPanel`,
- * `BottomControls`, `CanvasHUD`). Abans era una finestreta pròpia que ocupava
+ * `TopBar`, `CanvasHUD`). Abans era una finestreta pròpia que ocupava
  * espai i obligava el menú a portar `overflow: visible`.
  *
  * Les fitxes actives s'omplen del color de l'estat: així el menú i el distintiu

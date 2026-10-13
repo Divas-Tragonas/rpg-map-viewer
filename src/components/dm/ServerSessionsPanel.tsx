@@ -108,7 +108,7 @@ export function ServerSessionsPanel({ onClose, onSaveNew, onOverwrite, onLoad }:
               </Link>
             </div>
             <div style={{ marginTop: 14, fontSize: FS.sm, color: C.dim }}>
-              Mentrestant pots seguir usant «Guardar» / «Cargar» amb fitxer .json.
+              Mentrestant pots exportar i obrir la partida en un fitxer .json des del menú Partida.
             </div>
           </div>
         ) : (

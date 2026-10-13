@@ -583,7 +583,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'sesion-rpg.json'; a.click();
+    a.href = url; a.download = 'partida-rpg.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [buildSessionState]);
 

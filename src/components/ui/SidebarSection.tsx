@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { C, FS, RADIUS } from '@/constants';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 
 interface Props {
   title: string;
@@ -49,9 +50,9 @@ export function SidebarSection({
       </div>
       <div style={{ display: 'grid', gridTemplateRows: open ? '1fr' : '0fr', transition: 'grid-template-rows .2s ease' }}>
         <div style={{ overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ padding: bodyPadding, maxHeight: maxBodyHeight, overflowY: maxBodyHeight ? 'auto' : undefined }}>
-            {children}
-          </div>
+          {maxBodyHeight
+            ? <ScrollArea viewportStyle={{ maxHeight: maxBodyHeight, padding: bodyPadding }}>{children}</ScrollArea>
+            : <div style={{ padding: bodyPadding }}>{children}</div>}
         </div>
       </div>
     </div>

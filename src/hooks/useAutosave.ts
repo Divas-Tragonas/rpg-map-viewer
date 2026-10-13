@@ -9,7 +9,7 @@ import type { DMRefs } from './useDMRefs';
 const PERIOD_MS = 30_000;
 
 interface Opts {
-  /** true mentre l'usuari vulgui autodesat (interruptor del HUD). */
+  /** true mentre l'usuari vulgui autodesat (interruptor del menú Partida). */
   enabled: boolean;
   /** Hi ha partida per desar? Sense mapa carregat no es desa res. */
   hasMap: boolean;
@@ -24,7 +24,7 @@ interface Opts {
  * `_broadcastState` ha marcat canvis** (`rAutosaveDirty`), i sempre que la pestanya passa
  * a segon pla — que és quan el navegador té més números de descarregar-la.
  *
- * Retorna la marca de temps de l'últim desat correcte (per al xip del HUD) i un
+ * Retorna la marca de temps de l'últim desat correcte (per al botó Partida de la barra superior) i un
  * `saveNow()` per forçar-ne un.
  */
 export function useAutosave(R: DMRefs, { enabled, hasMap, mapName, buildRecord }: Opts) {

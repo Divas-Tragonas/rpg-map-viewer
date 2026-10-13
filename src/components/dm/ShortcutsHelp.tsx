@@ -47,7 +47,7 @@ const kbd: React.CSSProperties = {
 };
 
 /**
- * Finestra de dreceres de teclat (tecla ? o botó ⌨ del HUD). Una drecera que només existeix
+ * Finestra de dreceres de teclat (tecla ? o menú ⋯ de la barra superior). Una drecera que només existeix
  * al teclat no la descobreix ningú: aquí es poden consultar totes.
  */
 export function ShortcutsHelp({ onClose }: Props) {

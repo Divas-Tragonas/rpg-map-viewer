@@ -10,6 +10,22 @@ input[type=color] { cursor: pointer; }
 ::-webkit-scrollbar-track { background: #0d1117; }
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+/* Barra de desplaçament integrada (`ui/ScrollArea.tsx`): va per sobre del contingut, és
+   invisible en repòs, surt suau en passar el cursor per la zona, es veu mentre fas scroll
+   (`data-scrolling`) i s'eixampla quan t'hi apropes o l'arrossegues. */
+.sa-viewport { scrollbar-width: none; }
+.sa-viewport::-webkit-scrollbar { display: none; }
+.sa-rail { position: absolute; top: 0; right: 0; bottom: 0; width: 8px; opacity: 0; transition: opacity .45s ease; }
+.sa-root[data-overflow="false"] > .sa-rail { display: none; }
+.sa-root:hover > .sa-rail { opacity: .45; transition-duration: .2s; }
+.sa-root[data-scrolling] > .sa-rail,
+.sa-root[data-dragging] > .sa-rail,
+.sa-rail:hover { opacity: 1; transition-duration: .12s; }
+.sa-thumb { position: absolute; top: 0; right: 2px; width: 4px; border-radius: 999px; background: rgba(201,209,217,.28); transition: width .15s ease, right .15s ease, background-color .15s ease; touch-action: none; }
+.sa-rail:hover > .sa-thumb,
+.sa-root[data-dragging] > .sa-rail > .sa-thumb { width: 6px; right: 1px; background: rgba(201,209,217,.5); }
+/* Opcions dels menús de la barra superior (`dm/TopBar.tsx`). */
+.dm-menu-item:hover:not(:disabled) { background: rgba(255,255,255,.06); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
 /* Barra de torns en mode edició: el xip que s'agafa per reordenar s'aixeca (`TurnTracker.tsx`). */
 @keyframes tt-lift { from { transform: scale(1) } to { transform: scale(1.1) } }

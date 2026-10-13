@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.26';
+export const APP_VERSION = 'v4.27';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -70,12 +70,12 @@ export const ENEMY_TEMPLATES = [
   { id: 'goblin',   name: 'Goblin',   color: '#3a8a3a', hpMax: 7,   R: 25, sm: 0.70 },
   { id: 'wolf',     name: 'Llop',     color: '#8a7060', hpMax: 11,  R: 28, sm: 0.80 },
   { id: 'bear',     name: 'Ós',       color: '#8B5E3C', hpMax: 34,  R: 39, sm: 1.10 },
-  { id: 'zombie',   name: 'Zombie',   color: '#4a7a4a', hpMax: 22,  R: 33, sm: 0.95 },
+  { id: 'zombie',   name: 'Zombi',    color: '#4a7a4a', hpMax: 22,  R: 33, sm: 0.95 },
   { id: 'skeleton', name: 'Esquelet', color: '#c8b87a', hpMax: 13,  R: 26, sm: 0.75 },
   { id: 'orc',      name: 'Orc',      color: '#5a7a2a', hpMax: 15,  R: 35, sm: 1.00 },
-  { id: 'troll',    name: 'Troll',    color: '#3a6030', hpMax: 84,  R: 53, sm: 1.50 },
+  { id: 'troll',    name: 'Trol',     color: '#3a6030', hpMax: 84,  R: 53, sm: 1.50 },
   { id: 'rat',      name: 'Rata',     color: '#7a6060', hpMax: 2,   R: 14, sm: 0.40 },
-  { id: 'bandit',   name: 'Bandid',   color: '#6a5a4a', hpMax: 11,  R: 35, sm: 1.00 },
+  { id: 'bandit',   name: 'Bandit',   color: '#6a5a4a', hpMax: 11,  R: 35, sm: 1.00 },
   { id: 'spider',   name: 'Aranya',   color: '#3a3a5a', hpMax: 4,   R: 16, sm: 0.45 },
   { id: 'dragon',   name: 'Drac',     color: '#c0392b', hpMax: 178, R: 70, sm: 2.00 },
 ] as const;

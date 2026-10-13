@@ -202,7 +202,7 @@ export function PlayerView() {
   const bcHandlerRef = useRef<((ev: MessageEvent) => Promise<void> | void) | null>(null);
   const wsRef = useRef<SyncSocket | null>(null);
   // Identificador d'aquesta pantalla (efímer, per sessió de pestanya): permet al DM
-  // distingir-la de la resta al llistat de pantalles connectades del HUD.
+  // distingir-la de la resta al llistat de pantalles connectades del DM (menú de pantalles de la barra superior).
   // (Es genera al primer report, no al render: el render ha de ser pur.)
   const screenIdRef = useRef('');
   const _reportViewport = useCallback(() => {
@@ -838,7 +838,7 @@ export function PlayerView() {
   // ── Format de pantalla → DM ───────────────────────────────────────────────
   // El DM no pot saber com és de gran ni de quin format és cada pantalla connectada.
   // Amb `cam` (enquadrament de mapa) ningú no veu MENYS que ell, però una pantalla més
-  // ampla sí que veu MÉS: aquest report permet que el DM ho vegi al HUD i no es pensi
+  // ampla sí que veu MÉS: aquest report permet que el DM ho vegi al menú de pantalles i no es pensi
   // que el marc que composa és exactament el que hi ha a l'altra banda.
   useEffect(() => {
     _reportViewport();

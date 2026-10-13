@@ -26,7 +26,6 @@ import { RoomsPanel } from '@/components/dm/RoomsPanel';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
 import { FloatingToolbar } from '@/components/dm/FloatingToolbar';
 import { EnemyLibraryPanel } from '@/components/dm/EnemyLibraryPanel';
-import { BottomControls } from '@/components/dm/BottomControls';
 import { CanvasHUD } from '@/components/dm/CanvasHUD';
 import { SpellMenuOverlay } from '@/components/dm/SpellMenuOverlay';
 import { ShapeMenuOverlay } from '@/components/dm/ShapeMenuOverlay';
@@ -34,17 +33,23 @@ import { ContextMenuOverlay } from '@/components/dm/ContextMenuOverlay';
 import { SceneConfigOverlay } from '@/components/dm/SceneConfigOverlay';
 import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
-import { StageTopBar } from '@/components/dm/StageTopBar';
+import { TopBar } from '@/components/dm/TopBar';
+import { ShowPanelHeader, type ShowTab } from '@/components/dm/ShowPanelHeader';
 import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { SidebarSection } from '@/components/ui/SidebarSection';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Button } from '@/components/ui/Button';
-import { FolderOpen } from '@/components/icons';
+import { FolderOpen, ImageIcon } from '@/components/icons';
 import { isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
 import { useAutosave } from '@/hooks/useAutosave';
 import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
+
+/** Amplada del panell «Mostrar als jugadors» (la mateixa per a les dues pestanyes: canviar
+ *  de pestanya no ha de fer saltar el panell). */
+const SHOW_PANEL_W = 560;
 
 const welcomeLink: React.CSSProperties = {
   background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: FS.sm,
@@ -164,6 +169,10 @@ export function DMView() {
 
   // ── Revelador de text ──────────────────────────────────────────────────────
   const [textRevealOpen, setTextRevealOpen] = useState(false);
+  // «Mostrar als jugadors»: Expositor i Revelador són les dues pestanyes d'un sol panell.
+  // Cada pestanya continua obrint el seu estat de sempre (expositorOpen / textRevealOpen),
+  // així els seus bucles i dreceres de teclat no canvien; la pestanya recorda l'última.
+  const [showTab, setShowTab] = useState<ShowTab>('imatge');
   const [textRevealActive, setTextRevealActive] = useState(false);
   const [trDramatic, setTrDramatic] = useState(true);
   const [trManual, setTrManual] = useState(false);
@@ -879,8 +888,6 @@ export function DMView() {
     _broadcastState({});
   }, [_broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onResetPrivate = useCallback(() => { R.dmPrivateReturnAnim.current = true; }, [R]);
-
   const onToggleEnemyHighlight = useCallback(() => {
     const next = !R.rEnemyHighlight.current;
     R.rEnemyHighlight.current = next; setEnemyHighlight(next);
@@ -991,6 +998,20 @@ export function DMView() {
     expositorActiveRef.current = false;
     setExpositorActive(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Panell «Mostrar als jugadors» (pestanyes Imatge o vídeo / Text) ─────────
+  const openShowTab = useCallback((t: ShowTab) => {
+    setShowTab(t);
+    setExpositorOpen(t === 'imatge');
+    setTextRevealOpen(t === 'text');
+  }, []);
+  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); }, []);
+  const showPanelOpen = expositorOpen || textRevealOpen;
+  const toggleShowPanel = useCallback(() => {
+    if (showPanelOpen) closeShowPanel();
+    // Si ara mateix s'està mostrant alguna cosa, s'obre per aquella pestanya.
+    else openShowTab(textRevealActive ? 'text' : expositorActive ? 'imatge' : showTab);
+  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, expositorActive, showTab]);
 
   // ── Expositor RAF loop: KB animation + EXPOSITOR_SYNC broadcast ───────────
   useEffect(() => {
@@ -1224,7 +1245,27 @@ export function DMView() {
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', height: '100vh', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
+
+      {/* ── Barra superior ───────────────────────────────────────────────── */}
+      <TopBar
+        mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
+        showOpen={showPanelOpen} showActive={expositorActive || textRevealActive} onToggleShow={toggleShowPanel}
+        ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode}
+        playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
+        autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
+        onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
+        onExport={saveSession} onImport={loadSession}
+        onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
+        bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
+        enemyHighlight={enemyHighlight} highlightLocked={highlightLocked}
+        onToggleEnemyHighlight={onToggleEnemyHighlight} onToggleHighlightLocked={onToggleHighlightLocked}
+        onShowShortcuts={toggleShortcuts}
+      />
+
+      {/* Context d'apilament propi (zIndex 0): els menús de la barra queden sempre per sobre
+          del que hi ha a l'escenari. */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative', zIndex: 0 }}>
 
       {/* ── Left sidebar ─────────────────────────────────────────────────── */}
       <div style={{ width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
@@ -1238,8 +1279,8 @@ export function DMView() {
           ))}
         </div>
 
-        {/* Tab content */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {/* Tab content (barra de desplaçament pròpia: discreta i amagada en repòs) */}
+        <ScrollArea style={{ flex: 1 }}>
           {sidebarTab === 'escena' && (
             <>
               <PlayersPanel
@@ -1277,12 +1318,8 @@ export function DMView() {
               {bgLoaded && (
                 <RoomsPanel
                   rooms={rooms} lights={lights} wallsCount={walls.length}
-                  wallToolActive={drawToolState === 'wall'}
-                  lightToolActive={drawToolState === 'light'}
                   selectedLightId={lightSelectedId}
                   hoveredRoomRef={R.rHoveredRoomId}
-                  onActivateWallTool={() => setDrawTool(drawToolState === 'wall' ? 'none' : 'wall')}
-                  onActivateLightTool={() => setDrawTool(drawToolState === 'light' ? 'none' : 'light')}
                   onUndoMapEdit={() => { undoMapEdit(); }} mapUndo={mapUndo}
                   onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
                   onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
@@ -1299,15 +1336,7 @@ export function DMView() {
               onAddDbEnemy={addDbEnemy}
             />
           )}
-        </div>
-
-        <BottomControls
-          hasMap={bgLoaded}
-          zoom={zoom} onZoomChange={onZoomChange}
-          onSave={saveSession} onLoad={loadSession} onOpenPlayer={openPlayerWindow}
-          onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
-          bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
-        />
+        </ScrollArea>
       </div>
 
       {/* ── Main canvas area ──────────────────────────────────────────────── */}
@@ -1326,16 +1355,8 @@ export function DMView() {
           onDoubleClick={onDoubleClick}
         />
         <CanvasHUD
-          ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode} struct={psdStruct} vis={vis}
-          enemyHighlight={enemyHighlight}
-          highlightLocked={highlightLocked} gridCalibrating={gridCalibrating}
-          onResetView={onResetView} onResetPrivate={onResetPrivate}
-          onToggleEnemyHighlight={onToggleEnemyHighlight}
-          onToggleHighlightLocked={onToggleHighlightLocked}
-          playerScreens={playerScreens} camAr={camAr}
-          hasMap={bgLoaded} autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
-          onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
-          onOpenPlayer={openPlayerWindow} onShowShortcuts={toggleShortcuts}
+          gridCalibrating={gridCalibrating} hasMap={bgLoaded}
+          zoom={zoom} onZoomChange={onZoomChange} onResetView={onResetView}
         />
         <FloatingToolbar
           drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
@@ -1377,23 +1398,11 @@ export function DMView() {
           onRecoverTurn={recoverTurn}
           onReorder={reorderTurn}
         />}
-        <StageTopBar
-          expositorOpen={expositorOpen} expositorActive={expositorActive}
-          onToggleExpositor={() => setExpositorOpen(v => { if (!v) setTextRevealOpen(false); return !v; })}
-          textOpen={textRevealOpen} textActive={textRevealActive}
-          onToggleText={() => setTextRevealOpen(v => { if (!v) setExpositorOpen(false); return !v; })}
-        />
-
         {/* Expositor floating panel */}
         {expositorOpen && (
-          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 480, background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ color: C.bright, fontWeight: 700, fontSize: FS.md }}>Expositor de Campanya</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: C.dim, fontSize: FS.xs }}>Espai: reset/pausa KB</span>
-                <button onClick={() => setExpositorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: FS.lg, lineHeight: 1 }}>×</button>
-              </div>
-            </div>
+          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive}
+              hint="Espai: reinicia / pausa el moviment" onClose={closeShowPanel} />
             {/* Preview area with KB animation and pan/zoom */}
             <div
               ref={expositorPreviewRef}
@@ -1431,20 +1440,20 @@ export function DMView() {
                     style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center', userSelect: 'none', pointerEvents: 'none' }}
                   >
                     {expositorLocalType === 'image' && (
-                      <img src={expositorLocalSrc} alt="" draggable={false} style={{ maxWidth: 480, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
+                      <img src={expositorLocalSrc} alt="" draggable={false} style={{ maxWidth: SHOW_PANEL_W, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
                     )}
                     {expositorLocalType === 'video' && (
-                      <video src={expositorLocalSrc} muted autoPlay loop playsInline draggable={false} style={{ maxWidth: 480, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
+                      <video src={expositorLocalSrc} muted autoPlay loop playsInline draggable={false} style={{ maxWidth: SHOW_PANEL_W, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
                     )}
                   </div>
                   <div style={{ position: 'absolute', bottom: 6, right: 8, color: 'rgba(255,255,255,0.3)', fontSize: FS.xs, pointerEvents: 'none', letterSpacing: '0.08em' }}>
-                    scroll zoom · drag pan · espai reset
+                    roda: zoom · arrossega: mou · espai: reinicia
                   </div>
                 </>
               )}
               {!expositorLocalSrc && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8, color: C.dim }}>
-                  <div style={{ fontSize: 28 }}>🖼</div>
+                  <ImageIcon size={28} color={C.dim} />
                   <div style={{ fontSize: FS.sm }}>Arrossega o clica per carregar imatge / vídeo</div>
                 </div>
               )}
@@ -1474,14 +1483,9 @@ export function DMView() {
 
         {/* Revelador de text floating panel */}
         {textRevealOpen && (
-          <div style={{ position: 'absolute', top: 60, left: 12, zIndex: 20, width: 620, maxHeight: 'calc(100vh - 78px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ color: C.bright, fontWeight: 700, fontSize: FS.md }}>Revelador de Text</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: C.dim, fontSize: FS.xs }}>Espai: revela/pausa · ←→ navega · R reinicia</span>
-                <button onClick={() => setTextRevealOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, fontSize: FS.lg, lineHeight: 1 }}>×</button>
-              </div>
-            </div>
+          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive}
+              hint="Espai: revela / pausa · ←→ navega · R reinicia" onClose={closeShowPanel} />
 
             <div style={{ overflowY: 'auto', minHeight: 0 }}>
               {/* Editor */}
@@ -1650,6 +1654,7 @@ export function DMView() {
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* ── Overlays ──────────────────────────────────────────────────────── */}

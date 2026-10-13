@@ -9,13 +9,9 @@ interface Props {
   rooms: Room[];
   lights: LightSource[];
   wallsCount: number;
-  wallToolActive: boolean;
-  lightToolActive: boolean;
   selectedLightId: string | null;
   /** Ref del hover de sala: pintar-hi l'id ressalta la sala al canvas (renderRooms). */
   hoveredRoomRef: React.MutableRefObject<string | null>;
-  onActivateWallTool: () => void;
-  onActivateLightTool: () => void;
   /** Desfà l'últim canvi al mapa; `mapUndo` és la seva etiqueta (null = res a desfer). */
   onUndoMapEdit: () => void;
   mapUndo: string | null;
@@ -125,8 +121,8 @@ function RoomRow({
  * en un mapa amb moltes sales la llista sencera empenyia els jugadors fora de la pantalla.
  */
 export function RoomsPanel({
-  rooms, lights, wallsCount, wallToolActive, lightToolActive, selectedLightId, hoveredRoomRef,
-  onActivateWallTool, onActivateLightTool, onUndoMapEdit, mapUndo, onSetRoomDark, onToggleRoomReveal,
+  rooms, lights, wallsCount, selectedLightId, hoveredRoomRef,
+  onUndoMapEdit, mapUndo, onSetRoomDark, onToggleRoomReveal,
   onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onSelectLight, onRemoveLight,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -142,22 +138,17 @@ export function RoomsPanel({
         title="Sales" icon="🏛" count={rooms.length} countColor={C.room}
         defaultOpen={false} maxBodyHeight={230}
         actions={
-          <>
-            <SectionButton onClick={onActivateWallTool} active={wallToolActive}
-              title="Eina Parets (5): dibuixa parets i les sales es detecten soles">🧱</SectionButton>
-            <SectionButton onClick={onActivateLightTool} active={lightToolActive} color="#ffcc33"
-              title="Eina Llums (6): col·loca torxes dins de les sales">🔆</SectionButton>
-            {/* Un mode que només existeix al teclat no el descobreix ningú: el botó i el
-                Ctrl+Z criden exactament la mateixa funció. */}
-            <SectionButton onClick={onUndoMapEdit} disabled={!mapUndo}
-              title={mapUndo ? `Desfer: ${mapUndo} (Ctrl+Z)` : 'Res a desfer al mapa'}>↶</SectionButton>
-          </>
+          // Les eines Parets i Llums ja són a la barra d'eines: aquí no es repeteixen. El
+          // desfer sí: és l'únic botó visible per desfer canvis del mapa (botó i Ctrl+Z
+          // criden la mateixa funció).
+          <SectionButton onClick={onUndoMapEdit} disabled={!mapUndo}
+            title={mapUndo ? `Desfer: ${mapUndo} (Ctrl+Z)` : 'Res a desfer al mapa'}>↶</SectionButton>
         }>
         {rooms.length === 0 ? (
           <div style={{ padding: '2px 12px 8px', color: C.dim, fontSize: FS.sm, lineHeight: 1.5 }}>
             {wallsCount > 0
               ? 'Hi ha parets dibuixades però cap recinte tancat encara. Tanca el perímetre perquè es detecti una sala.'
-              : 'Dibuixa parets amb l’eina 🧱 i les sales apareixeran aquí. No cal cap arxiu de Photoshop.'}
+              : 'Dibuixa parets amb l’eina Parets de la barra d’eines (tecla 5) i les sales apareixeran aquí. No cal cap arxiu de Photoshop.'}
           </div>
         ) : (
           <>
