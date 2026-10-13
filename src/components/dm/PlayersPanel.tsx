@@ -15,9 +15,11 @@ interface Props {
   onAdd: () => void;
   onAdjustHp: (id: number, delta: number) => void;
   onLoadParty: () => void;
-  /** Token seleccionat (la seva fitxa és a baix del lateral) i com seleccionar-ne un. */
+  /** Token seleccionat i com seleccionar-ne un. */
   selectedToken: string | number | null;
   onSelect: (id: string) => void;
+  /** Clic dret a la fila: el mateix menú que al mapa (vida, fitxa, estats…). */
+  onMenu: (id: string, x: number, y: number) => void;
   defeated: DefeatedMap;
 }
 
@@ -25,17 +27,19 @@ interface Props {
  * Fila d'un jugador: inicials amb el seu color, nom, 🔒 si no es pot moure des de la seva
  * pantalla i la vida. Fa la mateixa alçada que les files d'enemics (abans era una targeta
  * de 68 px amb un engranatge i, amb cinc jugadors, els enemics quedaven fora de la vista).
- * Clicar-la selecciona el token i n'obre la fitxa (nom, vida màxima, velocitat, visió…).
+ * Clic selecciona el token; clic dret obre el seu menú, amb la fitxa (vida màxima, velocitat,
+ * visió…), com fer clic dret al token al mapa.
  */
-function PlayerRow({ pl, selected, defeated, onSelect, onAdjustHp }: {
+function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp }: {
   pl: Player; selected: boolean; defeated: boolean;
-  onSelect: () => void; onAdjustHp: (delta: number) => void;
+  onSelect: () => void; onMenu: (x: number, y: number) => void; onAdjustHp: (delta: number) => void;
 }) {
   const [hover, setHover] = useState(false);
   const hp = pl.hp ?? pl.hpMax;
   return (
     <div onClick={onSelect} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      title="Clic per obrir-ne la fitxa"
+      onContextMenu={e => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
+      title="Clic per seleccionar-lo · clic dret per editar-lo"
       style={{
         display: 'flex', alignItems: 'center', gap: 7, minHeight: 32, padding: '2px 6px 2px 4px', cursor: 'pointer',
         borderRadius: RADIUS.sm, background: selected ? tint(C.room, 0.12) : hover ? 'rgba(255,255,255,0.03)' : 'transparent',
@@ -57,7 +61,7 @@ function PlayerRow({ pl, selected, defeated, onSelect, onAdjustHp }: {
   );
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, defeated }: Props) {
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, onMenu, defeated }: Props) {
   const [addOpen, setAddOpen] = useState(false);
   return (
     <SidebarSection title="Jugadors" icon="🧙" count={players.length} countColor={C.hpHigh} bodyPadding="0 6px 8px"
@@ -94,7 +98,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
         {players.map(pl => (
           <PlayerRow key={pl.id} pl={pl}
             selected={selectedToken === `pl_${pl.id}`} defeated={!!defeated[`pl_${pl.id}`]}
-            onSelect={() => onSelect(`pl_${pl.id}`)} onAdjustHp={d => onAdjustHp(pl.id, d)} />
+            onSelect={() => onSelect(`pl_${pl.id}`)} onMenu={(x, y) => onMenu(`pl_${pl.id}`, x, y)} onAdjustHp={d => onAdjustHp(pl.id, d)} />
         ))}
       </div>
       {players.length === 0 && !addOpen && (

@@ -15,6 +15,8 @@ interface Props {
   defeated: DefeatedMap;
   selectedToken: string | number | null;
   onSelect: (id: string | number) => void;
+  /** Clic dret a la fila: el mateix menú que al mapa (vida, fitxa, estats…). */
+  onMenu: (id: string | number, x: number, y: number) => void;
   onTogglePsdVis: (id: number) => void;
   onAdjustPsdHp: (id: number, delta: number) => void;
   onResetPsd: (en: PSDLayer) => void;
@@ -31,15 +33,16 @@ interface Props {
  * n'hi puguin apilar molts. La vida és el mateix `HpControl` que la fila de jugador, en
  * mida `sm`. Les accions secundàries (reposicionar, eliminar) surten en passar-hi el cursor.
  */
-function EnemyRow({ name, color, visible, defeated, selected, hp, hpMax, indent = 0, onSelect, onToggleVis, onAdjustHp, onReset, onRemove, removeTitle }: {
+function EnemyRow({ name, color, visible, defeated, selected, hp, hpMax, indent = 0, onSelect, onMenu, onToggleVis, onAdjustHp, onReset, onRemove, removeTitle }: {
   name: string; color: string; visible: boolean; defeated: boolean; selected: boolean;
   hp: number; hpMax: number; indent?: number;
-  onSelect: () => void; onToggleVis: () => void; onAdjustHp?: (d: number) => void;
+  onSelect: () => void; onMenu: (x: number, y: number) => void; onToggleVis: () => void; onAdjustHp?: (d: number) => void;
   onReset?: () => void; onRemove: () => void; removeTitle: string;
 }) {
   const [hover, setHover] = useState(false);
   return (
     <div onClick={onSelect} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      onContextMenu={e => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
       style={{
         display: 'flex', alignItems: 'center', gap: 5, minHeight: 28, padding: `2px 6px 2px ${8 + indent}px`,
         cursor: 'pointer', borderRadius: RADIUS.sm,
@@ -73,7 +76,7 @@ function EnemyRow({ name, color, visible, defeated, selected, hp, hpMax, indent 
       <div onClick={e => e.stopPropagation()} style={{ width: 104, flexShrink: 0, display: 'flex' }}>
         {hpMax > 0 && onAdjustHp
           ? <HpControl hp={hp} hpMax={hpMax} onAdjust={onAdjustHp} size="sm" />
-          : <span title="Sense vida: clica la fila i posa-li vida màxima a la fitxa"
+          : <span title="Sense vida: clic dret a la fila i posa-li vida màxima"
               style={{ flex: 1, textAlign: 'center', fontSize: FS.xs, color: tint(C.dim, 0.6) }}>—</span>}
       </div>
     </div>
@@ -99,7 +102,7 @@ function GroupHeader({ name, count, total, open, onToggle, indent = 0 }: {
  * capes; els de la biblioteca a «Enemics»), i per seguir un combat calia saltar entre totes dues.
  */
 export function SceneEnemiesPanel({
-  struct, vis, psdEnemyOverrides, libEnemies, defeated, selectedToken, onSelect,
+  struct, vis, psdEnemyOverrides, libEnemies, defeated, selectedToken, onSelect, onMenu,
   onTogglePsdVis, onAdjustPsdHp, onResetPsd, onDeletePsd,
   onToggleLibVis, onAdjustLibHp, onRemoveLib, onOpenLibrary,
 }: Props) {
@@ -119,7 +122,7 @@ export function SceneEnemiesPanel({
         name={ov?.name ?? en.name} color={C.enemy}
         visible={!!vis[en.id]} defeated={!!defeated[String(en.id)]} selected={selectedToken === en.id}
         hp={hpMax > 0 ? Math.max(0, ov?.hp ?? hpMax) : 0} hpMax={hpMax}
-        onSelect={() => onSelect(en.id)} onToggleVis={() => onTogglePsdVis(en.id)}
+        onSelect={() => onSelect(en.id)} onMenu={(x, y) => onMenu(en.id, x, y)} onToggleVis={() => onTogglePsdVis(en.id)}
         onAdjustHp={d => onAdjustPsdHp(en.id, d)}
         onReset={() => onResetPsd(en)} onRemove={() => onDeletePsd(en.id)} removeTitle="Eliminar la capa" />
     );
@@ -170,7 +173,7 @@ export function SceneEnemiesPanel({
               name={en.name} color={en.color}
               visible={en.visible !== false} defeated={!!defeated[`lib_${en.id}`]} selected={selectedToken === `lib_${en.id}`}
               hp={en.hp ?? en.hpMax} hpMax={en.hpMax}
-              onSelect={() => onSelect(`lib_${en.id}`)} onToggleVis={() => onToggleLibVis(en.id)}
+              onSelect={() => onSelect(`lib_${en.id}`)} onMenu={(x, y) => onMenu(`lib_${en.id}`, x, y)} onToggleVis={() => onToggleLibVis(en.id)}
               onAdjustHp={d => onAdjustLibHp(en.id, d)}
               onRemove={() => onRemoveLib(en.id)} removeTitle="Treure de l'escena" />
           ))}

@@ -971,6 +971,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const renameRoom = useCallback((id: string, name: string) => {
+    // El camp del menú també l'aplica en perdre el focus (i en tancar el menú): sense canvi
+    // de nom no hi ha res a desar ni a desfer.
+    if (rRooms.current.find(r => r.id === id)?.name === name) return;
     _pushMapEdit('reanomenar sala');
     const nr = rRooms.current.map(r => r.id === id ? { ...r, name } : r);
     rRooms.current = nr; S.setRooms(nr); _broadcastState({});

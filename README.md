@@ -60,6 +60,14 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.31 — La fitxa del token, dins del menú del clic dret
+- La fitxa (nom, vida màxima, mida i, als jugadors, velocitat, visió i si es poden moure) ja no és un panell a baix del lateral: és **dins del menú del clic dret**, a sota de la vida. Tot el que és d'un token, en un sol lloc.
+- El nom s'edita a la capçalera del menú.
+- **Estats compactes**: dues files d'icones en lloc de la graella amb noms. La línia «Estats» diu quins té el token i, en passar per sobre d'una icona, el nom en català, castellà i anglès. Ara també es veuen bé els estats de color fosc (Encegat, Inconscient, Moribund).
+- **Clic dret a una fila del lateral** (jugadors i enemics de l'Escena) obre el mateix menú que al mapa, també per als tokens que no tens a la vista.
+- Les accions del final (cinemàtica, treure de l'escena, eliminar jugador…) van en una sola fila.
+- Un valor escrit en un camp ja no es perd si tanques el menú clicant fora sense prémer Enter. Esc dins d'un camp desfà el que hi has escrit sense tancar el menú.
+
 ### v4.30 — Fitxa del token i menú contextual curt (simplificació, fase 4)
 - **Fitxa del token** a baix del lateral (a qualsevol pestanya): surt en seleccionar un token i hi ha tot el que és configurar-lo — nom, vida, vida màxima, mida i, als jugadors, velocitat, visió a les fosques, si es poden moure des de la seva pantalla i eliminar-lo.
 - Els camps de la fitxa s'apliquen en prémer Enter o sortir del camp (Esc cancel·la): esborrar un número per escriure'n un altre ja no deixa el token a 0 a mig camí.

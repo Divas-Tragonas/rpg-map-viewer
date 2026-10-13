@@ -4,6 +4,7 @@ import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, 
 import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
+import { tokenMenuFor } from '@/lib/token-menu';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -37,7 +38,6 @@ import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
 import { TopBar } from '@/components/dm/TopBar';
 import { ShowPanelHeader, type ShowTab } from '@/components/dm/ShowPanelHeader';
-import { TokenSheet } from '@/components/dm/TokenSheet';
 import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { SidebarSection } from '@/components/ui/SidebarSection';
@@ -932,10 +932,12 @@ export function DMView() {
   const selectToken = useCallback((id: string | number) => {
     setSelectedToken(id); R.rSelectedToken.current = id;
   }, [R]);
-  // Tancar la fitxa = deseleccionar el token (com clicar en buit al mapa).
-  const deselectToken = useCallback(() => {
-    setSelectedToken(null); R.rSelectedToken.current = null;
-  }, [R]);
+  // Clic dret a una fila del lateral: el mateix menú que fer clic dret al token al mapa
+  // (també per als tokens que no es veuen a la pantalla ara mateix).
+  const openTokenMenu = useCallback((id: string | number, x: number, y: number) => {
+    selectToken(id);
+    setContextMenu(tokenMenuFor(R, id, x, y));
+  }, [R, selectToken]);
   // Enter passa el torn només a Jugar: a Preparar la barra de torns no es veu i un Enter
   // perdut passaria el torn sense que el DM ho veiés.
   const advanceTurnIfPlaying = useCallback(() => { if (mode === 'jugar') advanceTurn(); }, [mode, advanceTurn]);
@@ -1374,12 +1376,12 @@ export function DMView() {
                 newPHpMax={newPHpMax} setNewPHpMax={setNewPHpMax}
                 onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
                 onAdjustHp={adjustPlayerHp} onLoadParty={loadParty}
-                selectedToken={selectedToken} onSelect={selectToken} defeated={defeated}
+                selectedToken={selectedToken} onSelect={selectToken} onMenu={openTokenMenu} defeated={defeated}
               />
               <SceneEnemiesPanel
                 struct={psdStruct} vis={vis} psdEnemyOverrides={psdEnemyOverrides}
                 libEnemies={libEnemies} defeated={defeated} selectedToken={selectedToken}
-                onSelect={selectToken}
+                onSelect={selectToken} onMenu={openTokenMenu}
                 onTogglePsdVis={toggleVis} onAdjustPsdHp={adjustPsdEnemyHp}
                 onResetPsd={resetToken} onDeletePsd={id => deleteLayer(id, 'enemy')}
                 onToggleLibVis={toggleLibEnemyVisibility} onAdjustLibHp={adjustLibEnemyHp}
@@ -1423,21 +1425,6 @@ export function DMView() {
           )}
         </ScrollArea>
 
-        {/* Fitxa del token seleccionat (a baix, en qualsevol pestanya): nom, vida màxima, mida
-            i, als jugadors, velocitat, visió i moviment. El `key` reinicia els camps a mig
-            editar quan se'n selecciona un altre. */}
-        {selectedToken !== null && (
-          <TokenSheet key={String(selectedToken)} tokenId={selectedToken}
-            players={players} libEnemies={libEnemies} struct={psdStruct} psdEnemyOverrides={psdEnemyOverrides}
-            conditions={conditions} defeated={defeated} tokenSizeOverride={tokenSizeOverride} gridSize={gridSize}
-            onClose={deselectToken}
-            onRenamePlayer={renamePlayer} onAdjustPlayerHp={adjustPlayerHp} onSetPlayerHpMax={setPlayerHpMax}
-            onSetPlayerSpeed={setPlayerSpeed} onSetPlayerVision={setPlayerVision} onSetPlayerCanMove={setPlayerCanMove}
-            onRemovePlayer={id => { removePlayer(id); deselectToken(); }}
-            onAdjustLibHp={adjustLibEnemyHp} onSetLibProps={setLibEnemyProps}
-            onAdjustPsdHp={adjustPsdEnemyHp} onSetPsdProps={setPsdEnemyProps}
-            onSetTokenSize={setTokenSize} />
-        )}
       </div>
 
       {/* ── Main canvas area ──────────────────────────────────────────────── */}
@@ -1787,17 +1774,19 @@ export function DMView() {
         contextMenu={contextMenu} conditions={conditions} defeated={defeated}
         rDefeated={R.rDefeated} defeatedAnimRef={R.defeatedAnimRef}
         rConditions={R.rConditions}
-        libEnemies={libEnemies}
-        psdEnemyOverrides={psdEnemyOverrides}
-        players={players}
-        onOpenSheet={selectToken}
+        edit={{
+          players, libEnemies, struct: psdStruct, psdEnemyOverrides, tokenSizeOverride, gridSize,
+          onRenamePlayer: renamePlayer, onAdjustPlayerHp: adjustPlayerHp, onSetPlayerHpMax: setPlayerHpMax,
+          onSetPlayerSpeed: setPlayerSpeed, onSetPlayerVision: setPlayerVision, onSetPlayerCanMove: setPlayerCanMove,
+          onAdjustLibHp: adjustLibEnemyHp, onSetLibProps: setLibEnemyProps,
+          onAdjustPsdHp: adjustPsdEnemyHp, onSetPsdProps: setPsdEnemyProps,
+          onSetTokenSize: setTokenSize,
+        }}
+        onRemovePlayer={removePlayer}
         onClose={() => setContextMenu(null)}
         onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone} onDeleteAreaSpell={deleteAreaSpell}
         onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}
         setDefeated={setDefeated} setConditions={setConditions}
-        adjustLibEnemyHp={adjustLibEnemyHp}
-        adjustPsdEnemyHp={adjustPsdEnemyHp}
-        adjustPlayerHp={adjustPlayerHp}
         removeLibEnemy={removeLibEnemy}
         onLaunchBossIntro={launchBossIntro}
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}

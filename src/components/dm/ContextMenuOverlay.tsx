@@ -1,11 +1,12 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { X } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
+import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/components/dm/TokenFields';
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor } from '@/constants';
-import type { ContextMenuState, ConditionsMap, DefeatedMap, LibEnemy, PsdEnemyOverrides } from '@/types';
+import type { ContextMenuState, ConditionsMap, DefeatedMap } from '@/types';
 
 interface Props {
   contextMenu: ContextMenuState | null;
@@ -14,12 +15,9 @@ interface Props {
   rDefeated: React.MutableRefObject<DefeatedMap>;
   defeatedAnimRef: React.MutableRefObject<Record<string, number>>;
   rConditions: React.MutableRefObject<ConditionsMap>;
-  // Estat (no refs): el menú en llegeix la vida i el nom durant el render.
-  libEnemies: LibEnemy[];
-  psdEnemyOverrides: PsdEnemyOverrides;
-  players: import('@/types').Player[];
-  /** Selecciona el token i n'obre la fitxa (nom, vida màxima, mida…), a baix del lateral. */
-  onOpenSheet: (id: string | number) => void;
+  /** Fitxa del token (estat, no refs: el menú la llegeix durant el render) i com editar-la. */
+  edit: TokenEditProps;
+  onRemovePlayer: (id: number) => void;
   onClose: () => void;
   onToggleCondition: (tokenId: string, condId: string) => void;
   onDeletePaintedZone: (id: string) => void;
@@ -28,9 +26,6 @@ interface Props {
   onBroadcast: () => void;
   setDefeated: (v: DefeatedMap) => void;
   setConditions: (v: ConditionsMap) => void;
-  adjustLibEnemyHp: (id: number, delta: number) => void;
-  adjustPsdEnemyHp: (id: number, delta: number) => void;
-  adjustPlayerHp: (id: number, delta: number) => void;
   removeLibEnemy: (id: number) => void;
   onLaunchBossIntro: (req: import('@/hooks/useCinematic').BossIntroRequest) => Promise<string | null>;
   onCreateGroup: (ids: (number | string)[]) => void;
@@ -46,8 +41,8 @@ interface Props {
   onCastSpell: (type: import('@/types').SpellType, origin: import('@/types').Point) => void;
 }
 
-/** Amplada dels menús: prou per a la graella d'estats a 4 columnes amb els noms llegibles. */
-const MENU_W = 264;
+/** Amplada dels menús: prou per als quatre camps de la fitxa d'un jugador en una fila. */
+const MENU_W = 272;
 
 const menuBox = (x: number, y: number, maxH: number): React.CSSProperties => ({
   position: 'fixed',
@@ -67,11 +62,22 @@ const fieldStyle: React.CSSProperties = {
   borderRadius: RADIUS.sm, padding: '4px 6px', color: C.text, fontSize: FS.sm, outline: 'none',
 };
 
+/**
+ * Treu el focus del camp que s'estigui editant: el seu `onBlur` aplica el valor. Cal fer-ho
+ * ABANS de tancar el menú, perquè un camp que es desmunta amb el focus no rep el `blur`.
+ */
+function blurActive() {
+  const el = document.activeElement;
+  if (el instanceof HTMLElement) el.blur();
+}
+
 /** Capçalera comuna dels menús: títol, accessoris opcionals i ✕ de tancar (✕ = tancar, sempre). */
 function MenuHeader({ title, children, onClose }: { title: React.ReactNode; children?: React.ReactNode; onClose: () => void }) {
   return (
     <div style={{ padding: '7px 8px 7px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ flex: 1, minWidth: 0, color: C.bright, fontWeight: 700, fontSize: FS.md, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+      {typeof title === 'string'
+        ? <span style={{ flex: 1, minWidth: 0, color: C.bright, fontWeight: 700, fontSize: FS.md, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        : <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>{title}</div>}
       {children}
       <button onMouseDown={e => { e.stopPropagation(); onClose(); }} title="Tancar (Esc)"
         style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: 2, display: 'flex', flexShrink: 0 }}>
@@ -130,10 +136,9 @@ function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: 
 
 export function ContextMenuOverlay({
   contextMenu, conditions, defeated, rDefeated, defeatedAnimRef, rConditions,
-  libEnemies, psdEnemyOverrides, players, onOpenSheet,
-  onClose, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
+  edit, onRemovePlayer,
+  onClose: closeMenu, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
   setDefeated, setConditions,
-  adjustLibEnemyHp, adjustPsdEnemyHp, adjustPlayerHp,
   removeLibEnemy,
   onLaunchBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
@@ -144,6 +149,10 @@ export function ContextMenuOverlay({
   // l'id de la sala en comptes d'un booleà: així obrir el menú d'una altra sala ja no arriba
   // confirmat, sense necessitat d'un efecte que reiniciï l'estat.
   const [confirmDelRoomId, setConfirmDelRoomId] = useState<string | null>(null);
+  // Mateix criteri per eliminar un jugador (treu el jugador de la partida, no només del mapa).
+  const [confirmDelPlayer, setConfirmDelPlayer] = useState<string | null>(null);
+  // Tancar = primer aplicar el camp a mig editar (nom, vida màxima…), després desmuntar.
+  const onClose = useCallback(() => { blurActive(); closeMenu(); }, [closeMenu]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -290,24 +299,17 @@ export function ContextMenuOverlay({
     rDefeated.current = nd; setDefeated({ ...nd }); onBroadcast();
   };
 
-  // Vida del token, sigui quin sigui el seu tipus: sempre el mateix control.
-  let hpBlock: { hp: number; hpMax: number; adjust: (d: number) => void } | null = null;
-  const lib = contextMenu.isLibEnemy ? libEnemies.find(e => e.id === contextMenu.libEnemyId) : undefined;
-  if (lib && lib.hpMax > 0) hpBlock = { hp: lib.hp ?? lib.hpMax, hpMax: lib.hpMax, adjust: d => adjustLibEnemyHp(lib.id, d) };
-  if (typeof contextMenu.id === 'number') {
-    const pov = psdEnemyOverrides[contextMenu.id] || {};
-    const hm = pov.hpMax || 0;
-    const psdId = contextMenu.id;
-    if (hm > 0) hpBlock = { hp: Math.max(0, pov.hp ?? hm), hpMax: hm, adjust: d => adjustPsdEnemyHp(psdId, d) };
-  }
-  if (typeof contextMenu.id === 'string' && contextMenu.id.startsWith('pl_')) {
-    const plId = parseInt(contextMenu.id.replace('pl_', ''));
-    const pl = players.find(p => p.id === plId);
-    if (pl && pl.hpMax) hpBlock = { hp: pl.hp ?? pl.hpMax, hpMax: pl.hpMax, adjust: d => adjustPlayerHp(pl.id, d) };
-  }
+  // El nom, la vida i la resta de la fitxa es llegeixen de l'estat (no del `contextMenu`, que
+  // és una foto del moment d'obrir-lo): així el menú es refresca mentre s'edita.
+  const t = resolveToken(contextMenu.id, edit);
+  if (!t) return null;
+  const lib = t.lib;
+  const pl = t.player;
+  const book = contextMenu.casterPos ? spellbookFor(t.name) : [];
+  const actionBtn: React.CSSProperties = { flex: '1 1 auto', minWidth: 0 };
   return (
-    <div data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, 460)}>
-      <MenuHeader title={contextMenu.name} onClose={onClose}>
+    <div key={t.key} data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, book.length > 0 ? 560 : 400)}>
+      <MenuHeader title={<NameField key={`${t.key}:${t.name}`} value={t.name} onCommit={t.rename} />} onClose={onClose}>
         {/* Derrotat és un interruptor amb nom: abans era un ✕ solt just on s'espera el botó
             de tancar el menú, i en tota la resta de l'app ✕ vol dir tancar o eliminar. */}
         <Button size="sm" variant="secondary" active={isDefeated} color={C.enemy}
@@ -317,11 +319,11 @@ export function ContextMenuOverlay({
         </Button>
       </MenuHeader>
 
-      {hpBlock && (
-        <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}`, display: 'flex' }}>
-          <HpControl hp={hpBlock.hp} hpMax={hpBlock.hpMax} onAdjust={hpBlock.adjust} size="md" />
-        </div>
-      )}
+      {/* Fitxa: vida i, a sota, els camps que es configuren (vida màxima, mida, velocitat…). */}
+      <div style={{ padding: '7px 8px 8px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {t.hpMax > 0 && <div style={{ display: 'flex' }}><HpControl hp={t.hp} hpMax={t.hpMax} onAdjust={t.adjustHp} size="md" /></div>}
+        <TokenFields t={t} p={edit} />
+      </div>
 
       <ConditionPicker
         active={conditions[id] || []}
@@ -334,36 +336,47 @@ export function ContextMenuOverlay({
 
       {contextMenu.casterPos && (() => {
         const origin = contextMenu.casterPos;
-        return <Spellbook playerName={contextMenu.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
+        return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
       })()}
 
-      <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {/* El clic dret és per a accions ràpides; el que s'escriu (nom, vida màxima, mida,
-            velocitat…) és a la fitxa del token, a baix del lateral. */}
-        <Button block variant="secondary" onMouseDown={e => { e.stopPropagation(); onOpenSheet(contextMenu.id); onClose(); }}
-          title="Nom, vida màxima, mida i, als jugadors, velocitat i visió">
-          ✏️ Editar la fitxa
-        </Button>
-        {contextMenu.existingGroupId && (
-          <Button block variant="secondary" onMouseDown={e => { e.stopPropagation(); onLeaveGroup(contextMenu.id); onClose(); }}>
-            🔓 Sortir del grup
-          </Button>
-        )}
-        <Button block variant="tint" color={C.magicBright} onMouseDown={e => {
-          e.stopPropagation();
-          if (lib?.imageData) {
-            const img = new Image(); img.src = lib.imageData;
-            void onLaunchBossIntro({ tokenId: contextMenu.id, bossName: contextMenu.name, portrait: img, tokenPos: contextMenu.tokenPos ?? null });
-            onClose(); return;
-          }
-          onOpenSceneConfig();
-        }}>
-          ⚡ Cinemàtica
-        </Button>
-        {lib && (
-          <Button block variant="danger" onMouseDown={e => { e.stopPropagation(); removeLibEnemy(lib.id); onClose(); }}>
-            🗑 Treure de l&apos;escena
-          </Button>
+      <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px 8px' }}>
+        {pl && confirmDelPlayer === t.key ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: FS.sm, color: C.enemy, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Eliminar {t.name}?</span>
+            <Button size="sm" variant="danger" onMouseDown={e => { e.stopPropagation(); onRemovePlayer(pl.id); onClose(); }}>Sí, eliminar</Button>
+            <Button size="sm" onMouseDown={e => { e.stopPropagation(); setConfirmDelPlayer(null); }}>No</Button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {contextMenu.existingGroupId && (
+              <Button size="sm" variant="secondary" style={actionBtn} onMouseDown={e => { e.stopPropagation(); onLeaveGroup(contextMenu.id); onClose(); }}>
+                🔓 Sortir del grup
+              </Button>
+            )}
+            <Button size="sm" variant="tint" color={C.magicBright} style={actionBtn} title="Presentació del boss a les pantalles de jugador"
+              onMouseDown={e => {
+                e.stopPropagation();
+                if (lib?.imageData) {
+                  const img = new Image(); img.src = lib.imageData;
+                  void onLaunchBossIntro({ tokenId: contextMenu.id, bossName: t.name, portrait: img, tokenPos: contextMenu.tokenPos ?? null });
+                  onClose(); return;
+                }
+                onOpenSceneConfig();
+              }}>
+              ⚡ Cinemàtica
+            </Button>
+            {lib && (
+              <Button size="sm" variant="danger" style={actionBtn} onMouseDown={e => { e.stopPropagation(); removeLibEnemy(lib.id); onClose(); }}>
+                🗑 Treure de l&apos;escena
+              </Button>
+            )}
+            {pl && (
+              <Button size="sm" variant="danger" style={actionBtn} title="Treu el jugador de la partida"
+                onMouseDown={e => { e.stopPropagation(); setConfirmDelPlayer(t.key); }}>
+                🗑 Eliminar jugador
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -6,6 +6,7 @@ import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
+import { tokenMenuFor } from '@/lib/token-menu';
 
 const AREA_TYPES = PERSISTENT_SPELLS;
 const AREA_SETTLED = (sp: import('@/types').Spell) => {
@@ -1066,7 +1067,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
       if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
         if (maybeMultiMenu(`lib_${len.id}`)) return;
-        S.setContextMenu({ id: `lib_${len.id}`, name: len.name, x: e.clientX, y: e.clientY, isLibEnemy: true, libEnemyId: len.id, tokenPos: lep, existingGroupId: R.rTokenGroups.current.get(`lib_${len.id}`) });
+        S.setContextMenu(tokenMenuFor(R, `lib_${len.id}`, e.clientX, e.clientY));
         return;
       }
     }
@@ -1076,7 +1077,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
       if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
         if (maybeMultiMenu(`pl_${pl.id}`)) return;
-        S.setContextMenu({ id: `pl_${pl.id}`, name: pl.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(`pl_${pl.id}`), casterPos: { x: ppos.x + pR, y: ppos.y + pR } }); return;
+        S.setContextMenu(tokenMenuFor(R, `pl_${pl.id}`, e.clientX, e.clientY)); return;
       }
     }
     // Enemics del PSD (si n'hi ha): sense estructura es continua avall — les sales
@@ -1089,7 +1090,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
         if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
           if (maybeMultiMenu(en.id)) return;
-          S.setContextMenu({ id: en.id, name: en.name, x: e.clientX, y: e.clientY, existingGroupId: R.rTokenGroups.current.get(en.id) }); return;
+          S.setContextMenu(tokenMenuFor(R, en.id, e.clientX, e.clientY)); return;
         }
       }
     }
