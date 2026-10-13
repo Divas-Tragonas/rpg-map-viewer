@@ -8,6 +8,7 @@ import type {
 } from '@/types';
 import { newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
+import type { UndoEntry } from '@/lib/undo';
 
 export function useDMRefs() {
   const stageRef  = useRef<HTMLDivElement>(null);
@@ -87,6 +88,9 @@ export function useDMRefs() {
   // són les referències d'array d'abans del canvi: com que tota mutació les substitueix,
   // desar-les no costa cap còpia. DM-only, no es sincronitza ni es desa a la partida.
   const rMapHistory      = useRef<Array<{ label: string; walls: Wall[]; rooms: Room[]; doors: Door[]; lights: import('@/types').LightSource[] }>>([]);
+  // Ordre de les tres piles de desfer (traços, mapa, moviments) per al «Desfer» únic:
+  // veure `lib/undo.ts`. DM-only, no es sincronitza ni es desa.
+  const rUndoLog         = useRef<UndoEntry[]>([]);
   // Desat automàtic: hi ha canvis sense desar? El posa `_broadcastState` (per on passa
   // tota mutació d'estat) i el consumeix `useAutosave`, que només escriu si està a true.
   const rAutosaveDirty   = useRef(false);
@@ -192,7 +196,7 @@ export function useDMRefs() {
     rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rDoorWidthCells, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rMapHistory, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rMapHistory, rUndoLog, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rPsdEnemyOverrides, rPsdEnemyImgCache,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,

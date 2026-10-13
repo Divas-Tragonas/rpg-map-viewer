@@ -24,15 +24,15 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Botó central', 'Moure el mapa'],
       ['Roda · pinça', 'Zoom'],
       ['Dos dits (trackpad)', 'Moure el mapa'],
-      ['Ctrl (toc)', 'Vista compartida temporal'],
-      ['Maj (toc)', 'Vista privada (els jugadors no la veuen)'],
+      ['Maj (toc)', 'Vista privada (com el selector de càmera del mapa)'],
+      ['Ctrl (toc)', 'Vista compartida temporal: en sortir-ne, tothom torna on era'],
     ],
   },
   {
     title: 'Combat i edició',
     rows: [
       ['Enter', 'Passar el torn'],
-      ['Ctrl+Z', 'Desfer (segons l\'eina activa)'],
+      ['Ctrl+Z', 'Desfer l\'última acció (el botó Desfer de dalt diu quina)'],
       ['Supr', 'Treure de l\'escena els enemics seleccionats'],
       ['Backspace', 'Desfer l\'última paret (eina Parets)'],
       ['Clic dret', 'Menú del token, la sala o la zona'],

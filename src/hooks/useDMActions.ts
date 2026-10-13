@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useRef } from 'react';
+import { logUndo } from '@/lib/undo';
 import { parsePSDStructure } from '@/lib/psd/parser';
 import { extractLayerImages } from '@/lib/psd/extractor';
 import { buildTree, validateStructure, emptyStructure } from '@/lib/psd/tree';
@@ -34,7 +35,8 @@ interface Setters {
   setDefeated: (v: import('@/types').DefeatedMap) => void;
   setPaintedZones: (v: import('@/types').PaintedZone[]) => void;
   setExpanded: (v: Record<number, boolean> | ((prev: Record<number, boolean>) => Record<number, boolean>)) => void;
-  setCanUndo: (v: boolean) => void;
+  /** Les piles de desfer han canviat: el «Desfer» de la barra ha de tornar a mirar què desfaria. */
+  onUndoChange: () => void;
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setGridSize: (v: number) => void;
   setGridSnap: (v: boolean) => void;
@@ -53,8 +55,6 @@ interface Setters {
   setDoors: (v: Door[]) => void;
   setLights: (v: import('@/types').LightSource[]) => void;
   setTurn: (v: import('@/types').TurnState) => void;
-  /** Etiqueta del canvi de mapa que desfaria el proper Ctrl+Z (null = res a desfer). */
-  setMapUndo: (v: string | null) => void;
 }
 
 /** Profunditat màxima del Ctrl+Z de mapa (cada entrada són 4 referències: no pesa res). */
@@ -377,6 +377,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     if (nt) { rTurn.current = nt; S.setTurn(nt); }
     // L'historial de Ctrl+Z no pot guardar moviments d'un token que ja no existeix.
     R.rMoveHistory.current = R.rMoveHistory.current.filter(h => String(h.id) !== key);
+    S.onUndoChange();
   }, []);
 
   const removePlayer = useCallback((id: number) => {
@@ -470,7 +471,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   const clearDrawing = useCallback(() => {
     const oc = drawCanvasRef.current; if (!oc) return;
     oc.getContext('2d')!.clearRect(0, 0, oc.width, oc.height);
-    strokeHistoryRef.current = []; S.setCanUndo(false);
+    strokeHistoryRef.current = []; S.onUndoChange();
     bcRef.current?.postMessage({ type: 'CLEAR_DRAW' });
     wsRef.current?.send(JSON.stringify({ type: 'CLEAR_DRAW' }));
     _broadcastState({});
@@ -479,7 +480,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   const undoStroke = useCallback(() => {
     const hist = strokeHistoryRef.current;
     if (hist.length === 0) return;
-    hist.pop(); S.setCanUndo(hist.length > 0);
+    hist.pop(); S.onUndoChange();
     const oc = drawCanvasRef.current; if (!oc) return;
     const ctx2 = oc.getContext('2d')!;
     ctx2.clearRect(0, 0, oc.width, oc.height);
@@ -494,20 +495,22 @@ export function useDMActions(R: DMRefs, S: Setters) {
   // desar-les no costa cap còpia i restaurar-les torna l'estat exacte.
   const _pushMapEdit = useCallback((label: string) => {
     const h = R.rMapHistory.current;
-    h.push({
+    const entry = {
       label,
       walls: rWalls.current, rooms: rRooms.current,
       doors: rDoors.current, lights: rLights.current,
-    });
+    };
+    h.push(entry);
+    logUndo(R.rUndoLog.current, 'map', entry);
     if (h.length > MAP_HISTORY_MAX) h.shift();
-    S.setMapUndo(label);
+    S.onUndoChange();
   }, []);
 
   /** Desfà l'últim canvi al mapa. Retorna l'etiqueta desfeta, o null si no n'hi havia cap. */
   const undoMapEdit = useCallback((): string | null => {
     const h = R.rMapHistory.current;
     const entry = h.pop();
-    S.setMapUndo(h.length > 0 ? h[h.length - 1].label : null);
+    S.onUndoChange();
     if (!entry) return null;
     rWalls.current = entry.walls; S.setWalls(entry.walls);
     rRooms.current = entry.rooms; S.setRooms(entry.rooms);
@@ -639,7 +642,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.conditions)    { rConditions.current = state.conditions; S.setConditions(state.conditions); }
       if (state.defeated)      { rDefeated.current = state.defeated; S.setDefeated(state.defeated); }
       if (state.paintedZones)  { rPaintedZones.current = state.paintedZones; S.setPaintedZones(state.paintedZones); }
-      if (state.strokeHistory) { strokeHistoryRef.current = state.strokeHistory; S.setCanUndo(state.strokeHistory.length > 0); }
+      if (state.strokeHistory) { strokeHistoryRef.current = state.strokeHistory; S.onUndoChange(); }
       if (state.gridVisible !== undefined) { rGridVisible.current = state.gridVisible; S.setGridVisible(state.gridVisible); }
       if (state.gridSize)      { rGridSize.current = state.gridSize; S.setGridSize(state.gridSize); }
       if (state.gridSnap !== undefined)     { rGridSnap.current = state.gridSnap; S.setGridSnap(state.gridSnap); }

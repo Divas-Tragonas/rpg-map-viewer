@@ -18,12 +18,11 @@ function isTyping(e: KeyboardEvent): boolean {
 
 interface KBOpts {
   setDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
-  undoStroke: () => void;
-  undoTokenMove: () => void;
-  /** Desfà l'últim canvi al mapa (parets, sales, portes, llums). */
-  undoMapEdit: () => string | null;
+  /** «Desfer» únic: l'última acció desfeible (traç, canvi del mapa o moviment de combat). */
+  undo: () => void;
   skipBossIntro: () => void;
-  /** Modes compartits amb els botons de la barra d'eines (definits a DMView). */
+  /** Modes compartits amb els controls de la pantalla (definits a DMView): la càmera es tria
+   *  al selector del mapa (`CanvasHUD`) i la selecció múltiple, a la barra d'eines. */
   toggleCtrlPan: () => void;
   toggleShiftPan: () => void;
   toggleAreaSelect: () => void;
@@ -42,7 +41,7 @@ interface KBOpts {
 const TAP_MS = 450;
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undoStroke, undoTokenMove, undoMapEdit, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld } = opts;
+  const { setDrawTool, undo, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld } = opts;
 
   // CTRL i MAJ commuten els modes de vista (CTRL: vista compartida; MAJ: vista privada del DM)
   // només amb un TOC NET: prémer i deixar anar la tecla sola, sense cap altra tecla ni clic
@@ -121,20 +120,11 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     const toSelection = () => setDrawTool(t => { if (t === 'pointer') clearPointer(); return 'none'; });
     const handler = (e: KeyboardEvent) => {
       if (isTyping(e)) return;
-      // Ctrl+Z segons l'eina, perquè cada context desfaci el seu:
-      //  · Parets i Llums  → l'últim canvi al mapa (paret, sala, porta, llum).
-      //  · Dibuix          → l'últim traç.
-      //  · Selecció        → l'últim moviment del torn actiu; si no n'hi ha cap (fora de
-      //    combat, o ja desfets tots), cau al canvi de mapa: així el Ctrl+Z d'un canvi fet
-      //    des del panell de sales funciona sense haver de canviar d'eina abans.
+      // Ctrl+Z = el botó «Desfer» de la barra superior: l'última acció, sigui quina sigui
+      // l'eina activa (abans en triava una pila o una altra segons l'eina, sense dir quina).
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
-        const tool = R.rDrawTool.current;
-        if (tool === 'wall' || tool === 'light') undoMapEdit();
-        else if (tool === 'none') {
-          if (R.rMoveHistory.current.length > 0) undoTokenMove();
-          else undoMapEdit();
-        } else undoStroke();
+        undo();
         return;
       }
       if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); R.wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO_SKIP' })); skipBossIntro(); return; }
@@ -204,5 +194,5 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undoStroke, undoTokenMove, undoMapEdit, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [undo, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts]); // eslint-disable-line react-hooks/exhaustive-deps
 }

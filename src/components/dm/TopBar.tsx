@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
   ExternalLink, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
-  WallIcon, SwordsIcon, GridIcon,
+  WallIcon, SwordsIcon, GridIcon, RotateCcw,
 } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
 import { C, FS, RADIUS, SHADOW, APP_VERSION, tint } from '@/constants';
@@ -27,7 +27,8 @@ interface Props {
   mode: DMMode; onModeChange: (m: DMMode) => void;
   /** «Mostrar als jugadors» (expositor + revelador): panell obert i si ara mateix s'hi mostra res. */
   showOpen: boolean; showActive: boolean; onToggleShow: () => void;
-  ctrlPanActive: boolean; shiftPanActive: boolean; areaSelectMode: boolean;
+  /** Què desfaria el «Desfer» (null = res) i l'acció; la mateixa que Ctrl+Z. */
+  undoLabel: string | null; onUndo: () => void;
   /** Pantalles de jugador connectades (id → mida en píxels CSS del seu canvas). */
   playerScreens: Record<string, { w: number; h: number; ts: number }>;
   /** Format (amplada/alçada) de l'enquadrament actual del DM; null si encara no n'hi ha. */
@@ -139,15 +140,6 @@ function BarButton({ active, color, onClick, title, ariaLabel, children }: {
     <Button size="md" active={active} onClick={onClick} title={title} aria-label={ariaLabel} aria-expanded={active} style={style}>
       {children}
     </Button>
-  );
-}
-
-function ModeBadge({ color, title, children }: { color: string; title: string; children: React.ReactNode }) {
-  return (
-    <div title={title}
-      style={{ background: tint(color, 0.15), border: `1px solid ${color}`, color, borderRadius: RADIUS.md, padding: '5px 9px', fontSize: FS.xs, fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap', animation: 'pulse 1.5s infinite' }}>
-      {children}
-    </div>
   );
 }
 
@@ -467,13 +459,20 @@ export function TopBar(p: Props) {
         </BarButton>
       )}
 
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center', gap: 6 }}>
-        {p.ctrlPanActive && <ModeBadge color="#4ade80" title="Vista compartida temporal activa · toca CTRL per sortir (la vista torna on era)">CTRL · VISTA COMPARTIDA</ModeBadge>}
-        {p.shiftPanActive && <ModeBadge color={C.room} title="Vista privada activa: els jugadors no veuen el que mous · toca MAJ per sortir">MAJ · VISTA PRIVADA</ModeBadge>}
-        {p.areaSelectMode && <ModeBadge color={C.room} title="Selecció per àrea activa — arrossega per seleccionar tokens · prem A o Esc per sortir">▣ SELECCIÓ MÚLTIPLE</ModeBadge>}
-      </div>
+      <div style={{ flex: 1, minWidth: 0 }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {/* Un sol desfer per a tot (traços, canvis del mapa, moviments de combat), i diu què
+            desfarà: abans n'hi havia tres i el Ctrl+Z en triava un segons l'eina. */}
+        <Button size="md" onClick={p.onUndo} disabled={!p.undoLabel}
+          title={p.undoLabel ? `Desfer: ${p.undoLabel} (Ctrl+Z)` : 'No hi ha res a desfer'}
+          style={{ height: 32, gap: 7, maxWidth: 230 }}>
+          <RotateCcw size={14} />
+          Desfer
+          {p.undoLabel && (
+            <span style={{ color: C.dim, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>· {p.undoLabel}</span>
+          )}
+        </Button>
         <ScreensMenu open={menu === 'screens'} onToggle={toggle('screens')} onClose={close}
           playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} />
         <GameMenu open={menu === 'game'} onToggle={toggle('game')} onClose={close} hasMap={hasMap}

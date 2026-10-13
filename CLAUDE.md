@@ -176,7 +176,7 @@ src/
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
 │   │   ├── TopBar          # Barra superior: nom del mapa, Mostrar als jugadors, pantalles, partida, vista, ⋯
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text del panell «Mostrar als jugadors»
-│   │   ├── CanvasHUD (zoom a la cantonada + rètol de calibratge), ShortcutsHelp (finestra de dreceres, tecla ?)
+│   │   ├── CanvasHUD (selector de càmera + zoom a la cantonada + rètol de calibratge), ShortcutsHelp (finestra de dreceres, tecla ?)
 │   │   └── ContextMenuOverlay, SceneConfigOverlay,
 │   │       SpellMenuOverlay, ShapeMenuOverlay
 │   └── ui/                 # Components UI genèrics
@@ -204,6 +204,7 @@ src/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
 │   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
 │   ├── dm-mode.ts          # Modes Preparar / Jugar del DM i a quin mode pertany cada eina (modeForTool)
+│   ├── undo.ts             # Registre del «Desfer» únic: ordre de les piles de traços, mapa i moviments
 │   ├── turn-banner.ts      # Projecció del combat al rètol de les pantalles de jugador
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
@@ -442,14 +443,14 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Sales i llums van cadascuna dins d'una `SidebarSection` plegada per defecte** amb el comptador a la capçalera (`Sales · 12`) i un resum de quantes són fosques i quantes revelades. Amb un mapa de moltes sales, la llista sencera se'n menjava el panell.
 - Llista les **sales detectades** (`rRooms`): commutador 🌑 de sala fosca, ull de revelar/amagar (només si és fosca), nom editable en línia i desplegable amb "Afegir porta", "Resetejar explorat" (només si és fosca) i "Eliminar sala" amb **confirmació en dos passos** (es desa l'`id` pendent, no un booleà — mateix criteri que `ContextMenuOverlay`).
 - Hover d'una fila → escriu a `R.rHoveredRoomId` (ref llegida per `renderRooms`), així la sala es ressalta al canvas.
-- La capçalera de «Sales» no té botons: les eines Parets (`5`) i Llums (`6`) i el desfer dels canvis del mapa viuen a la barra d'eines del mode Preparar (abans n'hi havia una còpia aquí).
+- La capçalera de «Sales» no té botons: les eines Parets (`5`) i Llums (`6`) viuen a la barra d'eines del mode Preparar i el desfer és el «Desfer» únic de la barra superior (abans n'hi havia una còpia aquí).
 
 ### Modes Preparar · Jugar (`src/lib/dm-mode.ts`)
 - **Problema que resolia**: les eines de construir el mapa (parets, llums, graella, capes) i les de jugar (regla, dibuix, màgies, torns) sortien totes alhora: 13 botons a la barra i 3 pestanyes al lateral, la majoria sense res a veure amb el que s'estava fent.
 - Interruptor **Preparar · Jugar** a la barra superior (`ModeSwitch` a `TopBar`). Estat `mode` + `modeRef` a `DMView`. És **només UI del DM**: no es sincronitza ni canvia res del que veuen els jugadors.
   | | Preparar | Jugar |
   |---|---|---|
-  | Barra d'eines | Selecció · Parets i portes · Llums · Graella · ▣ CTRL MAJ · Desfer al mapa | Selecció · Senyal i regla · Dibuix · Màgies · ▣ CTRL MAJ · (✨ esborrar zones) |
+  | Barra d'eines | Selecció · Parets i portes · Llums · Graella · ▣ | Selecció · Senyal i regla · Dibuix · Màgies · ▣ · (✨ esborrar zones) |
   | Lateral | **Mapa** · Escena · Biblioteca (s'obre a Mapa) | Escena · Biblioteca |
   | Barra de torns | no | sí |
   | «Mostrar als jugadors» | només si s'hi mostra alguna cosa (per poder-la amagar) | sí |
@@ -461,10 +462,10 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ### Eines de dibuix (barra flotant)
 - `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral). Les eines depenen del mode (`PLAY_TOOLS` / `PREP_TOOLS`, veure «Modes Preparar · Jugar»).
-- **Dibuix** és un sol botó per a la ploma i la goma (`ToolDef.also`): s'encén amb qualsevol de les dues i, en clicar-lo, posa la ploma. Al seu panell: Ploma · Goma (tecles 1 i 2), paleta (només ploma), gruix, **Desfer traç** i **Esborrar tot**. Abans eren dues eines i dos botons d'acció a la barra.
+- **Dibuix** és un sol botó per a la ploma i la goma (`ToolDef.also`): s'encén amb qualsevol de les dues i, en clicar-lo, posa la ploma. Al seu panell: Ploma · Goma (tecles 1 i 2), paleta (només ploma), gruix i **Esborrar tot el dibuix**. El desfer del traç és el «Desfer» únic de la barra superior. Abans eren dues eines i dos botons d'acció a la barra.
 - **Graella** (només Preparar) obre `GridPanel`. Per ensenyar-la o amagar-la mentre es juga, interruptor al menú **Vista** (`toggleGridVisible`, sense obrir el calibratge). ⚠️ Al DM la graella només es dibuixa mentre arrossega tokens, calibra o mesura (`rGridDmAlpha`); l'interruptor és sobretot per als jugadors.
 - **Barra apagada sense mapa** (`disabled` → `<fieldset disabled>`): es veu, però no reacciona ni mostra ajuda.
-- **Modes de ratolí a la barra**: `ctrlPanActive` / `shiftPanActive` / `areaSelectMode` amb els seus `onToggle*`. Les tres funcions (`toggleCtrlPan`, `toggleShiftPan`, `toggleAreaSelect`) viuen a `DMView` i les comparteixen **el botó i la tecla** — `useKeyboardHandlers` les rep per `opts` i no duplica la lògica. Si s'hi afegeix un mode nou, ha de seguir el mateix camí (una sola funció, dos disparadors).
+- **Modes de ratolí**: a la barra només hi queda la **selecció múltiple** (▣, `areaSelectMode`); els de càmera (vista privada i compartida temporal) són al selector de càmera del mapa (veure «Selector de càmera»). Les funcions (`toggleAreaSelect`, `setPrivateView`/`toggleShiftPan`, `toggleCtrlPan`) viuen a `DMView` i les comparteixen **el control i la tecla** — `useKeyboardHandlers` les rep per `opts` i no duplica la lògica. Si s'hi afegeix un mode nou, ha de seguir el mateix camí (una sola funció, dos disparadors).
 - **Explicacions al hover, no al flyout**: cada botó va dins d'un embolcall `position: relative` que ancora un `HoverTip` amb el nom de l'eina, la drecera i què fa. ⚠️ El component del botó (`ToolButton`) està definit **a nivell de mòdul**: si es declarés dins de `FloatingToolbar`, cada canvi de `hover` en crearia un tipus nou, React desmuntaria tots els botons i el `mouseleave` es perdria (finestreta enganxada).
 - El `HoverTip` de la barra vertical s'alinea **per baix** (`bottom: 0`), no centrat: la barra viu a la cantonada inferior i una finestreta centrada sobre l'últim botó sortiria de la pantalla.
 - Al flyout hi queden **només els controls manipulables**: el panell de Dibuix i el slider de radi (Llums). Parets i Senyal no en tenen.
@@ -472,14 +473,31 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ### Barra superior (`src/components/dm/TopBar.tsx`)
 - **Problema que resolia**: els controls que no són ni el mapa ni el lateral estaven repartits en tres llocs (barreta d'Expositor/Text a dalt a l'esquerra, xips a dalt al centre, peu del lateral) i moltes coses es podien fer des de dos llocs («Modo Jugador» i el xip 🖥; Guardar/Cargar, ☁ i el xip ⟳; el zoom al lateral i el reset a dalt).
-- **Una sola barra** de `TOP_BAR_H` (48 px) per sobre del lateral i de l'escenari. D'esquerra a dreta: nom del mapa (bloc de 250 px perquè la resta s'alineï amb l'escenari), l'interruptor **Preparar · Jugar**, **«Mostrar als jugadors»**, els avisos de mode (CTRL/MAJ/▣, al centre) i quatre menús: **Pantalles de jugador**, **Partida**, **Vista** (només amb mapa) i **⋯**.
+- **Una sola barra** de `TOP_BAR_H` (48 px) per sobre del lateral i de l'escenari. D'esquerra a dreta: nom del mapa (bloc de 250 px perquè la resta s'alineï amb l'escenari), l'interruptor **Preparar · Jugar**, **«Mostrar als jugadors»** i, a la dreta, el **Desfer** únic (veure «Desfer únic») i quatre menús: **Pantalles de jugador**, **Partida**, **Vista** (només amb mapa) i **⋯**.
   - **Pantalles** (`ScreensMenu`): veure «Menú de pantalles» a la secció de la càmera compartida. En groc mentre no n'hi ha cap.
   - **Partida** (`GameMenu`): l'etiqueta del botó és l'estat del desat («Desat fa 2 min», es refresca cada 15 s). Dins: interruptor del desat automàtic, desar ara, exportar a `.json`, obrir un `.json` i partides al servidor (si hi ha API).
   - **Vista** (`ViewMenu`): graella visible, opacitat del mapa i Ressaltar enemics (+ cadenat), aquest només amb PSD.
   - **⋯** (`MoreMenu`): dreceres de teclat, back office i versió.
 - Els menús són `Popover` (nivell de mòdul): clic fora o **Esc** els tanquen. ⚠️ L'Esc es captura en fase de captura amb `stopImmediatePropagation`, si no `useKeyboardHandlers` també tornaria a l'eina de selecció (mateix criteri que `RadialMenu`).
 - ⚠️ El cos (lateral + escenari) és un **context d'apilament propi** (`position: relative; zIndex: 0`) i la barra té `zIndex: 1`: així els menús de la barra queden sempre per sobre de tot el que hi ha a l'escenari (panells a `zIndex` 20, el rètol de deixar fitxers a 40…) sense haver de pujar números.
-- El **zoom** és a la cantonada superior dreta del mapa (`CanvasHUD`): − / percentatge / +, i un clic al percentatge restableix la vista (zoom i posició).
+- El **zoom** és a la cantonada superior dreta del mapa (`CanvasHUD`): − / percentatge / +, i un clic al percentatge restableix la vista (zoom i posició). Al seu costat hi ha el selector de càmera.
+
+### Selector de càmera (`CanvasHUD`)
+- **Problema que resolia**: la càmera eren dos botons «CTRL» i «MAJ» a la barra d'eines, amb el nom de la tecla en lloc del que fan, i un avís a dalt quan estaven encesos.
+- A la cantonada superior dreta del mapa, al costat del zoom: **«Què veuen els jugadors: Compartida · Privada»** (`role="radiogroup"`).
+  - **Compartida** (per defecte): els jugadors et segueixen quan mous el mapa o fas zoom.
+  - **Privada** (`setPrivateView`, mateix estat que el toc de Maj: `rShiftPanToggle`): et mous amb `dmLocalPan`/`dmLocalZoom` i els jugadors es queden on eren. En tornar a Compartida, la teva vista hi torna sola (`dmPrivateReturnAnim`). També cal per amagar una sala ja revelada (veure «Sales fosques»).
+  - **«Enviar aquesta vista»** (només en Privada, `sendPrivateView`): la vista compartida pren el teu enquadrament (`rZoom × dmLocalZoom`, `rPanOffset + dmLocalPan`, zoom retallat a [0,2, 10]) i el privat torna a zero, o sigui que a la teva pantalla no es mou res i continues en Privada.
+  - **Vista temporal** (toc de Ctrl, `toggleCtrlPan`): sense botó propi, però quan és activa surt un xip «Temporal · tornarà on era» amb ✕ per sortir-ne (tothom torna a l'enquadrament d'abans).
+- `toggleShiftPan` (tecla) conserva la guarda de l'eina Màgies (Maj hi traça la línia del conjur); `setPrivateView` (selector) no la té.
+- El zoom de la cantonada mou sempre la vista **compartida**, també en Privada (com feia el lliscador d'abans); la roda i la pinça, en Privada, fan zoom privat.
+
+### Desfer únic (`src/lib/undo.ts` + botó a `TopBar`)
+- **Problema que resolia**: tres desfers (traç al panell de Dibuix, mapa a la barra de Preparar, moviments només amb Ctrl+Z) i un Ctrl+Z que en triava un segons l'eina activa sense dir quin.
+- **Un sol «Desfer»** a la barra superior, que diu què desfarà («Desfer · afegir paret», «· traç de dibuix», «· moviment de Liriandor»). **Ctrl+Z fa exactament el mateix** (`undoLast` a `DMView`, passat a `useKeyboardHandlers` com a `undo`).
+- **Model**: les tres piles de sempre no canvien (`strokeHistoryRef`, `rMapHistory`, `rMoveHistory`). `rUndoLog` només en guarda l'**ordre**: cada entrada apunta a l'objecte apilat (`logUndo`, just després de cada `push`). `peekUndo` retorna l'última entrada **que encara és a la seva pila**; les altres han caducat (s'han desfet, s'ha esborrat el dibuix, ha canviat el torn, s'ha eliminat el token) i se salten. Per això cap camí que buidi una pila pel seu compte pot desordenar el desfer, i no cal netejar el registre enlloc.
+- ⚠️ Una **pila de desfer nova** ha de: apuntar cada `push` amb `logUndo`, sortir a `peekDmUndo` i a `undoLast`, i avisar `onUndoChange` (o `refreshUndo`) quan canviï, perquè l'etiqueta del botó es refresqui. L'etiqueta es calcula a `refreshUndo` (estat `undoNext`), no al render: llegir refs al render és l'error de lint `react-hooks/refs`.
+- Els moviments de combat que es desfan són els que fan **els jugadors** des de `/player` (el DM pot desfer-ne un de mal fet); els que fa el DM arrossegant no s'apilen.
 
 ### Panell «Mostrar als jugadors» (`ShowPanelHeader` + `DMView`)
 - L'Expositor i el Revelador de text són **les dues pestanyes d'un sol panell** (Imatge o vídeo · Text), que obre el botó «Mostrar als jugadors» de la barra. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
@@ -499,7 +517,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **AutoSize** (`gridAutoSize`): `rTokenSizeOverride` — map `{tokenId: R}` escala tokens al 90% cel·la
 
 ### Selecció per àrea (marquee)
-- Drecera `A` (toggle) → `rAreaSelectMode`. Cursor en creu + indicador "▣ SELECCIÓ MÚLTIPLE" a la barra superior (`TopBar`).
+- Drecera `A` (toggle) → `rAreaSelectMode`. Cursor en creu i el botó ▣ de la barra d'eines encès.
 - En aquest mode, left-drag dibuixa un rectangle (`rAreaSelectRect` en coords de mapa) que selecciona **només tokens** (PSD enemies, lib enemies i jugadors) amb el centre dins. Resultat → `rMultiSelected`.
 - `A` o `ESC` per sortir (gestionat a `useKeyboardHandlers`). El rectangle es renderitza en espai pantalla a `useRafLoop` (després del grid).
 - **Zoom**: el cap del zoom compartit és ×10 (1000%) a `useWheelZoom` i al zoom de la cantonada (`CanvasHUD`).
@@ -555,9 +573,8 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ### Desfer canvis del mapa (Ctrl+Z de parets, sales, portes i llums)
 - **Model** (`rMapHistory` a `useDMRefs`, `_pushMapEdit`/`undoMapEdit` a `useDMActions`): una entrada és **només les quatre referències d'array** (`walls`, `rooms`, `doors`, `lights`) d'abans del canvi. Com que tota mutació d'aquests camps crea arrays nous —el que fa funcionar la dieta del `STATE`—, desar-les no costa cap còpia i restaurar-les torna l'estat exacte. Màxim `MAP_HISTORY_MAX` entrades. DM-only: no es sincronitza ni es desa a la partida.
-- **Qui hi entra**: afegir/esborrar/moure paret, esborrar sala, reanomenar sala, afegir/eliminar porta, afegir/eliminar llum i esborrar totes les parets. **No** hi entren les accions de joc (obrir una porta, marcar una sala com a fosca o revelar-la): Ctrl+Z no ha de desfer una decisió de partida.
-- **Encaminament per eina** (`useKeyboardHandlers`): Parets/Llums → canvi de mapa; eines de dibuix → traç; selecció → moviment de combat i, **si no n'hi ha cap a l'historial**, canvi de mapa (així el Ctrl+Z d'un canvi fet des del panell de sales funciona sense canviar d'eina).
-- **Botó visible**: «Desfer al mapa» a la barra d'eines del mode Preparar, amb el nom del canvi que desfarà a la finestreta d'ajuda. Botó i tecla criden la mateixa funció (mateix criteri que els modes de la barra d'eines). Abans era un `↶` a la capçalera de «Sales».
+- **Qui hi entra**: afegir (`'afegir paret'`, des de la v4.29: abans no s'apilava i un Ctrl+Z en desfeia un altre canvi més antic), esborrar i moure paret, esborrar sala, reanomenar sala, afegir/eliminar porta, afegir/eliminar llum i esborrar totes les parets. **No** hi entren les accions de joc (obrir una porta, marcar una sala com a fosca o revelar-la): Ctrl+Z no ha de desfer una decisió de partida.
+- **Com es desfà**: amb el «Desfer» únic de la barra superior o Ctrl+Z, que desfan l'última acció de qualsevol mena (veure «Desfer únic»). Desfer un canvi del mapa cancel·la la cadena de parets i la col·locació de porta en curs.
 
 ### Menú contextual d'un token (`ContextMenuOverlay`)
 - Capçalera comuna (`MenuHeader`): títol, accessoris i **✕ de tancar** (també Esc). L'estat derrotat és un botó amb nom, **«💀 Derrotar» / «💀 Derrotat»**: abans era un ✕ solt just on s'espera el de tancar.
@@ -719,7 +736,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Distintiu**: aro **daurat sòlid** al token actiu (`drawActiveTurnRing` a `render/tokens.ts`), pintat a **les tres** famílies de tokens — `renderPlayerTokens`, `renderEnemyTokens` (PSD, `_activeId === en.id`, numèric) i `renderLibEnemyTokens` (`_activeId === \`lib_${en.id}\``) — perquè al mapa es vegi a qui li toca moure i no calgui mirar la barra d'iniciativa. No es pinta si el token està derrotat o pràcticament invisible (`enAlpha > 0.3`). Coherent amb el groc però diferent de l'aro de "ressaltar enemics" i del blau de selecció.
 - **Límit de moviment per torn** (extensió de `usePlayerTokenDrag`): amb combat actiu, des de `/player` només es pot **agafar** el token del torn actiu, i el disc de moviment usa `activeRemainingFt` en lloc de la velocitat sencera (es va encongint drag a drag: p. ex. 15 ft → mou 5 → queden 10). El DM valida cada `TOKEN_MOVE` (`handlePlayerTokenMove`): comprova bloqueig manual (`canMove`), que sigui el token actiu i que el cost no superi el saldo (mateixa mètrica de disc: `cost = ceil(hypot(dc,dr) − 0.5)` caselles × 5 ft); si el supera, rebot amb `TOKEN_RELAY`. En aplicar, descompta el saldo i propaga amb `_broadcastState` (perquè el disc del jugador s'encongeixi). **El DM mou sense límits** (el seu drag no passa per aquesta via). Sense grid no hi ha límit (com el clamp existent).
 - **Recuperar un torn anterior**: clic dret sobre un token **no actiu** de la barra → "↩ Recuperar el seu torn" (`recoverTurn`). Torna `turnIndex` a aquell token amb el saldo de peus que li quedava (`TurnState.remaining`, mapa de saldos desat en deixar cada torn; es neteja a cada ronda nova).
-- **Desfer moviment (Ctrl+Z)**: `rMoveHistory` (DM-only, es reinicia a cada canvi de torn via `_applyTurn`) apila `{ id, from, spentFt }` a cada moviment de combat (`handlePlayerTokenMove`). `undoTokenMove` restaura la posició i retorna els peus. **Encaminat per eina** a `useKeyboardHandlers`: amb l'eina de selecció (`rDrawTool === 'none'`) el Ctrl+Z fa `undoTokenMove`; amb qualsevol eina de dibuix fa `undoStroke` (cadascú el seu, no es barregen).
+- **Desfer moviment (Ctrl+Z)**: `rMoveHistory` (DM-only, es reinicia a cada canvi de torn via `_applyTurn`) apila `{ id, from, spentFt }` a cada moviment de combat (`handlePlayerTokenMove`). `undoTokenMove` restaura la posició i retorna els peus. Es desfà amb el «Desfer» únic (botó de la barra o Ctrl+Z), en l'ordre en què han passat les coses respecte dels traços i dels canvis del mapa.
 - **Editar l'ordre** (estil iPhone): botó **⚙** a la barra activa un mode edició (xips amb vora de guions; «Següent» passa a ser **«✓ Fet»**). ⚠️ **Res de balanceig** (l'efecte «tremolor» de l'iPhone): es va provar i els xips girats sobresortien del carril, la barra de scroll apareixia i desapareixia i tremolava tota la barra. El xip agafat s'aixeca com a **clon** (fora del carril, perquè l'`overflow` no el retalli) i la resta s'aparten **en viu** amb `transform` per deixar el forat on cauria (`layoutLefts` + `dropIndex`, calculats amb les amplades fixes, no mesurades). En deixar-lo anar, el clon vola al forat (`SETTLE_MS`) i llavors `commitDrag` crida `reorderTurn` (que manté actiu el mateix token recalculant `turnIndex`) **en un sol render amb les transicions apagades** (`noAnim`): cada xip ja era visualment al seu lloc nou, així que no salta res. Pointer events (ratolí i dit), no l'HTML5 drag & drop. Arrossegar a la vora del carril fa scroll. En mode edició, clicar un xip no fa res.
 - **Acabar combat**: el botó ✕ demana **confirmació** («Finalitzar el combat?») per evitar clics accidentals. **«⏭ Ronda»** (salta tots els que queden) és secundari i també demana confirmació («Saltar a la ronda N?»). Les confirmacions i el «Recuperar el torn» van en un **globus a sobre de la barra** (`Bubble`, un sol `pop` obert alhora) que es tanca clicant fora o amb Esc — mai substituint el botó dins de la barra (la feia créixer).
 - **Amplada**: la barra fa com a màxim `100% − 150px` de l'escenari (no tapa la barra d'eines de l'esquerra); si hi ha molts tokens, els xips fan scroll i el del torn actiu es desplaça sol a la vista (`data-active` + `scrollTo`, només quan canvia QUI té el torn, no en reordenar).
@@ -770,7 +787,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Roda**: el primer esdeveniment de cada ràfega (220 ms sense rodes la tanquen) decideix si és zoom o pan i es manté: `ctrlKey` o `deltaMode ≠ 0` → zoom; `deltaX ≠ 0` o `|deltaY| < 50` → pan (trackpad); la resta (osques de 100/120 px) → zoom. Amb la vista privada activa, el pan va a `dmLocalPan`.
 
 ### Vista privada DM
-- `Maj+scroll/drag` (toggle `rShiftPanToggle`): zoom i pan locals, **no** sincronitzats al jugador (no entren a `cam`)
+- Selector de càmera «Privada» o toc de Maj (`rShiftPanToggle`): zoom i pan locals, **no** sincronitzats al jugador (no entren a `cam`). «Enviar aquesta vista» els passa a la vista compartida (veure «Selector de càmera»).
 - Refs: `dmLocalPan`, `dmLocalZoom` — animació de retorn suau (`dmPrivateReturnAnim`)
 
 ### Pantalla de benvinguda i fitxers deixats al canvas (`DMView`)
@@ -849,5 +866,6 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Animar `text-shadow`, `filter` o `box-shadow` amb desenfocs grossos | Els fps cauen a la meitat mentre dura l'animació | Pintar l'efecte un cop en una capa pròpia i animar-ne només `opacity`/`transform` (veure el nom de la cinemàtica de boss) |
 | Llegir `localStorage` a l'inicialitzador d'un `useState` | Error d'hidratació (el servidor no en té i pinta un altre estat) | `useSyncExternalStore` amb snapshot de servidor `null` (veure `useEnemyGrouping`) |
 | Llista del lateral amb `overflowY: 'auto'` a pèl | Torna a sortir la barra nativa, una franja fixa que no lliga amb la resta | Embolcallar-la amb `ScrollArea` (o `SidebarSection` amb `maxBodyHeight`) |
+| Pila de desfer nova que no passa per `logUndo` | El «Desfer» se la salta o desfà les coses en un altre ordre | `logUndo` a cada `push` i entrar-la a `peekDmUndo`/`undoLast` (veure «Desfer únic») |
 | Mateixa acció en dos llocs (un botó al lateral i un xip a dalt…) | L'usuari no sap quin és el bo i la UI s'omple | Un sol lloc per acció; si cal una drecera, que cridi la mateixa funció (veure `TopBar`) |
 | Llegir refs dins del render d'un menú | Valors que no es refresquen i error de lint `react-hooks/refs` | Passar l'estat per props (com `ContextMenuOverlay`: `libEnemies`, `players`, `psdEnemyOverrides`) |

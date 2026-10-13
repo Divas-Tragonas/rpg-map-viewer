@@ -60,6 +60,14 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.29 — Selector de càmera i un sol Desfer (simplificació, fase 3)
+- **Selector de càmera** a la cantonada del mapa, al costat del zoom: «Què veuen els jugadors: **Compartida** · **Privada**». Substitueix els botons «CTRL» i «MAJ» de la barra d'eines (les tecles funcionen igual).
+- **«Enviar aquesta vista»**: en vista privada, un clic i els jugadors passen a veure el que estàs veient tu.
+- La vista temporal del toc de Ctrl continua existint i ara es veu: surt un xip «Temporal · tornarà on era» amb una ✕ per sortir-ne.
+- **Un sol «Desfer»** a la barra de dalt que diu què desfarà («Desfer · afegir paret», «· traç de dibuix», «· moviment de Liriandor»). Ctrl+Z fa el mateix. Abans n'hi havia tres i el Ctrl+Z en triava un segons l'eina, sense dir quin.
+- Ara també es pot desfer **afegir una paret** (abans un Ctrl+Z en desfeia un altre canvi més antic).
+- Fora de la barra d'eines CTRL, MAJ, «Desfer al mapa» i «Desfer traç»: la barra queda en 5 botons a cada mode.
+
 ### v4.28 — Modes Preparar i Jugar (simplificació, fase 2)
 - **Interruptor Preparar · Jugar** a la barra de dalt. Cada mode només ensenya les seves eines: la barra de l'esquerra passa de 13 botons a 7 o 8.
   - **Preparar** (construir el mapa): Selecció, Parets i portes, Llums, Graella i Desfer al mapa. Al lateral, la pestanya **Mapa** (fons, capes del PSD, sales), a més d'Escena i Biblioteca.

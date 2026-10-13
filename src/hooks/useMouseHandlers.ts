@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useRef } from 'react';
+import { logUndo } from '@/lib/undo';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
@@ -29,7 +30,7 @@ interface MouseHandlerSetters {
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setPaintedZones: (v: import('@/types').PaintedZone[]) => void;
   setContextMenu: (v: import('@/types').ContextMenuState | null) => void;
-  setCanUndo: (v: boolean) => void;
+  onUndoChange: () => void;
   setDmPrivateActive: (v: boolean) => void;
   setCanvasCursor: (c: string) => void;
   setWalls: (v: import('@/types').Wall[]) => void;
@@ -239,6 +240,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (last) {
         if (Math.hypot(p.x - last.x, p.y - last.y) > 0.5) {
           const wall = { a: last, b: p };
+          // Al registre de desfer abans del canvi (com els altres canvis del mapa).
+          S.pushMapEdit('afegir paret');
           const prevRooms = R.rRooms.current.length;
           const prevIds = new Set(R.rRooms.current.map(r => r.id));
           R.rWalls.current = [...R.rWalls.current, wall];
@@ -955,9 +958,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         const strokeMsg = { type: 'STROKE', points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current };
         R.bcRef.current?.postMessage(strokeMsg);
         R.wsRef.current?.send(JSON.stringify(strokeMsg));
-        R.strokeHistoryRef.current.push({ points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current });
+        const stroke = { points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current };
+        R.strokeHistoryRef.current.push(stroke);
+        logUndo(R.rUndoLog.current, 'stroke', stroke);
         R.rAutosaveDirty.current = true;  // el dibuix no passa per _broadcastState
-        S.setCanUndo(true);
+        S.onUndoChange();
       }
     }
     _broadcastState({});

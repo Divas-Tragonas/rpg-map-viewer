@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, feetFromRadius, APP_VERSION, DEFAULT_SPEED_FT, tint } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
+import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
 import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -10,7 +11,7 @@ import type {
   LibEnemy, PsdEnemyOverrides, Wall, Room, Door, LightSource, TurnState,
 } from '@/types';
 import { clearExploredAt } from '@/lib/render/darkrooms';
-import { useDMRefs } from '@/hooks/useDMRefs';
+import { useDMRefs, type DMRefs } from '@/hooks/useDMRefs';
 import { useCinematic } from '@/hooks/useCinematic';
 import { useDMActions } from '@/hooks/useDMActions';
 import { useRafLoop } from '@/hooks/useRafLoop';
@@ -52,6 +53,11 @@ import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveM
  *  de pestanya no ha de fer saltar el panell). */
 const SHOW_PANEL_W = 560;
 
+/** Què desfaria el «Desfer» ara: llegeix el registre i les tres piles (veure `lib/undo.ts`). */
+const peekDmUndo = (R: DMRefs) => peekUndo(R.rUndoLog.current, {
+  stroke: R.strokeHistoryRef.current, map: R.rMapHistory.current, move: R.rMoveHistory.current,
+});
+
 const welcomeLink: React.CSSProperties = {
   background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: FS.sm,
   textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer',
@@ -86,8 +92,8 @@ export function DMView() {
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [autosaveMeta, setAutosaveMeta] = useState<AutosaveMeta | null>(null);
   const [recovering, setRecovering] = useState(false);
-  // Etiqueta del canvi de mapa que desfaria el proper Ctrl+Z (null = no hi ha res a desfer).
-  const [mapUndo, setMapUndo] = useState<string | null>(null);
+  // Què desfaria el proper «Desfer» (botó de la barra o Ctrl+Z); null = res. Veure `lib/undo.ts`.
+  const [undoNext, setUndoNext] = useState<{ kind: UndoKind; label?: string; tokenId?: number | string } | null>(null);
   // Pantalles de jugador connectades (id → mida), reportades pel missatge VIEWPORT.
   const [playerScreens, setPlayerScreens] = useState<Record<string, { w: number; h: number; ts: number }>>({});
   // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
@@ -95,7 +101,6 @@ export function DMView() {
   const [camAr, setCamAr] = useState<number | null>(null);
   const [, setExpanded] = useState<Record<number, boolean>>({});
   const [, setActiveDrag] = useState<string | number | null>(null);
-  const [canUndo, setCanUndo] = useState(false);
   const [activeSpells, setActiveSpells] = useState<Spell[]>([]);
   const [tokenSizeOverride, setTokenSizeOverride] = useState<TokenSizeMap>({});
   const [gridVisible, setGridVisible] = useState(false);
@@ -265,14 +270,25 @@ export function DMView() {
     setDrawTool(t => { const owner = modeForTool(t); return owner && owner !== m ? 'none' : t; });
   }, [applyMode, setDrawTool]);
 
+  // ── Desfer únic ──────────────────────────────────────────────────────────────
+  // Torna a mirar quina acció desfaria el proper «Desfer». Es crida cada cop que alguna de
+  // les tres piles canvia (useDMActions i useMouseHandlers ho avisen amb `onUndoChange`).
+  const refreshUndo = useCallback(() => {
+    const e = peekDmUndo(R);
+    if (!e) setUndoNext(null);
+    else if (e.kind === 'map') setUndoNext({ kind: 'map', label: (e.ref as { label: string }).label });
+    else if (e.kind === 'move') setUndoNext({ kind: 'move', tokenId: (e.ref as { id: number | string }).id });
+    else setUndoNext({ kind: 'stroke' });
+  }, [R]);
+
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
     setBgLoaded, setBgName, setPsdInfo, setStruct, setWarnings, setParseError, setParsing,
     setLayerImages, setVis, setPos, setZoom, setPlayers, setConditions, setDefeated,
-    setPaintedZones, setExpanded, setCanUndo, setActiveSpells, setGridSize, setGridSnap,
+    setPaintedZones, setExpanded, onUndoChange: refreshUndo, setActiveSpells, setGridSize, setGridSnap,
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
     setWarningsDismissed, setGridVisible, setGridAutoSize,
-    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setLights, setTurn, setMapUndo,
+    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setLights, setTurn,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -346,7 +362,8 @@ export function DMView() {
   const _applyTurn = useCallback((t: TurnState) => {
     R.rMoveHistory.current = [];  // cada canvi de torn reinicia l'historial de Ctrl+Z
     R.rTurn.current = t; setTurn(t); _broadcastState({});
-  }, [R, _broadcastState]);
+    refreshUndo();
+  }, [R, _broadcastState, refreshUndo]);
 
   const startTurnCombat = useCallback((includeIds: (number | string)[]) => {
     // Tots els jugadors s'afegeixen automàticament; després els enemics/grups triats. Dedup.
@@ -421,7 +438,19 @@ export function DMView() {
       R.rTurn.current = nt; setTurn(nt);
     }
     _broadcastState({});
-  }, [R, _broadcastState]);
+    refreshUndo();
+  }, [R, _broadcastState, refreshUndo]);
+
+  // «Desfer» únic (botó de la barra superior i Ctrl+Z): desfà l'última acció, sigui un traç,
+  // un canvi del mapa o un moviment de combat. Cada desfer treu l'objecte de la seva pila i
+  // la seva entrada del registre caduca sola (veure `lib/undo.ts`).
+  const undoLast = useCallback(() => {
+    const e = peekDmUndo(R);
+    if (!e) return;
+    if (e.kind === 'stroke') undoStroke();
+    else if (e.kind === 'map') undoMapEdit();
+    else undoTokenMove();
+  }, [R, undoStroke, undoMapEdit, undoTokenMove]);
 
   // Processa un TOKEN_MOVE rebut d'una pantalla de jugador (BC o WS). El DM és autoritat:
   // valida el bloqueig manual i, si hi ha combat, que sigui el token del torn actiu i que el
@@ -498,7 +527,10 @@ export function DMView() {
 
     if (turn.active) {
       // Registra el moviment (posició d'origen + peus gastats) per poder desfer-lo amb Ctrl+Z.
-      R.rMoveHistory.current.push({ id, from: R.rPos.current[id] ?? { x, y }, spentFt: consumedFt });
+      const move = { id, from: R.rPos.current[id] ?? { x, y }, spentFt: consumedFt };
+      R.rMoveHistory.current.push(move);
+      logUndo(R.rUndoLog.current, 'move', move);
+      refreshUndo();
     }
 
     // Animació de desplaçament a la pantalla del DM: el token recorre el camí real
@@ -764,7 +796,7 @@ export function DMView() {
   // ── Mouse handlers ────────────────────────────────────────────────────────
   const mouseSetters = useMemo(() => ({
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
-    setActiveSpells, setPaintedZones, setContextMenu, setCanUndo,
+    setActiveSpells, setPaintedZones, setContextMenu, onUndoChange: refreshUndo,
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
@@ -855,21 +887,40 @@ export function DMView() {
     }
   }, [R, _broadcastState]);
 
+  // Vista privada: la teva càmera es mou sola i els jugadors es queden on eren. En sortir-ne,
+  // la teva vista torna sola a la compartida. La fan servir el selector de càmera del mapa
+  // (`CanvasHUD`) i el toc de Maj.
+  const setPrivateView = useCallback((on: boolean) => {
+    if (R.rShiftPanToggle.current === on) return;
+    R.rShiftPanToggle.current = on;
+    setShiftPanActive(on);
+    if (on) return;
+    R.rShiftHeld.current = false;
+    if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
+      R.dmPrivateReturnAnim.current = true;
+    }
+  }, [R]);
+
   const toggleShiftPan = useCallback(() => {
     // Amb l'eina de màgies, Maj serveix per traçar la línia del spell: no fa de toggle.
     if (R.rDrawTool.current === 'shape') return;
-    if (!R.rShiftPanToggle.current) {
-      R.rShiftPanToggle.current = true;
-      setShiftPanActive(true);
-    } else {
-      R.rShiftPanToggle.current = false;
-      R.rShiftHeld.current = false;
-      setShiftPanActive(false);
-      if (R.dmLocalPan.current.x !== 0 || R.dmLocalPan.current.y !== 0 || R.dmLocalZoom.current !== 1) {
-        R.dmPrivateReturnAnim.current = true;
-      }
-    }
-  }, [R]);
+    setPrivateView(!R.rShiftPanToggle.current);
+  }, [R, setPrivateView]);
+
+  // «Enviar aquesta vista»: els jugadors passen a veure exactament el que veus en privat. La
+  // vista compartida pren el teu enquadrament (zoom × zoom privat, pan + pan privat) i el
+  // privat torna a zero: a la teva pantalla no es mou res i continues en vista privada.
+  const sendPrivateView = useCallback(() => {
+    const z = Math.max(0.2, Math.min(10, R.rZoom.current * R.dmLocalZoom.current));
+    R.rPanOffset.current = {
+      x: R.rPanOffset.current.x + R.dmLocalPan.current.x,
+      y: R.rPanOffset.current.y + R.dmLocalPan.current.y,
+    };
+    R.rZoom.current = z; setZoom(z);
+    R.dmLocalPan.current = { x: 0, y: 0 }; R.dmLocalZoom.current = 1;
+    R.dmPrivateReturnAnim.current = false;
+    _broadcastState({});
+  }, [R, _broadcastState]);
 
   const toggleAreaSelect = useCallback(() => {
     const next = !R.rAreaSelectMode.current;
@@ -887,7 +938,7 @@ export function DMView() {
   // perdut passaria el torn sense que el DM ho veiés.
   const advanceTurnIfPlaying = useCallback(() => { if (mode === 'jugar') advanceTurn(); }, [mode, advanceTurn]);
   useKeyboardHandlers(R, {
-    setDrawTool, undoStroke, undoTokenMove, undoMapEdit, skipBossIntro,
+    setDrawTool, undo: undoLast, skipBossIntro,
     toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
     onDeleteSelection,
     removeLastWall,
@@ -1300,6 +1351,11 @@ export function DMView() {
   // sintètica que desbloqueja el render loop). `psdStruct` és el PSD real: la UI que
   // només té sentit amb capes de Photoshop es penja d'aquest, no de `struct`.
   const psdStruct = struct && !struct.synthetic ? struct : null;
+  // Etiqueta del «Desfer» de la barra: què desfarà (els moviments de combat són de jugadors).
+  const undoLabel = !undoNext ? null
+    : undoNext.kind === 'stroke' ? 'traç de dibuix'
+    : undoNext.kind === 'map' ? (undoNext.label ?? 'canvi del mapa')
+    : `moviment de ${players.find(p => `pl_${p.id}` === String(undoNext.tokenId))?.name ?? 'un token'}`;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
@@ -1310,7 +1366,7 @@ export function DMView() {
         mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
         mode={mode} onModeChange={switchMode}
         showOpen={showPanelOpen} showActive={expositorActive || textRevealActive} onToggleShow={toggleShowPanel}
-        ctrlPanActive={ctrlPanActive} shiftPanActive={shiftPanActive} areaSelectMode={areaSelectMode}
+        undoLabel={undoLabel} onUndo={undoLast}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
         onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
@@ -1421,19 +1477,18 @@ export function DMView() {
         <CanvasHUD
           gridCalibrating={gridCalibrating} hasMap={bgLoaded}
           zoom={zoom} onZoomChange={onZoomChange} onResetView={onResetView}
+          privateView={shiftPanActive} tempShared={ctrlPanActive}
+          onSetPrivate={setPrivateView} onSendView={sendPrivateView} onEndTemp={toggleCtrlPan}
         />
         <FloatingToolbar
           mode={mode}
           drawTool={drawToolState} drawColor={drawColor} setDrawColor={setDrawColor}
           drawSize={drawSize} setDrawSize={setDrawSize}
-          canUndo={canUndo} paintedZones={paintedZones}
-          onSetDrawTool={setDrawTool} onUndo={undoStroke}
-          onUndoMap={() => { undoMapEdit(); }} mapUndo={mapUndo}
+          paintedZones={paintedZones}
+          onSetDrawTool={setDrawTool}
           onClearDraw={clearDrawing} onClearPaintedZones={clearPaintedZones}
           bcRef={R.bcRef} wsRef={R.wsRef}
           lightRadiusFt={newLightRadiusFt} lightSelected={lightSelectedId !== null} onSetLightRadius={setLightRadius}
-          ctrlPanActive={ctrlPanActive} onToggleCtrlPan={toggleCtrlPan}
-          shiftPanActive={shiftPanActive} onToggleShiftPan={toggleShiftPan}
           areaSelectMode={areaSelectMode} onToggleAreaSelect={toggleAreaSelect}
           disabled={!bgLoaded}
           grid={{

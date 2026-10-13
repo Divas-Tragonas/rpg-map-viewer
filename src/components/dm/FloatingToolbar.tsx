@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { PenLine, Eraser, RotateCcw, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon } from '@/components/icons';
+import { PenLine, Eraser, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon } from '@/components/icons';
 import { C, PALETTE, FS, RADIUS, SPELL_MODES } from '@/constants';
 import { GridPanel } from '@/components/dm/GridPanel';
 import { Button } from '@/components/ui/Button';
@@ -39,23 +39,16 @@ interface Props {
   drawTool: DrawTool;
   drawColor: string; setDrawColor: (c: string) => void;
   drawSize: number; setDrawSize: (n: number) => void;
-  canUndo: boolean; paintedZones: PaintedZone[];
+  paintedZones: PaintedZone[];
   onSetDrawTool: (fn: (t: DrawTool) => DrawTool) => void;
-  /** Desfà l'últim traç (al panell de Dibuix). */
-  onUndo: () => void;
   onClearDraw: () => void;
-  /** Desfà l'últim canvi del mapa (mode Preparar); `mapUndo` n'és l'etiqueta, null si no n'hi ha. */
-  onUndoMap: () => void;
-  mapUndo: string | null;
   onClearPaintedZones: () => void;
   bcRef: React.MutableRefObject<BroadcastChannel | null>;
   wsRef: React.MutableRefObject<SyncSocket | null>;
   lightRadiusFt: number;
   lightSelected: boolean;
   onSetLightRadius: (ft: number) => void;
-  /** Modes que no són eines de dibuix però sí que canvien què fa el ratolí. */
-  ctrlPanActive: boolean; onToggleCtrlPan: () => void;
-  shiftPanActive: boolean; onToggleShiftPan: () => void;
+  /** Selecció múltiple: no és una eina de dibuix però canvia què fa el ratolí. */
   areaSelectMode: boolean; onToggleAreaSelect: () => void;
   grid: GridProps;
   /** Sense mapa carregat les eines no fan res: la barra es mostra apagada. */
@@ -123,32 +116,12 @@ const PREP_TOOLS: ToolDef[] = [
   },
 ];
 
-interface ModeDef {
-  key: 'ctrl' | 'shift' | 'area';
-  label: string;
-  hint: string;
-  badge: string;
-  badgeSize: number;
-  color: string;
-  desc: React.ReactNode;
-}
-
-// Modes que no són eines de dibuix però canvien què fa el ratolí. Fins ara només
-// s'activaven per teclat i no hi havia manera de saber que existien.
-const MODES: ModeDef[] = [
-  {
-    key: 'ctrl', label: 'Vista compartida', hint: 'toc CTRL', badge: 'CTRL', badgeSize: 8, color: '#4ade80',
-    desc: <>Mou el mapa i fes zoom: els jugadors et segueixen en directe. En desactivar-lo, la vista <b style={{ color: C.text }}>torna a l&apos;enquadrament</b> que hi havia abans d&apos;entrar-hi. S&apos;activa amb un toc de Ctrl sol (Ctrl+Z i les altres combinacions no el toquen).</>,
-  },
-  {
-    key: 'shift', label: 'Vista privada', hint: 'toc MAJ', badge: 'MAJ', badgeSize: 9, color: C.room,
-    desc: <>Mou-te i fes zoom <b style={{ color: C.text }}>sense que els jugadors ho vegin</b> (la seva pantalla es queda on era). També cal tenir-lo actiu per <b style={{ color: C.text }}>amagar</b> una sala ja revelada. En sortir, la teva vista torna sola on estava. S&apos;activa amb un toc de Maj sol (Maj+clic no el toca).</>,
-  },
-  {
-    key: 'area', label: 'Selecció múltiple', hint: 'A', badge: '▣', badgeSize: 15, color: C.room,
-    desc: <>Arrossega un rectangle i queden seleccionats tots els tokens que hi hagi dins (jugadors i enemics alhora). Després els pots moure junts, <b style={{ color: C.text }}>agrupar-los</b> amb el clic dret o esborrar-los amb Supr.</>,
-  },
-];
+// La selecció múltiple és l'únic mode de ratolí que queda a la barra. Els de càmera (vista
+// compartida i privada) viuen al selector de càmera del mapa (`CanvasHUD`).
+const AREA_MODE = {
+  label: 'Selecció múltiple', hint: 'A', color: C.room,
+  desc: <>Arrossega un rectangle i queden seleccionats tots els tokens que hi hagi dins (jugadors i enemics alhora). Després els pots moure junts, <b style={{ color: C.text }}>agrupar-los</b> amb el clic dret o esborrar-los amb Supr.</>,
+};
 
 const btnBase: React.CSSProperties = {
   width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -192,10 +165,9 @@ function ToolButton({ id, hover, setHover, onClick, active, color, disabled, sty
 }
 
 export function FloatingToolbar({
-  mode, drawTool, drawColor, setDrawColor, drawSize, setDrawSize, canUndo, paintedZones,
-  onSetDrawTool, onUndo, onClearDraw, onUndoMap, mapUndo, onClearPaintedZones, bcRef, wsRef,
+  mode, drawTool, drawColor, setDrawColor, drawSize, setDrawSize, paintedZones,
+  onSetDrawTool, onClearDraw, onClearPaintedZones, bcRef, wsRef,
   lightRadiusFt, lightSelected, onSetLightRadius,
-  ctrlPanActive, onToggleCtrlPan, shiftPanActive, onToggleShiftPan,
   areaSelectMode, onToggleAreaSelect, grid, disabled,
 }: Props) {
   const [gridOpen, setGridOpen] = React.useState(false);
@@ -224,12 +196,6 @@ export function FloatingToolbar({
     }
     return nt;
   });
-
-  const modeState: Record<ModeDef['key'], { on: boolean; toggle: () => void }> = {
-    ctrl: { on: ctrlPanActive, toggle: onToggleCtrlPan },
-    shift: { on: shiftPanActive, toggle: onToggleShiftPan },
-    area: { on: areaSelectMode, toggle: onToggleAreaSelect },
-  };
 
   const hoverProps = { hover, setHover };
 
@@ -266,31 +232,16 @@ export function FloatingToolbar({
 
         <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />
 
-        {MODES.map(m => (
-          <ToolButton key={m.key} id={`mode_${m.key}`} {...hoverProps}
-            onClick={modeState[m.key].toggle}
-            active={modeState[m.key].on} color={m.color}
-            style={{ fontSize: m.badgeSize, fontWeight: 800, letterSpacing: '0.02em' }}
-            tip={{ title: m.label, hint: m.hint, desc: m.desc }}>
-            {m.badge}
-          </ToolButton>
-        ))}
+        <ToolButton id="mode_area" {...hoverProps}
+          onClick={onToggleAreaSelect} active={areaSelectMode} color={AREA_MODE.color}
+          style={{ fontSize: 15, fontWeight: 800 }}
+          tip={{ title: AREA_MODE.label, hint: AREA_MODE.hint, desc: AREA_MODE.desc }}>
+          ▣
+        </ToolButton>
 
-        {(prep || paintedZones.length > 0) && <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />}
+        {!prep && paintedZones.length > 0 && <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />}
 
-        {prep ? (
-          // Un sol desfer per als canvis del mapa (parets, sales, portes, llums): el mateix que
-          // el Ctrl+Z amb aquestes eines. El del dibuix viu al panell de Dibuix.
-          <ToolButton id="undomap" {...hoverProps} onClick={onUndoMap} disabled={!mapUndo}
-            tip={{
-              title: 'Desfer al mapa', hint: 'CTRL+Z',
-              desc: mapUndo
-                ? <>Desfà l&apos;últim canvi del mapa: <b style={{ color: C.text }}>{mapUndo}</b>.</>
-                : <>Desfà l&apos;últim canvi del mapa (paret, sala, porta o llum). Ara no n&apos;hi ha cap.</>,
-            }}>
-            <RotateCcw size={15} />
-          </ToolButton>
-        ) : paintedZones.length > 0 && (
+        {!prep && paintedZones.length > 0 && (
           <ToolButton id="clearzones" {...hoverProps} onClick={onClearPaintedZones} active color={C.magic}
             style={{ fontSize: FS.xs, fontWeight: 700 }}
             tip={{
@@ -328,14 +279,10 @@ export function FloatingToolbar({
                       aria-label="Gruix" style={{ flex: 1, minWidth: 60, accentColor: drawTool === 'pen' ? drawColor : C.dim }} />
                     <span style={{ color: C.dim, fontSize: FS.xs, minWidth: 22, flexShrink: 0 }}>{drawSize}px</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <Button size="sm" onClick={onUndo} disabled={!canUndo} title="Desfer l'últim traç (Ctrl+Z)" style={{ flex: 1, gap: 5, height: 26 }}>
-                      <RotateCcw size={11} /> Desfer traç
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={onClearDraw} title="Esborra tot el dibuix, també a la pantalla dels jugadors" style={{ flex: 1, gap: 5, height: 26 }}>
-                      <Trash2 size={11} /> Esborrar tot
-                    </Button>
-                  </div>
+                  {/* El desfer del traç és el «Desfer» de la barra superior (i Ctrl+Z). */}
+                  <Button size="sm" variant="danger" onClick={onClearDraw} title="Esborra tot el dibuix, també a la pantalla dels jugadors" style={{ gap: 5, height: 26 }}>
+                    <Trash2 size={11} /> Esborrar tot el dibuix
+                  </Button>
                 </div>
               )}
               {drawTool === 'light' && (
