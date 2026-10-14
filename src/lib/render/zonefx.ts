@@ -3,7 +3,7 @@
 // Cada zona es compon cada fotograma en un llenç de treball a la resolució de pantalla:
 //  1. capes de textura enrajolada (`textures/tiles.ts`) que es desplacen o giren,
 //  2. una vora interior que brilla del color de l'element,
-//  3. partícules de l'element (flames i espurnes, destells, ones, bombolles, arcs, motes),
+//  3. partícules de l'element (flames i espurnes, gebre, escuma i ones, bombolles, arcs, remolí),
 //  4. la màscara de la zona amb la vora difuminada, que ho retalla tot,
 // i el resultat es copia al mapa amb un sol `drawImage`. Abans era soroll calculat en JS
 // texel a texel 8–20 cops per segon: borrós, a salts i més car.
@@ -17,10 +17,11 @@
 import type { PaintedZone, Point } from '@/types';
 import { pointInPolygon } from '@/lib/geometry';
 import {
-  TILE, fireGround, fireFlame, iceSheet, waterDeep, caustics, poisonSludge, poisonGlow, stormField, stormVeins, nebula, nebulaGlow,
+  TILE, fireGround, fireFlame, iceSheet, waterDeep, caustics, waterWaves, poisonSludge, poisonGlow, stormField, stormVeins,
+  nebula, arcaneFlow, vortex,
 } from '@/lib/textures/tiles';
 import {
-  mulberry32, glow, fire, streak, blit, blitStretch, glowSprite, smokeSprite, mistSprite,
+  mulberry32, glow, streak, blit, blitStretch, glowSprite, fireSprite, smokeSprite, mistSprite,
   rgb, PAL, TAU, smoothstep, easeOutCubic, type RGB3,
 } from './fxsprites';
 
@@ -33,9 +34,10 @@ interface ZoneGeo {
   path: Path2D;
   L: number; T: number; W: number; H: number;   // rectangle de treball: bbox + marge per a la vora suau
   cx: number; cy: number;
-  rIn: number;                                  // radi del cercle arcà (màgia)
+  rx: number; ry: number;                       // semieixos del bbox (el remolí de la màgia s'hi adapta)
   area: number;                                 // px² de mapa
   samples: Point[];                             // punts de l'interior on neixen les partícules
+  edge: Point[];                                // punts de la vora cada ~0,4 caselles (gebre, escuma)
   seed: number;
   mask: HTMLCanvasElement | null;
   mk: number;                                   // píxels de màscara per px de mapa
@@ -71,8 +73,17 @@ function zoneGeo(zone: PaintedZone, cell: number): ZoneGeo {
     if (pointInPolygon(x, y, pts)) samples.push({ x, y });
   }
   if (samples.length === 0) samples.push({ x: cx, y: cy });
+  let perim = 0;
+  for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; perim += Math.hypot(b.x - a.x, b.y - a.y); }
+  const step = Math.max(cell * 0.4, perim / 160), edge: Point[] = [];
+  let acc = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], len = Math.hypot(b.x - a.x, b.y - a.y);
+    while (acc <= len) { const u = len ? acc / len : 0; edge.push({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }); acc += step; }
+    acc -= len;
+  }
   const mk = Math.min(1, MASK_MAX / Math.max(W, H));
-  const geo: ZoneGeo = { cell, path, L, T, W, H, cx, cy, rIn: 0.4 * Math.min(w, h), area, samples, seed, mask: buildMask(path, L, T, W, H, feather, mk), mk };
+  const geo: ZoneGeo = { cell, path, L, T, W, H, cx, cy, rx: w / 2, ry: h / 2, area, samples, edge, seed, mask: buildMask(path, L, T, W, H, feather, mk), mk };
   _geo.set(zone, geo);
   return geo;
 }
@@ -185,6 +196,25 @@ function sparkle(g: G, c: RGB3, x: number, y: number, len: number, a: number, ro
 
 // ── Foc — terra esquerdat de brases, flames que pugen, espurnes i fum ────────
 
+/**
+ * Llengua de flama (mescla additiva): halo vermell a la base, cos taronja, nucli calent i una
+ * punta estreta que s'inclina amb `lean`. Feta de sprites de foc estirats, no de cercles.
+ */
+const TONGUE: readonly (readonly [number, number, number, number, number])[] = [
+  // temperatura, alçada (× s, cap amunt), semiample, semialt, opacitat
+  [2, 0.05, 0.6, 0.45, 0.55],
+  [1, -0.25, 0.42, 0.62, 0.8],
+  [0, -0.05, 0.22, 0.3, 0.7],
+  [2, -0.8, 0.2, 0.5, 0.75],
+];
+function tongue(g: G, x: number, y: number, s: number, lean: number, v: number): void {
+  if (s <= 0) return;
+  for (const [temp, dy, rx, ry, al] of TONGUE) {
+    g.globalAlpha = al;
+    blitStretch(g, fireSprite(temp, v), x - lean * dy * s, y + dy * s, rx * s, ry * s, lean);
+  }
+}
+
 function drawFire(g: G, geo: ZoneGeo, t: number, cell: number): void {
   const P = PAL.fire;
   layer(g, fireGround(), geo, cell * 6, 0, 0, 1);
@@ -200,12 +230,13 @@ function drawFire(g: G, geo: ZoneGeo, t: number, cell: number): void {
   layer(g, fireFlame(), geo, cell * 2.6, t * cell * 0.1, -t * cell * 0.5, 0.75 * flick, 'lighter');
   layer(g, fireFlame(), geo, cell * 1.6, -t * cell * 0.18, -t * cell * 0.85, 0.55, 'lighter');
   rim(g, geo, P.mid, cell * 0.55, 0.55 * flick);
-  // Flamarades que s'aixequen i s'apaguen per tota la zona
+  // Llengües de flama que neixen, s'estiren, es dobleguen i s'apaguen per tota la zona
   g.globalCompositeOperation = 'lighter';
-  particles(geo, count(geo, cell, 2.2, 8, 90), 0.85, 0xf1a, t, (p, a, i, r) => {
-    const sz = cell * (0.3 + 0.4 * r()), rot = r() * TAU, ox = (r() - 0.5) * cell * 0.4;
-    fire(g, p.x + ox + Math.sin(t * 6 + i) * cell * 0.04, p.y - cell * 0.5 * a, sz * (1 - 0.35 * a), rot + a * 2,
-      0.7 + a * 2.3, Math.sin(Math.PI * Math.min(1, a * 1.3)) * 0.9, i % 3);
+  particles(geo, count(geo, cell, 1.4, 8, 64), 0.75, 0xf1a, t, (p, a, i, r) => {
+    const flick = 1 + 0.12 * Math.sin(t * 23 + i * 2.3);
+    const s = cell * (0.35 + 0.35 * r()) * Math.sin(Math.PI * Math.min(1, a * 1.15)) * flick;
+    const lean = 0.25 * Math.sin(t * 3.7 + i * 1.7) + (r() - 0.5) * 0.3;
+    tongue(g, p.x + (r() - 0.5) * cell * 0.3, p.y - cell * 0.12 * a, s, lean, i % 3);
   });
   // Espurnes que pugen
   particles(geo, count(geo, cell, 1, 5, 50), 1.6, 0xe5b, t, (p, a, i, r) => {
@@ -220,7 +251,14 @@ function drawFire(g: G, geo: ZoneGeo, t: number, cell: number): void {
 function drawIce(g: G, geo: ZoneGeo, t: number, cell: number): void {
   const P = PAL.frost;
   layer(g, iceSheet(), geo, cell * 5, 0, 0, 1);
-  rim(g, geo, [236, 248, 255], cell * 0.6, 0.38, 'source-over');   // el gebre s'acumula a la vora
+  rim(g, geo, [236, 248, 255], cell * 0.5, 0.3, 'source-over');
+  // Gebre: el glaç s'acumula a la vora en flocs (quiets: el gebre no es mou)
+  g.globalCompositeOperation = 'source-over';
+  geo.edge.forEach((e, i) => {
+    const hh = h2(i, geo.seed ^ 0x9e7);
+    g.globalAlpha = 0.3 + 0.3 * hh;
+    blit(g, mistSprite([238, 248, 255], i % 3), e.x, e.y, cell * (0.26 + 0.28 * hh), hh * TAU);
+  });
   // Reflex: una franja de llum creua la placa en diagonal cada pocs segons
   const per = 6, k = (((t + (geo.seed % 97) / 13) % per) / per) / 0.3;
   if (k < 1) {
@@ -249,18 +287,27 @@ function drawIce(g: G, geo: ZoneGeo, t: number, cell: number): void {
 
 function drawWater(g: G, geo: ZoneGeo, t: number, cell: number, px: number): void {
   layer(g, waterDeep(), geo, cell * 6, t * cell * 0.04, t * cell * 0.025, 1);
-  // Dues xarxes de càustiques en direccions diferents: on es creuen, la llum balla
-  layer(g, caustics(), geo, cell * 4.6, t * cell * 0.2, t * cell * 0.08, 0.42, 'lighter');
-  layer(g, caustics(), geo, cell * 3.4, -t * cell * 0.14, t * cell * 0.17, 0.3, 'lighter', 0.7);
-  rim(g, geo, [205, 238, 255], cell * 0.35, 0.45, 'source-over');
+  // Càustiques: dues còpies que es creuen i es mouen en direccions diferents
+  layer(g, caustics(), geo, cell * 4, t * cell * 0.16, t * cell * 0.07, 0.3, 'lighter');
+  layer(g, caustics(), geo, cell * 3, -t * cell * 0.12, t * cell * 0.14, 0.22, 'lighter', 0.9);
+  // Reflexos de la superfície: crestes d'onades suaus que llisquen
+  layer(g, waterWaves(), geo, cell * 3, t * cell * 0.25, -t * cell * 0.12, 0.3, 'lighter', 0.4);
+  rim(g, geo, [215, 242, 255], cell * 0.3, 0.35, 'source-over');
+  // Escuma a la vora: flocs blancs que respiren amb les onades
+  g.globalCompositeOperation = 'source-over';
+  geo.edge.forEach((e, i) => {
+    const hh = h2(i, geo.seed ^ 0xf0a), pulse = 0.5 + 0.5 * Math.sin(t * (1.2 + hh) + hh * TAU);
+    g.globalAlpha = 0.16 + 0.24 * pulse;
+    blit(g, mistSprite([236, 248, 255], i % 3), e.x, e.y, cell * (0.2 + 0.16 * pulse + 0.1 * hh), hh * TAU + t * 0.2);
+  });
   // Ones: cercles que s'obren on cau una gota
-  g.globalCompositeOperation = 'source-over'; g.strokeStyle = 'rgb(215,242,255)';
-  particles(geo, count(geo, cell, 0.3, 2, 16), 2.6, 0x21f, t, (p, a, _i, r) => {
-    const big = 0.6 + 0.6 * r();
+  g.strokeStyle = 'rgb(215,242,255)';
+  particles(geo, count(geo, cell, 0.2, 2, 12), 2.6, 0x21f, t, (p, a, _i, r) => {
+    const big = 0.4 + 0.5 * r();
     for (let j = 0; j < 3; j++) {
       const aj = (a - j * 0.12) / 0.75;
       if (aj <= 0 || aj >= 1) continue;
-      g.globalAlpha = 0.5 * (1 - aj) ** 2;
+      g.globalAlpha = 0.3 * (1 - aj) ** 2;
       g.lineWidth = Math.max(px, cell * 0.035 * (1 - aj));
       g.beginPath(); g.arc(p.x, p.y, cell * big * easeOutCubic(aj), 0, TAU); g.stroke();
     }
@@ -386,56 +433,40 @@ function drawLightning(g: G, geo: ZoneGeo, t: number, cell: number, px: number):
   });
 }
 
-// ── Màgia — nebulosa que gira, cercle arcà amb runes, motes que pugen ────────
+// ── Màgia — fluid arcà que gira cap al centre, com un portal ─────────────────
 
-function arcaneCircle(g: G, geo: ZoneGeo, t: number, cell: number, px: number, a: number): void {
-  const R = geo.rIn;
-  if (R < cell * 0.6) return;
-  const { cx, cy } = geo, P = PAL.arcane;
-  const ring = (r: number, al: number) => { g.globalAlpha = al; g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.stroke(); };
-  g.globalCompositeOperation = 'lighter'; g.strokeStyle = rgb(P.light); g.lineCap = 'round';
-  g.lineWidth = Math.max(px, cell * 0.035);
-  glow(g, P.mid, cx, cy, R * 0.7, 0.16 * a);
-  ring(R, a); ring(R * 0.86, a * 0.7); ring(R * 0.34, a * 0.5);
-  // Runes entre els dos anells, que giren a poc a poc
-  const N = Math.max(12, Math.round((R / cell) * 6)), rot = t * 0.12, gs = R * 0.045;
-  g.globalAlpha = a * 0.9;
-  for (let k = 0; k < N; k++) {
-    const an = rot + (k / N) * TAU, rr = R * 0.93, x = cx + Math.cos(an) * rr, y = cy + Math.sin(an) * rr;
-    const ux = Math.cos(an), uy = Math.sin(an), vx = -uy, vy = ux;
-    g.beginPath();
-    switch (k % 4) {
-      case 0: g.moveTo(x - ux * gs, y - uy * gs); g.lineTo(x + ux * gs, y + uy * gs); g.moveTo(x - vx * gs * 0.6, y - vy * gs * 0.6); g.lineTo(x + vx * gs * 0.6, y + vy * gs * 0.6); break;
-      case 1: g.arc(x, y, gs * 0.55, 0, TAU); break;
-      case 2: g.moveTo(x - vx * gs - ux * gs * 0.6, y - vy * gs - uy * gs * 0.6); g.lineTo(x + ux * gs * 0.7, y + uy * gs * 0.7); g.lineTo(x + vx * gs - ux * gs * 0.6, y + vy * gs - uy * gs * 0.6); break;
-      default: g.moveTo(x - vx * gs, y - vy * gs); g.lineTo(x + vx * gs, y + vy * gs); break;
-    }
-    g.stroke();
-  }
-  // Hexagrama interior, girant en sentit contrari
-  const R2 = R * 0.8, rot2 = -t * 0.2;
-  g.globalAlpha = a * 0.45;
-  for (const base of [rot2, rot2 + Math.PI]) {
-    g.beginPath();
-    for (let v = 0; v <= 3; v++) {
-      const an = base + (v / 3) * TAU - Math.PI / 2, x = cx + Math.cos(an) * R2, y = cy + Math.sin(an) * R2;
-      if (v === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.stroke();
-  }
+/** Remolí centrat a la zona i estirat a la seva forma (el·lipse del bbox). */
+function swirl(g: G, geo: ZoneGeo, spr: HTMLCanvasElement | null, rot: number, alpha: number): void {
+  if (!spr || alpha <= 0.004) return;
+  g.save();
+  g.translate(geo.cx, geo.cy); g.scale(geo.rx, geo.ry); g.rotate(rot);
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = alpha;
+  g.drawImage(spr, -1, -1, 2, 2);
+  g.restore();
 }
 
-function drawMagic(g: G, geo: ZoneGeo, t: number, cell: number, px: number): void {
+function drawMagic(g: G, geo: ZoneGeo, t: number, cell: number): void {
   const P = PAL.arcane;
-  layer(g, nebula(), geo, cell * 6, 0, 0, 1, 'source-over', t * 0.05);
-  layer(g, nebulaGlow(), geo, cell * 4, 0, 0, 0.7, 'lighter', -t * 0.08);
+  layer(g, nebula(), geo, cell * 6, 0, 0, 1, 'source-over', t * 0.04);
+  // Corrents del fluid: dues capes que llisquen i giren en sentits contraris
+  layer(g, arcaneFlow(), geo, cell * 4.5, t * cell * 0.12, -t * cell * 0.05, 0.38, 'lighter', -t * 0.06);
+  layer(g, arcaneFlow(), geo, cell * 3.2, -t * cell * 0.08, t * cell * 0.1, 0.28, 'lighter', t * 0.09);
+  // Remolí: dues espirals a velocitats diferents. El gir va en sentit contrari a l'espiral,
+  // així els braços semblen xuclats cap al centre (en el mateix sentit, sortirien)
+  swirl(g, geo, vortex(1.4), -t * 0.55, 0.68);
+  swirl(g, geo, vortex(0.7), -t * 0.32 + 1.7, 0.48);
   const pulse = 0.5 + 0.5 * Math.sin(t * 1.2 + geo.seed);
-  rim(g, geo, P.mid, cell * 0.5, 0.4 + 0.15 * pulse);
-  arcaneCircle(g, geo, t, cell, px, 0.45 + 0.2 * pulse);
+  rim(g, geo, P.mid, cell * 0.5, 0.35 + 0.15 * pulse);
+  // Motes que el remolí xucla cap al centre, en espiral
   g.globalCompositeOperation = 'lighter';
-  particles(geo, count(geo, cell, 0.8, 4, 45), 2.8, 0x40e, t, (p, a, i) => {
+  particles(geo, count(geo, cell, 0.8, 5, 50), 3.4, 0x40e, t, (p, a, i) => {
+    const dx = p.x - geo.cx, dy = p.y - geo.cy, f = 1 - 0.85 * a * a, an = -a * 1.8;
+    const x = geo.cx + (dx * Math.cos(an) - dy * Math.sin(an)) * f, y = geo.cy + (dx * Math.sin(an) + dy * Math.cos(an)) * f;
     const tw = 0.6 + 0.4 * Math.sin(t * 9 + i * 1.7);
-    glow(g, i % 3 ? P.light : [255, 190, 245], p.x + Math.sin(a * 5 + i) * cell * 0.15, p.y - cell * 0.7 * a, cell * 0.08, Math.sin(Math.PI * a) * tw);
+    glow(g, i % 3 ? P.light : [255, 190, 245], x, y, cell * 0.08, Math.sin(Math.PI * a) * tw);
+  });
+  particles(geo, count(geo, cell, 0.4, 3, 24), 1.6, 0x5b7, t, (p, a, _i, r) => {
+    sparkle(g, [250, 215, 255], p.x, p.y, cell * (0.07 + 0.08 * r()), Math.pow(Math.sin(Math.PI * a), 5) * 0.8, 0.4);
   });
 }
 

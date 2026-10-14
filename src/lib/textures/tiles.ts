@@ -155,23 +155,30 @@ export const fireFlame = () => tile('fireFlame', () => {
 
 // ── Gel ──────────────────────────────────────────────────────────────────────
 
-/** Placa de gel: facetes de cristall de to diferent, esquerdes blanques i ratllades de gebre. */
+/**
+ * Placa de gel: llisa i translúcida (es veu el terra a sota), més blava on és fonda i més
+ * clara on és prima. Les esquerdes no tanquen cel·les (semblaria un enrajolat): només
+ * algunes vores de Worley i unes quantes fractures llargues i corbes. Bombolles atrapades.
+ */
 export const iceSheet = () => tile('iceSheet', () => {
-  const { f1, f2, id } = worley(0x1ce, 6, { wx: fbm(0x1c1, 2, 3), wy: fbm(0x1c2, 2, 3), amt: 0.9 });
-  const deep = norm(fbm(0x1c3, 2, 4));
+  const depth = norm(warp(fbm(0x1c3, 2, 5), fbm(0x1c4, 2, 3), fbm(0x1c5, 2, 3), 0.25));
+  const { f1, f2, id } = worley(0x1ce, 5, { wx: fbm(0x1c1, 2, 3), wy: fbm(0x1c2, 2, 3), amt: 0.9 });
+  const keep = norm(fbm(0x1c6, 3, 3));                 // quines vores són esquerda i quines no
+  const frx = norm(warp(fbm(0x1d0, 2, 5), fbm(0x1d2, 2, 3), fbm(0x1d3, 2, 3), 0.15));
   const grain = norm(fbm(0x1cf, 16, 3));
-  const scr = norm(fbm(0x1d0, 5, 4));
+  const bub = worley(0x1d1, 26);
   return (i) => {
-    const e = f2[i] - f1[i], f = Math.min(1, f1[i] / 0.75);
-    const crack = 1 - smooth(0, 0.028, e), edge = 1 - smooth(0, 0.14, e);
-    const scratch = Math.pow(1 - Math.abs(scr[i] * 2 - 1), 18);
-    const dp = smooth(0.35, 0.9, deep[i]);
-    let c = mix([22, 86, 168], [124, 194, 242], 0.1 + 0.5 * id[i] + 0.3 * (1 - f));
-    c = mix(c, [12, 52, 120], dp * 0.55);                          // gel fondo, més fosc
-    c = mix(c, [190, 228, 250], edge * 0.3);
-    c = mix(c, [248, 253, 255], Math.max(crack, scratch * 0.55));
-    c = mix(c, [220, 240, 255], grain[i] * 0.1);
-    return [c, 0.5 + 0.12 * (1 - f) + 0.1 * dp + 0.4 * Math.max(crack, edge * 0.25, scratch * 0.4)];
+    const e = f2[i] - f1[i], d = Math.pow(depth[i], 1.2);
+    const crack = (1 - smooth(0, 0.022, e)) * smooth(0.5, 0.62, keep[i]);
+    const fracture = 1 - smooth(0, 0.035, Math.abs(Math.sin(frx[i] * Math.PI * 3)));
+    const halo = Math.max((1 - smooth(0, 0.1, e)) * smooth(0.5, 0.62, keep[i]), 1 - smooth(0, 0.12, Math.abs(Math.sin(frx[i] * Math.PI * 3))));
+    const bubble = (1 - smooth(0.03, 0.07, bub.f1[i])) * smooth(0.8, 0.82, bub.id[i]);
+    let c = mix([168, 222, 246], [34, 104, 186], d * 0.85);
+    c = mix(c, [120, 185, 235], (id[i] - 0.5) * 0.25 + 0.1);   // les facetes, només insinuades
+    c = mix(c, [215, 240, 255], halo * 0.35);
+    c = mix(c, [250, 254, 255], Math.max(crack, fracture * 0.9, bubble * 0.8));
+    c = mix(c, [232, 246, 255], grain[i] * 0.1);
+    return [c, 0.34 + 0.26 * d + 0.12 * halo + 0.5 * Math.max(crack, fracture * 0.8, bubble * 0.6)];
   };
 });
 
@@ -183,14 +190,24 @@ export const waterDeep = () => tile('waterDeep', () => {
   return (i) => { const k = Math.pow(v[i], 1.3); return [mix([3, 24, 66], [34, 112, 172], k), 0.58 + 0.14 * k]; };
 });
 
-/** Xarxa de càustiques (la llum que fa l'aigua al fons), per a la mescla additiva. */
+/**
+ * Càustiques (la llum que fa l'aigua al fons), per a la mescla additiva: corbes de nivell
+ * suaus d'un soroll remenat, no vores de cel·les (amb cel·les semblava vidre esquerdat). Dues
+ * còpies que es mouen en direccions diferents es creuen i fan la xarxa que balla.
+ */
 export const caustics = () => tile('caustics', () => {
-  const { f1, f2 } = worley(0xca5, 7, { wx: fbm(0xca1, 3, 3), wy: fbm(0xca2, 3, 3), amt: 0.9 });
+  const v = norm(warp(fbm(0xca1, 3, 4), fbm(0xca2, 2, 3), fbm(0xca4, 2, 3), 0.35));
   const patch = norm(fbm(0xca3, 2, 3));   // la llum no cau igual a tot arreu: clapes amb i sense
   return (i) => {
-    const k = Math.pow(1 - smooth(0, 0.12, f2[i] - f1[i]), 2.2) * smooth(0.2, 0.75, patch[i]);
-    return [[190, 238, 255], k];
+    const k = Math.pow(Math.max(0, 1 - Math.abs(Math.sin(v[i] * Math.PI * 5)) * 1.5), 2);
+    return [[190, 238, 255], k * smooth(0.15, 0.7, patch[i])];
   };
+});
+
+/** Reflexos de la superfície: crestes suaus d'onades, per a la mescla additiva. */
+export const waterWaves = () => tile('waterWaves', () => {
+  const v = norm(warp(fbm(0x3b1, 4, 4), fbm(0x3b2, 2, 3), fbm(0x3b3, 2, 3), 0.25));
+  return (i) => [[205, 240, 255], Math.pow(smooth(0.6, 1, v[i]), 2)];
 });
 
 // ── Verí ─────────────────────────────────────────────────────────────────────
@@ -245,8 +262,31 @@ export const nebula = () => tile('nebula', () => {
   };
 });
 
-/** Filaments brillants de la nebulosa, per a la mescla additiva. */
-export const nebulaGlow = () => tile('nebulaGlow', () => {
-  const v = norm(warp(fbm(0x6c1, 4, 5), fbm(0x6c2, 2, 4), fbm(0x6c3, 2, 4), 0.3));
-  return (i) => [[206, 152, 255], Math.pow(smooth(0.52, 1, v[i]), 1.5)];
+/** Corrents del fluid arcà: corbes de nivell amples d'un soroll remenat, per a la mescla additiva. */
+export const arcaneFlow = () => tile('arcaneFlow', () => {
+  const v = norm(warp(fbm(0x6d1, 3, 5), fbm(0x6d2, 2, 4), fbm(0x6d3, 2, 4), 0.35));
+  const patch = norm(fbm(0x6d4, 2, 3));
+  return (i) => {
+    const band = Math.pow(1 - Math.abs(Math.sin(v[i] * Math.PI * 4)), 2.5);
+    return [[214, 140, 255], band * (0.35 + 0.65 * smooth(0.25, 0.8, patch[i]))];
+  };
+});
+
+/**
+ * Remolí (no enrajolable: es pinta centrat a la zona). El soroll es mostreja en coordenades
+ * d'espiral logarítmica (angle + `twist`·ln r): en girar el sprite, els braços semblen
+ * xuclats cap al centre, com un portal. Periòdic en l'angle, així no hi ha cap junta.
+ */
+export const vortex = (twist: number) => tile(`vortex:${twist}`, () => {
+  const n = norm(fbm(0x7a1 + Math.round(twist * 100), 3, 5));
+  return (i) => {
+    const x = i % S, y = (i / S) | 0;
+    const dx = ((x + 0.5) / S) * 2 - 1, dy = ((y + 0.5) / S) * 2 - 1, r = Math.hypot(dx, dy);
+    if (r >= 1) return [[0, 0, 0], 0];
+    const th = Math.atan2(dy, dx) / (Math.PI * 2), lr = Math.log(r + 0.03);
+    const v = sample(n, (th + twist * lr) * S, lr * S * 0.22);
+    const k = Math.pow(smooth(0.35, 1, v), 1.6) * (1 - smooth(0.55, 1, r)) * (0.55 + 0.45 * (1 - smooth(0.05, 0.6, r)));
+    const c = k < 0.5 ? mix([120, 50, 230], [225, 90, 230], k / 0.5) : mix([225, 90, 230], [255, 215, 255], (k - 0.5) / 0.5);
+    return [c, k];
+  };
 });

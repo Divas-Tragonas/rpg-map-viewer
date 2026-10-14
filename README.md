@@ -60,6 +60,12 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.35 — Màgia com un portal i retocs al foc, el gel i l'aigua
+- **Màgia**: fora el cercle arcà amb runes. Torna a ser un fluid místic: nebulosa amb corrents que llisquen i un remolí al centre que xucla les motes cap a dins, com un portal.
+- **Foc**: les flames són llengües (base ampla, punta estreta que s'inclina i parpelleja) en lloc de taques rodones de llum.
+- **Gel**: placa llisa i translúcida, més blava on és fonda, amb només unes quantes esquerdes i fractures llargues (abans semblava un enrajolat), bombolles atrapades i gebre acumulat a la vora.
+- **Aigua**: les càustiques són bandes de llum suaus (abans semblava vidre esquerdat o electricitat), amb reflexos d'onades que llisquen, escuma que respira a la vora i ones més discretes.
+
 ### v4.34 — Zones màgiques noves
 - **Textures noves per a les sis zones màgiques**, a la pantalla dels jugadors. Abans eren taques de soroll borroses que anaven a salts (el gel i l'aigua gairebé no es distingien).
   - **Foc**: terra de carbó amb esquerdes de brasa que brillen on crema, flames que pugen, espurnes i fum.
