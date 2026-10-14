@@ -1,5 +1,6 @@
 // Conjurs dels grimoris dels personatges (veure `SPELLBOOKS` a constants): els trucs i
-// conjurs de nivell 1 de Liriandor i Yunquerin que no tenien efecte propi.
+// conjurs de nivell 1 de Liriandor i Yunquerin que no tenien efecte propi (i l'Encisar persona
+// que li dona un objecte a Liriandor).
 //
 // Mateix llenguatge que la resta (paletes `PAL`, `glow`/`streak`/`impactBurst`, partícules
 // deterministes per llavor) però més petits encara que els spells menors: la majoria són
@@ -478,6 +479,104 @@ export function drawSpellCureWounds(ctx: CanvasRenderingContext2D, pts: Point[],
       ctx.beginPath(); ctx.moveTo(B.x - cs, cy); ctx.lineTo(B.x + cs, cy); ctx.moveTo(B.x, cy - cs); ctx.lineTo(B.x, cy + cs); ctx.stroke();
     }
     glow(ctx, P.light, B.x, cy, cs * 2.2, 0.4 * a);
+  }
+  end(ctx);
+}
+
+// ── Encisar persona — un fil rosat lliga l'objectiu al llançador ─────────────
+
+export const CHARM_PERSON_DUR = 2.6;
+const CP_CAST = 0.2, CP_TRAVEL = 0.55;
+
+/** Cor centrat a l'origen local; `s` ≈ amplada. */
+function heartPath(ctx: CanvasRenderingContext2D, s: number): void {
+  ctx.beginPath();
+  ctx.moveTo(0, s * 0.38);
+  ctx.bezierCurveTo(-s * 0.62, -s * 0.02, -s * 0.34, -s * 0.6, 0, -s * 0.24);
+  ctx.bezierCurveTo(s * 0.34, -s * 0.6, s * 0.62, -s * 0.02, 0, s * 0.38);
+  ctx.closePath();
+}
+
+function drawHeart(ctx: CanvasRenderingContext2D, P: typeof PAL.charm, x: number, y: number, s: number, rot: number, a: number, px: number): void {
+  if (a <= 0.004 || s <= 0) return;
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(rot);
+  heartPath(ctx, s);
+  ctx.globalAlpha = 0.55 * a; ctx.fillStyle = rgb(P.mid); ctx.fill();
+  ctx.globalAlpha = 0.95 * a; ctx.strokeStyle = rgb(P.white); ctx.lineWidth = Math.max(px, s * 0.08); ctx.stroke();
+  ctx.restore();
+}
+
+export function drawSpellCharmPerson(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
+  if (pts.length < 2) return;
+  const P = PAL.charm, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const [A, B] = pts;
+  const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
+  const hitT = CP_CAST + CP_TRAVEL;
+  const endFade = 1 - smoothstep(e, CHARM_PERSON_DUR - 0.5, CHARM_PERSON_DUR);
+  begin(ctx);
+
+  // Càrrega: un batec rosat a la mà
+  const charge = smoothstep(e, 0, CP_CAST) * (1 - smoothstep(e, hitT, hitT + 0.3));
+  glow(ctx, P.mid, A.x, A.y, cell * 0.9, 0.45 * charge);
+  glow(ctx, P.white, A.x, A.y, cell * 0.22, charge);
+
+  // El fil: dues hebres que s'entrellacen i convergeixen al cor de la punta. En arribar,
+  // queda com un lligam fi entre llançador i objectiu que s'estreny i s'esvaeix.
+  const reach = easeOutCubic(clamp01((e - CP_CAST) / CP_TRAVEL));
+  const tip = { x: A.x + dx * reach, y: A.y + dy * reach };
+  const bond = e < hitT ? 1 : 1 - smoothstep(e, hitT + 0.6, hitT + 1.3);
+  if (reach > 0.001 && bond > 0.01) {
+    const turns = Math.max(1.5, (len / cell) * 0.9);   // ~1 volta per casella
+    const amp = cell * 0.18 * (1 - 0.6 * smoothstep(e, hitT, hitT + 0.4));
+    const N = Math.ceil(turns * reach * 12) + 8;        // ~12 mostres per volta (si no, ziga-zaga)
+    streak(ctx, A, tip, P.deep, cell * 0.4, 0.18 * bond);
+    for (let s = 0; s < 2; s++) {
+      ctx.globalAlpha = (s ? 0.6 : 0.85) * bond; ctx.strokeStyle = rgb(s ? P.mid : P.light);
+      ctx.lineWidth = Math.max(px, cell * 0.045); ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const u = (i / N) * reach;
+        const off = Math.sin(u * turns * TAU - e * 9 + s * Math.PI) * amp * Math.sin(Math.PI * u / reach);
+        const x = A.x + dx * u + nx * off, y = A.y + dy * u + ny * off;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // Llumetes que corren pel fil cap a l'objectiu
+    for (let i = 0; i < 8; i++) {
+      const q = (e * 0.9 + i / 8) % 1;
+      if (q > reach) continue;
+      glow(ctx, P.white, A.x + dx * q, A.y + dy * q, cell * 0.09, Math.sin(Math.PI * q) * bond);
+    }
+  }
+
+  // Un cor que vola a la punta del fil
+  if (e >= CP_CAST && e < hitT) {
+    glow(ctx, P.deep, tip.x, tip.y, cell * 1.3, 0.25);
+    glow(ctx, P.mid, tip.x, tip.y, cell * 0.5, 0.6);
+    drawHeart(ctx, P, tip.x, tip.y, cell * 0.32, Math.sin(e * 12) * 0.25, 1, px);
+  }
+
+  // Impacte: l'objectiu batega (lub-dub) i tres cors li orbiten sobre el cap
+  if (e >= hitT) {
+    const tau = e - hitT;
+    impactBurst(ctx, B.x, B.y, cell * 0.45, P, tau / 0.5, seed, px);
+    const ph = tau % 0.8;
+    const beat = Math.exp(-(((ph - 0.05) / 0.06) ** 2)) + 0.6 * Math.exp(-(((ph - 0.24) / 0.06) ** 2));
+    const on = smoothstep(tau, 0, 0.2) * endFade;
+    glow(ctx, P.mid, B.x, B.y, cell * (1 + 0.15 * beat), (0.18 + 0.25 * beat) * on);
+    const hy = B.y - cell * 0.62, rx = cell * 0.45, ry = cell * 0.14;
+    for (let i = 0; i < 3; i++) {
+      const k = clamp01((tau - 0.08 - i * 0.1) / 0.25);
+      if (k <= 0) continue;
+      const pop = easeOutCubic(k) * (1 + 0.3 * Math.sin(Math.PI * k));
+      const ang = tau * 2.6 + (i / 3) * TAU;
+      const depth = 0.5 + 0.5 * Math.sin(ang);             // 1 = davant del cap
+      drawHeart(ctx, P, B.x + Math.cos(ang) * rx, hy + Math.sin(ang) * ry,
+        cell * 0.25 * pop * (0.75 + 0.25 * depth), Math.cos(ang) * 0.25, (0.45 + 0.55 * depth) * endFade, px);
+    }
   }
   end(ctx);
 }

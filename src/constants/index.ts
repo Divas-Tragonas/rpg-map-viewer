@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.32';
+export const APP_VERSION = 'v4.33';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -100,6 +100,7 @@ export const SPELL_TYPES: readonly { type: SpellType; emoji: string; color: stri
   { type: 'burning_hands',     emoji: '🤲', color: '#f97316', title: 'Mans ardents',    mode: 'line' },
   { type: 'ray_of_frost',      emoji: '❄️', color: '#7dd3fc', title: 'Raig de gebre',   mode: 'line' },
   { type: 'shocking_grasp',    emoji: '🫳', color: '#93c5fd', title: 'Toc electritzant', mode: 'line', tokenOnly: true },
+  { type: 'charm_person',      emoji: '💞', color: '#f472b6', title: 'Encisar persona', mode: 'line' },
   { type: 'sleep',             emoji: '💤', color: '#818cf8', title: 'Dormir',          mode: 'area' },
   { type: 'grease',            emoji: '🫙', color: '#a3e635', title: 'Greix',           mode: 'area' },
   { type: 'sacred_flame',      emoji: '🕯️', color: '#fde68a', title: 'Flama sagrada',   mode: 'area' },
@@ -156,7 +157,7 @@ export const PERSISTENT_SPELLS: ReadonlySet<string> = new Set(
 
 /** Abast màxim (peus) de les màgies en línia recta, mesurat des del llançador. */
 export const LINE_SPELL_RANGE_FT: Record<string, number> = {
-  magic_missile: 120, hideous_laughter: 30, burning_hands: 15, ray_of_frost: 60, shocking_grasp: 5,
+  magic_missile: 120, hideous_laughter: 30, burning_hands: 15, ray_of_frost: 60, shocking_grasp: 5, charm_person: 30,
 };
 
 /** Abast d'una màgia en peus (`undefined` = sense límit, p. ex. les de trajectòria). */
@@ -167,22 +168,27 @@ export function spellRangeFt(type: string): number | undefined {
 /**
  * Grimoris dels personatges, copiats de les seves fitxes al Notion («DIVAS y TRAGONAS»).
  * `name` és el nom tal com està apuntat; `type` l'efecte que el pinta al mapa.
+ * `item` → la màgia la dona un objecte, no és del llibre (si el perd, s'ha de treure d'aquí).
  * Espardeny, Jaume III i Cigarramic no en tenen: són guerrers i pícar sense màgia.
  */
-export interface BookSpell { name: string; level: 0 | 1; type: SpellType }
+export interface BookSpell { name: string; level: 0 | 1; type: SpellType; item?: true }
 export const SPELLBOOKS: Record<string, readonly BookSpell[]> = {
-  // Mag (Alt Elf) — trucs + llibre de conjurs
+  // Mag (Alt Elf) — confirmat pel jugador: trucs i llibre de base, els dos triats en
+  // passar a nivell 2 (Grasa, Risa horrible) i el que li dona un objecte (Hechizar persona)
   liriandor: [
+    { name: 'Mano de mago',           level: 0, type: 'mage_hand' },
+    { name: 'Prestidigitación',       level: 0, type: 'prestidigitation' },
     { name: 'Rayo de escarcha',       level: 0, type: 'ray_of_frost' },
     { name: 'Contacto electrizante',  level: 0, type: 'shocking_grasp' },
-    { name: 'Mano del mago',          level: 0, type: 'mage_hand' },
-    { name: 'Prestidigitación',       level: 0, type: 'prestidigitation' },
-    { name: 'Proyectil mágico',       level: 1, type: 'magic_missile' },
-    { name: 'Manos ardientes',        level: 1, type: 'burning_hands' },
-    { name: 'Dormir',                 level: 1, type: 'sleep' },
     { name: 'Armadura del mago',      level: 1, type: 'mage_armor' },
-    { name: 'Escudo',                 level: 1, type: 'shield' },
     { name: 'Detectar magia',         level: 1, type: 'detect_magic' },
+    { name: 'Dormir',                 level: 1, type: 'sleep' },
+    { name: 'Escudo',                 level: 1, type: 'shield' },
+    { name: 'Manos ardientes',        level: 1, type: 'burning_hands' },
+    { name: 'Proyectil mágico',       level: 1, type: 'magic_missile' },
+    { name: 'Grasa',                  level: 1, type: 'grease' },
+    { name: 'Risa horrible',          level: 1, type: 'hideous_laughter' },
+    { name: 'Hechizar persona',       level: 1, type: 'charm_person', item: true },
   ],
   // Clergue, domini de la Vida (Nan de les colines)
   yunquerin: [

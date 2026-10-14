@@ -12,9 +12,9 @@ import { drawSpellSleep, drawSpellGrease } from './areaspells';
 import {
   drawSpellRayOfFrost, drawSpellShockingGrasp, drawSpellMageHand, drawSpellPrestidigitation, drawSpellMageArmor,
   drawSpellShield, drawSpellDetectMagic, drawSpellLight, drawSpellSacredFlame, drawSpellThaumaturgy, drawSpellBless,
-  drawSpellCureWounds,
+  drawSpellCureWounds, drawSpellCharmPerson,
   RAY_OF_FROST_DUR, SHOCKING_GRASP_DUR, MAGE_HAND_DUR, PRESTIDIGITATION_DUR, MAGE_ARMOR_DUR, SHIELD_DUR,
-  DETECT_MAGIC_DUR, LIGHT_DUR, SACRED_FLAME_DUR, THAUMATURGY_DUR, BLESS_DUR, CURE_WOUNDS_DUR,
+  DETECT_MAGIC_DUR, LIGHT_DUR, SACRED_FLAME_DUR, THAUMATURGY_DUR, BLESS_DUR, CURE_WOUNDS_DUR, CHARM_PERSON_DUR,
 } from './bookspells';
 
 export {
@@ -58,6 +58,7 @@ const SPELL_DURATIONS: Record<string, number> = {
   thaumaturgy:      THAUMATURGY_DUR,
   bless:            BLESS_DUR,
   cure_wounds:      CURE_WOUNDS_DUR,
+  charm_person:     CHARM_PERSON_DUR,
 };
 
 type SpellDraw = (ctx: CanvasRenderingContext2D, pts: Point[], e: number, dur: number, sc: number, gridSize: number, seed: number) => void;
@@ -68,6 +69,7 @@ const BOOK_SPELLS: Record<string, SpellDraw> = {
   prestidigitation: drawSpellPrestidigitation, mage_armor: drawSpellMageArmor, shield: drawSpellShield,
   detect_magic: drawSpellDetectMagic, light: drawSpellLight, sacred_flame: drawSpellSacredFlame,
   thaumaturgy: drawSpellThaumaturgy, bless: drawSpellBless, cure_wounds: drawSpellCureWounds,
+  charm_person: drawSpellCharmPerson,
 };
 
 function ftToWorld(ft: number, gridSize: number): number {
@@ -168,6 +170,26 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
   }
 
   ctx.globalAlpha = 1; ctx.restore();
+}
+
+/**
+ * Pantalla de jugador: la previsualització del DM arriba a ~20 Hz (throttle del STATE) i
+ * s'hi acosta cada frame amb un LERP, perquè el cercle i la punta del raig llisquin en lloc
+ * d'anar a salts. Una altra màgia, un altre mode o un altre origen → salta directament.
+ */
+export function followSpellPreview(cur: SpellPreview | null, tgt: SpellPreview | null, k: number): SpellPreview | null {
+  if (cur === tgt || !cur || !tgt || cur.mode !== tgt.mode) return tgt;
+  const near = (a: Point, b: Point) => Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
+  const lerp = (a: Point, b: Point): Point => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+  if (cur.mode === 'line' && tgt.mode === 'line') {
+    if (!near(cur.start, tgt.start) || near(cur.end, tgt.end)) return tgt;
+    return { ...tgt, end: lerp(cur.end, tgt.end) };
+  }
+  if (cur.mode === 'area_place' && tgt.mode === 'area_place') {
+    if (cur.spellType !== tgt.spellType || !near(cur.origin, tgt.origin) || near(cur.center, tgt.center)) return tgt;
+    return { ...tgt, center: lerp(cur.center, tgt.center) };
+  }
+  return tgt;
 }
 
 // ── Main render ──────────────────────────────────────────────────────────────

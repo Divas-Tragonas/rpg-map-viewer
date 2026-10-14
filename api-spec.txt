@@ -168,7 +168,9 @@ calcula quant de mapa veu de més cadascuna. Entre finestres del MATEIX ordinado
 viatja pel BroadcastChannel, així que el xip funciona igualment sense la API.
 
 El camp `cam` de STATE/STRUCT no va requerir cap canvi al servidor: és un camp
-més dins d'un missatge que ja es reenvia opac.
+més dins d'un missatge que ja es reenvia opac. Igual el camp `spellPreview`
+(SpellPreview | null: la màgia que el DM està apuntant, perquè els jugadors en
+vegin el radi): viatja dins del STATE, throttled a ~20 Hz mentre s'apunta.
 
 Per verificar el contracte del relay: `node scripts/check-sync.mjs [ws://host:3000] [SYNC_KEY]`
 

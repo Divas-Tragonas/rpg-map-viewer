@@ -8,7 +8,7 @@ import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/gr
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
 import type { DMRefs } from './useDMRefs';
-import type { Spell } from '@/types';
+import type { Spell, SpellPreview } from '@/types';
 
 interface RafLoopOpts {
   setActiveSpells: (s: Spell[]) => void;
@@ -27,6 +27,8 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
     let prevBgOpacity = -1;
     let prevWH = '';
     let resizeBcastAt = 0;
+    let sentPreview: SpellPreview | null = null;
+    let previewBcastAt = 0;
     const txCache: Record<string, HTMLCanvasElement> = {};
 
     const tick = () => {
@@ -102,6 +104,15 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         const nowR = Date.now();
         if (!prevWH) prevWH = whNow;
         else if (nowR - resizeBcastAt > 120) { resizeBcastAt = nowR; prevWH = whNow; broadcastDmPreview(); }
+      }
+      // Màgia que s'està apuntant: els jugadors en veuen el radi, l'abast i la punta del raig.
+      // Es detecta aquí, un sol lloc per a tots els camins que la canvien (ratolí, roda,
+      // grimori, Esc…), que sempre hi escriuen un objecte nou. Mateix throttle amb reintent:
+      // `sentPreview` només s'actualitza en enviar, així l'últim valor (també el `null` en
+      // llançar-la o cancel·lar-la) sempre acaba arribant.
+      if (R.rSpellPreview.current !== sentPreview) {
+        const nowP = Date.now();
+        if (nowP - previewBcastAt > 48) { previewBcastAt = nowP; sentPreview = R.rSpellPreview.current; broadcastDmPreview(); }
       }
 
       // Sync background DOM element position

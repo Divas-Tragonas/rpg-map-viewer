@@ -9,7 +9,7 @@ import {
 } from '@/lib/render/zones';
 import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
-import { renderSpells, spellShake } from '@/lib/render/spells';
+import { renderSpells, spellShake, followSpellPreview } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
@@ -19,7 +19,7 @@ import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mediaSize, viewRect } from '@/lib/camera';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point } from '@/types';
+import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -141,6 +141,9 @@ export function PlayerView() {
   const rTokenSizeOverride = useRef<TokenSizeMap>({});
   const rPointerPos   = useRef<{ x: number; y: number } | null>(null);
   const rMeasure      = useRef<{ a: { x: number; y: number } | null; b: { x: number; y: number } | null }>({ a: null, b: null });
+  // Màgia que el DM està apuntant: l'última rebuda i la que es pinta (s'hi acosta amb LERP).
+  const rSpellPreviewTarget = useRef<SpellPreview | null>(null);
+  const rSpellPreview       = useRef<SpellPreview | null>(null);
   const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
   const rMultiSelected = useRef<Set<number | string>>(new Set());
@@ -460,6 +463,7 @@ export function PlayerView() {
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
+        if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
         if (msg.turn) rTurn.current = msg.turn;
         refreshTurnBanner();
         if (msg.psdEnemyOverrides) {
@@ -571,6 +575,7 @@ export function PlayerView() {
         if (msg.lights) rLights.current = msg.lights;
         if (msg.turn) rTurn.current = msg.turn;
         refreshTurnBanner();
+        if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
@@ -939,6 +944,8 @@ export function PlayerView() {
 
       if (!s) return;
 
+      rSpellPreview.current = followSpellPreview(rSpellPreview.current, rSpellPreviewTarget.current, 0.35);
+
       const fc = {
         sc, ox, oy, mw, mh, isDM: false, s, v, pp,
         rLayerImages, rHoveredRoom, roomAnimRef,
@@ -956,6 +963,7 @@ export function PlayerView() {
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
         rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
         rRooms, rWalls, rDoors, rLights, roomRevealAnimRef,
+        rSpellPreview,
         mediaEl: media,
       };
 

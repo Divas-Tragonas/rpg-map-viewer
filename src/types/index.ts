@@ -134,7 +134,7 @@ export type SpellType =
   | 'fireball' | 'lightning' | 'magic_beam' | 'magic_missile' | 'hideous_laughter' | 'burning_hands' | 'sleep' | 'grease'
   // Grimoris dels personatges (Notion): veure `SPELLBOOKS` a constants
   | 'ray_of_frost' | 'shocking_grasp' | 'mage_hand' | 'prestidigitation' | 'mage_armor' | 'shield' | 'detect_magic'
-  | 'light' | 'sacred_flame' | 'thaumaturgy' | 'bless' | 'cure_wounds';
+  | 'light' | 'sacred_flame' | 'thaumaturgy' | 'bless' | 'cure_wounds' | 'charm_person';
 
 export interface Spell {
   id: string;
@@ -346,6 +346,9 @@ export interface BCStateMessage {
   measure?: { a: Point | null; b: Point | null };
   // Estat del sistema per torns (camp lleuger: petit i s'envia sempre).
   turn?: TurnState;
+  // Màgia que el DM està apuntant (radi, abast, punta del raig): els jugadors la veuen en
+  // viu. Camp lleuger, s'envia sempre (`null` = cap). Absent → DM antic, no tocar res.
+  spellPreview?: SpellPreview | null;
 }
 
 export interface BCStructMessage {
@@ -385,6 +388,7 @@ export interface BCStructMessage {
   measure?: { a: Point | null; b: Point | null };
   pointerPos?: Point | null;
   turn?: TurnState;
+  spellPreview?: SpellPreview | null;
 }
 
 export type BCMessage =

@@ -117,7 +117,7 @@ function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: 
               const reach = g === 'self' ? 'personal' : range === 5 ? 'toc · 5 ft' : range !== undefined ? `${range} ft` : '';
               return (
                 <Button key={b.type} size="sm" variant="tint" color={meta?.color ?? C.magic}
-                  title={`${meta?.title ?? b.name} · ${b.level === 0 ? 'truc' : 'nivell 1'}${reach ? ` · ${reach}` : ''}\n${g === 'self' ? 'Surt del token' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
+                  title={`${meta?.title ?? b.name} · ${b.level === 0 ? 'truc' : 'nivell 1'}${b.item ? ' · per un objecte' : ''}${reach ? ` · ${reach}` : ''}\n${g === 'self' ? 'Surt del token' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
                   onMouseDown={e => { e.stopPropagation(); onCast(b.type); }}
                   style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
                   <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>
@@ -308,7 +308,7 @@ export function ContextMenuOverlay({
   const book = contextMenu.casterPos ? spellbookFor(t.name) : [];
   const actionBtn: React.CSSProperties = { flex: '1 1 auto', minWidth: 0 };
   return (
-    <div key={t.key} data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, book.length > 0 ? 560 : 400)}>
+    <div key={t.key} data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, book.length > 0 ? 620 : 400)}>
       <MenuHeader title={<NameField key={`${t.key}:${t.name}`} value={t.name} onCommit={t.rename} />} onClose={onClose}>
         {/* Derrotat és un interruptor amb nom: abans era un ✕ solt just on s'espera el botó
             de tancar el menú, i en tota la resta de l'app ✕ vol dir tancar o eliminar. */}

@@ -60,6 +60,11 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.33 — Grimori de Liriandor i màgies previsualitzades als jugadors
+- El grimori de Liriandor (menú del clic dret del token → Conjurs) és ara la llista que ha confirmat el jugador: els 4 trucs i els 6 conjurs de base, **Grasa** i **Risa horrible** (triats en passar a nivell 2) i **Hechizar persona** (li dona un objecte; la finestreta del botó ho diu).
+- **Encisar persona**, màgia nova (direccional, abast 30 ft): un fil rosat de dues hebres surt de la mà amb un cor a la punta, lliga l'objectiu i, en arribar, l'objectiu batega i li orbiten tres cors sobre el cap. També surt a la roda de les màgies direccionals (Maj + arrossegar).
+- **Els jugadors veuen on apunta el DM**: mentre apuntes una màgia (el cercle de Dormir o Grasa, l'abast del grimori, la línia d'un raig amb els peus), les pantalles de jugador ho veuen en viu i en desapareix quan la llances o la cancel·les. Funciona també a la tablet sense canviar res de la API. Dins d'una sala fosca no es veu, com la màgia mateixa.
+
 ### v4.32 — Repàs visual (simplificació, fase 5)
 - **Icones en lloc d'emojis** a tota la interfície del DM: capçaleres del lateral, menús del clic dret, barra de torns, sales, benvinguda, importar i partides al servidor. Les emojis es veien diferents a cada ordinador (a Windows, negres sobre el fons fosc). Les de les màgies i els elements es queden: són el retrat de cada màgia.
 - **El daurat només per a l'acció principal i el que està actiu.** Fora el daurat dels comptadors, la insígnia de la demo, la ronda, els peus, els camps de la fitxa i l'ajuda. «Cap pantalla de jugador» i el desat ja no pinten tot el botó: un punt diu l'estat.
