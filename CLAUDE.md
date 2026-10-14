@@ -235,7 +235,7 @@ src/
 │   │   ├── minorspells.ts  # Projectil màgic, risa horrible, mans ardents
 │   │   ├── areaspells.ts   # Dormir i greix (àrees persistents, passada 'ground')
 │   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
-│   │   ├── zonefx.ts       # Zones màgiques a la pantalla del jugador (capes de textura + partícules + màscara)
+│   │   ├── zonefx.ts       # Zones màgiques a la pantalla del jugador (vora SDF + fotogrames clau fosos + arcs del llamp)
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador)
@@ -245,7 +245,8 @@ src/
 │   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
 │   ├── spellcast.ts        # clampToRange: limita el destí d'una màgia al seu abast en peus
-│   ├── textures/tiles.ts   # Textures enrajolables de les zones màgiques (es generen un sol cop)
+│   ├── textures/noise.ts   # Soroll de les zones màgiques (el de valor de la v4.33 + gradient 3D)
+│   ├── textures/fields.ts  # Camp de color de cada element de zona (texel, temps) → rgba
 │   └── enemy-images.ts     # ENEMY_IMAGES (imatges base64 enemics)
 ├── constants/index.ts      # CONDITIONS, ELEMENTS, PALETTE, ENEMY_TEMPLATES, C, BC_CHANNEL...
 └── types/index.ts          # Tots els tipus TypeScript
@@ -322,7 +323,7 @@ Afegir la crida a `useRafLoop.ts` entre `ctx.save()` i `ctx.restore()`.
 |---|---|---|
 | `renderZoneOverlays` | render/zones.ts | Zones: visibilitat, fade, eye-icon, etiquetes |
 | `renderExtras` | render/zones.ts | Capa "extras" sempre visible |
-| `renderPaintedZones` | render/zones.ts | Zones màgiques: animades amb `drawZoneFx` de `zonefx.ts` (jugador) / color pla (DM) |
+| `renderPaintedZones` | render/zones.ts | Zones màgiques: animades amb `drawZoneFx` de `zonefx.ts` (jugador, fotogrames clau fosos) / color pla (DM) |
 | `renderShapePreview` | render/zones.ts | Preview del shape tool al DM |
 | `advanceStrokeAnim` | render/drawing.ts | Reprodueix traços de dibuix frame a frame |
 | `renderSpells` | render/spells.ts | Animacions dels spells (inclosos els dels grimoris, `bookspells.ts`). Dues passades: `'ground'` (sota tokens) i `'air'` (sobre) |
@@ -662,18 +663,22 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Efecte nou**: funció a `bookspells.ts` + durada a `SPELL_DURATIONS` i entrada a `BOOK_SPELLS` (`spells.ts`). Arriba al jugador pel mateix `SPELL` de sempre: cap camp de sync nou.
 - **Encisar persona** (`charm_person`, `bookspells.ts`): direccional de 30 ft, paleta `charm` (la mateixa escola que Risa horrible). Dues hebres en hèlix (~12 mostres per volta, com les fibres del raig màgic) amb un cor a la punta → lligam fi que s'esvaeix → batec «lub-dub» a l'objectiu i tres cors que li orbiten sobre el cap.
 
-### Zones màgiques (Painted Zones) — `render/zonefx.ts` + `textures/tiles.ts`
+### Zones màgiques (Painted Zones) — `render/zonefx.ts` + `textures/fields.ts` + `textures/noise.ts`
 - Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic). Al DM es pinten amb color pla i l'emoji (`drawFlatZone`); a la pantalla del jugador, animades (`drawZoneFx`).
-- **Problema que resolia** (v4.34): abans cada zona era soroll calculat en JS texel a texel, a ≤70 texels de costat i 8–20 cops per segon. Sortia borrós, anava a salts, gel i aigua eren gairebé iguals i amb sis zones el jugador queia a la meitat de fps.
-- **Textures** (`tiles.ts`): 256×256, **periòdiques** (soroll de valor i cel·les de Worley que fan la volta, si no, en repetir-les es veurien les juntes) i generades **un sol cop** per element (memòria cau del mòdul). Foc: terra de carbó amb esquerdes a dues escales que només brillen on crema + llengües de flama; gel: placa llisa i translúcida (més blava on és fonda) amb només algunes esquerdes i fractures llargues i bombolles atrapades; aigua: fons + càustiques de línies corbes + crestes d'onades; verí: fang amb venes + taques que brillen; llamps: núvol carregat + filaments d'electricitat estàtica; màgia: nebulosa + corrents del fluid + **remolí** (`vortex`, sprite centrat, no enrajolable).
-- **Composició per fotograma** (`drawZoneFx`): en un llenç de treball a resolució de pantalla (màx. `WORK_MAX`), en coords de mapa: (1) capes de textura com a patrons (`layer`: `CanvasPattern.setTransform` per desplaçar-les o girar-les; **ancorades al centre de la zona**, així la textura es mou amb la zona quan el DM l'arrossega), (2) vora interior lluminosa (`rim`: traços concèntrics retallats a la zona), (3) partícules de l'element, (4) `destination-in` amb la màscara de vora suau, i un sol `drawImage` al mapa. Zones fora de pantalla: no es componen.
-- **Partícules deterministes** (`particles`): cada una neix en un punt de l'interior (`samples`, mostrejats un cop per zona), viu uns instants i torna a néixer en un altre lloc; tot és funció de (llavor de la zona, índex, temps). Llengües de flama (`tongue`: sprites de foc estirats, base ampla i punta que s'inclina) i espurnes, destells i boirina, ones, bombolles que esclaten i miasma, arcs elèctrics (forma nova 24 cops per segon) i llampecs, motes que el remolí xucla cap al centre. A la vora (`edge`, punts cada ~0,4 caselles, màx. 160): gebre quiet al gel i escuma que respira a l'aigua.
-- **Mides en caselles** (`gridSize`; sense graella, `NO_GRID_CELL` fix): la textura té la mateixa escala al mapa sigui quina sigui la mida de la zona i no «neda» en fer zoom.
-- **Memòria cau per objecte zona** (`_geo`, WeakMap, com `getZonePath`): camí, mostres i màscara. Arrossegar una zona en crea una de nova i es refà sola.
-- ⚠️ **Res de `ctx.filter` (blur)**: el canvas de Safari no el suporta a totes les versions i la pantalla de jugador sovint és un iPad. La vora suau de la màscara es fa amb `shadowBlur` (es pinta la forma fora del llenç i només hi cau l'ombra).
-- ⚠️ **Màgia = fluid místic / portal, no un ritual.** A la v4.34 portava un cercle arcà amb runes i un hexagrama i l'usuari no el vol: ha de semblar un fluid que gira cap al centre (`swirl` amb dues espirals que giren en sentit contrari al de l'espiral, perquè els braços semblin xuclats cap a dins). No hi tornar a posar cercles, runes ni símbols.
-- ⚠️ **Cada element ha de tenir una lectura pròpia.** Línies primes i brillants = electricitat (llamps); si l'aigua o la màgia en porten, s'hi confonen: allà van bandes amples i suaus. Cel·les de Worley amb totes les vores marcades = rajoles o vidre esquerdat: al gel, només algunes vores.
-- Per afegir un element: textures a `tiles.ts`, funció `draw*` a `zonefx.ts` i entrada a `DRAW`, a més d'`ELEMENTS` (constants).
+- **Història, per no repetir-la**: la v4.33 era soroll calculat texel a texel 8–20 cops per segon (anava a salts i era car). La v4.34/v4.35 el va canviar per textures enrajolables que llisquen + vora lluminosa + partícules, i l'usuari ho va rebutjar tot: vores marcades, foc «d'animació cutre», aigua amb capes que no lliguen, màgia amb una espiral, llamp massa nítid, gel amb filaments solts i cap cohesió entre elements. La v4.37 torna als **camps de la v4.33** (el foc tal qual: «el terra semblava que cremés») amb el que fallava arreglat.
+- **Un sol pipeline per als sis elements** (és el que dona cohesió: mateixa vora, mateixa definició, mateix pressupost de moviment):
+  1. **Vora**: polígon rasteritzat a `D` texels per casella → camp de distàncies amb signe (EDT de Felzenszwalb–Huttenlocher, `edt2d`) → `maskA` = rampa suau de ±`EDGE_H` caselles centrada al contorn (més estreta a les zones petites) + erosió quieta amb soroll (`EROSION`).
+  2. **Interior** (`inner`, 0 a la vora .. 1 a dins): la màscara difuminada (`boxBlur`) i normalitzada; no fa plecs a l'eix mitjà. L'aigua s'hi fa més fonda, el gel hi posa el gebre i els arcs del llamp s'hi esvaeixen.
+  3. **Camp de l'element** (`FIELDS` a `fields.ts`): funció (texel, temps) → rgba, avaluada a baixa resolució i ampliada amb un sol `drawImage` bilineal (la suavitat ve d'aquí). `wx, wy` = unitats antigues (px de mapa / `TSCALE` 90) per als camps de la v4.33; `px, py` = caselles per al que és nou. Els termes que no depenen del temps es calculen un sol cop per texel (`prep` → `st`).
+  4. **Accents**: només el llamp (arcs curts a `drawArcs`). Res més dibuixat a sobre.
+- **Fotogrames clau** (`step`, `work`): el camp no es calcula a cada fotograma (costava 6–40 ms per zona). Cada element té un `period` (foc 0,15 s, aigua i màgia 0,25, llamp 0,25, verí 0,3; el gel és quiet: un sol fotograma) i es calcula el següent clau **fila a fila** dins d'un **pressupost compartit** (`BUDGET_MS`, repartit entre les zones que tenen feina; la que encara no té cap clau pot gastar tot el que queda). Entre dos claus es fon amb `'lighter'` a pesos (1−f) i f en un llenç propi: interpolació exacta, sense batec d'opacitat (mesurat: el contrast varia <0,5% al ritme dels claus). Si el pressupost no arriba, l'animació **va més lenta, mai no salta**.
+- **El camp es mesura des de la cantonada de la zona** (+ un desplaçament per llavor de l'`id`): arrossegar una zona la trasllada sense refer res. Estat per zona a `_states` (`Map` per `id`, amb `signature` de la forma relativa + casella): forma o graella noves → es refà; sense dibuixar-se 10 s → s'esborra (`EVICT_S`). `_byZone` (WeakMap) evita recalcular la signatura cada fotograma.
+- **Mides en caselles** (`gridSize`; sense graella, `NO_GRID_CELL` fix): mateixa escala al mapa sigui quina sigui la zona. Les zones grans baixen de `D` (màx. `MAX_TEX` texels) en lloc de costar més.
+- **Llamp**: núvol de tempesta fosc i suau + venes amples que parpellegen (camp) + arcs curts que espurnegen (cada arc viu ~0,3 s i canvia de forma 12 cops per segon; halo ample, mig i nucli de ~0,08 caselles). Els arcs es pinten a 30 px per casella i **només al rectangle que ocupen** (esborrar, esvair amb `inner` i copiar): fer-ho al llenç sencer costava 1–3 ms per fotograma.
+- **Rendiment**: el soroll de valor antic fa servir un **hash enter** (`txHash`); el `sin` de la v4.33 costava ~26 ns i el foc en fa 80 per texel. Mateix soroll estadísticament, 3× més ràpid. Ampliació **bilineal** (`imageSmoothingQuality = 'low'`): 'high' duplicava el cost i no es nota. Zones fora de pantalla: ni es calculen ni es pinten. Mesura de referència (rasteritzador per programari, sis zones): 60 fps; amb sis zones enormes, algunes animacions baixen a ~0,7× de velocitat.
+- ⚠️ **Res de `ctx.filter` ni de `shadowBlur` per a la vora**: la pantalla de jugador sovint és un iPad (Safari no suporta `filter` i comprimeix el `shadowBlur` gran). La vora surt de la màscara SDF.
+- ⚠️ **Prohibit** (l'usuari ja ho ha rebutjat): vores lluminoses, contorns o partícules a la vora; capes de textura que **llisquen** (el moviment ha de ser el camp que evoluciona **on és**); espirals, remolins, cercles arcans, runes o símbols a la màgia (ha de semblar un fluid místic); línies d'1 px o més nítides que la resta (el llamp de la v4.35); filaments solts al gel; flames dibuixades com a sprites. Un element nou ha de passar pel mateix pipeline i tenir la mateixa definició que els altres.
+- Per afegir un element: entrada a `FIELDS` (`fields.ts`, amb el seu `period`) i a `ELEMENTS` (constants).
 
 ### Parets → Sales fosques (eina "Parets", drecera `5`)
 - **Model**: el DM dibuixa **parets** (segments) clicant successivament (estil regla de mesura). El conjunt de parets és la font de veritat del DM (`rWalls`). Les **sales** (`rRooms`) se'n deriven per **detecció de cares en un graf planar** (`src/lib/rooms/detect.ts` → `detectRooms`): fusiona vèrtexs propers, parteix als encreuaments (X) i a les unions en T, i extreu les cares tancades mínimes (recorregut de half-edges amb gir horari; cares acotades = àrea > 0 en coords de pantalla). Cada cara nova és una sala; una paret que divideix una sala la parteix en dues. Les **portes** són entitats explícites sobre les parets (veure secció següent); un tram sense dibuixar entre parets també fa d'obertura.

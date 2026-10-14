@@ -134,7 +134,7 @@ export function drawFlatZone(ctx: CanvasRenderingContext2D, zone: PaintedZone): 
 }
 
 export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { isDM, rPaintedZones, zoneAppearRef, sc, rGridSize } = fc;
+  const { isDM, rPaintedZones, zoneAppearRef, rGridSize } = fc;
   const t = performance.now() / 1000;
   for (const zone of rPaintedZones.current) {
     if (isDM) {
@@ -174,7 +174,7 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
       const elapsed = appearT ? (performance.now() - appearT) / 1000 : Infinity;
       const FADE_IN = 0.75;
       const fadeAlpha = elapsed < FADE_IN ? elapsed / FADE_IN : 1;
-      drawZoneFx(ctx, zone, t, sc, rGridSize.current, fadeAlpha);
+      drawZoneFx(ctx, zone, t, rGridSize.current, fadeAlpha);
       if (appearT && elapsed > 1.5) delete zoneAppearRef.current[zone.id];
     }
   }

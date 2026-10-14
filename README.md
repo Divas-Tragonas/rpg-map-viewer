@@ -60,6 +60,12 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.37 — Zones màgiques: torna la base antiga, arreglada
+- **Foc, gel, aigua, verí i màgia tornen als camps de la v4.33** («el terra semblava que cremés»), sense el que no funcionava: ja no van a salts (fotogrames clau fosos entre ells), la màgia no té cap remolí al centre, el gel és quiet i sense filaments solts i l'aigua és més calmada i més fonda cap al mig.
+- **Vora suau i irregular a totes les zones**, la mateixa per als sis elements: fora la vora lluminosa i les partícules de la vora, que feien que es notés tallada.
+- **Llamps**: núvol de tempesta fosc amb venes amples i arcs curts que espurnegen, com a la v4.35 però sense les línies blanques d'1 px que el feien massa nítid.
+- Més lleuger: el càlcul es reparteix entre fotogrames amb un pressupost fix i el soroll antic és tres vegades més ràpid. Amb sis zones, la pantalla del jugador es manté a 60 fps.
+
 ### v4.36 — Editar enemics en bloc al back office
 - **Selecció múltiple a la taula d'enemics** (`/admin/enemics`): casella a cada fila, a cada grup (tot el grup d'un cop) i a la capçalera (tots). **Maj+clic** marca el tram entre dues files.
 - **Barra d'edició en bloc** a sobre de la taula: escriu una categoria (o un projecte, amb els valors que ja existeixen com a suggeriments) i «Aplicar» la posa a tots els seleccionats. Amb el camp buit, «Treure» els la treu.
