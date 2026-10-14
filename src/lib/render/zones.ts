@@ -1,7 +1,7 @@
 import type { FrameContext } from './types';
 import type { PaintedZone } from '@/types';
-import { ELEMENTS_BY_ID, TSCALE } from '@/constants';
-import { TX_FN } from '@/lib/textures/elements';
+import { ELEMENTS_BY_ID } from '@/constants';
+import { drawZoneFx } from './zonefx';
 
 export function renderRoomOverlays(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const { sc, ox, oy, s, v, pp, isDM, rLayerImages, rHoveredRoom, roomAnimRef } = fc;
@@ -133,102 +133,8 @@ export function drawFlatZone(ctx: CanvasRenderingContext2D, zone: PaintedZone): 
   ctx.restore();
 }
 
-// Lower cap = fewer texels for the noise loop to fill (quadratic saving). The result is
-// heavily blurred/alpha-masked and drawn upscaled anyway, so detail loss is not visible.
-const TEXTURE_MAX_DIM = 70;
-const ZONE_PAD = 12; // texture-pixel padding per side so blur never cuts at canvas edge
-// Regen rate: each full regen re-evaluates every texel's noise function, which is the
-// expensive part (tens of ms for a zone at the resolution cap). A small zone has far
-// fewer texels and is cheap regardless, so it keeps the original smooth rate (HZ_MAX);
-// only zones large enough to hit the resolution cap get throttled down towards HZ_MIN —
-// that's what actually protects fps once zones are large or several overlap on screen.
-const HZ_MAX = 20;
-const HZ_MIN = 8;
-const TEXELS_AT_HZ_MIN = (TEXTURE_MAX_DIM + 2 * ZONE_PAD) ** 2;
-
-function zonePhaseFrac(zone: PaintedZone): number {
-  // Deterministic per-zone offset (as a fraction of one regen period) so multiple zones
-  // don't all regenerate on the same frame — spreads the noise-loop cost across frames
-  // instead of bursting together.
-  let h = 0;
-  for (let i = 0; i < zone.id.length; i++) h = (h * 31 + zone.id.charCodeAt(i)) >>> 0;
-  return (h % 997) / 997;
-}
-
-interface ZoneMask { canvas: HTMLCanvasElement; ptw: number; pth: number; padLeft: number; padTop: number; RS: number; hz: number; }
-// The blurred shape mask only depends on zone.points (not on time), but used to be
-// rebuilt — CSS `blur()` filter and all — on every ~50ms texture regen. Caching it per
-// zone object (invalidated automatically when a drag/edit produces a new points array,
-// same pattern as getZonePath) removes the single most expensive step from the hot path,
-// which matters a lot once zones are large or several of them overlap on screen.
-const zoneMaskCache = new WeakMap<PaintedZone, ZoneMask>();
-function getZoneMask(zone: PaintedZone): ZoneMask {
-  let mask = zoneMaskCache.get(zone);
-  if (mask) return mask;
-  const { left, top, w, h } = zone.bbox;
-  // Texel resolution capped independent of zone size (keeps the per-pixel noise loop
-  // affordable even for huge zones); the final draw upsamples via drawImage.
-  const RS = Math.max(4, Math.ceil(Math.max(w, h) / TEXTURE_MAX_DIM));
-  const padLeft = left - ZONE_PAD * RS, padTop = top - ZONE_PAD * RS;
-  const tw = Math.ceil(w / RS), th = Math.ceil(h / RS);
-  const ptw = tw + 2 * ZONE_PAD, pth = th + 2 * ZONE_PAD;
-  const hz = Math.min(HZ_MAX, Math.max(HZ_MIN, (HZ_MIN * TEXELS_AT_HZ_MIN) / (ptw * pth)));
-  // High-res alpha mask at 4× resolution; PAD ensures blur fades inside canvas bounds
-  const maskW = ptw * 4, maskH = pth * 4;
-  const mScale = 4 / RS;
-  const blurPx = Math.max(4, Math.min(maskW, maskH) * 0.028);
-  const mc = document.createElement('canvas'); mc.width = maskW; mc.height = maskH;
-  const mctx = mc.getContext('2d')!;
-  mctx.filter = `blur(${blurPx}px)`;
-  mctx.fillStyle = 'white';
-  mctx.beginPath();
-  zone.points.forEach((p, i) => {
-    const ppx = (p.x - padLeft) * mScale, ppy = (p.y - padTop) * mScale;
-    if (i === 0) mctx.moveTo(ppx, ppy); else mctx.lineTo(ppx, ppy);
-  });
-  mctx.closePath(); mctx.fill();
-  mask = { canvas: mc, ptw, pth, padLeft, padTop, RS, hz };
-  zoneMaskCache.set(zone, mask);
-  return mask;
-}
-
-export function drawPaintedZone(ctx: CanvasRenderingContext2D, zone: PaintedZone, t: number, txCache: Record<string, HTMLCanvasElement>): void {
-  const { cx, cy } = zone.bbox;
-  const { canvas: maskCanvas, ptw, pth, padLeft, padTop, RS, hz } = getZoneMask(zone);
-  const tQ = Math.floor((t + zonePhaseFrac(zone) / hz) * hz) / hz;
-  const cacheKey = zone.id + ':' + tQ;
-
-  let cachedCanvas = txCache[cacheKey];
-  if (!cachedCanvas) {
-    for (const k of Object.keys(txCache)) { if (k.startsWith(zone.id + ':')) delete txCache[k]; }
-    const pixelFn = TX_FN[zone.element] || TX_FN.fire;
-    const oc = document.createElement('canvas'); oc.width = ptw; oc.height = pth;
-    const octx = oc.getContext('2d')!;
-    const img = octx.createImageData(ptw, pth);
-    const data = img.data;
-    const tcx = cx / TSCALE, tcy = cy / TSCALE;
-    for (let py = 0; py < pth; py++) {
-      for (let px = 0; px < ptw; px++) {
-        const wx = (padLeft + px * RS) / TSCALE, wy = (padTop + py * RS) / TSCALE;
-        const [r, g, b, a = 255] = pixelFn(wx, wy, tQ, tcx, tcy);
-        const idx = (py * ptw + px) * 4;
-        data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = a;
-      }
-    }
-    octx.putImageData(img, 0, 0);
-    octx.globalCompositeOperation = 'destination-in';
-    octx.drawImage(maskCanvas, 0, 0, ptw, pth);
-    octx.globalCompositeOperation = 'source-over';
-    cachedCanvas = txCache[cacheKey] = oc;
-  }
-  ctx.save();
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
-  ctx.drawImage(cachedCanvas, padLeft, padTop, ptw * RS, pth * RS);
-  ctx.restore();
-}
-
 export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const { isDM, rPaintedZones, txCache, zoneAppearRef } = fc;
+  const { isDM, rPaintedZones, zoneAppearRef, sc, rGridSize } = fc;
   const t = performance.now() / 1000;
   for (const zone of rPaintedZones.current) {
     if (isDM) {
@@ -268,10 +174,7 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
       const elapsed = appearT ? (performance.now() - appearT) / 1000 : Infinity;
       const FADE_IN = 0.75;
       const fadeAlpha = elapsed < FADE_IN ? elapsed / FADE_IN : 1;
-      ctx.save();
-      if (fadeAlpha < 0.999) ctx.globalAlpha = fadeAlpha;
-      drawPaintedZone(ctx, zone, t, txCache);
-      ctx.restore();
+      drawZoneFx(ctx, zone, t, sc, rGridSize.current, fadeAlpha);
       if (appearT && elapsed > 1.5) delete zoneAppearRef.current[zone.id];
     }
   }

@@ -60,6 +60,16 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.34 — Zones màgiques noves
+- **Textures noves per a les sis zones màgiques**, a la pantalla dels jugadors. Abans eren taques de soroll borroses que anaven a salts (el gel i l'aigua gairebé no es distingien).
+  - **Foc**: terra de carbó amb esquerdes de brasa que brillen on crema, flames que pugen, espurnes i fum.
+  - **Gel**: placa de cristalls blaus amb esquerdes blanques, gebre a la vora, un reflex que la creua i destells.
+  - **Aigua**: fons blau amb càustiques que es mouen, escuma a la vora i ones on cau una gota.
+  - **Verí**: fang tòxic amb venes, taques que brillen, bombolles que esclaten i vapors.
+  - **Llamps**: núvol carregat amb electricitat estàtica, arcs que salten entre punts i llampecs que il·luminen la zona.
+  - **Màgia**: nebulosa que gira, cercle arcà amb runes i hexagrama, i motes que pugen.
+- L'animació és fluida (abans s'actualitzava 8–20 cops per segon) i costa menys de pintar: les textures es generen un sol cop i després només es mouen.
+
 ### v4.33 — Grimori de Liriandor i màgies previsualitzades als jugadors
 - El grimori de Liriandor (menú del clic dret del token → Conjurs) és ara la llista que ha confirmat el jugador: els 4 trucs i els 6 conjurs de base, **Grasa** i **Risa horrible** (triats en passar a nivell 2) i **Hechizar persona** (li dona un objecte; la finestreta del botó ho diu).
 - **Encisar persona**, màgia nova (direccional, abast 30 ft): un fil rosat de dues hebres surt de la mà amb un cor a la punta, lliga l'objectiu i, en arribar, l'objectiu batega i li orbiten tres cors sobre el cap. També surt a la roda de les màgies direccionals (Maj + arrossegar).

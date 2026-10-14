@@ -186,7 +186,6 @@ export function PlayerView() {
   // Src (base64) ja descodificat per id: evita re-descodificar totes les imatges d'override
   // cada vegada que arriba un STATE/STRUCT amb psdEnemyOverrides sense canvis reals.
   const rPsdEnemyImgSrc    = useRef<Record<number, string>>({});
-  const txCache           = useRef<Record<string, HTMLCanvasElement>>({});
 
   const rDMPreviewActive = useRef(false);
   const rDMPreviewZoom   = useRef(1);
@@ -949,7 +948,7 @@ export function PlayerView() {
       const fc = {
         sc, ox, oy, mw, mh, isDM: false, s, v, pp,
         rLayerImages, rHoveredRoom, roomAnimRef,
-        rPaintedZones, rContextMenu, zoneAppearRef, txCache: txCache.current,
+        rPaintedZones, rContextMenu, zoneAppearRef,
         isShapeDrawingRef, shapePointsRef,
         activeStrokeAnim, strokeQueueRef, drawCanvasRef,
         rActiveSpells, setActiveSpells,

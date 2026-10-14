@@ -49,7 +49,6 @@ export interface FrameContext {
   rPaintedZones:    MutableRefObject<PaintedZone[]>;
   rContextMenu:     MutableRefObject<unknown>;
   zoneAppearRef:    MutableRefObject<Record<string, number>>;
-  txCache:          Record<string, HTMLCanvasElement>;
 
   isShapeDrawingRef: MutableRefObject<boolean>;
   shapePointsRef:    MutableRefObject<{ x: number; y: number }[]>;

@@ -235,6 +235,7 @@ src/
 │   │   ├── minorspells.ts  # Projectil màgic, risa horrible, mans ardents
 │   │   ├── areaspells.ts   # Dormir i greix (àrees persistents, passada 'ground')
 │   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
+│   │   ├── zonefx.ts       # Zones màgiques a la pantalla del jugador (capes de textura + partícules + màscara)
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador)
@@ -244,7 +245,7 @@ src/
 │   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
 │   ├── spellcast.ts        # clampToRange: limita el destí d'una màgia al seu abast en peus
-│   ├── textures/           # Textures procedurals (noise, elements)
+│   ├── textures/tiles.ts   # Textures enrajolables de les zones màgiques (es generen un sol cop)
 │   └── enemy-images.ts     # ENEMY_IMAGES (imatges base64 enemics)
 ├── constants/index.ts      # CONDITIONS, ELEMENTS, PALETTE, ENEMY_TEMPLATES, C, BC_CHANNEL...
 └── types/index.ts          # Tots els tipus TypeScript
@@ -321,7 +322,7 @@ Afegir la crida a `useRafLoop.ts` entre `ctx.save()` i `ctx.restore()`.
 |---|---|---|
 | `renderZoneOverlays` | render/zones.ts | Zones: visibilitat, fade, eye-icon, etiquetes |
 | `renderExtras` | render/zones.ts | Capa "extras" sempre visible |
-| `renderPaintedZones` | render/zones.ts | Zones màgiques: textures animades (jugador) / flat (DM) |
+| `renderPaintedZones` | render/zones.ts | Zones màgiques: animades amb `drawZoneFx` de `zonefx.ts` (jugador) / color pla (DM) |
 | `renderShapePreview` | render/zones.ts | Preview del shape tool al DM |
 | `advanceStrokeAnim` | render/drawing.ts | Reprodueix traços de dibuix frame a frame |
 | `renderSpells` | render/spells.ts | Animacions dels spells (inclosos els dels grimoris, `bookspells.ts`). Dues passades: `'ground'` (sota tokens) i `'air'` (sobre) |
@@ -661,9 +662,16 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Efecte nou**: funció a `bookspells.ts` + durada a `SPELL_DURATIONS` i entrada a `BOOK_SPELLS` (`spells.ts`). Arriba al jugador pel mateix `SPELL` de sempre: cap camp de sync nou.
 - **Encisar persona** (`charm_person`, `bookspells.ts`): direccional de 30 ft, paleta `charm` (la mateixa escola que Risa horrible). Dues hebres en hèlix (~12 mostres per volta, com les fibres del raig màgic) amb un cor a la punta → lligam fi que s'esvaeix → batec «lub-dub» a l'objectiu i tres cors que li orbiten sobre el cap.
 
-### Zones màgiques (Painted Zones)
-- Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic)
-- Textures procedurals animades al jugador (`src/lib/textures/`)
+### Zones màgiques (Painted Zones) — `render/zonefx.ts` + `textures/tiles.ts`
+- Polígons amb element de `ELEMENTS` (fire, ice, water, lightning, poison, magic). Al DM es pinten amb color pla i l'emoji (`drawFlatZone`); a la pantalla del jugador, animades (`drawZoneFx`).
+- **Problema que resolia** (v4.34): abans cada zona era soroll calculat en JS texel a texel, a ≤70 texels de costat i 8–20 cops per segon. Sortia borrós, anava a salts, gel i aigua eren gairebé iguals i amb sis zones el jugador queia a la meitat de fps.
+- **Textures** (`tiles.ts`): 256×256, **periòdiques** (soroll de valor i cel·les de Worley que fan la volta, si no, en repetir-les es veurien les juntes) i generades **un sol cop** per element (memòria cau del mòdul). Foc: terra de carbó amb esquerdes a dues escales que només brillen on crema + llengües de flama; gel: facetes de cristall, esquerdes i ratllades; aigua: fons + xarxa de càustiques; verí: fang amb venes + taques que brillen; llamps: núvol carregat + filaments d'electricitat estàtica; màgia: nebulosa + filaments.
+- **Composició per fotograma** (`drawZoneFx`): en un llenç de treball a resolució de pantalla (màx. `WORK_MAX`), en coords de mapa: (1) capes de textura com a patrons (`layer`: `CanvasPattern.setTransform` per desplaçar-les o girar-les; **ancorades al centre de la zona**, així la textura es mou amb la zona quan el DM l'arrossega), (2) vora interior lluminosa (`rim`: traços concèntrics retallats a la zona), (3) partícules de l'element, (4) `destination-in` amb la màscara de vora suau, i un sol `drawImage` al mapa. Zones fora de pantalla: no es componen.
+- **Partícules deterministes** (`particles`): cada una neix en un punt de l'interior (`samples`, mostrejats un cop per zona), viu uns instants i torna a néixer en un altre lloc; tot és funció de (llavor de la zona, índex, temps). Flames i espurnes, destells i boirina, ones, bombolles que esclaten i miasma, arcs elèctrics (forma nova 24 cops per segon) i llampecs, cercle arcà amb runes i motes.
+- **Mides en caselles** (`gridSize`; sense graella, `NO_GRID_CELL` fix): la textura té la mateixa escala al mapa sigui quina sigui la mida de la zona i no «neda» en fer zoom.
+- **Memòria cau per objecte zona** (`_geo`, WeakMap, com `getZonePath`): camí, mostres i màscara. Arrossegar una zona en crea una de nova i es refà sola.
+- ⚠️ **Res de `ctx.filter` (blur)**: el canvas de Safari no el suporta a totes les versions i la pantalla de jugador sovint és un iPad. La vora suau de la màscara es fa amb `shadowBlur` (es pinta la forma fora del llenç i només hi cau l'ombra).
+- Per afegir un element: textures a `tiles.ts`, funció `draw*` a `zonefx.ts` i entrada a `DRAW`, a més d'`ELEMENTS` (constants).
 
 ### Parets → Sales fosques (eina "Parets", drecera `5`)
 - **Model**: el DM dibuixa **parets** (segments) clicant successivament (estil regla de mesura). El conjunt de parets és la font de veritat del DM (`rWalls`). Les **sales** (`rRooms`) se'n deriven per **detecció de cares en un graf planar** (`src/lib/rooms/detect.ts` → `detectRooms`): fusiona vèrtexs propers, parteix als encreuaments (X) i a les unions en T, i extreu les cares tancades mínimes (recorregut de half-edges amb gir horari; cares acotades = àrea > 0 en coords de pantalla). Cada cara nova és una sala; una paret que divideix una sala la parteix en dues. Les **portes** són entitats explícites sobre les parets (veure secció següent); un tram sense dibuixar entre parets també fa d'obertura.

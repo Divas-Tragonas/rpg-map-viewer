@@ -29,7 +29,6 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
     let resizeBcastAt = 0;
     let sentPreview: SpellPreview | null = null;
     let previewBcastAt = 0;
-    const txCache: Record<string, HTMLCanvasElement> = {};
 
     const tick = () => {
       if (!alive) return;
@@ -156,7 +155,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       const fc = {
         sc, ox, oy, mw, mh, isDM: true, s, v, pp,
         rLayerImages: R.rLayerImages, rHoveredRoom: R.rHoveredRoom, roomAnimRef: R.roomAnimRef,
-        rPaintedZones: R.rPaintedZones, rContextMenu: R.rContextMenu, zoneAppearRef: R.zoneAppearRef, txCache,
+        rPaintedZones: R.rPaintedZones, rContextMenu: R.rContextMenu, zoneAppearRef: R.zoneAppearRef,
         isShapeDrawingRef: R.isShapeDrawingRef, shapePointsRef: R.shapePointsRef,
         activeStrokeAnim: R.activeStrokeAnim, strokeQueueRef: R.strokeQueueRef, drawCanvasRef: R.drawCanvasRef,
         rActiveSpells: R.rActiveSpells, setActiveSpells,
