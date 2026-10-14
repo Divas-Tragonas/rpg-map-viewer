@@ -60,6 +60,11 @@ l'estat complet al DM en tornar.
 > s'han renumerat a `v4.01`–`v4.08`: així hi caben 99 canvis abans de necessitar una v5,
 > que queda reservada per a una fita de debò.
 
+### v4.36 — Editar enemics en bloc al back office
+- **Selecció múltiple a la taula d'enemics** (`/admin/enemics`): casella a cada fila, a cada grup (tot el grup d'un cop) i a la capçalera (tots). **Maj+clic** marca el tram entre dues files.
+- **Barra d'edició en bloc** a sobre de la taula: escriu una categoria (o un projecte, amb els valors que ja existeixen com a suggeriments) i «Aplicar» la posa a tots els seleccionats. Amb el camp buit, «Treure» els la treu.
+- Només es desen els que canvien, i si algun falla es diu quants i per què (la resta queden desats). Funciona amb la API de sempre: un `PUT /enemies/:id` per enemic.
+
 ### v4.35 — Màgia com un portal i retocs al foc, el gel i l'aigua
 - **Màgia**: fora el cercle arcà amb runes. Torna a ser un fluid místic: nebulosa amb corrents que llisquen i un remolí al centre que xucla les motes cap a dins, com un portal.
 - **Foc**: les flames són llengües (base ampla, punta estreta que s'inclina i parpelleja) en lloc de taques rodones de llum.

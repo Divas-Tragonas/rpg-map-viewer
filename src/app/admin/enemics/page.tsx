@@ -1,8 +1,9 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
-import { C, tint } from '@/constants';
+import { C, FS, tint } from '@/constants';
 import { api, isApiConfigured } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
+import { Button } from '@/components/ui/Button';
 import { EnemyGroupToolbar, GroupHeader } from '@/components/ui/EnemyGroups';
 import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
 import { apiSupportsGroups, distinctValues, groupEnemies, groupKey } from '@/lib/enemy-groups';
@@ -19,12 +20,18 @@ const EMPTY_FORM: Omit<ApiEnemy, 'id'> = {
   category: '',
 };
 
+const FIELD_LABEL: Record<EnemyGroupField, string> = { project: 'Projecte', category: 'Categoria' };
+const FIELD_HINT: Record<EnemyGroupField, string> = { project: 'p.ex. La cripta', category: 'p.ex. Morts vivents' };
+
 // Columnes de la taula. La del camp pel qual s'agrupa s'amaga: ja és la capçalera del grup.
-const COLUMNS: { label: string; field?: EnemyGroupField }[] = [
-  { label: '' }, { label: 'Color' }, { label: 'Nom' },
-  { label: 'Projecte', field: 'project' }, { label: 'Categoria', field: 'category' },
-  { label: 'HP màx' }, { label: 'Radi (R)' }, { label: 'Escala (sm)' }, { label: 'Accions' },
+const COLUMNS: { key: string; label: string; field?: EnemyGroupField }[] = [
+  { key: 'sel', label: '' }, { key: 'img', label: '' }, { key: 'color', label: 'Color' }, { key: 'name', label: 'Nom' },
+  { key: 'project', label: 'Projecte', field: 'project' }, { key: 'category', label: 'Categoria', field: 'category' },
+  { key: 'hp', label: 'HP màx' }, { key: 'R', label: 'Radi (R)' }, { key: 'sm', label: 'Escala (sm)' }, { key: 'actions', label: 'Accions' },
 ];
+
+// Edició en bloc: quants PUT van alhora (la API no té cap endpoint de lots).
+const BULK_CHUNK = 6;
 
 export default function EnemicsPage() {
   const [enemies, setEnemies] = useState<ApiEnemy[]>([]);
@@ -39,6 +46,16 @@ export default function EnemicsPage() {
   const groups = grouping.by === 'none' ? null : groupEnemies(enemies, grouping.by);
   const columns = COLUMNS.filter(c => !c.field || c.field !== grouping.by);
 
+  // Selecció per a l'edició en bloc. Es deriva de la llista: un id que ja no hi és no compta.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [lastPick, setLastPick] = useState<string | null>(null);
+  const [bulk, setBulk] = useState<Record<EnemyGroupField, string>>({ project: '', category: '' });
+  const [bulkBusy, setBulkBusy] = useState<EnemyGroupField | null>(null);
+  const [bulkMsg, setBulkMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const picked = enemies.filter(e => selected.has(e.id));
+  // Files que es veuen, en ordre: Maj+clic marca el tram entre dues (els grups plegats no compten).
+  const visibleRows = groups ? groups.filter(g => !grouping.isCollapsed(g.key)).flatMap(g => g.items) : enemies;
+
   const loadEnemies = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -52,6 +69,62 @@ export default function EnemicsPage() {
   }, []);
 
   useEffect(() => { if (apiOk) loadEnemies(); else setLoading(false); }, [apiOk, loadEnemies]);
+
+  function setPicked(ids: string[], on: boolean) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      for (const id of ids) { if (on) next.add(id); else next.delete(id); }
+      return next;
+    });
+    setBulkMsg(null);
+  }
+
+  function pickRow(id: string, shift: boolean) {
+    const on = !selected.has(id);
+    const from = shift && lastPick ? visibleRows.findIndex(e => e.id === lastPick) : -1;
+    const to = visibleRows.findIndex(e => e.id === id);
+    if (from >= 0 && to >= 0) {
+      const [a, b] = from < to ? [from, to] : [to, from];
+      setPicked(visibleRows.slice(a, b + 1).map(e => e.id), on);
+    } else {
+      setPicked([id], on);
+    }
+    setLastPick(id);
+  }
+
+  /** Posa el mateix projecte o categoria a tots els seleccionats (buit = els el treu). */
+  async function applyBulk(field: EnemyGroupField) {
+    if (bulkBusy || !picked.length) return;
+    const value = bulk[field].trim();
+    const label = FIELD_LABEL[field].toLowerCase();
+    // Els que ja el tenen escrit igual no cal tornar-los a desar.
+    const targets = picked.filter(e => (e[field] ?? '').trim() !== value);
+    if (!targets.length) {
+      setBulkMsg({ ok: true, text: value ? `Ja eren tots a «${value}»` : `Cap no tenia ${label}` });
+      return;
+    }
+    setBulkBusy(field);
+    setBulkMsg(null);
+    const saved = new Map<string, ApiEnemy>();
+    let lastError = '';
+    for (let i = 0; i < targets.length; i += BULK_CHUNK) {
+      const batch = targets.slice(i, i + BULK_CHUNK);
+      const results = await Promise.allSettled(batch.map(e => api.enemies.update(e.id, field === 'project' ? { project: value } : { category: value })));
+      results.forEach((r, j) => {
+        if (r.status === 'fulfilled') saved.set(batch[j].id, r.value);
+        else lastError = r.reason instanceof Error ? r.reason.message : String(r.reason);
+      });
+    }
+    setEnemies(prev => prev.map(e => saved.get(e.id) ?? e));
+    // Com en desar-ne un: si van a parar a un grup plegat, es desplega.
+    if (saved.size && grouping.by === field && grouping.isCollapsed(groupKey(value))) grouping.toggle(groupKey(value));
+    const failed = targets.length - saved.size;
+    const n = saved.size === 1 ? '1 enemic' : `${saved.size} enemics`;
+    setBulkMsg(failed
+      ? { ok: false, text: `No se n'han pogut desar ${failed} de ${targets.length}: ${lastError}` }
+      : { ok: true, text: value ? `${n} a «${value}»` : `${n} sense ${label}` });
+    setBulkBusy(null);
+  }
 
   async function handleSave() {
     if (!modal) return;
@@ -99,7 +172,11 @@ export default function EnemicsPage() {
 
   function renderRow(enemy: ApiEnemy, first: boolean) {
     return (
-      <tr key={enemy.id} style={{ borderTop: first ? 'none' : `1px solid ${C.border}` }}>
+      <tr key={enemy.id} style={{ borderTop: first ? 'none' : `1px solid ${C.border}`, background: selected.has(enemy.id) ? tint(C.accent, 0.06) : undefined }}>
+        <td style={{ padding: '10px 4px 10px 14px', width: 1 }}>
+          <Checkbox checked={selected.has(enemy.id)} onPick={shift => pickRow(enemy.id, shift)}
+            label={`Seleccionar ${enemy.name} (Maj+clic: tot el tram fins a l'últim marcat)`} />
+        </td>
         <td style={{ padding: '10px 14px', width: 48 }}>
           {enemy.imageData
             ? <img src={enemy.imageData} alt="" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 5, background: '#080c12', border: `1px solid ${C.border}` }} />
@@ -224,6 +301,60 @@ export default function EnemicsPage() {
         </div>
       )}
 
+      {/* Valors ja fets servir: els suggereixen el formulari i l'edició en bloc */}
+      {(['project', 'category'] as const).map(field => (
+        <datalist key={field} id={`enemy-${field}-options`}>
+          {distinctValues(enemies, field).map(v => <option key={v} value={v} />)}
+        </datalist>
+      ))}
+
+      {/* Edició en bloc. Sempre hi és (apagada sense selecció): si aparegués en marcar el
+          primer enemic, la taula baixaria i la casella següent ja no seria sota el cursor. */}
+      {!loading && enemies.length > 0 && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 5, marginBottom: 12,
+          display: 'flex', alignItems: 'center', gap: '8px 16px', flexWrap: 'wrap',
+          padding: '9px 14px', background: C.panel, borderRadius: 8,
+          border: `1px solid ${picked.length ? tint(C.accent, 0.55) : C.border}`,
+        }}>
+          <span style={{ fontSize: FS.md, fontWeight: 700, color: picked.length ? C.bright : C.dim, minWidth: 180 }}>
+            {picked.length ? `${picked.length} de ${enemies.length} seleccionats` : 'Cap seleccionat'}
+          </span>
+          {(['category', 'project'] as const).map(field => {
+            const off = !picked.length || !groupsOk || !!bulkBusy;
+            const value = bulk[field].trim();
+            return (
+              <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label htmlFor={`bulk-${field}`} style={{ fontSize: FS.sm, color: C.dim }}>{FIELD_LABEL[field]}</label>
+                <input id={`bulk-${field}`} type="text" list={`enemy-${field}-options`} maxLength={60}
+                  value={bulk[field]} disabled={off} placeholder={FIELD_HINT[field]}
+                  onChange={e => setBulk(b => ({ ...b, [field]: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') applyBulk(field); }}
+                  style={{ ...inputStyle, width: 170, padding: '6px 9px', fontSize: FS.md, opacity: off ? 0.5 : 1 }} />
+                <Button variant={field === 'category' && value ? 'primary' : 'secondary'} disabled={off} onClick={() => applyBulk(field)}
+                  title={value
+                    ? `Posar «${value}» a tots els seleccionats`
+                    : `Deixar els seleccionats sense ${FIELD_LABEL[field].toLowerCase()}`}>
+                  {bulkBusy === field ? 'Desant…' : value ? 'Aplicar' : 'Treure'}
+                </Button>
+              </div>
+            );
+          })}
+          {/* Una sola línia (el text llarg s'escurça): si la barra creixés, la taula es mouria */}
+          <span title={bulkMsg?.text} style={{
+            flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            fontSize: FS.sm, color: bulkMsg ? (bulkMsg.ok ? C.hpHigh : C.enemy) : C.dim,
+          }}>
+            {bulkMsg?.text ?? (picked.length ? '' : 'Marca enemics (o un grup sencer) per canviar-los la categoria o el projecte de cop. Maj+clic marca un tram.')}
+          </span>
+          {picked.length > 0 && (
+            <Button variant="ghost" onClick={() => setPicked(enemies.map(e => e.id), false)} disabled={!!bulkBusy}>
+              Deseleccionar
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div style={{ color: C.dim, fontSize: 13, padding: 20 }}>Carregant...</div>
@@ -232,8 +363,16 @@ export default function EnemicsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {columns.map(({ label: h }) => (
-                  <th key={h || 'img'} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
+                {columns.map(({ key, label: h }) => key === 'sel' ? (
+                  <th key={key} style={{ padding: '10px 4px 10px 14px', width: 1 }}>
+                    {enemies.length > 0 && (
+                      <Checkbox checked={picked.length === enemies.length} indeterminate={picked.length > 0 && picked.length < enemies.length}
+                        onPick={() => setPicked(enemies.map(e => e.id), picked.length < enemies.length)}
+                        label={picked.length < enemies.length ? 'Seleccionar tots els enemics' : 'Deseleccionar-los tots'} />
+                    )}
+                  </th>
+                ) : (
+                  <th key={key} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
                 ))}
@@ -250,10 +389,16 @@ export default function EnemicsPage() {
               {groups
                 ? groups.map((g, gi) => {
                   const open = !grouping.isCollapsed(g.key);
+                  const inGroup = g.items.filter(e => selected.has(e.id)).length;
                   return (
                     <React.Fragment key={`g:${g.key}`}>
                       <tr style={{ borderTop: gi === 0 ? 'none' : `1px solid ${C.border}`, background: 'rgba(255,255,255,0.025)' }}>
-                        <td colSpan={columns.length} style={{ padding: 0 }}>
+                        <td style={{ padding: '0 4px 0 14px', width: 1 }}>
+                          <Checkbox checked={inGroup === g.items.length} indeterminate={inGroup > 0 && inGroup < g.items.length}
+                            onPick={() => setPicked(g.items.map(e => e.id), inGroup < g.items.length)}
+                            label={inGroup < g.items.length ? `Seleccionar tot el grup «${g.label}»` : `Deseleccionar el grup «${g.label}»`} />
+                        </td>
+                        <td colSpan={columns.length - 1} style={{ padding: 0 }}>
                           <GroupHeader label={g.label} count={g.items.length} open={open} unnamed={!g.key}
                             onToggle={() => grouping.toggle(g.key)} padding="9px 14px" fontSize={13} />
                         </td>
@@ -307,7 +452,7 @@ export default function EnemicsPage() {
 
               <div style={{ display: 'flex', gap: 12 }}>
                 {(['project', 'category'] as const).map(field => (
-                  <Field key={field} label={field === 'project' ? 'Projecte' : 'Categoria'} style={{ flex: 1 }}>
+                  <Field key={field} label={FIELD_LABEL[field]} style={{ flex: 1 }}>
                     <input
                       type="text"
                       list={`enemy-${field}-options`}
@@ -316,12 +461,9 @@ export default function EnemicsPage() {
                       disabled={!groupsOk}
                       title={groupsOk ? 'Escriu-ne un de nou o tria un dels que ja existeixen' : 'La API encara no desa aquest camp'}
                       onChange={e => updateField(field, e.target.value)}
-                      placeholder={field === 'project' ? 'p.ex. La cripta' : 'p.ex. Morts vivents'}
+                      placeholder={FIELD_HINT[field]}
                       style={{ ...inputStyle, opacity: groupsOk ? 1 : 0.5 }}
                     />
-                    <datalist id={`enemy-${field}-options`}>
-                      {distinctValues(enemies, field).map(v => <option key={v} value={v} />)}
-                    </datalist>
                   </Field>
                 ))}
               </div>
@@ -490,6 +632,26 @@ function ImageUpload({ value, onChange }: { value: string; onChange: (v: string)
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Casella de selecció de la taula. `indeterminate` (grup o capçalera amb només una part
+ * marcada) no és un atribut d'HTML: s'ha d'escriure a la propietat de l'element.
+ */
+function Checkbox({ checked, indeterminate = false, onPick, label }: {
+  checked: boolean;
+  indeterminate?: boolean;
+  /** `shift`: Maj premuda (al clic, React dispara el `change` des del `click`). */
+  onPick: (shift: boolean) => void;
+  label: string;
+}) {
+  const ref = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
+  return (
+    <input ref={ref} type="checkbox" checked={checked} aria-label={label} title={label}
+      onChange={e => onPick((e.nativeEvent as MouseEvent).shiftKey === true)}
+      style={{ width: 15, height: 15, margin: 0, display: 'block', cursor: 'pointer', accentColor: C.accent }} />
   );
 }
 
