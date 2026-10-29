@@ -81,6 +81,9 @@ const GIF_MAX_CHARS = 3_000_000;
  * Retrat → data URL per enviar-lo a les pantalles: JPEG de 600 px d'ample com a màxim.
  * Els GIF animats es conserven (amb un límit de mida). Retorna `null` si no es pot.
  */
+/** Amplada fins a la qual un retrat és pixel art (es pinta sense suavitzar i es desa en PNG). */
+const PIXEL_MAX = 160;
+
 export function encodePortrait(el: HTMLCanvasElement | HTMLImageElement | null): string | null {
   if (!el) return null;
   const img = el as HTMLImageElement & { _rawDataUrl?: string };
@@ -94,7 +97,8 @@ export function encodePortrait(el: HTMLCanvasElement | HTMLImageElement | null):
     const c = document.createElement('canvas');
     c.width = Math.round(srcW * k); c.height = Math.round(srcH * k);
     c.getContext('2d')!.drawImage(el, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.88);
+    // Pixel art (la figureta de l'app Píxel): PNG, que el JPEG l'emborrona i perd la transparència.
+    return c.toDataURL(srcW <= PIXEL_MAX ? 'image/png' : 'image/jpeg', 0.88);
   } catch { return null; }
 }
 
@@ -186,7 +190,10 @@ export function playBossIntro(o: BossIntroOptions): BossIntro {
   const prtWrap = add(`position:absolute;right:5%;top:50%;width:${prtW}px;height:${prtH}px;transform:translate(120%,-50%);transition:transform 0.6s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:60`);
   const prtGlow = el(prtWrap, `position:absolute;inset:-50px;background:radial-gradient(ellipse at 40% 55%,${GLOW} 0%,transparent 65%);filter:blur(30px);opacity:0;transition:opacity 1s ease`);
   const MASK = `-webkit-mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);mask-image:linear-gradient(to left,rgba(0,0,0,1) 45%,rgba(0,0,0,.6) 72%,transparent 100%),linear-gradient(to bottom,rgba(0,0,0,1) 60%,transparent 100%);-webkit-mask-composite:intersect;mask-composite:intersect`;
-  const IMG_CSS = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;${MASK}`;
+  // Un retrat diminut és pixel art (la figureta de l'app Píxel): s'amplia sense suavitzar.
+  const pw = portrait instanceof HTMLCanvasElement ? portrait.width : portrait?.naturalWidth ?? 0;
+  const PIX = pw > 0 && pw <= PIXEL_MAX ? 'image-rendering:pixelated;' : '';
+  const IMG_CSS = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;${PIX}${MASK}`;
   if (portrait instanceof HTMLCanvasElement) {
     const pc = el(prtWrap, IMG_CSS, 'canvas') as HTMLCanvasElement;
     pc.width = portrait.width; pc.height = portrait.height;

@@ -7,7 +7,7 @@ import { sheet } from '@/lib/sprites/pack';
 import { blit, drawItem } from '@/lib/sprites/draw';
 import {
   TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX,
-  type TileMap, cellOf, isWall, isVoid, inMap,
+  type TileMap, cellOf, isWall, inMap,
 } from './model';
 import { WALL_BY_ID, objectDef, groundAnim } from './palette';
 import { t } from './model';
@@ -33,23 +33,35 @@ const TOP_COLS = [1, 2, 3, 6, 1, 2];
 const MID_COLS = [1, 2, 3, 1, 2, 3, 4, 5, 6];
 const hash = (c: number, r: number) => (((c * 73856093) ^ (r * 19349663)) >>> 0);
 
-/** Peça de paret per a la casella (c, r) segons els veïns de dalt i de baix. */
+/**
+ * Peça de paret per a la casella (c, r), amb la mateixa regla que els mapes d'exemple de
+ * l'autor (`uf_example_*.tmx`, analitzats casella a casella):
+ *  - **cara** (maó fosc a baix) sempre que a sota NO hi ha paret: la paret de dalt d'una
+ *    sala i la de baix es veuen iguals, també si a sota hi ha el buit;
+ *  - **vora de dalt** (mitja casella) només a la fila de dalt d'un mur horitzontal de dues
+ *    files (com els dels exemples 1–4): terra a dalt, paret a baix i el mur que continua al
+ *    costat. Validada contra els cinc mapes d'exemple: coincideix a totes les parets (menys
+ *    les caselles que l'autor posa sota una porta lateral, que aquí són la porta);
+ *  - **centre** a la resta (les columnes dels murs laterals);
+ *  - **pilar** per a una peça sola, sense paret a cap costat.
+ * Fora del mapa no compta com a paret (com el buit).
+ */
 export function wallTileFor(m: TileMap, c: number, r: number): number {
   const i = cellOf(m, c, r);
   if (m.wallRaw[i] >= 0) return m.wallRaw[i];
   const set = WALL_BY_ID.get(m.wallSet[i]);
   if (!set) return -1;
   const B = set.row;
-  // «Obert» = hi ha terra (no paret ni buit): el buit compta com a massa de paret, així una
-  // paret que dona al buit fa cara sencera i no pas un pilar solt.
-  const floorAt = (cc: number, rr: number) => inMap(m, cc, rr) && !isWall(m, cc, rr) && !isVoid(m, cellOf(m, cc, rr));
-  const southOpen = floorAt(c, r + 1), northOpen = floorAt(c, r - 1);
+  const wall = (cc: number, rr: number) => inMap(m, cc, rr) && isWall(m, cc, rr);
+  // Fila de dalt d'un mur de dues files (terra a dalt, cara a sota).
+  const band = (cc: number) => wall(cc, r) && !wall(cc, r - 1) && wall(cc, r + 1) && !wall(cc, r + 2);
   const h = hash(c, r);
-  // Terra a dalt i a baix: una paret prima entre dues sales fa cara sencera; el pilar és
-  // només per a una peça aïllada (sense paret als costats), que és per al que el va fer l'autor.
-  if (southOpen && northOpen && !isWall(m, c - 1, r) && !isWall(m, c + 1, r)) return t(8, B + 1);
-  if (southOpen) return t(FACE_COLS[h % FACE_COLS.length], B + 2);
-  if (northOpen) return t(TOP_COLS[h % TOP_COLS.length], B);
+  if (!wall(c, r + 1)) {
+    if (!wall(c, r - 1) && !wall(c - 1, r) && !wall(c + 1, r)) return t(8, B + 1);
+    return t(FACE_COLS[h % FACE_COLS.length], B + 2);
+  }
+  // Vora de dalt si el mur de dues files continua al costat (també on hi arriba una columna).
+  if (!wall(c, r - 1) && (band(c - 1) || band(c + 1))) return t(TOP_COLS[h % TOP_COLS.length], B);
   return t(MID_COLS[h % MID_COLS.length], B + 1);
 }
 
@@ -130,8 +142,11 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
 export interface TileLive {
   /** Peces animades: posició (px de mapa) + fotogrames. */
   anims: { x: number; y: number; frames: number[]; ms: number }[];
-  /** Portes del mapa de caselles: posició, orientació i peces tancada/oberta del seu joc. */
-  doors: { id: string; x: number; y: number; axis: 'h' | 'v'; closed: number; open: number; openTop: number }[];
+  /**
+   * Portes del mapa de caselles: posició i peces tancada/oberta del seu joc. Cada peça va a
+   * la casella de la porta (`dy` 0) o a la de dalt (`dy` −1), on sobresurt l'art.
+   */
+  doors: { id: string; x: number; y: number; closed: { dy: number; tile: number }[]; open: { dy: number; tile: number }[] }[];
 }
 
 export function tileLiveOf(m: TileMap): TileLive {
@@ -153,7 +168,17 @@ export function tileLiveOf(m: TileMap): TileLive {
   for (const [k, setId] of Object.entries(m.doors)) {
     const i = +k, c = i % m.cols, r = Math.floor(i / m.cols);
     const B = WALL_BY_ID.get(setId)?.row ?? 12;
-    doors.push({ id: `td_${i}`, x: c * TILE, y: r * TILE, axis: doorAxis(m, c, r), closed: t(10, B + 1), open: t(11, B + 1), openTop: t(11, B) });
+    // Peces de l'autor (columnes 10–13 del joc de paret, com als mapes d'exemple):
+    //  - paret horitzontal: tancada = la porta doble (10); oberta = els dos muntants (11);
+    //  - paret lateral: tancada = la porta vista de cantell, un muntant al mig (12); oberta =
+    //    la fulla de cara, girada contra la paret (13). Totes dues ocupen dues caselles d'alt.
+    const piece = (col: number) => [{ dy: -1, tile: t(col, B) }, { dy: 0, tile: t(col, B + 1) }];
+    const h = doorAxis(m, c, r) === 'h';
+    doors.push({
+      id: `td_${i}`, x: c * TILE, y: r * TILE,
+      closed: h ? [{ dy: 0, tile: t(10, B + 1) }] : piece(12),
+      open: h ? piece(11) : piece(13),
+    });
   }
   return { anims, doors };
 }
@@ -166,11 +191,7 @@ export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | nul
   if (!live || !sheet('terrain')) return;
   for (const a of live.anims) drawTile(ctx, a.frames[Math.floor(now / a.ms) % a.frames.length], a.x, a.y);
   for (const d of live.doors) {
-    if (openById(d.id)) {
-      if (d.axis === 'h') { drawTile(ctx, d.open, d.x, d.y); drawTile(ctx, d.openTop, d.x, d.y - TILE); }
-    } else {
-      drawTile(ctx, d.closed, d.x, d.y);
-    }
+    for (const p of openById(d.id) ? d.open : d.closed) drawTile(ctx, p.tile, d.x, d.y + p.dy * TILE);
   }
 }
 

@@ -8,6 +8,18 @@ import { hasCreature, drawCreature, grayCreature, creatureFrame } from '@/lib/sp
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
 const _facing = new Map<string, { x: number; left: boolean }>();
 
+/**
+ * Traça d'un aro al voltant d'un token. A l'app Píxel els aros (estats, torn, ressaltat,
+ * selecció) són el·lipses als peus de la figureta, en la mateixa perspectiva que l'ombra:
+ * un cercle vertical al voltant d'una figura dreta no lliga amb el pixel art.
+ */
+const FOOT_DY = 0.62, FOOT_FLAT = 0.36;
+function ringPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, R: number, foot: boolean) {
+  ctx.beginPath();
+  if (foot) ctx.ellipse(cx, cy + R * FOOT_DY, r, r * FOOT_FLAT, 0, 0, Math.PI * 2);
+  else ctx.arc(cx, cy, r, 0, Math.PI * 2);
+}
+
 /** El token es pinta com a figureta? (estil Píxel, paquet carregat i criatura coneguda). */
 function pixelSprite(fc: FrameContext, sprite: string | undefined): string | null {
   return fc.rAppStyle?.current === 'pixel' && packReady() && hasCreature(sprite) ? sprite : null;
@@ -23,7 +35,7 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   const { sc } = fc;
   const f = _facing.get(key);
   if (!f) _facing.set(key, { x: cx, left: false });
-  else if (Math.abs(cx - f.x) > 0.6) { f.left = cx < f.x; f.x = cx; }
+  else if (Math.abs(cx - f.x) > R * 0.25) { f.left = cx < f.x; f.x = cx; }  // marge: res de girs per tremolors del LERP
   const left = _facing.get(key)!.left;
   const S = R * 2.4;
   ctx.save();
@@ -37,12 +49,15 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   ctx.setLineDash([]);
   const d = opts.defeated ?? 0;
   if (d > 0) {
-    // Derrotat: la figura cau de costat i perd el color.
+    // Derrotat: la figura es queda dreta, quieta i perd el color (es fon des del color).
     const gray = grayCreature(sprite);
-    ctx.translate(cx, cy + R * 0.45);
-    ctx.rotate((left ? -1 : 1) * d * Math.PI / 2);
     ctx.imageSmoothingEnabled = false;
-    if (gray) ctx.drawImage(gray, -S / 2, -S * 0.62, S, S);
+    if (d < 1) drawCreature(ctx, sprite, 0, cx - S / 2, cy - S * 0.62, S, left);
+    ctx.globalAlpha *= Math.min(1, d) * 0.85;
+    if (gray) {
+      if (left) { ctx.translate(cx + S / 2, 0); ctx.scale(-1, 1); ctx.drawImage(gray, 0, cy - S * 0.62, S, S); }
+      else ctx.drawImage(gray, cx - S / 2, cy - S * 0.62, S, S);
+    }
   } else {
     if (opts.invis) ctx.globalAlpha *= 0.45;
     drawCreature(ctx, sprite, creatureFrame(performance.now(), key.length * 3.1 + key.charCodeAt(key.length - 1)), cx - S / 2, cy - S * 0.62, S, left);
@@ -114,13 +129,13 @@ function getTokenImg(src: string): HTMLImageElement {
 // Aro del token que té el torn actiu (sistema per torns). Daurat SÒLID i gruixut:
 // coherent amb la paleta groga però deliberadament diferent de l'aro de "ressaltar
 // enemics" (doble anell suau, alpha animat) i del blau discontinu de selecció del DM.
-function drawActiveTurnRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number): void {
+function drawActiveTurnRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, foot = false): void {
   const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 3);
   ctx.save();
   ctx.strokeStyle = `rgba(255,190,40,${0.22 + 0.14 * pulse})`; ctx.lineWidth = 9 / sc;
-  ctx.beginPath(); ctx.arc(cx, cy, R + (9 + 3 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+  ringPath(ctx, cx, cy, R + (9 + 3 * pulse) / sc, R, foot); ctx.stroke();
   ctx.strokeStyle = 'rgba(255,196,52,0.95)'; ctx.lineWidth = 4 / sc;
-  ctx.beginPath(); ctx.arc(cx, cy, R + (5 + 1.5 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+  ringPath(ctx, cx, cy, R + (5 + 1.5 * pulse) / sc, R, foot); ctx.stroke();
   ctx.restore();
 }
 
@@ -255,7 +270,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     }
     ctx.globalAlpha = 1;
-    if (!isDM && isInvis) { /* skip badges */ } else { drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc); }
+    if (!isDM && isInvis) { /* skip badges */ } else { drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc, psdSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined); }
 
     const _ha = rHighlightAlpha.current;
     if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
@@ -264,9 +279,9 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       const pulse = 0.5 + 0.5 * Math.sin(pT * 3.2 + phaseOff);
       ctx.save();
       ctx.strokeStyle = `rgba(255,210,0,${(0.10 + 0.08 * pulse) * _ha})`; ctx.lineWidth = 10 / sc;
-      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + (11 + 4 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+      ringPath(ctx, ep.x, ep.y, R + (11 + 4 * pulse) / sc, R, !!psdSprite); ctx.stroke();
       ctx.strokeStyle = `rgba(255,220,50,${(0.60 + 0.35 * pulse) * _ha})`; ctx.lineWidth = 2.5 / sc;
-      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + (4 + 2 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+      ringPath(ctx, ep.x, ep.y, R + (4 + 2 * pulse) / sc, R, !!psdSprite); ctx.stroke();
       ctx.restore();
     }
 
@@ -290,13 +305,13 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     // Aro daurat del torn actiu (també per als enemics: el DM ha de veure d'un cop d'ull
     // a qui li toca moure, no només a la barra d'iniciativa).
     if (_activeId != null && _activeId === en.id && !isDefeated && enAlpha > 0.3) {
-      drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
+      drawActiveTurnRing(ctx, ep.x, ep.y, R, sc, !!psdSprite);
     }
 
     if (isDM && (rSelectedToken.current === en.id || rMultiSelected.current.has(en.id))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
-      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      ringPath(ctx, ep.x, ep.y, R + 7 / sc, R, !!psdSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
 
     ctx.restore();
@@ -423,7 +438,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.fillText(en.name, ep.x, ep.y + R + 12 / sc);
     }
     ctx.globalAlpha = 1;
-    if (showStates) drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc);
+    if (showStates) drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc, libSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
 
     const _ha = rHighlightAlpha.current;
     if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
@@ -431,9 +446,9 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       const pulse = 0.5 + 0.5 * Math.sin(pT * 3.2 + en.id * 0.43);
       ctx.save();
       ctx.strokeStyle = `rgba(255,210,0,${(0.10 + 0.08 * pulse) * _ha})`; ctx.lineWidth = 10 / sc;
-      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + (11 + 4 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+      ringPath(ctx, ep.x, ep.y, R + (11 + 4 * pulse) / sc, R, !!libSprite); ctx.stroke();
       ctx.strokeStyle = `rgba(255,220,50,${(0.60 + 0.35 * pulse) * _ha})`; ctx.lineWidth = 2.5 / sc;
-      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + (4 + 2 * pulse) / sc, 0, Math.PI * 2); ctx.stroke();
+      ringPath(ctx, ep.x, ep.y, R + (4 + 2 * pulse) / sc, R, !!libSprite); ctx.stroke();
       ctx.restore();
     }
 
@@ -471,13 +486,13 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     // Aro daurat del torn actiu (veure renderEnemyTokens).
     if (_activeId != null && _activeId === `lib_${en.id}` && !isDefeated && enAlpha > 0.3) {
-      drawActiveTurnRing(ctx, ep.x, ep.y, R, sc);
+      drawActiveTurnRing(ctx, ep.x, ep.y, R, sc, !!libSprite);
     }
 
     if (isDM && (rSelectedToken.current === `lib_${en.id}` || rMultiSelected.current.has(`lib_${en.id}`))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
-      ctx.beginPath(); ctx.arc(ep.x, ep.y, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      ringPath(ctx, ep.x, ep.y, R + 7 / sc, R, !!libSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
 
     ctx.globalAlpha = 1;
@@ -614,7 +629,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     ctx.fillStyle = 'rgba(8,12,18,.8)'; ctx.fillRect(ppos.x + R - tw2 / 2 - 4 / sc, ppos.y + R * 2 + 3 / sc, tw2 + 8 / sc, 12 / sc);
     ctx.fillStyle = pl.color; ctx.fillText(pl.name, ppos.x + R, ppos.y + R * 2 + 12 / sc);
     ctx.textAlign = 'left';
-    drawConditionBadges(ctx, ppos.x + R, ppos.y + R, R, plCondIds, sc);
+    drawConditionBadges(ctx, ppos.x + R, ppos.y + R, R, plCondIds, sc, plSprite ? { footY: ppos.y + R + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
 
     if (isDM && pl.hpMax > 0) {
       const hp = pl.hp ?? pl.hpMax, hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
@@ -646,9 +661,9 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     if (isDM && (rSelectedToken.current === `pl_${pl.id}` || rMultiSelected.current.has(`pl_${pl.id}`))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
-      ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R + 7 / sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      ringPath(ctx, ppos.x + R, ppos.y + R, R + 7 / sc, R, !!plSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
 
-    if (_activeId != null && _activeId === `pl_${pl.id}` && !isDefeated) drawActiveTurnRing(ctx, ppos.x + R, ppos.y + R, R, sc);
+    if (_activeId != null && _activeId === `pl_${pl.id}` && !isDefeated) drawActiveTurnRing(ctx, ppos.x + R, ppos.y + R, R, sc, !!plSprite);
   });
 }

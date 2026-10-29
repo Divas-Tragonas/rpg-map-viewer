@@ -179,6 +179,10 @@ només l'envia el DM per WS en rebre un PLAYER_READY amb l'app Píxel, i pot pes
 ~1,7 MB: el servidor no ha de limitar la mida dels missatges per sota d'això (la
 llibreria `ws` admet 100 MB per defecte).
 
+Des de la v4.39 el PLAYER_READY pot portar `packId` (string | null): el paquet que té
+aquella pantalla. El DM només li envia `spritePack` si no coincideix amb el seu. El
+servidor ja reenvia el PLAYER_READY sencer al DM (`sendToDM(raw)`): cap canvi.
+
 Per verificar el contracte del relay: `node scripts/check-sync.mjs [ws://host:3000] [SYNC_KEY]`
 
 ### Relay de moviment de tokens entre clients (TOKEN_RELAY)

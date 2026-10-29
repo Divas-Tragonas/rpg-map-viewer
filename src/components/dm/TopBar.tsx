@@ -301,8 +301,8 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
  * Vista (només a la pantalla del DM): opacitat del mapa i ressaltar enemics. Abans eren un
  * lliscador al peu del lateral i dos xips a dalt al centre.
  */
-function ViewMenu({ open, onToggle, onClose, hasPsd, bgOpacity, onBgOpacityChange, gridVisible, onToggleGrid, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: {
-  open: boolean; onToggle: () => void; onClose: () => void; hasPsd: boolean;
+function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridVisible, onToggleGrid, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: {
+  open: boolean; onToggle: () => void; onClose: () => void;
 } & Pick<Props, 'bgOpacity' | 'onBgOpacityChange' | 'gridVisible' | 'onToggleGrid' | 'enemyHighlight' | 'highlightLocked' | 'onToggleEnemyHighlight' | 'onToggleHighlightLocked'>) {
   return (
     <div style={{ position: 'relative' }}>
@@ -332,7 +332,9 @@ function ViewMenu({ open, onToggle, onClose, hasPsd, bgOpacity, onBgOpacityChang
               Només a la teva pantalla: els jugadors veuen el mapa sempre opac.
             </span>
           </div>
-          {hasPsd && (
+          {/* Amb qualsevol mapa: els enemics de la biblioteca (i els dels mapes de caselles,
+              que no tenen PSD) també es ressalten. Abans només sortia amb un PSD. */}
+          {(
             <>
               <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -516,7 +518,7 @@ export function TopBar(p: Props) {
           onToggleAutosave={p.onToggleAutosave} onSaveNow={p.onSaveNow}
           onExport={p.onExport} onImport={p.onImport} onOpenServer={p.onOpenServer} />
         {hasMap && (
-          <ViewMenu open={menu === 'view'} onToggle={toggle('view')} onClose={close} hasPsd={p.hasPsd}
+          <ViewMenu open={menu === 'view'} onToggle={toggle('view')} onClose={close}
             bgOpacity={p.bgOpacity} onBgOpacityChange={p.onBgOpacityChange}
             gridVisible={p.gridVisible} onToggleGrid={p.onToggleGrid}
             enemyHighlight={p.enemyHighlight} highlightLocked={p.highlightLocked}

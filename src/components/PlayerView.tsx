@@ -22,7 +22,7 @@ import { camToView, mediaSize, viewRect } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle } from '@/types';
-import { ensurePack, applyPackDataUrls } from '@/lib/sprites/pack';
+import { ensurePack, applyPackDataUrls, getPack } from '@/lib/sprites/pack';
 import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -159,6 +159,16 @@ export function PlayerView() {
   const rAppStyle      = useRef<AppStyle>('classic');
   const rTileLive      = useRef<TileLive | null>(null);
   const [pixel, setPixel] = useState(false);
+  // App Píxel sense paquet (una tablet que no el pot llegir d'enlloc): es demana al DM una
+  // sola vegada per WS. Abans el DM l'enviava sencer a cada PLAYER_READY i a cada canvi d'app.
+  const packAskedRef = useRef(false);
+  const askPackOnce = useCallback(() => {
+    if (packAskedRef.current) return;
+    packAskedRef.current = true;
+    void ensurePack().then(() => {
+      if (getPack().status !== 'ready') wsRef.current?.send(JSON.stringify({ type: 'PLAYER_READY', packId: null }));
+    });
+  }, []);
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
   // Enquadrament del DM en coordenades de MAPA. És l'autoritat de la càmera: cada frame
@@ -469,7 +479,7 @@ export function PlayerView() {
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
-        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); if (msg.appStyle === 'pixel') askPackOnce(); }
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
         if (msg.spritePack) void applyPackDataUrls(msg.spritePack).then(refreshTurnBanner);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
@@ -604,7 +614,7 @@ export function PlayerView() {
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
-        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); if (msg.appStyle === 'pixel') askPackOnce(); }
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
         if (msg.spritePack) void applyPackDataUrls(msg.spritePack).then(refreshTurnBanner);
         if (msg.dmPreviewActive !== undefined) {
@@ -669,6 +679,9 @@ export function PlayerView() {
       } else if (msg.type === 'MEASURE') {
         rMeasure.current = { a: msg.a, b: msg.b };
       } else if (msg.type === 'SPELL') {
+        // El SPELL arriba pel BroadcastChannel I pel WebSocket (la API el reenvia): a la
+        // mateixa màquina, dues vegades. Sense descartar l'eco la màgia es pintava doble.
+        if (rActiveSpells.current.some(s => s.id === msg.spell.id)) return;
         const sp = { ...msg.spell, startTime: performance.now() };
         rActiveSpells.current = [...rActiveSpells.current, sp];
         setActiveSpells([...rActiveSpells.current]);
@@ -830,7 +843,9 @@ export function PlayerView() {
       // (i no just després de crear el socket, quan encara està CONNECTING i
       // send() el descartaria) garanteix que el DM rep PLAYER_READY i respon
       // amb l'estat complet (BG + STRUCT).
-      ws.send(JSON.stringify({ type: 'PLAYER_READY' }));
+      // `packId`: quin paquet de sprites té aquesta pantalla (null = cap). El DM només li
+      // envia els fulls (1,3 MB) si no té el mateix (app Píxel).
+      ws.send(JSON.stringify({ type: 'PLAYER_READY', packId: getPack().id }));
       _reportViewport();
     }, (st) => {
       setConn(st);

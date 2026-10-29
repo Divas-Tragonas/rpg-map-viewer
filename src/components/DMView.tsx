@@ -332,21 +332,22 @@ export function DMView() {
   // Fulls del paquet per a les pantalles de jugador que no els poden llegir elles mateixes
   // (una tablet per wifi): van per WebSocket dins d'un STATE (la API el reenvia opac). Les
   // del mateix ordinador ja els llegeixen d'IndexedDB o de `/oryx/`.
-  const sendPackToPlayers = useCallback(async () => {
+  // Només a la pantalla que el demana (PLAYER_READY amb un `packId` diferent del nostre) i
+  // amb l'app Píxel: són 1,3 MB, i abans s'enviaven a cada PLAYER_READY i a cada canvi d'app.
+  const sendPackToPlayers = useCallback(async (theirId: string | null | undefined) => {
     if (R.rAppStyle.current !== 'pixel') return;
-    const p = await packDataUrls(); if (!p) return;
+    const p = await packDataUrls(); if (!p || theirId === p.id) return;
     R.wsRef.current?.send(JSON.stringify({ type: 'STATE', spritePack: p, appStyle: 'pixel' }));
   }, [R]);
-  const packResendRef = React.useRef<() => void>(() => {});
-  useEffect(() => { packResendRef.current = () => { void sendPackToPlayers(); }; }, [sendPackToPlayers]);
+  const packResendRef = React.useRef<(theirId: string | null | undefined) => void>(() => {});
+  useEffect(() => { packResendRef.current = id => { void sendPackToPlayers(id); }; }, [sendPackToPlayers]);
   // L'estil viatja dins de cada STATE: canviar d'app ho canvia també a les pantalles de jugador.
   useEffect(() => {
     R.rAppStyle.current = pixel ? 'pixel' : 'classic';
     _broadcastState({});
-    if (pixel) void sendPackToPlayers();
     // L'eina Caselles no existeix a l'app Clàssica.
     if (!pixel && R.rDrawTool.current === 'tiles') setDrawTool('none');
-  }, [pixel, pack.status, _broadcastState, sendPackToPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pixel, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mapa de caselles ───────────────────────────────────────────────────────
   const setTileGrid = useCallback((gs: number) => {
@@ -786,12 +787,14 @@ export function DMView() {
   // ── WebSocket setup (network sync for cross-device iPad/player) ───────────
   useEffect(() => {
     const ws = createSyncSocket('dm', (ev) => {
-      let msg: { type: string; id?: number | string; x?: number; y?: number; w?: number; h?: number };
+      let msg: { type: string; id?: number | string; x?: number; y?: number; w?: number; h?: number; packId?: string | null };
       try { msg = JSON.parse(ev.data as string); } catch { return; }
       if (msg.type === 'PLAYER_READY') {
+        // Una pantalla que demana només el paquet (app Píxel sense fulls) també envia
+        // PLAYER_READY: l'estat complet no fa mal i així no cal cap tipus nou a la API.
         _sendFullState();
         trResendShowRef.current();
-        packResendRef.current();
+        if ('packId' in msg) packResendRef.current(msg.packId);
       } else if (msg.type === 'VIEWPORT' && msg.id !== undefined && msg.w && msg.h) {
         _registerScreen(String(msg.id), msg.w, msg.h);
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
@@ -1484,7 +1487,7 @@ export function DMView() {
                 onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
                 onAdjustHp={adjustPlayerHp} onLoadParty={loadParty}
                 selectedToken={selectedToken} onSelect={selectToken} onMenu={openTokenMenu} defeated={defeated}
-                pixel={pixel}
+                pixel={pixel} onSetPortrait={(id, url) => setPlayerLook(id, { portrait: url })}
               />
               <SceneEnemiesPanel
                 struct={psdStruct} vis={vis} psdEnemyOverrides={psdEnemyOverrides}

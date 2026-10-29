@@ -68,8 +68,10 @@ function stepFor(br: number, Rb: number): number {
  * token n'acumula molts, els colors del contorn ja diuen quants estats té i quins.
  */
 function drawConditionRing(
-  ctx: CanvasRenderingContext2D, cx: number, cy: number, Rr: number, list: Condition[], lw: number,
+  ctx: CanvasRenderingContext2D, cx: number, cy: number, Rr: number, list: Condition[], lw: number, flat = 1,
 ): void {
+  // `flat` < 1 → el·lipse (aureola en perspectiva als peus d'una figureta de l'app Píxel).
+  const seg = (a0: number, a1: number) => { ctx.beginPath(); ctx.ellipse(cx, cy, Rr, Rr * flat, 0, a0, a1); ctx.stroke(); };
   const n = list.length;
   const slice = TAU / n;
   // Amb un sol estat l'anell és continu (sense osca); amb més, cada tram es
@@ -79,13 +81,13 @@ function drawConditionRing(
   ctx.lineCap = 'butt';
   ctx.lineWidth = lw * 1.7;
   ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath(); ctx.arc(cx, cy, Rr, 0, TAU); ctx.stroke();
+  seg(0, TAU);
   ctx.lineWidth = lw;
   list.forEach((cond, i) => {
     const a0 = -Math.PI / 2 + i * slice + gap / 2;
     const a1 = a0 + slice - gap;
     ctx.strokeStyle = cond.color;
-    ctx.beginPath(); ctx.arc(cx, cy, Rr, a0, a1); ctx.stroke();
+    seg(a0, a1);
   });
   ctx.restore();
 }
@@ -104,6 +106,8 @@ function drawConditionRing(
  */
 export function drawConditionBadges(
   ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, condIds: string[], sc: number,
+  /** App Píxel: l'anell va als peus (`footY`), aplanat (`flat`), i els badges sobre el cap. */
+  foot?: { footY: number; flat: number },
 ): void {
   if (!condIds || condIds.length === 0) return;
   const list: Condition[] = [];
@@ -114,7 +118,10 @@ export function drawConditionBadges(
   // el de ressaltar enemics i el blau de selecció, i s'hi trepitjarien.
   const ringW = Math.max(3 / sc, R * 0.11);
   const Rring = Math.max(ringW, R - ringW / 2);
-  drawConditionRing(ctx, cx, cy, Rring, list, ringW);
+  if (foot) drawConditionRing(ctx, cx, foot.footY, R * 0.98, list, ringW * 0.9, foot.flat);
+  else drawConditionRing(ctx, cx, cy, Rring, list, ringW);
+  // La figureta fa més d'alt que el disc: els badges pugen fins sobre el cap.
+  if (foot) cy -= R * 0.55;
 
   // Mida del badge: la ideal es va reduint fins que tots caben dins de l'arc.
   const brIdeal = Math.max(9 / sc, R * 0.32);

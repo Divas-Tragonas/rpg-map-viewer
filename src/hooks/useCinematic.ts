@@ -4,6 +4,8 @@ import { playBossIntro, bossCamRect, encodePortrait, seedFor } from '@/lib/cinem
 import { clampCamToMap, mediaSize, viewRect } from '@/lib/camera';
 import type { CamRect, Point } from '@/types';
 import type { DMRefs } from './useDMRefs';
+import { packReady } from '@/lib/sprites/pack';
+import { drawCreature, hasCreature } from '@/lib/sprites/draw';
 
 export interface BossIntroRequest {
   tokenId: number | string;
@@ -17,6 +19,22 @@ export interface BossIntroRequest {
  * reprodueix aquí i l'envia a les pantalles de jugador (BC + WS). Retorna el retrat
  * codificat (o `null`) perquè qui la llança el pugui desar al token.
  */
+/**
+ * App Píxel: la figureta del token en un llenç petit amb la proporció del retrat de la
+ * cinemàtica (0,72). `playBossIntro` l'amplia sense suavitzar (veure `PIXEL_MAX`).
+ */
+function spritePortrait(R: DMRefs, id: number | string): HTMLCanvasElement | null {
+  if (R.rAppStyle.current !== 'pixel' || !packReady()) return null;
+  const k = String(id);
+  const sprite = k.startsWith('pl_') ? R.rPlayers.current.find(p => `pl_${p.id}` === k)?.sprite
+    : k.startsWith('lib_') ? R.rLibEnemies.current.find(e => `lib_${e.id}` === k)?.sprite
+    : R.rPsdEnemyOverrides.current[Number(id)]?.sprite;
+  if (!hasCreature(sprite)) return null;
+  const c = document.createElement('canvas'); c.width = 48; c.height = 66;
+  drawCreature(c.getContext('2d')!, sprite, 1, 0, 66 - 48 - 2, 48);
+  return c;
+}
+
 export function useCinematic(R: DMRefs) {
   const { stageRef, canvasRef, mediaRef, rZoom, rPanOffset, dmLocalPan, dmLocalZoom, cinematicActiveRef, cinematicRef, cinematicCamRef, bcRef, wsRef } = R;
 
@@ -45,7 +63,9 @@ export function useCinematic(R: DMRefs) {
 
   const launchBossIntro = useCallback(async (req: BossIntroRequest): Promise<string | null> => {
     if (cinematicActiveRef.current) return null;
-    const { portrait } = req;
+    // App Píxel: el retrat de la cinemàtica és la figureta del token (pixel art ampliat).
+    const sprite = spritePortrait(R, req.tokenId);
+    const portrait = sprite ?? req.portrait;
     // Les imatges de la biblioteca arriben com a `new Image()` sense carregar.
     if (portrait instanceof HTMLImageElement && !portrait.complete) {
       try { await portrait.decode(); } catch { /* sense retrat */ }
@@ -67,7 +87,8 @@ export function useCinematic(R: DMRefs) {
     const msg = { type: 'BOSS_INTRO' as const, tokenId: req.tokenId, bossName: req.bossName, tokenPos: req.tokenPos, cam, portraitDataUrl };
     bcRef.current?.postMessage(msg);
     wsRef.current?.send(JSON.stringify(msg));
-    return portraitDataUrl;
+    // La figureta no s'ha de desar com a imatge del token (qui la llança desa el que es retorna).
+    return sprite ? null : portraitDataUrl;
   }, [_play]);
 
   const skipBossIntro = useCallback(() => {

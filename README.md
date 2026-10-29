@@ -74,6 +74,17 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.39 — App Píxel: correccions
+- **Parets com les de l'autor**: la paret de baix d'una sala fa la mateixa cara que la de dalt. La regla s'ha comprovat casella a casella contra els cinc mapes d'exemple del paquet.
+- **Portes laterals** amb les peces bones: tancada, la porta vista de cantell; oberta, la fulla girada contra la paret.
+- **Figures**: animació d'espera de l'autor (1-2-3-2, sense la sotragada que feia la pantalla tan moguda) i, derrotades, es queden dretes en grisos en lloc de tombar-se.
+- **Estats, torn, selecció i ressaltat** en aureoles en perspectiva als peus de la figura, com l'ombra; els badges dels estats van sobre el cap.
+- **Les màgies ja no surten dues vegades** a la pantalla de jugador (arribaven pel canal local i per la API).
+- El paquet de sprites només s'envia a la pantalla que no el té (abans, 1,3 MB a cada reconnexió i a cada canvi d'app).
+- **Ressaltar enemics** torna a sortir al menú Vista amb qualsevol mapa (amb els mapes de caselles havia desaparegut).
+- **Cinemàtica de boss amb la figureta** del token, ampliada en pixel art.
+- **Retrats**: clic a l'avatar d'un jugador al lateral per fer-li'n un.
+
 ### v4.38 — App Píxel: sprites, mapes de caselles i Tiled
 - **Botó «Clàssica · Píxel»** a la barra superior: canvia d'«app». La Píxel fa servir el paquet de sprites Oryx a tot arreu i ho propaga a les pantalles de jugador; la Clàssica és la de sempre.
 - **Tokens amb figureta animada** (130 criatures, 4 fotogrames): base de color de l'equip, giren cap on es mouen i cauen en grisos en ser derrotats. Figureta per defecte per a la party i les plantilles; es canvia al menú del clic dret.

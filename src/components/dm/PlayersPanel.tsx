@@ -8,6 +8,7 @@ import { IconButton } from '@/components/ui/Button';
 import type { DefeatedMap, Player } from '@/types';
 import { creatureThumb } from '@/lib/sprites/draw';
 import { useSpritePack } from '@/hooks/useSpritePack';
+import { PortraitBuilder } from '@/components/dm/PixelPickers';
 
 interface Props {
   players: Player[];
@@ -23,8 +24,9 @@ interface Props {
   /** Clic dret a la fila: el mateix menú que al mapa (vida, fitxa, estats…). */
   onMenu: (id: string, x: number, y: number) => void;
   defeated: DefeatedMap;
-  /** App Píxel: retrat o figureta en lloc de les inicials. */
+  /** App Píxel: retrat o figureta en lloc de les inicials; clic a l'avatar = fer-ne el retrat. */
   pixel?: boolean;
+  onSetPortrait?: (id: number, url: string | undefined) => void;
 }
 
 /**
@@ -34,11 +36,12 @@ interface Props {
  * Clic selecciona el token; clic dret obre el seu menú, amb la fitxa (vida màxima, velocitat,
  * visió…), com fer clic dret al token al mapa.
  */
-function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp, pixel }: {
-  pl: Player; selected: boolean; defeated: boolean; pixel?: boolean;
+function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp, pixel, onSetPortrait }: {
+  pl: Player; selected: boolean; defeated: boolean; pixel?: boolean; onSetPortrait?: (url: string | undefined) => void;
   onSelect: () => void; onMenu: (x: number, y: number) => void; onAdjustHp: (delta: number) => void;
 }) {
   const [hover, setHover] = useState(false);
+  const [portraitOpen, setPortraitOpen] = useState(false);
   const hp = pl.hp ?? pl.hpMax;
   return (
     <div onClick={onSelect} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
@@ -49,15 +52,21 @@ function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp, pixel
         borderRadius: RADIUS.sm, background: selected ? tint(C.room, 0.12) : hover ? 'rgba(255,255,255,0.03)' : 'transparent',
         opacity: defeated ? 0.55 : 1,
       }}>
-      {pixel && (pl.portrait || pl.sprite) ? (
-        // App Píxel: el retrat (o la figureta) en lloc de les inicials.
-        <img aria-hidden src={pl.portrait ?? creatureThumb(pl.sprite!) ?? undefined} alt=""
-          style={{ width: 22, height: 22, borderRadius: RADIUS.sm, background: C.dark, boxShadow: `0 0 0 1.5px ${pl.color}`, imageRendering: 'pixelated', flexShrink: 0 }} />
+      {pixel ? (
+        // App Píxel: el retrat (o la figureta) en lloc de les inicials. Clic → generador de
+        // retrats (també és al menú del clic dret, botó «Retrat»).
+        <button onClick={e => { e.stopPropagation(); setPortraitOpen(true); }}
+          title={pl.portrait ? 'Canviar el retrat' : 'Fer-li un retrat'} aria-label={`Retrat de ${pl.name}`}
+          style={{ width: 22, height: 22, padding: 0, border: 'none', borderRadius: RADIUS.sm, background: C.dark, boxShadow: `0 0 0 1.5px ${pl.color}`, cursor: 'pointer', flexShrink: 0, overflow: 'hidden' }}>
+          {(pl.portrait || pl.sprite) && <img src={pl.portrait ?? creatureThumb(pl.sprite!) ?? undefined} alt="" style={{ width: 22, height: 22, imageRendering: 'pixelated', display: 'block' }} />}
+        </button>
       ) : (
         <span aria-hidden style={{ width: 22, height: 22, borderRadius: '50%', background: pl.color, color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {pl.name.trim().slice(0, 2).toUpperCase()}
         </span>
       )}
+      {/* La finestra és dins de la fila a l'arbre de React: que els clics no la seleccionin. */}
+      {portraitOpen && <div onClick={e => e.stopPropagation()} onContextMenu={e => e.stopPropagation()}><PortraitBuilder onPick={url => onSetPortrait?.(url)} onClose={() => setPortraitOpen(false)} /></div>}
       <span title={pl.name} style={{
         flex: 1, minWidth: 0, fontSize: FS.sm, fontWeight: 700, color: defeated ? C.dim : C.text,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: defeated ? 'line-through' : 'none',
@@ -71,7 +80,7 @@ function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp, pixel
   );
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, onMenu, defeated, pixel }: Props) {
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, onMenu, defeated, pixel, onSetPortrait }: Props) {
   useSpritePack();
   const [addOpen, setAddOpen] = useState(false);
   return (
@@ -109,7 +118,8 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
         {players.map(pl => (
           <PlayerRow key={pl.id} pl={pl}
             selected={selectedToken === `pl_${pl.id}`} defeated={!!defeated[`pl_${pl.id}`]}
-            onSelect={() => onSelect(`pl_${pl.id}`)} onMenu={(x, y) => onMenu(`pl_${pl.id}`, x, y)} onAdjustHp={d => onAdjustHp(pl.id, d)} pixel={pixel} />
+            onSelect={() => onSelect(`pl_${pl.id}`)} onMenu={(x, y) => onMenu(`pl_${pl.id}`, x, y)} onAdjustHp={d => onAdjustHp(pl.id, d)} pixel={pixel}
+            onSetPortrait={url => onSetPortrait?.(pl.id, url)} />
         ))}
       </div>
       {players.length === 0 && !addOpen && (

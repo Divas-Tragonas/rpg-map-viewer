@@ -6,9 +6,13 @@ import { sheet, type SheetId } from './pack';
 import { CREATURES, ITEMS, PORTRAIT_PARTS } from './manifest';
 
 export const TILE = 48;
-/** Fotogrames d'una criatura i durada de cadascun (l'animació d'espera de l'autor). */
-const CREATURE_FRAMES = 4;
-const CREATURE_FRAME_MS = 260;
+/**
+ * Animació d'espera de l'autor: 1-2-3-2 (els fitxers solts `nom_4` són el fotograma 2). La
+ * 4a columna del full és una altra postura: ciclar-la feia que les figures donessin una
+ * sotragada a cada volta.
+ */
+const CREATURE_CYCLE = [0, 1, 2, 1];
+const CREATURE_FRAME_MS = 300;
 
 export function creatureNames(): string[] { return Object.keys(CREATURES); }
 export const hasCreature = (n: string | undefined | null): n is string => !!n && n in CREATURES;
@@ -26,7 +30,7 @@ export function blit(ctx: CanvasRenderingContext2D, id: SheetId, sx: number, sy:
 
 /** Fotograma de l'animació d'espera ara mateix. `seed` desfasa criatures iguals (que no ballin a l'uníson). */
 export function creatureFrame(now: number, seed = 0): number {
-  return Math.floor(now / CREATURE_FRAME_MS + seed * 1.7) % CREATURE_FRAMES;
+  return CREATURE_CYCLE[Math.floor(now / CREATURE_FRAME_MS + seed * 1.7) % CREATURE_CYCLE.length];
 }
 
 /** Criatura dins del quadrat (dx,dy,size). `flip` → mirall horitzontal (mira cap a l'esquerra). */
@@ -34,7 +38,7 @@ export function drawCreature(ctx: CanvasRenderingContext2D, name: string, frame:
   dx: number, dy: number, size: number, flip = false): boolean {
   const p = CREATURES[name]; if (!p) return false;
   const img = sheet('heroes'); if (!img) return false;
-  const sx = p[0] + (frame % CREATURE_FRAMES) * TILE;
+  const sx = p[0] + (frame % 3) * TILE;
   if (!flip) return blit(ctx, 'heroes', sx, p[1], TILE, TILE, dx, dy, size, size);
   ctx.save();
   ctx.translate(dx + size, dy); ctx.scale(-1, 1);
