@@ -172,6 +172,13 @@ més dins d'un missatge que ja es reenvia opac. Igual el camp `spellPreview`
 (SpellPreview | null: la màgia que el DM està apuntant, perquè els jugadors en
 vegin el radi): viatja dins del STATE, throttled a ~20 Hz mentre s'apunta.
 
+Tampoc no han calgut canvis per a l'app Píxel (v4.38): els camps `appStyle`
+('classic' | 'pixel'), `tileLive` (parts animades del mapa de caselles) i
+`spritePack` ({ id, sheets: { nom: dataURL } }) viatgen dins del STATE. `spritePack`
+només l'envia el DM per WS en rebre un PLAYER_READY amb l'app Píxel, i pot pesar
+~1,7 MB: el servidor no ha de limitar la mida dels missatges per sota d'això (la
+llibreria `ws` admet 100 MB per defecte).
+
 Per verificar el contracte del relay: `node scripts/check-sync.mjs [ws://host:3000] [SYNC_KEY]`
 
 ### Relay de moviment de tokens entre clients (TOKEN_RELAY)

@@ -50,6 +50,14 @@ import { movementLimit } from '@/lib/rules/conditions';
 import { useAutosave } from '@/hooks/useAutosave';
 import { useStoredFlag } from '@/hooks/useStoredFlag';
 import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
+import { useTileMap } from '@/hooks/useTileMap';
+import { TilePalette } from '@/components/dm/TilePalette';
+import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
+import { useSpritePack } from '@/hooks/useSpritePack';
+import { ensurePack, packDataUrls, importPackZip } from '@/lib/sprites/pack';
+import { addEnemyNumbered } from '@/lib/enemy-naming';
+import type { TileBrush } from '@/lib/tilemap/editor';
+import { PixelSwordIcon, TilesIcon } from '@/components/icons';
 
 /** Amplada del panell «Mostrar als jugadors» (la mateixa per a les dues pestanyes: canviar
  *  de pestanya no ha de fer saltar el panell). */
@@ -131,12 +139,19 @@ export function DMView() {
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // Quina «app»: Clàssica o Píxel (sprites del paquet Oryx i mapes de caselles). Es recorda.
+  const [pixel, setPixel] = useStoredFlag('rpg_pixel', false);
+  const pack = useSpritePack();
+  // Mapa de caselles obert (n'hi ha prou amb la mida per a la UI; el mapa viu a R.rTileMap).
+  const [tileMapSize, setTileMapSize] = useState<{ cols: number; rows: number } | null>(null);
   // Fitxer arrossegant-se damunt del canvas (tota la pantalla accepta el mapa, el PSD o la partida).
   const [fileOver, setFileOver] = useState(false);
   const fileDragDepth = React.useRef(0);
   const bgInputRef = React.useRef<HTMLInputElement>(null);
   const psdInputRef = React.useRef<HTMLInputElement>(null);
   const sessionInputRef = React.useRef<HTMLInputElement>(null);
+  const tmxInputRef = React.useRef<HTMLInputElement>(null);
+  const zipInputRef = React.useRef<HTMLInputElement>(null);
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
@@ -216,6 +231,9 @@ export function DMView() {
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const R = useDMRefs();
+  // Pinzell de l'eina Caselles (la paleta en mostra el triat; el ratolí llegeix el ref).
+  const [tileBrush, setTileBrushState] = useState<TileBrush>(() => R.rTileBrush.current);
+  const setTileBrush = useCallback((b: TileBrush) => { R.rTileBrush.current = b; setTileBrushState(b); }, [R]);
 
   // ── Cinematic ─────────────────────────────────────────────────────────────
   const { launchBossIntro, skipBossIntro } = useCinematic(R);
@@ -260,7 +278,7 @@ export function DMView() {
       if (prev === 'wall' && next !== 'wall') { R.rWallPenLast.current = null; R.rWallChain.current = []; R.rWallCursor.current = null; R.rHoveredRoomId.current = null; }
       if (prev === 'light' && next !== 'light') { R.rLightSelected.current = null; setLightSelectedId(null); R.rLightDrag.current = null; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
-      else if (next === 'wall' || next === 'light') setCanvasCursor('crosshair');
+      else if (next === 'wall' || next === 'light' || next === 'tiles') setCanvasCursor('crosshair');
       else if (next === 'none') setCanvasCursor('default');
       return next;
     });
@@ -297,7 +315,7 @@ export function DMView() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
@@ -307,6 +325,64 @@ export function DMView() {
     addDoor, removeDoor, toggleDoor, startDoorPlacement,
   } = useDMActions(R, S);
 
+
+  // ── App Píxel ──────────────────────────────────────────────────────────────
+  // El paquet de sprites es busca un sol cop (IndexedDB o la carpeta local `public/oryx`).
+  useEffect(() => { void ensurePack(); }, []);
+  // Fulls del paquet per a les pantalles de jugador que no els poden llegir elles mateixes
+  // (una tablet per wifi): van per WebSocket dins d'un STATE (la API el reenvia opac). Les
+  // del mateix ordinador ja els llegeixen d'IndexedDB o de `/oryx/`.
+  const sendPackToPlayers = useCallback(async () => {
+    if (R.rAppStyle.current !== 'pixel') return;
+    const p = await packDataUrls(); if (!p) return;
+    R.wsRef.current?.send(JSON.stringify({ type: 'STATE', spritePack: p, appStyle: 'pixel' }));
+  }, [R]);
+  const packResendRef = React.useRef<() => void>(() => {});
+  useEffect(() => { packResendRef.current = () => { void sendPackToPlayers(); }; }, [sendPackToPlayers]);
+  // L'estil viatja dins de cada STATE: canviar d'app ho canvia també a les pantalles de jugador.
+  useEffect(() => {
+    R.rAppStyle.current = pixel ? 'pixel' : 'classic';
+    _broadcastState({});
+    if (pixel) void sendPackToPlayers();
+    // L'eina Caselles no existeix a l'app Clàssica.
+    if (!pixel && R.rDrawTool.current === 'tiles') setDrawTool('none');
+  }, [pixel, pack.status, _broadcastState, sendPackToPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Mapa de caselles ───────────────────────────────────────────────────────
+  const setTileGrid = useCallback((gs: number) => {
+    R.rGridSize.current = gs; setGridSize(gs);
+    R.rGridOriginX.current = 0; setGridOriginX(0);
+    R.rGridOriginY.current = 0; setGridOriginY(0);
+    R.rGridSnap.current = true; setGridSnap(true);
+  }, [R]);
+  // Criatures d'un .tmx → enemics de la biblioteca amb la seva figureta.
+  const addCreatureTokens = useCallback((list: { name: string; x: number; y: number }[]) => {
+    let ens = R.rLibEnemies.current;
+    const np = { ...R.rPos.current };
+    list.forEach((cr, i) => {
+      const id = Date.now() + i;
+      const name = cr.name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
+      ens = addEnemyNumbered(ens, { id, templateId: `oryx_${cr.name}`, name, color: C.enemy, hpMax: 10, hp: 10, R: 22, visible: true, imageData: null, sprite: cr.name });
+      np[`lib_${id}`] = { x: cr.x, y: cr.y };
+    });
+    R.rLibEnemies.current = ens; setLibEnemies(ens);
+    R.rPos.current = np; setPos(np);
+    _broadcastState({});
+  }, [R, _broadcastState]);
+  // Bestiari Oryx (Biblioteca, app Píxel): una criatura com si fos una plantilla més.
+  const addOryxCreature = useCallback((name: string) => {
+    const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
+    addLibEnemy({ id: `oryx_${name}`, name: nice, color: C.enemy, hpMax: 10, R: 22, sm: 0.9, sprite: name } as unknown as Parameters<typeof addLibEnemy>[0]);
+  }, [addLibEnemy]);
+  const syncTileSize = useCallback((has: boolean) => {
+    const m = R.rTileMap.current;
+    setTileMapSize(has && m ? { cols: m.cols, rows: m.rows } : null);
+  }, [R]);
+  const { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave } = useTileMap(R, {
+    setWalls, setRooms, setDoors, setLights, setGrid: setTileGrid,
+    loadBg, replaceBgImage, broadcast: _broadcastState, pushMapEdit: _pushMapEdit,
+    addCreatures: addCreatureTokens, setHasTileMap: syncTileSize,
+  });
 
   // ── Desat automàtic ────────────────────────────────────────────────────────
   // Xarxa de seguretat contra un F5: tot l'estat viu (fons, parets, sales, portes, llums,
@@ -715,6 +791,7 @@ export function DMView() {
       if (msg.type === 'PLAYER_READY') {
         _sendFullState();
         trResendShowRef.current();
+        packResendRef.current();
       } else if (msg.type === 'VIEWPORT' && msg.id !== undefined && msg.w && msg.h) {
         _registerScreen(String(msg.id), msg.w, msg.h);
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
@@ -803,6 +880,7 @@ export function DMView() {
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
+    tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave },
   }), [redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
@@ -960,18 +1038,36 @@ export function DMView() {
   // de benvinguda del centre ho demanava, però el centre no acceptava res.
   // Obrir un mapa nou (o el seu PSD) és començar a preparar-lo: graella, parets, llums.
   // Obrir una partida desada (fitxer, servidor, desat automàtic o la demo) és per jugar-la.
-  const openNewMap = useCallback((f: File) => { switchMode('preparar'); return loadBg(f); }, [switchMode, loadBg]);
-  const openPsd = useCallback((f: File) => { switchMode('preparar'); return loadPSD(f); }, [switchMode, loadPSD]);
+  // Un mapa d'imatge o un PSD nou deixa enrere el mapa de caselles que hi hagués.
+  const dropTileMap = useCallback(() => {
+    if (!R.rTileMap.current) return;
+    R.rTileMap.current = null; R.rTileRestore.current({ rebake: false });
+    if (R.rDrawTool.current === 'tiles') setDrawTool('none');
+  }, [R, setDrawTool]);
+  const openNewMap = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); return loadBg(f); }, [switchMode, loadBg, dropTileMap]);
+  const openPsd = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); return loadPSD(f); }, [switchMode, loadPSD, dropTileMap]);
   const openSession = useCallback((f: File) => { switchMode('jugar'); return loadSession(f); }, [switchMode, loadSession]);
   const openServerSession = useCallback((id: string) => { switchMode('jugar'); return serverLoadSession(id); }, [switchMode, serverLoadSession]);
-  const openDemo = useCallback(() => { switchMode('jugar'); return loadDemo(); }, [switchMode, loadDemo]);
+  const openDemo = useCallback(() => { switchMode('jugar'); dropTileMap(); return loadDemo(); }, [switchMode, loadDemo, dropTileMap]);
+
+  const openTileMap = useCallback(async (cols: number, rows: number) => {
+    switchMode('preparar');
+    await createTileMap(cols, rows);
+    setDrawTool('tiles');
+  }, [switchMode, createTileMap, setDrawTool]);
+  const openTmx = useCallback(async (f: File) => {
+    switchMode('preparar');
+    try { await importTmx(f); } catch (err) { console.error('Error important el .tmx:', err); }
+  }, [switchMode, importTmx]);
 
   const loadAnyFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
+    if (name.endsWith('.zip')) { void importPackZip(f).then(ok => { if (ok) setPixel(true); }); return; }
+    if (name.endsWith('.tmx')) { setPixel(true); void openTmx(f); return; }
     if (name.endsWith('.psd')) void openPsd(f);
     else if (name.endsWith('.json')) void openSession(f);
     else if (f.type.startsWith('image/') || f.type.startsWith('video/')) void openNewMap(f);
-  }, [openPsd, openSession, openNewMap]);
+  }, [openPsd, openSession, openNewMap, openTmx, setPixel]);
   const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files');
   const onStageDragEnter = (e: React.DragEvent) => {
     if (!isFileDrag(e)) return;
@@ -1349,6 +1445,7 @@ export function DMView() {
         enemyHighlight={enemyHighlight} highlightLocked={highlightLocked}
         onToggleEnemyHighlight={onToggleEnemyHighlight} onToggleHighlightLocked={onToggleHighlightLocked}
         onShowShortcuts={toggleShortcuts}
+        pixel={pixel} onSetPixel={setPixel}
       />
 
       {/* Context d'apilament propi (zIndex 0): els menús de la barra queden sempre per sobre
@@ -1387,6 +1484,7 @@ export function DMView() {
                 onAdd={() => { addPlayer(newPName, newPColor, newPHpMax); setNewPName(''); }}
                 onAdjustHp={adjustPlayerHp} onLoadParty={loadParty}
                 selectedToken={selectedToken} onSelect={selectToken} onMenu={openTokenMenu} defeated={defeated}
+                pixel={pixel}
               />
               <SceneEnemiesPanel
                 struct={psdStruct} vis={vis} psdEnemyOverrides={psdEnemyOverrides}
@@ -1402,6 +1500,11 @@ export function DMView() {
           )}
           {sidebarTab === 'mapa' && mode === 'preparar' && (
             <>
+              {pixel && (
+                <PixelMapPanel tileMapSize={tileMapSize}
+                  onCreate={(c, r) => void openTileMap(c, r)} onImportTmx={f => void openTmx(f)}
+                  onEdit={() => setDrawTool('tiles')} />
+              )}
               <ImportPanel
                 bgLoaded={bgLoaded} bgName={bgName} parsing={parsing} struct={psdStruct}
                 psdInfo={psdStruct ? psdInfo : null} parseError={parseError} warnings={warnings}
@@ -1431,6 +1534,8 @@ export function DMView() {
               libEnemies={libEnemies}
               onAddEnemy={addLibEnemy}
               onAddDbEnemy={addDbEnemy}
+              pixel={pixel && pack.status === 'ready'}
+              onAddCreature={addOryxCreature}
             />
           )}
         </ScrollArea>
@@ -1469,6 +1574,8 @@ export function DMView() {
           lightRadiusFt={newLightRadiusFt} lightSelected={lightSelectedId !== null} onSetLightRadius={setLightRadius}
           areaSelectMode={areaSelectMode} onToggleAreaSelect={toggleAreaSelect}
           disabled={!bgLoaded}
+          pixel={pixel} tilesAvailable={!!tileMapSize}
+          tilePanel={<TilePalette brush={tileBrush} onBrush={setTileBrush} />}
           grid={{
             gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
             rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridSnap: R.rGridSnap,
@@ -1497,6 +1604,7 @@ export function DMView() {
           onAdvanceRound={advanceRound}
           onRecoverTurn={recoverTurn}
           onReorder={reorderTurn}
+          pixel={pixel}
         />}
         {/* Expositor floating panel */}
         {expositorOpen && (
@@ -1690,14 +1798,37 @@ export function DMView() {
           // caixa petita del panell lateral; i tot el canvas accepta fitxers (veure onStageDrop).
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none', padding: 24 }}>
             <div style={{ textAlign: 'center', color: C.dim, maxWidth: 440, pointerEvents: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: C.dim, opacity: 0.5 }}><MapIcon size={34} /></div>
-              <div style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1, color: C.bright }}>Comença una partida</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: pixel ? C.accent : C.dim, opacity: pixel ? 0.9 : 0.5 }}>{pixel ? <PixelSwordIcon size={34} /> : <MapIcon size={34} />}</div>
+              <div style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1, color: C.bright }}>{pixel ? 'Comença una partida en píxel' : 'Comença una partida'}</div>
               <div style={{ fontSize: FS.md, marginTop: 6, lineHeight: 1.5 }}>
                 Obre el mapa (una imatge o un vídeo) o arrossega&apos;l a qualsevol lloc d&apos;aquesta pantalla.
               </div>
 
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18, flexWrap: 'wrap' }}>
-                <Button variant="primary" size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, minWidth: 170 }}>
+              {/* App Píxel: el mapa es pinta a casella (o s'importa de Tiled). */}
+              {pixel && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 18 }}>
+                  {pack.status === 'ready' ? (
+                    <>
+                      <Button variant="primary" size="lg" onClick={() => void openTileMap(32, 22)} style={{ gap: 8, minWidth: 348 }}>
+                        <TilesIcon size={15} /> Crear un mapa de caselles
+                      </Button>
+                      <button onClick={() => tmxInputRef.current?.click()} style={welcomeLink}>Importar un mapa de Tiled (.tmx)</button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="primary" size="lg" onClick={() => zipInputRef.current?.click()} style={{ gap: 8, minWidth: 348 }}>
+                        <PixelSwordIcon size={15} /> Carregar el paquet de sprites (.zip)
+                      </Button>
+                      <div style={{ fontSize: FS.xs, opacity: 0.75, lineHeight: 1.5, maxWidth: 360 }}>
+                        El .zip d&apos;Oryx tal com el vas comprar. Es desa en aquest navegador i no es puja enlloc.
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: pixel ? 12 : 18, flexWrap: 'wrap' }}>
+                <Button variant={pixel ? 'secondary' : 'primary'} size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, minWidth: 170 }}>
                   <FolderOpen size={15} /> Obrir mapa
                 </Button>
                 <Button variant="secondary" size="lg" onClick={() => void openDemo()} style={{ gap: 8, minWidth: 170 }}>
@@ -1741,6 +1872,10 @@ export function DMView() {
               onChange={e => { const f = e.target.files?.[0]; if (f) void openPsd(f); e.target.value = ''; }} />
             <input ref={sessionInputRef} type="file" accept=".json" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; if (f) void openSession(f); e.target.value = ''; }} />
+            <input ref={tmxInputRef} type="file" accept=".tmx" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) void openTmx(f); e.target.value = ''; }} />
+            <input ref={zipInputRef} type="file" accept=".zip,application/zip" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) loadAnyFile(f); e.target.value = ''; }} />
           </div>
         )}
 
@@ -1750,7 +1885,7 @@ export function DMView() {
             <div style={{ background: C.float, border: `1px solid ${C.accent}`, borderRadius: RADIUS.lg, padding: '12px 18px', color: C.bright, fontSize: FS.lg, fontWeight: 700, textAlign: 'center' }}>
               Deixa anar per carregar-lo
               <div style={{ fontSize: FS.sm, color: C.dim, fontWeight: 500, marginTop: 4 }}>
-                Imatge o vídeo → mapa{bgLoaded ? ' (substitueix l\'actual)' : ''} · .psd → capes · .json → partida
+                Imatge o vídeo → mapa{bgLoaded ? ' (substitueix l\'actual)' : ''} · .psd → capes · .json → partida · .tmx → caselles · .zip → sprites
               </div>
             </div>
           </div>
@@ -1792,6 +1927,7 @@ export function DMView() {
           onAdjustLibHp: adjustLibEnemyHp, onSetLibProps: setLibEnemyProps,
           onAdjustPsdHp: adjustPsdEnemyHp, onSetPsdProps: setPsdEnemyProps,
           onSetTokenSize: setTokenSize,
+          pixel, onSetPlayerLook: setPlayerLook,
         }}
         onRemovePlayer={removePlayer}
         onClose={() => setContextMenu(null)}

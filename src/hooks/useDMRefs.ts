@@ -4,8 +4,11 @@ import type {
   MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
   Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
-  Wall, Room, Door, TurnState, CamRect,
+  Wall, Room, Door, TurnState, CamRect, AppStyle,
 } from '@/types';
+import type { TileMap } from '@/lib/tilemap/model';
+import type { TileLive } from '@/lib/tilemap/render';
+import type { TileBrush } from '@/lib/tilemap/editor';
 import { newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
 import type { UndoEntry } from '@/lib/undo';
@@ -87,7 +90,7 @@ export function useDMRefs() {
   // Historial de canvis del mapa (Ctrl+Z de parets, sales, portes i llums). Cada entrada
   // són les referències d'array d'abans del canvi: com que tota mutació les substitueix,
   // desar-les no costa cap còpia. DM-only, no es sincronitza ni es desa a la partida.
-  const rMapHistory      = useRef<Array<{ label: string; walls: Wall[]; rooms: Room[]; doors: Door[]; lights: import('@/types').LightSource[] }>>([]);
+  const rMapHistory      = useRef<Array<{ label: string; walls: Wall[]; rooms: Room[]; doors: Door[]; lights: import('@/types').LightSource[]; tileMap?: TileMap | null }>>([]);
   // Ordre de les tres piles de desfer (traços, mapa, moviments) per al «Desfer» únic:
   // veure `lib/undo.ts`. DM-only, no es sincronitza ni es desa.
   const rUndoLog         = useRef<UndoEntry[]>([]);
@@ -184,6 +187,20 @@ export function useDMRefs() {
   const rSpellPreview          = useRef<SpellPreview | null>(null);
   const rAreaPlacementPending  = useRef<AreaSpellPending | null>(null);
 
+  // Estil Píxel i mapa de caselles (veure `lib/sprites` i `lib/tilemap`).
+  const rAppStyle      = useRef<AppStyle>('classic');
+  const rTileMap       = useRef<TileMap | null>(null);
+  // Cuinat del mapa (part estàtica): es repinta per caselles mentre s'edita i passa a ser el fons.
+  const rTileCanvas    = useRef<HTMLCanvasElement | null>(null);
+  const rTileLive      = useRef<TileLive | null>(null);
+  const rTileBrush     = useRef<TileBrush>({ kind: 'room', floor: 'dirt', wall: 'dungeon' });
+  // Traç en curs de l'eina Caselles (pintar arrossegant o rectangle amb Maj / eina Sala).
+  const rTileDrag      = useRef<{ start: { c: number; r: number }; last: { c: number; r: number }; erase: boolean; rect: boolean; before: TileMap } | null>(null);
+  const rTileHover     = useRef<{ c: number; r: number } | null>(null);
+  // El mapa de caselles ha canviat per fora de l'editor (desfer, carregar partida): cal
+  // tornar a cuinar el fons i regenerar parets/portes/llums. L'assigna `useTileMap`.
+  const rTileRestore   = useRef<(opts?: { rebake?: boolean }) => void>(() => {});
+
   // Cinematic refs
   const cinematicActiveRef   = useRef(false);
   const cinematicRef         = useRef<BossIntro | null>(null);
@@ -210,6 +227,7 @@ export function useDMRefs() {
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicRef, cinematicCamRef,
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
+    rAppStyle, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileRestore,
   };
 }
 

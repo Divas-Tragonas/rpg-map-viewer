@@ -9,6 +9,8 @@ import {
   MAGIC_MISSILE_DUR, HIDEOUS_LAUGHTER_DUR, BURNING_HANDS_DUR,
 } from './minorspells';
 import { drawSpellSleep, drawSpellGrease } from './areaspells';
+import { drawPixelSpell, hasPixelSpell } from './pixelspells';
+import { sheet } from '@/lib/sprites/pack';
 import {
   drawSpellRayOfFrost, drawSpellShockingGrasp, drawSpellMageHand, drawSpellPrestidigitation, drawSpellMageArmor,
   drawSpellShield, drawSpellDetectMagic, drawSpellLight, drawSpellSacredFlame, drawSpellThaumaturgy, drawSpellBless,
@@ -26,7 +28,9 @@ export {
  * Sacsejada de càmera (px de pantalla) dels spells actius. Els ticks del DM i del
  * jugador la sumen a `ox/oy`, així fons, mapa i tokens es mouen junts.
  */
-export function spellShake(spells: readonly Spell[], now: number): Point {
+export function spellShake(spells: readonly Spell[], now: number, pixel = false): Point {
+  // A l'app Píxel la càmera no tremola (no lliga amb els efectes de pixel art).
+  if (pixel) return { x: 0, y: 0 };
   const f = fireballShake(spells, now);
   let x = f.x, y = f.y;
   for (const sp of spells) {
@@ -206,6 +210,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
   const now = performance.now();
   const alive: Spell[] = [];
   const gridSize = rGridSize.current;
+  const pixel = fc.rAppStyle?.current === 'pixel' && !!sheet('fx');
   for (const sp of rActiveSpells.current) {
     const elapsed = (now - sp.startTime) / 1000;
     const dur = SPELL_DURATIONS[sp.type] ?? 2.5;
@@ -213,6 +218,11 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     if (elapsed > dur && !isArea) continue;  // non-area spells expire
     alive.push(sp);
     const seed = hash32(sp.id);
+    // App Píxel: els efectes del paquet Oryx (les àrees persistents es queden com sempre).
+    if (pixel && !isArea && hasPixelSpell(sp.type)) {
+      if (layer === 'air') drawPixelSpell(ctx, sp.type, sp.points, elapsed, dur, gridSize, seed);
+      continue;
+    }
     // La bola de foc deixa un socarrim a terra: aquesta part va a la passada 'ground'
     // (sota els tokens) i la resta de l'efecte a la 'air'.
     if (layer === 'ground') {

@@ -1,6 +1,8 @@
 'use client';
 import React from 'react';
 import type { TurnBanner as BannerData } from '@/lib/turn-banner';
+import { creatureThumb } from '@/lib/sprites/draw';
+import { useSpritePack } from '@/hooks/useSpritePack';
 
 /** Amplada de finestra a la qual el rètol té exactament la mida de disseny. */
 const DESIGN_W = 1550;
@@ -24,8 +26,11 @@ const s = (px: number, min = 0.42, max = 1.12) =>
  * l'element més gran de tot i la barra de sota permet veure d'una ullada quant en queda
  * sense haver de llegir cap xifra.
  */
-export function TurnBanner({ data }: { data: BannerData }) {
+export function TurnBanner({ data, pixel }: { data: BannerData; pixel?: boolean }) {
+  // Es re-renderitza quan arriba el paquet de sprites (la figureta del rètol en surt).
+  useSpritePack();
   if (!data.active) return null;
+  if (pixel) return <PixelTurnBanner data={data} />;
   const hasFeet = data.remainingFt >= 0 && data.totalFt > 0;
   const pct = hasFeet ? Math.max(0, Math.min(1, data.remainingFt / data.totalFt)) : 0;
   const low = hasFeet && data.remainingFt <= 5;
@@ -117,6 +122,75 @@ export function TurnBanner({ data }: { data: BannerData }) {
             )}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ── App Píxel ───────────────────────────────────────────────────────────────
+// Mateix contingut i mateixes mides proporcionals (`s()`), amb l'estètica dels jocs de
+// pixel art: vores esglaonades (ombres sense desenfocar), lletra monoespaiada, el retrat o
+// la figureta del token sense suavitzar i els peus com a blocs de 5 ft.
+const PX_BG = '#1b1712', PX_EDGE = '#5a4630', PX_LIGHT = '#8a6c45', PX_TEXT = '#f3e7c9', PX_DIM = '#b49b72';
+const pxBorder = (c: string) => `0 0 0 ${s(3, 0.66, 1)} ${c}, 0 0 0 ${s(6, 0.66, 1)} #000`;
+const PX_FONT = "'Courier New', ui-monospace, monospace";
+
+function PixelTurnBanner({ data }: { data: BannerData }) {
+  const hasFeet = data.remainingFt >= 0 && data.totalFt > 0;
+  const blocks = hasFeet ? Math.min(24, Math.round(data.totalFt / 5)) : 0;
+  const full = hasFeet ? Math.round(data.remainingFt / 5) : 0;
+  const thumb = !data.img && data.sprite ? creatureThumb(data.sprite) : null;
+  const avatar = data.img ?? thumb;
+  const label: React.CSSProperties = { fontSize: s(12, 0.64, 1.1), letterSpacing: '0.12em', color: PX_DIM, fontWeight: 700, whiteSpace: 'nowrap' };
+  return (
+    <div style={{
+      position: 'absolute', top: s(14), left: '50%', transform: 'translateX(-50%)', zIndex: 20, pointerEvents: 'none',
+      display: 'flex', alignItems: 'center', gap: s(20), padding: `${s(12)} ${s(24)}`,
+      background: PX_BG, boxShadow: pxBorder(PX_EDGE), fontFamily: PX_FONT, maxWidth: '94vw',
+      outline: `${s(2, 0.66, 1)} solid ${PX_LIGHT}`, outlineOffset: `-${s(5, 0.66, 1)}`,
+    }}>
+      <div style={{ textAlign: 'center', flexShrink: 0 }}>
+        <div style={label}>RONDA</div>
+        <div style={{ fontSize: s(32), lineHeight: 1, color: PX_TEXT, fontWeight: 800 }}>{data.round}</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: s(14), minWidth: 0 }}>
+        <div style={{
+          width: s(64), height: s(64), flexShrink: 0, background: '#000', boxShadow: pxBorder(data.color),
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: PX_TEXT, fontSize: s(22), fontWeight: 800,
+        }}>
+          {avatar
+            ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', imageRendering: 'pixelated', display: 'block' }} />
+            : data.name.slice(0, 2).toUpperCase()}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={label}>ÉS EL TORN DE</div>
+          <div style={{ fontSize: s(32), lineHeight: 1.1, color: PX_TEXT, fontWeight: 800, maxWidth: '34vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: `${s(2, 0.6, 1)} ${s(2, 0.6, 1)} 0 #000` }}>
+            {data.name.toUpperCase()}
+          </div>
+        </div>
+      </div>
+      {(hasFeet || data.blockedBy) && (
+        <div style={{ flexShrink: 0, minWidth: s(170) }}>
+          {data.blockedBy ? (
+            <>
+              <div style={{ ...label, color: '#ff6b5e' }}>NO ES POT MOURE</div>
+              <div style={{ fontSize: s(28), color: '#ff6b5e', fontWeight: 800, whiteSpace: 'nowrap' }}>{data.blockedBy.toUpperCase()}</div>
+            </>
+          ) : (
+            <>
+              <div style={label}>MOVIMENT</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: s(6) }}>
+                <span style={{ fontSize: s(48), lineHeight: 1, color: data.remainingFt <= 5 ? '#ffd257' : PX_TEXT, fontWeight: 800 }}>{data.remainingFt}</span>
+                <span style={{ fontSize: s(18), color: PX_DIM, fontWeight: 700 }}>/ {data.totalFt} FT</span>
+              </div>
+              <div style={{ display: 'flex', gap: s(3, 0.6, 1), marginTop: s(6) }}>
+                {Array.from({ length: blocks }, (_, i) => (
+                  <div key={i} style={{ width: s(9, 0.6, 1.1), height: s(12, 0.6, 1.1), background: i < full ? data.color : '#3a3026', boxShadow: `inset 0 -${s(3, 0.6, 1)} 0 rgba(0,0,0,.35)` }} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

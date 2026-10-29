@@ -76,7 +76,14 @@ export interface Player {
   canMove?: boolean;
   /** Radi de visió en peus dins de sales fosques (llum que emet el token). Absent → DEFAULT_VISION_FT; 0 → sense llum. */
   visionFt?: number;
+  /** Estil Píxel: figureta del token (criatura del paquet Oryx, `CREATURES`). Absent → cercle de color. */
+  sprite?: string;
+  /** Estil Píxel: retrat (dataURL PNG de 48 px fet amb el generador de retrats). */
+  portrait?: string;
 }
+
+/** Estil de l'app: el clàssic de sempre o el Píxel (sprites, mapes de caselles). */
+export type AppStyle = 'classic' | 'pixel';
 
 export interface Point {
   x: number;
@@ -105,6 +112,8 @@ export interface PaintedZone {
 export interface Wall {
   a: Point;
   b: Point;
+  /** Generada pel mapa de caselles (es regenera sola; les dibuixades a mà no la porten). */
+  tile?: boolean;
 }
 
 // Porta: un tram SOBRE una paret (segment a–b alineat amb la paret). Una porta OBERTA
@@ -159,7 +168,7 @@ export interface AreaSpellPending {
   mode?: 'line' | 'area';
 }
 
-export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light';
+export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light' | 'tiles';
 
 // Punt de llum (torxa/llàntia) col·locat pel DM dins d'una sala. Només s'activa (i els
 // jugadors veuen la seva zona) si un token de jugador és dins de la mateixa sala.
@@ -192,6 +201,8 @@ export interface LibEnemy {
   R: number;
   visible: boolean;
   imageData: string | null;
+  /** Estil Píxel: figureta del token (criatura del paquet Oryx). */
+  sprite?: string;
 }
 
 export interface PsdEnemyOverride {
@@ -199,6 +210,8 @@ export interface PsdEnemyOverride {
   hpMax?: number;
   name?: string;
   imageData?: string;
+  /** Estil Píxel: figureta del token (criatura del paquet Oryx). */
+  sprite?: string;
 }
 
 export type PsdEnemyOverrides = Record<number, PsdEnemyOverride>;
@@ -349,6 +362,13 @@ export interface BCStateMessage {
   // Màgia que el DM està apuntant (radi, abast, punta del raig): els jugadors la veuen en
   // viu. Camp lleuger, s'envia sempre (`null` = cap). Absent → DM antic, no tocar res.
   spellPreview?: SpellPreview | null;
+  // Estil Píxel (camp lleuger, sempre): les pantalles de jugador pinten sprites i el rètol píxel.
+  appStyle?: AppStyle;
+  // Parts vives del mapa de caselles (aigua, torxes, portes): camp pesat (per referència).
+  tileLive?: import('@/lib/tilemap/render').TileLive | null;
+  // Fulls del paquet de sprites (dataURL), només quan una pantalla demana l'estat complet i
+  // no els pot llegir ella mateixa (veure `lib/sprites/pack.ts`).
+  spritePack?: { id: string; sheets: Record<string, string> };
 }
 
 export interface BCStructMessage {
@@ -389,6 +409,8 @@ export interface BCStructMessage {
   pointerPos?: Point | null;
   turn?: TurnState;
   spellPreview?: SpellPreview | null;
+  appStyle?: AppStyle;
+  tileLive?: import('@/lib/tilemap/render').TileLive | null;
 }
 
 export type BCMessage =

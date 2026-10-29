@@ -80,4 +80,6 @@ export const PlayIcon     = mkIcon(<polygon points="6 3 20 12 6 21 6 3"/>);
 export const PanelLeftIcon= mkIcon(<><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></>);
 export const BanIcon      = mkIcon(<><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></>);
 export const SkullIcon    = mkIcon(<><path d="M8 20v2h8v-2"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/><line x1="9" y1="12" x2="9.01" y2="12"/><line x1="15" y1="12" x2="15.01" y2="12"/></>);
+export const TilesIcon    = mkIcon(<><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><path d="M13 17h8M17 13v8"/></>);
+export const PixelSwordIcon = mkIcon(<path d="M20 4h-4v2h-2v2h-2v2h-2v2H8v2H6l-2 2 2 2 2-2v2l2 2 2-2-2-2h2v-2h2v-2h2V8h2V6h2z"/>);
 export const FastForwardIcon = mkIcon(<><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></>);

@@ -7,6 +7,9 @@ import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/l
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
+import { drawTileLive } from '@/lib/tilemap/render';
+import { TILE } from '@/lib/tilemap/model';
+import { WALL_BY_ID } from '@/lib/tilemap/palette';
 import type { DMRefs } from './useDMRefs';
 import type { Spell, SpellPreview } from '@/types';
 
@@ -25,6 +28,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
     let prevBgStyle = '';
     let prevBgEl: HTMLElement | null = null;
     let prevBgOpacity = -1;
+    let prevPixelated: boolean | null = null;
     let prevWH = '';
     let resizeBcastAt = 0;
     let sentPreview: SpellPreview | null = null;
@@ -86,7 +90,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       }
       const sc = Math.min(W / mw, H / mh) * z;
       // Sacsejada de càmera dels spells (explosió de la bola de foc, llamp): mou fons, mapa i tokens junts.
-      const shake = spellShake(R.rActiveSpells.current, performance.now());
+      const shake = spellShake(R.rActiveSpells.current, performance.now(), R.rAppStyle.current === 'pixel');
       const ox = (W - mw * sc) / 2 + pan.x + shake.x, oy = (H - mh * sc) / 2 + pan.y + shake.y;
 
       // Enquadrament COMPARTIT en coordenades de MAPA: sense la vista privada (Ctrl) ni
@@ -127,10 +131,14 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
           prevBgStyle = ns;
           prevBgEl = media;
           prevBgOpacity = -1; // un fons nou neix sense estil: cal reaplicar l'opacitat
+          prevPixelated = null;
         }
         // Opacitat del fons NOMÉS al DM (ajuda visual; els jugadors el veuen sempre opac).
         const bgOp = R.rBgDmOpacity.current;
         if (bgOp !== prevBgOpacity) { media.style.opacity = String(bgOp); prevBgOpacity = bgOp; }
+        // Estil Píxel: el fons (sovint un mapa de caselles de 48 px ampliat) sense desenfocar.
+        const pix = R.rAppStyle.current === 'pixel';
+        if (pix !== prevPixelated) { media.style.imageRendering = pix ? 'pixelated' : ''; prevPixelated = pix; }
       }
 
       if (!s) {
@@ -183,9 +191,23 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rHoveredDoorId: R.rHoveredDoorId,
         rLights: R.rLights, rLightSelected: R.rLightSelected,
         mediaEl: media as HTMLImageElement | HTMLVideoElement | null,
+        rAppStyle: R.rAppStyle, rTileLive: R.rTileLive,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+      // Mapa de caselles mentre s'edita: el cuinat local es veu a l'instant (el fons <img>
+      // s'actualitza un moment després, quan s'envia als jugadors).
+      const tileTool = R.rDrawTool.current === 'tiles';
+      if (tileTool && R.rTileCanvas.current) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(R.rTileCanvas.current, 0, 0);
+        ctx.imageSmoothingEnabled = true;
+      }
+      // Parts vives del mapa de caselles (aigua, torxes, portes obertes o tancades).
+      if (R.rTileLive.current) {
+        const doors = R.rDoors.current;
+        drawTileLive(ctx, R.rTileLive.current, id => doors.find(d => d.id === id)?.open !== false, performance.now());
+      }
       renderRoomOverlays(ctx, fc);
       renderRooms(ctx, fc);
       renderWalls(ctx, fc);
@@ -234,6 +256,33 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
 
       renderGrid(ctx, fc);
       renderGridCalib(ctx, fc);
+
+      // Eina Caselles: casella sota el cursor i rectangle en curs (sala o Maj).
+      if (tileTool && R.rTileMap.current) {
+        const drag = R.rTileDrag.current, hv = R.rTileHover.current;
+        const a = drag?.rect ? drag.start : hv, b = drag?.rect ? drag.last : hv;
+        if (a && b) {
+          const x0 = ox + Math.min(a.c, b.c) * TILE * sc, y0 = oy + Math.min(a.r, b.r) * TILE * sc;
+          const x1 = ox + (Math.max(a.c, b.c) + 1) * TILE * sc, y1 = oy + (Math.max(a.r, b.r) + 1) * TILE * sc;
+          const erase = drag?.erase;
+          ctx.save();
+          ctx.fillStyle = erase ? 'rgba(248,81,73,0.12)' : 'rgba(212,160,23,0.10)';
+          ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+          ctx.strokeStyle = erase ? 'rgba(248,81,73,0.9)' : 'rgba(212,160,23,0.95)';
+          ctx.lineWidth = 2; ctx.setLineDash(drag?.rect ? [6, 4] : []);
+          ctx.strokeRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2);
+          ctx.setLineDash([]);
+          if (drag?.rect && !erase && R.rTileBrush.current.kind === 'room') {
+            const br = R.rTileBrush.current;
+            const w = Math.abs(a.c - b.c) + 1, h = Math.abs(a.r - b.r) + 1;
+            const label = `${WALL_BY_ID.get(br.wall)?.label ?? ''} · ${w}×${h}`;
+            ctx.font = '600 12px system-ui'; const tw = ctx.measureText(label).width;
+            ctx.fillStyle = 'rgba(10,13,18,.9)'; ctx.fillRect(x0, y0 - 22, tw + 12, 20);
+            ctx.fillStyle = '#e6edf3'; ctx.fillText(label, x0 + 6, y0 - 8);
+          }
+          ctx.restore();
+        }
+      }
 
       // Area (marquee) selection rectangle — drawn in screen space so it stays crisp at any zoom
       if (R.rAreaSelectRect.current) {

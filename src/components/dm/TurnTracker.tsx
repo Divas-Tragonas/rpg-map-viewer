@@ -7,6 +7,7 @@ import { StepForward, SwordsIcon, RotateCcw, GearIcon, CheckIcon, FastForwardIco
 import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnState, DefeatedMap, ConditionsMap } from '@/types';
 import { movementLimit, type MovementLimit } from '@/lib/rules/conditions';
 import { budgetFor } from '@/lib/turn';
+import { creatureThumb } from '@/lib/sprites/draw';
 
 interface Props {
   turn: TurnState;
@@ -26,6 +27,8 @@ interface Props {
   onAdvanceRound: () => void;
   onRecoverTurn: (id: number | string) => void;
   onReorder: (newOrder: (number | string)[]) => void;
+  /** App Píxel: avatars amb la figureta del token. */
+  pixel?: boolean;
 }
 
 interface TokenInfo { name: string; color: string; img: string | null }
@@ -127,7 +130,7 @@ interface DragSession {
 
 export function TurnTracker({
   turn, players, libEnemies, struct, psdEnemyOverrides, vis, defeated, conditions, tokenGroupsRef,
-  onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder,
+  onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder, pixel,
 }: Props) {
   const [selecting, setSelecting] = useState(false);
   const [selEnemies, setSelEnemies] = useState<Set<string>>(new Set());
@@ -185,15 +188,15 @@ export function TurnTracker({
     const s = String(id);
     if (s.startsWith('pl_')) {
       const p = players.find(pl => `pl_${pl.id}` === s);
-      return { name: p?.name ?? '?', color: p?.color ?? '#888', img: null };
+      return { name: p?.name ?? '?', color: p?.color ?? '#888', img: p?.portrait ?? (pixel && p?.sprite ? creatureThumb(p.sprite) : null) };
     }
     if (s.startsWith('lib_')) {
       const e = libEnemies.find(en => `lib_${en.id}` === s);
-      return { name: e?.name ?? '?', color: e?.color ?? '#b0424a', img: e?.imageData ?? null };
+      return { name: e?.name ?? '?', color: e?.color ?? '#b0424a', img: (pixel && e?.sprite ? creatureThumb(e.sprite) : null) ?? e?.imageData ?? null };
     }
     const en = struct?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === Number(id));
     const ov = psdEnemyOverrides[Number(id)];
-    return { name: ov?.name ?? en?.name ?? '?', color: '#b0424a', img: ov?.imageData ?? null };
+    return { name: ov?.name ?? en?.name ?? '?', color: '#b0424a', img: (pixel && ov?.sprite ? creatureThumb(ov.sprite) : null) ?? ov?.imageData ?? null };
   };
 
   // ── Popover de selecció (combat inactiu) ───────────────────────────────────
@@ -606,7 +609,7 @@ function Avatar({ info, size }: { info: TokenInfo; size: number }) {
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
       background: info.img ? `#000 center/cover url(${info.img})` : info.color,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff', fontSize: size * 0.4, fontWeight: 800, overflow: 'hidden',
+      color: '#fff', fontSize: size * 0.4, fontWeight: 800, overflow: 'hidden', imageRendering: 'pixelated',
       border: `1px solid rgba(255,255,255,0.25)`,
       transition: `${RESIZE}, font-size .24s ${EASE}`,
     }}>

@@ -48,6 +48,13 @@ interface MouseHandlerSetters {
   pushMapEdit: (label: string) => void;
   /** Hi ha un arrossegament del mapa en curs (el DM hi posa el cursor de mà tancada). */
   setPanning: (v: boolean) => void;
+  /** Eina Caselles (estil Píxel): pintar i esborrar al mapa de caselles. Veure `useTileMap`. */
+  tileTool?: {
+    down: (mx: number, my: number, erase: boolean, shift: boolean) => void;
+    move: (mx: number, my: number) => void;
+    up: () => boolean;
+    leave: () => void;
+  };
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -183,6 +190,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
       R.wsRef.current?.send(JSON.stringify({ type: 'SPELL', spell: { ...sp, startTime: 0 } }));
       R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
+      e.preventDefault(); return;
+    }
+    // Eina Caselles: botó esquerre pinta, el dret esborra (arrossegant o en rectangle amb Maj).
+    if (R.rDrawTool.current === 'tiles' && S.tileTool && (e.button === 0 || e.button === 2)) {
+      const { mx: tmx, my: tmy } = mc(e);
+      S.tileTool.down(tmx, tmy, e.button === 2, e.shiftKey);
       e.preventDefault(); return;
     }
     if (e.button !== 0) return;
@@ -527,6 +540,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     const { mx, my, sc } = mc(e);
 
+    if (R.rDrawTool.current === 'tiles' && S.tileTool) { S.tileTool.move(mx, my); return; }
+
     // Màgia triada esperant el destí: centre de l'àrea o punta del raig, limitat a l'abast.
     // Abans de les branques de cada eina: la del grimori es pot llançar amb qualsevol eina.
     if (R.rAreaPlacementPending.current) {
@@ -805,6 +820,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       else _broadcastState({});  // posició final exacta (durant el drag anava throttled)
       return;
     }
+    if (S.tileTool?.up()) return;
 
     // Final del moviment d'un vèrtex: ara sí que es re-detecten les sales (durant el drag
     // només s'han mogut les parets, que és barat; `redetectRooms` reconcilia noms i estats
@@ -970,6 +986,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   }, [mc, _broadcastState]);
 
   const onMouseLeaveCanvas = useCallback(() => {
+    if (S.tileTool) { S.tileTool.up(); S.tileTool.leave(); }
     if (R.panDragRef.current) {
       if (R.panDragRef.current.moved) _broadcastState({});
       R.panDragRef.current = null; S.setPanning(false);
@@ -992,6 +1009,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    // L'eina Caselles fa servir el clic dret per esborrar (a onMouseDown): cap menú.
+    if (R.rDrawTool.current === 'tiles') return;
     // Clic dret amb una màgia per col·locar: la cancel·la (com Esc)
     if (R.rAreaPlacementPending.current) { cancelPendingSpell(R); return; }
     const { mx, my, sc } = mc(e);

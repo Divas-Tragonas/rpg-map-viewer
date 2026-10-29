@@ -191,6 +191,8 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       });
       else if (e.key === '5') setDrawTool(t => t === 'wall' ? 'none' : 'wall');
       else if (e.key === '6') setDrawTool(t => t === 'light' ? 'none' : 'light');
+      // Caselles (estil Píxel): només si hi ha mapa de caselles (si no, l'eina no fa res).
+      else if (e.key === '7' && R.rAppStyle.current === 'pixel' && R.rTileMap.current) setDrawTool(t => t === 'tiles' ? 'none' : 'tiles');
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);

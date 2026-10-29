@@ -51,9 +51,38 @@ l'estat complet al DM en tornar.
 > DM per `http`: el navegador bloqueja la connexió (contingut mixt) i la pantalla es
 > queda per sempre a "Esperant al Dungeon Master...". Ara la mateixa pantalla ho diu.
 
+## App Píxel (sprites Oryx «Ultimate Fantasy»)
+
+Interruptor **Clàssica · Píxel** a la barra superior. L'app Píxel pinta els tokens com a
+figuretes animades, té un editor de mapes per caselles i fa servir els gràfics del paquet
+Oryx a les màgies i al rètol de torn (també a les pantalles de jugador).
+
+⚠️ **Els sprites tenen llicència de l'autor i no van al repositori.** Per fer-los servir:
+
+- **Al navegador** (també a Vercel): pestanya *Mapa* → *Paquet de sprites* → *Carregar el
+  .zip* (el `.zip` original, tal com es compra). Es desa a IndexedDB; les pantalles de
+  jugador del mateix PC el llegeixen d'allà i les de la tablet el reben del DM.
+- **En local** (opcional): copiar els fulls del paquet a `public/oryx/` (Git l'ignora):
+  `uf_heroes.png`, `uf_terrain.png`, `uf_items.png`, `uf_FX.png`, `uf_FX_impact.png`,
+  `uf_portraits.png`, `uf_portraits_example.png`, `uf_skills.png`, `uf_map.png`,
+  `uf_interface.png` i `uf_bone_dragon/uf_bone_dragon.png`.
+
+El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
+`python3 scripts/oryx-manifest.py /camí/al/paquet/descomprimit` (Pillow + numpy).
+
 ---
 
 ## Changelog
+
+### v4.38 — App Píxel: sprites, mapes de caselles i Tiled
+- **Botó «Clàssica · Píxel»** a la barra superior: canvia d'«app». La Píxel fa servir el paquet de sprites Oryx a tot arreu i ho propaga a les pantalles de jugador; la Clàssica és la de sempre.
+- **Tokens amb figureta animada** (130 criatures, 4 fotogrames): base de color de l'equip, giren cap on es mouen i cauen en grisos en ser derrotats. Figureta per defecte per a la party i les plantilles; es canvia al menú del clic dret.
+- **Editor de mapes per caselles** (eina **Caselles**, tecla 7, mode Preparar): sales d'un rectangle (terra + paret), 16 terres, 6 jocs de paret que s'ajusten sols, portes, aigua i lava animades, mobles, torxes, botí i el mapa del món. **Les parets pintades fan de parets de veritat**: sales fosques, llum, boira i col·lisions sense dibuixar res a mà; les portes s'obren i es tanquen amb un clic i les torxes fan llum.
+- **Importar mapes de Tiled (.tmx)**, com els d'exemple del paquet: terra, parets, objectes i les criatures com a tokens.
+- **Retrats** dels jugadors: 36 de fets o compostos per peces (cap, roba, cabell, barba, caputxa…). Surten al lateral, a la barra de torns i al rètol.
+- **Màgies en píxel** (projectils, esclats i segells del paquet) i **rètol de torn en píxel** a les pantalles de jugador.
+- **Bestiari Oryx** a la Biblioteca: qualsevol de les 130 criatures com a enemic.
+- Els sprites **no van al repositori** (llicència): es carreguen del `.zip` original o d'una carpeta local que Git ignora.
 
 > **Numeració:** `vMAJOR.MM`, amb **dos dígits** a la part petita (`v4.09`, `v4.10`, …
 > `v4.99`) i increments de +0.01. Les entrades de la v4 que abans es deien `v4.1`–`v4.8`

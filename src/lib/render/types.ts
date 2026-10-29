@@ -130,4 +130,7 @@ export interface FrameContext {
   rLightSelected?:    MutableRefObject<string | null>;
   // Element de fons (mapa) per pintar el terreny memoritzat a les zones explorades.
   mediaEl?:           HTMLImageElement | HTMLVideoElement | null;
+  // Estil Píxel: tokens amb figureta (sprites del paquet Oryx) i parts vives del mapa de caselles.
+  rAppStyle?:         MutableRefObject<import('@/types').AppStyle>;
+  rTileLive?:         MutableRefObject<import('@/lib/tilemap/render').TileLive | null>;
 }

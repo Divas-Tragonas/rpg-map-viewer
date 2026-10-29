@@ -1,6 +1,54 @@
 import type { FrameContext } from './types';
 import { TOKEN_LERP, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
+import { packReady } from '@/lib/sprites/pack';
+import { hasCreature, drawCreature, grayCreature, creatureFrame } from '@/lib/sprites/draw';
+
+// ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
+// Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
+const _facing = new Map<string, { x: number; left: boolean }>();
+
+/** El token es pinta com a figureta? (estil Píxel, paquet carregat i criatura coneguda). */
+function pixelSprite(fc: FrameContext, sprite: string | undefined): string | null {
+  return fc.rAppStyle?.current === 'pixel' && packReady() && hasCreature(sprite) ? sprite : null;
+}
+
+/**
+ * Figureta damunt d'una base: ombra el·líptica, anell del color de l'equip als peus i la
+ * criatura animada (4 fotogrames d'espera, desfasats per token). Derrotat → estirada i en
+ * grisos. Substitueix només el disc del token: nom, vida, estats i aros es pinten igual.
+ */
+function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
+  cx: number, cy: number, R: number, team: string, opts: { defeated?: number; alpha?: number; invis?: boolean }) {
+  const { sc } = fc;
+  const f = _facing.get(key);
+  if (!f) _facing.set(key, { x: cx, left: false });
+  else if (Math.abs(cx - f.x) > 0.6) { f.left = cx < f.x; f.x = cx; }
+  const left = _facing.get(key)!.left;
+  const S = R * 2.4;
+  ctx.save();
+  ctx.globalAlpha = opts.alpha ?? 1;
+  // Ombra i base de l'equip als peus.
+  ctx.fillStyle = 'rgba(0,0,0,.38)';
+  ctx.beginPath(); ctx.ellipse(cx, cy + R * 0.62, R * 0.82, R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = team; ctx.lineWidth = 2.2 / sc;
+  if (opts.invis) ctx.setLineDash([5 / sc, 3 / sc]);
+  ctx.beginPath(); ctx.ellipse(cx, cy + R * 0.62, R * 0.86, R * 0.31, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  const d = opts.defeated ?? 0;
+  if (d > 0) {
+    // Derrotat: la figura cau de costat i perd el color.
+    const gray = grayCreature(sprite);
+    ctx.translate(cx, cy + R * 0.45);
+    ctx.rotate((left ? -1 : 1) * d * Math.PI / 2);
+    ctx.imageSmoothingEnabled = false;
+    if (gray) ctx.drawImage(gray, -S / 2, -S * 0.62, S, S);
+  } else {
+    if (opts.invis) ctx.globalAlpha *= 0.45;
+    drawCreature(ctx, sprite, creatureFrame(performance.now(), key.length * 3.1 + key.charCodeAt(key.length - 1)), cx - S / 2, cy - S * 0.62, S, left);
+  }
+  ctx.restore();
+}
 
 // Moviment del token seguint el camí (corba suau de Chaikin): velocitat de creuer (fracció
 // de la mida de casella per frame) + frenada suau (ease-out) al final. Ajusta PATH_CRUISE
@@ -137,10 +185,13 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     const displayImg = ovImg || layerImg;
     const ov = rPsdEnemyOverrides.current[en.id];
     const displayName = ov?.name ?? en.name;
+    const psdSprite = pixelSprite(fc, ov?.sprite);
     ctx.save();
     ctx.globalAlpha = enAlpha;
 
-    if (isDefeated && !isDM) {
+    if (psdSprite) {
+      drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis });
+    } else if (isDefeated && !isDM) {
       const desatAlpha = Math.min(1, crossProg * 2);
       if (desatAlpha > 0) {
         let entry = _deathCanvasCache.get(en.id);
@@ -311,10 +362,15 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     }
 
     ctx.globalAlpha = enAlpha;
-    ctx.fillStyle = 'rgba(0,0,0,.4)';
-    ctx.beginPath(); ctx.arc(ep.x + 2 / sc, ep.y + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
+    const libSprite = pixelSprite(fc, en.sprite);
+    if (!libSprite) {
+      ctx.fillStyle = 'rgba(0,0,0,.4)';
+      ctx.beginPath(); ctx.arc(ep.x + 2 / sc, ep.y + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
+    }
 
-    if (isDefeated && colorProg > 0) {
+    if (libSprite) {
+      drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis });
+    } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
       ctx.globalAlpha = enAlpha * (1 - colorProg * 0.35);
@@ -352,7 +408,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     const showStates = isDM || !isInvis;
     ctx.globalAlpha = enAlpha;
-    if (!en.imageData) {
+    if (!en.imageData && !libSprite) {
       ctx.font = `bold ${11 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = '#fff';
       ctx.fillText(en.name.slice(0, 2).toUpperCase(), ep.x, ep.y);
@@ -439,6 +495,14 @@ export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext)
   if (!pl) return;
   const R = rTokenSizeOverride.current[prev.id] ?? 22;
   const cx = prev.x + R, cy = prev.y + R;
+  const ghostSprite = pixelSprite(fc, pl.sprite);
+  if (ghostSprite) {
+    ctx.save(); ctx.globalAlpha = 0.55;
+    const S = R * 2.4;
+    drawCreature(ctx, ghostSprite, 0, cx - S / 2, cy - S * 0.62, S);
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.globalAlpha = 0.45;
   ctx.fillStyle = pl.color;
@@ -512,9 +576,14 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       }
     }
     ctx.globalAlpha = 1;
-    ctx.fillStyle = 'rgba(0,0,0,.4)';
-    ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
-    if (isDefeated && colorProg > 0) {
+    const plSprite = pixelSprite(fc, pl.sprite);
+    if (!plSprite) {
+      ctx.fillStyle = 'rgba(0,0,0,.4)';
+      ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
+    }
+    if (plSprite) {
+      drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis });
+    } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
       ctx.globalAlpha = 1 - colorProg * 0.35;
@@ -535,8 +604,10 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${13 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
+    if (!plSprite) {
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${13 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
+    }
     ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
     ctx.font = `${10 / sc}px system-ui`; ctx.textAlign = 'center';
     const tw2 = ctx.measureText(pl.name).width;

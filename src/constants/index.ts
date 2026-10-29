@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.37';
+export const APP_VERSION = 'v4.38';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -59,25 +59,28 @@ export const DEFAULT_VISION_FT = 30;
 // pujar de nivell i encara no en tenim els valors reals — s'ajustaran des del
 // PlayersPanel quan es confirmin a la propera sessió.
 export const DEFAULT_PARTY = [
-  { name: 'Jaume III',  color: '#e05555', hpMax: 45, speed: 30 }, // Vermell
-  { name: 'Liriandor',  color: '#4f8fd6', hpMax: 45, speed: 30 }, // Blau
-  { name: 'Yunquerin',  color: '#d4ae38', hpMax: 45, speed: 30 }, // Groc
-  { name: 'Espardeny',  color: '#52b86e', hpMax: 45, speed: 30 }, // Verd
-  { name: 'Cigarramic', color: '#a366c4', hpMax: 45, speed: 30 }, // Lila
+  // `sprite`: figureta de l'estil Píxel (criatura del paquet Oryx, veure `lib/sprites`).
+  { name: 'Jaume III',  color: '#e05555', hpMax: 45, speed: 30, sprite: 'knight' },         // Vermell
+  { name: 'Liriandor',  color: '#4f8fd6', hpMax: 45, speed: 30, sprite: 'elf_wizard' },     // Blau
+  { name: 'Yunquerin',  color: '#d4ae38', hpMax: 45, speed: 30, sprite: 'dwarf_cleric' },   // Groc
+  { name: 'Espardeny',  color: '#52b86e', hpMax: 45, speed: 30, sprite: 'halfling_thief' }, // Verd
+  { name: 'Cigarramic', color: '#a366c4', hpMax: 45, speed: 30, sprite: 'barbarian_m' },    // Lila
 ];
+/** Figureta per defecte d'un jugador nou a l'estil Píxel. */
+export const DEFAULT_PLAYER_SPRITE = 'warrior_m';
 
 export const ENEMY_TEMPLATES = [
-  { id: 'goblin',   name: 'Goblin',   color: '#3a8a3a', hpMax: 7,   R: 25, sm: 0.70 },
-  { id: 'wolf',     name: 'Llop',     color: '#8a7060', hpMax: 11,  R: 28, sm: 0.80 },
-  { id: 'bear',     name: 'Ós',       color: '#8B5E3C', hpMax: 34,  R: 39, sm: 1.10 },
-  { id: 'zombie',   name: 'Zombi',    color: '#4a7a4a', hpMax: 22,  R: 33, sm: 0.95 },
-  { id: 'skeleton', name: 'Esquelet', color: '#c8b87a', hpMax: 13,  R: 26, sm: 0.75 },
-  { id: 'orc',      name: 'Orc',      color: '#5a7a2a', hpMax: 15,  R: 35, sm: 1.00 },
-  { id: 'troll',    name: 'Trol',     color: '#3a6030', hpMax: 84,  R: 53, sm: 1.50 },
-  { id: 'rat',      name: 'Rata',     color: '#7a6060', hpMax: 2,   R: 14, sm: 0.40 },
-  { id: 'bandit',   name: 'Bandit',   color: '#6a5a4a', hpMax: 11,  R: 35, sm: 1.00 },
-  { id: 'spider',   name: 'Aranya',   color: '#3a3a5a', hpMax: 4,   R: 16, sm: 0.45 },
-  { id: 'dragon',   name: 'Drac',     color: '#c0392b', hpMax: 178, R: 70, sm: 2.00 },
+  { id: 'goblin',   name: 'Goblin',   color: '#3a8a3a', hpMax: 7,   R: 25, sm: 0.70, sprite: 'goblin' },
+  { id: 'wolf',     name: 'Llop',     color: '#8a7060', hpMax: 11,  R: 28, sm: 0.80, sprite: 'wolf_black' },
+  { id: 'bear',     name: 'Ós',       color: '#8B5E3C', hpMax: 34,  R: 39, sm: 1.10, sprite: 'minotaur' },
+  { id: 'zombie',   name: 'Zombi',    color: '#4a7a4a', hpMax: 22,  R: 33, sm: 0.95, sprite: 'zombie_a' },
+  { id: 'skeleton', name: 'Esquelet', color: '#c8b87a', hpMax: 13,  R: 26, sm: 0.75, sprite: 'skeleton' },
+  { id: 'orc',      name: 'Orc',      color: '#5a7a2a', hpMax: 15,  R: 35, sm: 1.00, sprite: 'goblin_warrior' },
+  { id: 'troll',    name: 'Trol',     color: '#3a6030', hpMax: 84,  R: 53, sm: 1.50, sprite: 'troll' },
+  { id: 'rat',      name: 'Rata',     color: '#7a6060', hpMax: 2,   R: 14, sm: 0.40, sprite: 'rat_giant' },
+  { id: 'bandit',   name: 'Bandit',   color: '#6a5a4a', hpMax: 11,  R: 35, sm: 1.00, sprite: 'thief' },
+  { id: 'spider',   name: 'Aranya',   color: '#3a3a5a', hpMax: 4,   R: 16, sm: 0.45, sprite: 'spider_black_giant' },
+  { id: 'dragon',   name: 'Drac',     color: '#c0392b', hpMax: 178, R: 70, sm: 2.00, sprite: 'dragon_red' },
 ] as const;
 
 export type EnemyTemplateId = typeof ENEMY_TEMPLATES[number]['id'];

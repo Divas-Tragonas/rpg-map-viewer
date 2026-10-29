@@ -12,8 +12,18 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     rows: [
       ['V · Esc', 'Selecció (tornar-hi des de qualsevol eina)'],
       ['1 · 2', 'Dibuix: ploma · goma (Jugar)'], ['3', 'Màgies (Jugar)'], ['4', 'Senyal i regla (Jugar)'],
-      ['5', 'Parets i portes (Preparar)'], ['6', 'Llums (Preparar)'],
+      ['5', 'Parets i portes (Preparar)'], ['6', 'Llums (Preparar)'], ['7', 'Caselles (Preparar, app Píxel)'],
       ['A', 'Selecció múltiple (rectangle)'],
+    ],
+  },
+  {
+    title: 'Caselles (app Píxel)',
+    rows: [
+      ['Sala + arrossegar', 'Rectangle amb terra a dins i paret a la vora'],
+      ['Arrossegar', 'Pintar amb el pinzell triat a la paleta'],
+      ['Maj + arrossegar', 'Omplir un rectangle amb el pinzell'],
+      ['Clic dret', 'Esborrar (objecte → decorat → porta → paret → terra)'],
+      ['Porta', 'Clic a una paret recta entre dues sales'],
     ],
   },
   {

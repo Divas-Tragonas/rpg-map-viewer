@@ -10,7 +10,7 @@ import type { DrawTool } from '@/types';
  */
 export type DMMode = 'preparar' | 'jugar';
 
-const PREP_TOOLS: readonly DrawTool[] = ['wall', 'light'];
+const PREP_TOOLS: readonly DrawTool[] = ['wall', 'light', 'tiles'];
 const PLAY_TOOLS: readonly DrawTool[] = ['pen', 'eraser', 'shape', 'pointer'];
 
 /** Mode on viu una eina; null = als dos (la de selecció). */

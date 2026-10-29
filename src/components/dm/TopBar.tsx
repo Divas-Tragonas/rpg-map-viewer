@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
   ExternalLink, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
-  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon,
+  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon,
 } from '@/components/icons';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
@@ -48,7 +48,12 @@ interface Props {
   enemyHighlight: boolean; highlightLocked: boolean;
   onToggleEnemyHighlight: () => void; onToggleHighlightLocked: () => void;
   onShowShortcuts: () => void;
+  /** Quina «app»: la clàssica o la Píxel (sprites i mapes de caselles). */
+  pixel: boolean; onSetPixel: (v: boolean) => void;
 }
+
+/** Nom del fons quan és un mapa de caselles cuinat (veure `useTileMap`). */
+const TILEMAP_NAME = 'mapa de caselles.png';
 
 /** «demo_bg.png» → «demo bg»: el nom del fitxer sense extensió ni guions baixos. */
 function prettyName(file: string) {
@@ -408,6 +413,34 @@ function ModeSwitch({ mode, onChange }: { mode: DMMode; onChange: (m: DMMode) =>
   );
 }
 
+/**
+ * Canvi d'«app»: Clàssica (mapes d'imatge, tokens rodons) o Píxel (sprites del paquet Oryx,
+ * mapes de caselles). Les dues comparteixen la partida: és com es pinta i quines eines hi ha.
+ */
+function AppSwitch({ pixel, onChange }: { pixel: boolean; onChange: (v: boolean) => void }) {
+  const opts: [boolean, string, React.ReactNode, string][] = [
+    [false, 'Clàssica', <DieIcon key="c" size={13} />, 'Mapes d\'imatge i tokens rodons'],
+    [true, 'Píxel', <PixelSwordIcon key="p" size={13} />, 'Sprites de pixel art i mapes de caselles (també a les pantalles de jugador)'],
+  ];
+  return (
+    <div role="radiogroup" aria-label="App" style={{ display: 'flex', gap: 2, padding: 2, borderRadius: RADIUS.md + 2, background: C.bg, border: `1px solid ${C.border}`, flexShrink: 0 }}>
+      {opts.map(([v, label, icon, title]) => {
+        const on = pixel === v;
+        return (
+          <button key={label} role="radio" aria-checked={on} onClick={() => onChange(v)} title={title}
+            style={{
+              height: 26, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', border: 'none', borderRadius: RADIUS.md,
+              background: on ? tint(C.accent, 0.16) : 'transparent', color: on ? C.accent : C.dim,
+              fontSize: FS.sm, fontWeight: 700, cursor: 'pointer', transition: 'background .15s, color .15s',
+            }}>
+            {icon} {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── La barra ─────────────────────────────────────────────────────────────────
 
 /**
@@ -430,15 +463,15 @@ export function TopBar(p: Props) {
       padding: '0 12px', background: C.panel, borderBottom: `1px solid ${C.border}`,
     }}>
       <div style={{ width: IDENTITY_W, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-        <DieIcon size={20} color={C.accent} />
+        {p.pixel ? <PixelSwordIcon size={20} color={C.accent} /> : <DieIcon size={20} color={C.accent} />}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
           {/* El nom del mapa és un títol: tipografia de títols (EB Garamond, `FONT_SERIF`). */}
           <span title={p.mapName ?? undefined}
             style={{ fontFamily: FONT_SERIF, fontSize: 17, fontWeight: 600, color: C.bright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {p.mapName ? prettyName(p.mapName) : 'RPG Map Viewer'}
+            {p.mapName ? prettyName(p.mapName) : p.pixel ? 'RPG Map Viewer · Píxel' : 'RPG Map Viewer'}
           </span>
           <span style={{ fontSize: FS.xs, color: C.dim }}>
-            {!p.mapName ? 'Cap mapa obert' : p.hasPsd ? 'Mapa amb capes del PSD' : isVideoName(p.mapName) ? 'Mapa de vídeo' : 'Mapa d\'imatge'}
+            {!p.mapName ? 'Cap mapa obert' : p.hasPsd ? 'Mapa amb capes del PSD' : p.mapName === TILEMAP_NAME ? 'Mapa de caselles' : isVideoName(p.mapName) ? 'Mapa de vídeo' : 'Mapa d\'imatge'}
           </span>
         </div>
         <IconButton variant="ghost" size={28} onClick={p.onToggleSidebar} aria-pressed={p.sidebarOpen}
@@ -449,6 +482,7 @@ export function TopBar(p: Props) {
         </IconButton>
       </div>
 
+      <AppSwitch pixel={p.pixel} onChange={p.onSetPixel} />
       <ModeSwitch mode={p.mode} onChange={p.onModeChange} />
 
       {/* És cosa de la partida: a Preparar només surt si hi ha alguna cosa en pantalla

@@ -11,12 +11,13 @@ import { pruneDoors } from '@/lib/rooms/doors';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import { removeFromTurn } from '@/lib/turn';
 import { bgFingerprint } from '@/lib/autosave';
-import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
+import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
+import { reviveTileMap } from '@/lib/tilemap/model';
 
 interface Setters {
   setBgLoaded: (v: boolean) => void;
@@ -87,7 +88,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
-      activeSpells: rActiveSpells.current,
+      activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
     };
   }, []);
 
@@ -137,13 +138,15 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // dins del STATE (que el servidor reenvia opac) i no en un missatge propi: així no
       // cal que la API conegui cap tipus nou.
       spellPreview: rSpellPreview.current,
+      // Estil de l'app (Clàssic / Píxel): lleuger, s'envia sempre.
+      appStyle: R.rAppStyle.current,
     };
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
-      activeSpells: rActiveSpells.current,
+      activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
     };
     for (const k of Object.keys(heavy)) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
@@ -180,6 +183,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       pointerPos: rPointerPos.current,
       turn: rTurn.current,
       spellPreview: rSpellPreview.current,
+      appStyle: R.rAppStyle.current,
+      tileLive: R.rTileLive.current,
       // Historial de traços de dibuix: perquè el jugador reconstrueixi el drawCanvas en
       // connectar-se (late join) o en carregar una partida (els STROKE són incrementals i
       // un jugador que no hi era quan es van dibuixar no els tenia).
@@ -256,6 +261,23 @@ export function useDMActions(R: DMRefs, S: Setters) {
     wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: file.type, withFade: true }));
     wsRef.current?.sendBinary(buf);
   }, [_broadcastState, _applyImageOnlyStruct]);
+
+  // Canvia la imatge del fons sense refer res més (mapa de caselles mentre s'edita): mateix
+  // element <img>, sense fosa a les pantalles de jugador i sense tocar l'estructura.
+  const replaceBgImage = useCallback(async (blob: Blob) => {
+    const el = mediaRef.current;
+    if (!el || el.tagName !== 'IMG') return false;
+    const buf = await blob.arrayBuffer();
+    bgBufferRef.current = { buffer: buf, mimeType: blob.type || 'image/png' };
+    const prev = (el as HTMLImageElement).src;
+    (el as HTMLImageElement).src = URL.createObjectURL(blob);
+    if (prev.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(prev), 2000);
+    R.rAutosaveDirty.current = true;
+    bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: blob.type || 'image/png', withFade: false });
+    wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: blob.type || 'image/png', withFade: false }));
+    wsRef.current?.sendBinary(buf);
+    return true;
+  }, []);
 
   const loadPSD = useCallback(async (file: File) => {
     S.setParsing(true); S.setParseError(null); S.setStruct(null); S.setWarnings([]); S.setLayerImages({}); S.setWarningsDismissed(false);
@@ -353,7 +375,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     if (m?.tagName === 'VIDEO' && (m as HTMLVideoElement).videoWidth) { mw = (m as HTMLVideoElement).videoWidth; mh = (m as HTMLVideoElement).videoHeight; }
     const plR = rGridAutoSize.current ? Math.round(rGridSize.current * 0.45) : 22;
     const hp = Math.max(1, hpMax || 20);
-    const pl = { id: Date.now(), name: name.trim(), color, x: mw / 2 - plR, y: mh / 2 - plR, visible: true, hp, hpMax: hp, speed: DEFAULT_SPEED_FT };
+    const pl = { id: Date.now(), name: name.trim(), color, x: mw / 2 - plR, y: mh / 2 - plR, visible: true, hp, hpMax: hp, speed: DEFAULT_SPEED_FT, sprite: DEFAULT_PLAYER_SPRITE };
     const ns = [...rPlayers.current, pl];
     rPlayers.current = ns; S.setPlayers(ns);
     rPos.current[`pl_${pl.id}`] = { x: pl.x, y: pl.y };
@@ -434,6 +456,12 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
+  // Estil Píxel: figureta i retrat del jugador (viatgen dins de `players`, cap camp nou de sync).
+  const setPlayerLook = useCallback((id: number, look: { sprite?: string; portrait?: string | undefined }) => {
+    const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, ...look } : pl);
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
   const setPlayerCanMove = useCallback((id: number, canMove: boolean) => {
     const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, canMove } : pl);
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
@@ -457,7 +485,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const newPlayers = DEFAULT_PARTY.map((def, i) => ({
       id: now + i, name: def.name, color: def.color,
       x: mw / 2 - totalW / 2 + i * spacing - plR, y: mh / 2 - plR,
-      visible: true, hp: def.hpMax, hpMax: def.hpMax, speed: def.speed ?? DEFAULT_SPEED_FT,
+      visible: true, hp: def.hpMax, hpMax: def.hpMax, speed: def.speed ?? DEFAULT_SPEED_FT, sprite: def.sprite,
     }));
     const ns = [...rPlayers.current, ...newPlayers];
     rPlayers.current = ns; S.setPlayers(ns);
@@ -504,6 +532,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       label,
       walls: rWalls.current, rooms: rRooms.current,
       doors: rDoors.current, lights: rLights.current,
+      // El mapa de caselles també (per referència: cada edició en crea un de nou).
+      tileMap: R.rTileMap.current,
     };
     h.push(entry);
     logUndo(R.rUndoLog.current, 'map', entry);
@@ -521,6 +551,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rRooms.current = entry.rooms; S.setRooms(entry.rooms);
     rDoors.current = entry.doors; S.setDoors(entry.doors);
     rLights.current = entry.lights; S.setLights(entry.lights);
+    if (entry.tileMap !== undefined && entry.tileMap !== R.rTileMap.current) {
+      R.rTileMap.current = entry.tileMap;
+      R.rTileRestore.current();
+    }
     // Qualsevol cosa a mig fer deixa de tenir sentit amb una geometria diferent.
     rWallPenLast.current = null; rWallChain.current = []; rWallCursor.current = null;
     rDoorPlacement.current = null; rDoorPreview.current = null;
@@ -549,6 +583,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // carregar una partida desada és una sorpresa, no una decisió de l'usuari. Com a
       // parells perquè un Map no sobreviu al JSON.
       tokenGroups: [...R.rTokenGroups.current],
+      // Estil Píxel: l'estil amb què es jugava i el mapa de caselles (per poder-lo seguir editant).
+      appStyle: R.rAppStyle.current,
+      tileMap: R.rTileMap.current,
     };
     if (rStruct2.current) {
       state.psdStruct = rStruct2.current;
@@ -603,11 +640,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // els fitxers .json i les partides del servidor, en base64.
       if (state.bgBlob instanceof Blob) {
         const blob: Blob = state.bgBlob;
-        await loadBg(new File([blob], state.bgName || 'background.png', { type: blob.type || 'image/png' }));
+        await loadBg(new File([blob], state.bgName || (state.tileMap ? 'mapa de caselles.png' : 'background.png'), { type: blob.type || 'image/png' }));
       } else if (state.bgData) {
         const bin = atob(state.bgData); const arr = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-        await loadBg(new File([arr], state.bgName || 'background.png', { type: state.bgMimeType || 'image/png' }));
+        await loadBg(new File([arr], state.bgName || (state.tileMap ? 'mapa de caselles.png' : 'background.png'), { type: state.bgMimeType || 'image/png' }));
       }
       // Restore PSD struct and layer images
       if (state.psdStruct) {
@@ -662,6 +699,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.lights)        { rLights.current = state.lights; S.setLights(state.lights); }
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (Array.isArray(state.tokenGroups)) R.rTokenGroups.current = new Map(state.tokenGroups);
+      // Mapa de caselles: el fons ja ve cuinat i les parets ja hi són; només cal tornar-lo a
+      // tenir per editar-lo i per a les parts vives (aigua, torxes, portes).
+      R.rTileMap.current = state.tileMap ? reviveTileMap(state.tileMap) : null;
+      R.rTileRestore.current({ rebake: false });
       if (state.strokeHistory && state.strokeHistory.length > 0) {
         const oc = drawCanvasRef.current;
         if (oc) {
@@ -794,7 +835,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const imageData = _imgs.length > 0 ? _imgs[Math.floor(Math.random() * _imgs.length)] : null;
     const _sm = tmpl.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : tmpl.R;
-    const newEn: LibEnemy = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData };
+    const newEn: LibEnemy = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData, sprite: tmpl.sprite };
     // Numeració automàtica: el primer Goblin és "Goblin"; en crear el segon, el primer
     // passa a "Goblin 1" i el nou a "Goblin 2" (i així ascendint).
     const ns = addEnemyNumbered(rLibEnemies.current, newEn);
@@ -1036,7 +1077,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, renamePlayer, loadParty, clearDrawing, undoStroke,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,

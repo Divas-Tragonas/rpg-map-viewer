@@ -18,6 +18,8 @@ export interface TurnBanner {
   name: string;
   color: string;
   img: string | null;
+  /** App Píxel: figureta del token (criatura del paquet Oryx), si en té. */
+  sprite: string | null;
   /** Peus restants i pressupost del torn; -1 als enemics (no en tenen, de límit). */
   remainingFt: number;
   totalFt: number;
@@ -26,13 +28,13 @@ export interface TurnBanner {
 }
 
 export const EMPTY_BANNER: TurnBanner = {
-  active: false, round: 1, name: '', color: '#888', img: null,
+  active: false, round: 1, name: '', color: '#888', img: null, sprite: null,
   remainingFt: -1, totalFt: -1, blockedBy: null,
 };
 
 export function sameBanner(a: TurnBanner, b: TurnBanner): boolean {
   return a.active === b.active && a.round === b.round && a.name === b.name
-    && a.color === b.color && a.img === b.img
+    && a.color === b.color && a.img === b.img && a.sprite === b.sprite
     && a.remainingFt === b.remainingFt && a.totalFt === b.totalFt
     && a.blockedBy === b.blockedBy;
 }
@@ -53,31 +55,35 @@ export function buildTurnBanner({ turn, players, libEnemies, struct, psdEnemyOve
   if (id === undefined) return EMPTY_BANNER;
   const sid = String(id);
 
-  let name = '?', color = '#b0424a', img: string | null = null;
+  let name = '?', color = '#b0424a', img: string | null = null, sprite: string | null = null;
   if (sid.startsWith('pl_')) {
     const p = players.find(pl => `pl_${pl.id}` === sid);
     name = p?.name ?? '?';
     color = p?.color ?? '#888';
+    img = p?.portrait ?? null;
+    sprite = p?.sprite ?? null;
   } else if (sid.startsWith('lib_')) {
     const e = libEnemies.find(en => `lib_${en.id}` === sid);
     name = e?.name ?? '?';
     color = e?.color ?? '#b0424a';
     img = e?.imageData ?? null;
+    sprite = e?.sprite ?? null;
   } else {
     const en = struct?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === Number(id));
     const ov = psdEnemyOverrides[Number(id)];
     name = ov?.name ?? en?.name ?? 'Enemic';
     img = ov?.imageData ?? null;
+    sprite = ov?.sprite ?? null;
   }
 
   // Els enemics no tenen límit de moviment des de /player (sentinella): res de peus.
   const totalFt = budgetFor(id, players);
   if (totalFt >= NO_MOVE_LIMIT_FT) {
-    return { active: true, round: turn.round, name, color, img, remainingFt: -1, totalFt: -1, blockedBy: null };
+    return { active: true, round: turn.round, name, color, img, sprite, remainingFt: -1, totalFt: -1, blockedBy: null };
   }
   const limit = movementLimit(turn.activeRemainingFt, conditions[sid]);
   return {
-    active: true, round: turn.round, name, color, img,
+    active: true, round: turn.round, name, color, img, sprite,
     remainingFt: limit.ft, totalFt,
     blockedBy: limit.immobile ? limit.reason : null,
   };

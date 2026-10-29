@@ -6,6 +6,8 @@ import { SidebarSection } from '@/components/ui/SidebarSection';
 import { EnemyGroupToolbar, GroupBody, GroupHeader } from '@/components/ui/EnemyGroups';
 import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
 import { api, isApiConfigured } from '@/lib/api';
+import { creatureThumb, creatureNames } from '@/lib/sprites/draw';
+import { useSpritePack } from '@/hooks/useSpritePack';
 import type { ApiEnemy } from '@/lib/api';
 import { groupEnemies } from '@/lib/enemy-groups';
 import type { LibEnemy } from '@/types';
@@ -15,9 +17,12 @@ interface Props {
   libEnemies: LibEnemy[];
   onAddEnemy: (tmpl: typeof ENEMY_TEMPLATES[number]) => void;
   onAddDbEnemy: (enemy: ApiEnemy) => void;
+  /** App Píxel: figureta a les plantilles i el bestiari sencer del paquet Oryx. */
+  pixel?: boolean;
+  onAddCreature?: (name: string) => void;
 }
 
-function TemplateButton({ name, color, hpMax, inScene, onClick }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void }) {
+function TemplateButton({ name, color, hpMax, inScene, onClick, thumb }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void; thumb?: string | null }) {
   return (
     <button onClick={onClick} title={`Afegir ${name} a l'escena (${hpMax} de vida)`}
       style={{
@@ -25,7 +30,9 @@ function TemplateButton({ name, color, hpMax, inScene, onClick }: { name: string
         background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
         borderRadius: RADIUS.sm, cursor: 'pointer', color: C.text, fontSize: FS.sm, textAlign: 'left',
       }}>
-      <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      {thumb
+        ? <img src={thumb} alt="" style={{ width: 20, height: 20, margin: -4, imageRendering: 'pixelated', flexShrink: 0 }} />
+        : <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, flexShrink: 0 }} />}
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       {inScene > 0
         ? <span title={`${inScene} a l'escena`} style={{ color: C.enemy, fontSize: FS.xs, fontWeight: 700 }}>×{inScene}</span>
@@ -43,7 +50,9 @@ const DB_GRID: React.CSSProperties = { ...GRID, gridTemplateColumns: '1fr' };
  * (vida, visibilitat, eliminar) a la pestanya Escena, junt amb els del PSD i els jugadors.
  * Els de la BD es poden agrupar per projecte o per categoria (grups plegables).
  */
-export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy }: Props) {
+export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel, onAddCreature }: Props) {
+  useSpritePack();
+  const [beastQ, setBeastQ] = useState('');
   const [dbEnemies, setDbEnemies] = useState<ApiEnemy[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
   const grouping = useEnemyGrouping('dm');
@@ -73,10 +82,25 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy }: Prop
         <div style={GRID}>
           {ENEMY_TEMPLATES.map(tmpl => (
             <TemplateButton key={tmpl.id} name={tmpl.name} color={tmpl.color} hpMax={tmpl.hpMax}
-              inScene={countOf(tmpl.id)} onClick={() => onAddEnemy(tmpl)} />
+              inScene={countOf(tmpl.id)} onClick={() => onAddEnemy(tmpl)}
+              thumb={pixel && tmpl.sprite ? creatureThumb(tmpl.sprite) : null} />
           ))}
         </div>
       </SidebarSection>
+
+      {/* App Píxel: tot el bestiari del paquet Oryx, amb la seva figureta. */}
+      {pixel && onAddCreature && (
+        <SidebarSection title="Bestiari Oryx" icon={<BookIcon size={13} />} count={creatureNames().length} defaultOpen={false} maxBodyHeight={320} bodyPadding="0 8px 8px">
+          <input value={beastQ} onChange={e => setBeastQ(e.target.value)} placeholder="Cerca (goblin, skeleton, dragon…)"
+            style={{ width: '100%', boxSizing: 'border-box', height: 26, margin: '2px 0 6px', padding: '0 8px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: C.dark, color: C.bright, fontSize: FS.sm, outline: 'none' }} />
+          <div style={GRID}>
+            {creatureNames().filter(n => n.replace(/_/g, ' ').includes(beastQ.trim().toLowerCase())).map(n => (
+              <TemplateButton key={n} name={n.replace(/_/g, ' ')} color={C.enemy} hpMax={10}
+                inScene={countOf(`oryx_${n}`)} onClick={() => onAddCreature(n)} thumb={creatureThumb(n)} />
+            ))}
+          </div>
+        </SidebarSection>
+      )}
 
       {isApiConfigured() && (
         <SidebarSection title="Base de dades" icon={<Cloud size={13} />} count={dbEnemies.length} defaultOpen bodyPadding="0 8px 8px">

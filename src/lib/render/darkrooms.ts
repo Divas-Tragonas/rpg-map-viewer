@@ -745,8 +745,16 @@ function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: num
  */
 export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const rWalls = fc.rWalls; if (!rWalls) return;
-  const allWalls = rWalls.current;
-  if (!allWalls || allWalls.length === 0) return;
+  // Les parets que genera el mapa de caselles ja es veuen (són les peces de paret pintades):
+  // el traç daurat només surt amb l'eina Parets, per veure on són de veritat.
+  const showTile = fc.rDrawTool?.current === 'wall';
+  const allWalls = rWalls.current?.filter(w => showTile || !w.tile);
+  if (!allWalls || allWalls.length === 0) {
+    const hd = fc.rHoveredDoorId?.current;
+    const d = hd ? fc.rDoors?.current.find(x => x.id === hd) : null;
+    if (d) drawDoorMark(ctx, d, fc.sc, 1, d.open !== false, true);
+    return;
+  }
   const doors = fc.rDoors?.current ?? [];
   const walls = effectiveWalls(allWalls, doors);
   const { sc } = fc;
@@ -781,7 +789,11 @@ export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   }
   ctx.restore();
   const hovDoor = fc.rHoveredDoorId?.current ?? null;
-  for (const d of doors) drawDoorMark(ctx, d, sc, 1, d.open !== false, d.id === hovDoor);
+  for (const d of doors) {
+    // Les portes del mapa de caselles ja tenen el seu sprite: la marca només en passar-hi.
+    if (!showTile && d.id.startsWith('td_') && d.id !== hovDoor) continue;
+    drawDoorMark(ctx, d, sc, 1, d.open !== false, d.id === hovDoor);
+  }
 }
 
 /**

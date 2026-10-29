@@ -3,6 +3,10 @@ import React, { useRef, useState } from 'react';
 import { Switch } from '@/components/ui/Switch';
 import { C, FS, RADIUS, DEFAULT_SPEED_FT, DEFAULT_VISION_FT, feetFromRadius, FONT_SERIF } from '@/constants';
 import type { LibEnemy, MapStructure, Player, PsdEnemyOverride, PsdEnemyOverrides, TokenSizeMap } from '@/types';
+import { Button } from '@/components/ui/Button';
+import { SpritePicker, PortraitBuilder } from '@/components/dm/PixelPickers';
+import { creatureThumb } from '@/lib/sprites/draw';
+import { useSpritePack } from '@/hooks/useSpritePack';
 
 /** Dades i accions per editar un token des del menú del clic dret. */
 export interface TokenEditProps {
@@ -24,6 +28,9 @@ export interface TokenEditProps {
   onAdjustPsdHp: (id: number, delta: number) => void;
   onSetPsdProps: (id: number, props: PsdEnemyOverride) => void;
   onSetTokenSize: (id: string, feet: number) => void;
+  /** App Píxel: figureta de qualsevol token i retrat dels jugadors. */
+  pixel?: boolean;
+  onSetPlayerLook?: (id: number, look: { sprite?: string; portrait?: string }) => void;
 }
 
 /** Un token resolt, sigui de quina família sigui (jugador, biblioteca o PSD). */
@@ -36,6 +43,9 @@ export interface ResolvedToken {
   radius: number;
   player?: Player;
   lib?: LibEnemy;
+  /** Figureta actual (app Píxel) i com canviar-la. */
+  sprite?: string;
+  setSprite: (s: string | undefined) => void;
   adjustHp: (d: number) => void;
   setHpMax: (v: number) => void;
   rename: (v: string) => void;
@@ -49,6 +59,7 @@ export function resolveToken(id: string | number, p: TokenEditProps): ResolvedTo
     if (!pl) return null;
     return {
       key, name: pl.name, hp: pl.hp ?? pl.hpMax, hpMax: pl.hpMax, radius: p.tokenSizeOverride[key] ?? 22, player: pl,
+      sprite: pl.sprite, setSprite: s => p.onSetPlayerLook?.(pl.id, { sprite: s }),
       adjustHp: d => p.onAdjustPlayerHp(pl.id, d),
       setHpMax: v => p.onSetPlayerHpMax(pl.id, v),
       rename: v => p.onRenamePlayer(pl.id, v),
@@ -59,6 +70,7 @@ export function resolveToken(id: string | number, p: TokenEditProps): ResolvedTo
     if (!en) return null;
     return {
       key, name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, radius: p.tokenSizeOverride[key] ?? en.R ?? 25, lib: en,
+      sprite: en.sprite, setSprite: s => p.onSetLibProps(en.id, { sprite: s }),
       adjustHp: d => p.onAdjustLibHp(en.id, d),
       setHpMax: v => p.onSetLibProps(en.id, { hpMax: v, hp: Math.min(en.hp ?? v, v) }),
       rename: v => p.onSetLibProps(en.id, { name: v }),
@@ -72,6 +84,7 @@ export function resolveToken(id: string | number, p: TokenEditProps): ResolvedTo
   const hp = Math.max(0, ov.hp ?? hpMax);
   return {
     key, name: ov.name ?? en.name, hp, hpMax, radius: p.tokenSizeOverride[key] ?? Math.max(Math.min(en.w, en.h) / 2, 22),
+    sprite: ov.sprite, setSprite: s => p.onSetPsdProps(id, { sprite: s }),
     adjustHp: d => p.onAdjustPsdHp(id, d),
     // Posar-li vida per primer cop l'omple; canviar-la després no li torna la que ha perdut.
     setHpMax: v => p.onSetPsdProps(id, { hpMax: v, hp: hpMax > 0 ? Math.min(hp, v) : v }),
@@ -176,6 +189,7 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
           </>
         )}
       </div>
+      {p.pixel && <PixelLook t={t} p={p} />}
       {pl && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ flex: 1, fontSize: FS.sm, color: canMove ? C.text : C.dim }}>Es mou des de la seva pantalla</span>
@@ -183,6 +197,31 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
             title={canMove ? 'El jugador pot moure el token des de /player' : 'Bloquejat: només el DM el pot moure'} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** App Píxel: la figureta del token (tots) i el retrat (jugadors), amb el seu selector. */
+function PixelLook({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
+  useSpritePack();
+  const [open, setOpen] = useState<'sprite' | 'portrait' | null>(null);
+  const pl = t.player;
+  const thumb = t.sprite ? creatureThumb(t.sprite) : null;
+  const box: React.CSSProperties = { width: 32, height: 32, borderRadius: RADIUS.sm, background: C.dark, border: `1px solid ${C.border}`, imageRendering: 'pixelated', flexShrink: 0 };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {thumb ? <img src={thumb} alt="" style={box} /> : <div style={box} />}
+      <Button size="sm" variant="secondary" onMouseDown={e => { e.stopPropagation(); setOpen('sprite'); }} style={{ flex: 1, height: 26 }}>
+        {t.sprite ? 'Canviar la figureta' : 'Triar figureta'}
+      </Button>
+      {pl && (
+        <>
+          {pl.portrait ? <img src={pl.portrait} alt="" style={box} /> : <div style={box} />}
+          <Button size="sm" variant="secondary" onMouseDown={e => { e.stopPropagation(); setOpen('portrait'); }} style={{ flex: 1, height: 26 }}>Retrat</Button>
+        </>
+      )}
+      {open === 'sprite' && <SpritePicker value={t.sprite} onPick={t.setSprite} onClose={() => setOpen(null)} />}
+      {open === 'portrait' && pl && <PortraitBuilder onPick={url => p.onSetPlayerLook?.(pl.id, { portrait: url })} onClose={() => setOpen(null)} />}
     </div>
   );
 }

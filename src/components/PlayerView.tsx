@@ -21,6 +21,9 @@ import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mediaSize, viewRect } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
+import type { AppStyle } from '@/types';
+import { ensurePack, applyPackDataUrls } from '@/lib/sprites/pack';
+import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
 // arribar al DM ensenyava exactament el mateix que un mòbil ben connectat esperant que
@@ -152,6 +155,10 @@ export function PlayerView() {
   // Camí de moviment pendent per token (vorejant parets, forma d'L; ease-out per arc).
   const rMovePath      = useRef<Record<string, { pts: { x: number; y: number }[]; t: number }>>({});
   const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
+  // App Píxel: estil que mana el DM i parts vives del mapa de caselles (aigua, torxes, portes).
+  const rAppStyle      = useRef<AppStyle>('classic');
+  const rTileLive      = useRef<TileLive | null>(null);
+  const [pixel, setPixel] = useState(false);
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
   // Enquadrament del DM en coordenades de MAPA. És l'autoritat de la càmera: cada frame
@@ -384,7 +391,9 @@ export function PlayerView() {
     const oc = document.createElement('canvas');
     oc.width = 1; oc.height = 1;
     drawCanvasRef.current = oc;
-  }, []);
+    // Paquet de sprites: el del mateix navegador o de `/oryx/`; si no n'hi ha, l'envia el DM.
+    void ensurePack().then(() => refreshTurnBanner());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Drag de tokens de jugador (només pl_*) amb ratolí o tacte (mòbil/tablet)
   const tokenDrag = usePlayerTokenDrag(
@@ -460,6 +469,9 @@ export function PlayerView() {
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
+        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
+        if (msg.spritePack) void applyPackDataUrls(msg.spritePack).then(refreshTurnBanner);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
@@ -592,6 +604,9 @@ export function PlayerView() {
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
+        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
+        if (msg.spritePack) void applyPackDataUrls(msg.spritePack).then(refreshTurnBanner);
         if (msg.dmPreviewActive !== undefined) {
           rDMPreviewActive.current = msg.dmPreviewActive;
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
@@ -856,6 +871,7 @@ export function PlayerView() {
     let alive = true;
     let prevBgStyle = '';
     let prevBgEl: HTMLElement | null = null;
+    let prevPixelated: boolean | null = null;
 
     const tick = () => {
       if (!alive) return;
@@ -905,7 +921,7 @@ export function PlayerView() {
       const z = visualZoomRef.current, pan = visualPanRef.current;
       const sc = Math.min(W / mw, H / mh) * z;
       // Sacsejada de càmera dels spells (explosió de la bola de foc, llamp): mou fons, mapa i tokens junts.
-      const shake = spellShake(rActiveSpells.current, performance.now());
+      const shake = spellShake(rActiveSpells.current, performance.now(), rAppStyle.current === 'pixel');
       const ox = (W - mw * sc) / 2 + pan.x + shake.x, oy = (H - mh * sc) / 2 + pan.y + shake.y;
 
       if (media) {
@@ -922,7 +938,13 @@ export function PlayerView() {
           (media as HTMLElement).style.top    = bgT + 'px';
           prevBgStyle = newStyle;
           prevBgEl = media;
+          prevPixelated = null;
         }
+      }
+
+      if (media) {
+        const pix = rAppStyle.current === 'pixel';
+        if (pix !== prevPixelated) { (media as HTMLElement).style.imageRendering = pix ? 'pixelated' : ''; prevPixelated = pix; }
       }
 
       // Text reveal follower — independent del mapa: funciona sobre qualsevol escena.
@@ -964,10 +986,16 @@ export function PlayerView() {
         rRooms, rWalls, rDoors, rLights, roomRevealAnimRef,
         rSpellPreview,
         mediaEl: media,
+        rAppStyle, rTileLive,
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 
+      // Parts vives del mapa de caselles: sota de tot (la foscor de les sales les tapa).
+      if (rTileLive.current) {
+        const doors = rDoors.current;
+        drawTileLive(ctx, rTileLive.current, id => doors.find(d => d.id === id)?.open !== false, performance.now());
+      }
       renderRoomOverlays(ctx, fc);
       renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
@@ -1057,7 +1085,7 @@ export function PlayerView() {
         ref={bgTransitionRef}
         style={{ position: 'absolute', inset: 0, background: '#000', zIndex: 8, opacity: 0, transition: 'opacity 0.5s ease', pointerEvents: 'none' }}
       />
-      <TurnBanner data={turnBanner} />
+      <TurnBanner data={turnBanner} pixel={pixel} />
       {!playerReady && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16, padding: 24, fontFamily: 'system-ui,sans-serif', textAlign: 'center' }}>
           <Layers size={40} color="#21262d" />

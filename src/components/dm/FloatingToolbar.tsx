@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { PenLine, Eraser, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon, SparklesIcon } from '@/components/icons';
+import { PenLine, Eraser, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon, SparklesIcon, TilesIcon } from '@/components/icons';
 import { C, PALETTE, FS, RADIUS, tint } from '@/constants';
 import { GridPanel } from '@/components/dm/GridPanel';
 import { Button } from '@/components/ui/Button';
@@ -53,6 +53,10 @@ interface Props {
   grid: GridProps;
   /** Sense mapa carregat les eines no fan res: la barra es mostra apagada. */
   disabled?: boolean;
+  /** Estil Píxel: hi ha l'eina Caselles (amb mapa de caselles) i el seu panell (paleta). */
+  pixel?: boolean;
+  tilesAvailable?: boolean;
+  tilePanel?: React.ReactNode;
 }
 
 interface ToolDef {
@@ -88,6 +92,12 @@ const PREP_TOOLS: ToolDef[] = [
   { tool: 'wall', label: 'Parets i portes', hint: '5', icon: <WallIcon size={15} />, desc: 'Dibuixa parets; tancar-les crea una sala.' },
   { tool: 'light', label: 'Llums', hint: '6', icon: <SunIcon size={15} />, desc: "Torxes que s'encenen quan hi entra un jugador." },
 ];
+
+/** Estil Píxel: l'editor de caselles (només amb un mapa de caselles obert). */
+const TILES_TOOL: ToolDef = {
+  tool: 'tiles', label: 'Caselles', hint: '7', icon: <TilesIcon size={15} />,
+  desc: 'Pinta sales, terra, parets, portes i objectes.',
+};
 
 // La selecció múltiple és l'únic mode de ratolí que queda a la barra. Els de càmera (vista
 // compartida i privada) viuen al selector de càmera del mapa (`CanvasHUD`).
@@ -143,7 +153,7 @@ export function FloatingToolbar({
   mode, drawTool, drawColor, setDrawColor, drawSize, setDrawSize, paintedZones,
   onSetDrawTool, onClearDraw, onClearPaintedZones, bcRef, wsRef,
   lightRadiusFt, lightSelected, onSetLightRadius,
-  areaSelectMode, onToggleAreaSelect, grid, disabled,
+  areaSelectMode, onToggleAreaSelect, grid, disabled, pixel, tilesAvailable, tilePanel,
 }: Props) {
   const [gridOpen, setGridOpen] = React.useState(false);
   // Botó sobre el qual hi ha el cursor: en surt la finestreta d'explicació enganxada a la dreta.
@@ -153,7 +163,8 @@ export function FloatingToolbar({
   const drawing = drawTool === 'pen' || drawTool === 'eraser';
   const showDrawFlyout = drawing || drawTool === 'light';
   const prep = mode === 'preparar';
-  const tools = prep ? PREP_TOOLS : PLAY_TOOLS;
+  const tools = prep ? (pixel && tilesAvailable ? [SELECT_TOOL, TILES_TOOL, ...PREP_TOOLS.slice(1)] : PREP_TOOLS) : PLAY_TOOLS;
+  const showTiles = drawTool === 'tiles' && !!tilePanel;
   // El panell de la graella només existeix a Preparar (la visibilitat, al menú Vista).
   const showGrid = prep && gridOpen;
 
@@ -225,8 +236,9 @@ export function FloatingToolbar({
         </fieldset>
       </div>
 
-      {!disabled && (showDrawFlyout || showGrid) && (
+      {!disabled && (showDrawFlyout || showGrid || showTiles) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {showTiles && tilePanel}
           {showGrid && <GridPanel {...grid} />}
           {showDrawFlyout && (
             <div style={{ padding: '8px 10px', borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150, pointerEvents: 'auto' }}>

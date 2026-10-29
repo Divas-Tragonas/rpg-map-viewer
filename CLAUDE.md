@@ -176,7 +176,8 @@ src/
 │   │   ├── TokenFields     # Fitxa d'un token dins del menú del clic dret (resolveToken, camps, NameField)
 │   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (PSD + biblioteca) en files primes
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
-│   │   ├── TopBar          # Barra superior: nom del mapa, Mostrar als jugadors, pantalles, partida, vista, ⋯
+│   │   ├── TopBar          # Barra superior: nom del mapa, Clàssica·Píxel, Preparar·Jugar, Mostrar als jugadors, pantalles, partida, vista, ⋯
+│   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text del panell «Mostrar als jugadors»
 │   │   ├── CanvasHUD (selector de càmera + zoom a la cantonada + rètol de calibratge), ShortcutsHelp (finestra de dreceres, tecla ?)
 │   │   └── ContextMenuOverlay, SceneConfigOverlay,
@@ -199,6 +200,8 @@ src/
 │   ├── useAutosave.ts      # Desat automàtic periòdic de la partida (IndexedDB)
 │   ├── useEnemyGrouping.ts # Agrupació dels enemics de la BD i grups plegats (recordat a localStorage)
 │   ├── useStoredFlag.ts    # Sí/no de la UI recordat a localStorage sense error d'hidratació (lateral plegat)
+│   ├── useTileMap.ts       # App Píxel: crear/editar/cuinar el mapa de caselles i regenerar-ne parets, portes i llums
+│   ├── useSpritePack.ts    # Estat del paquet de sprites per a la UI
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
@@ -214,6 +217,8 @@ src/
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
 │   ├── enemy-groups.ts     # groupEnemies / distinctValues / apiSupportsGroups (projecte i categoria)
+│   ├── sprites/            # App Píxel: paquet Oryx (pack.ts: d'on surten els fulls; zip.ts; draw.ts; manifest.ts GENERAT; portrait.ts)
+│   ├── tilemap/            # App Píxel: mapa de caselles (model, palette, editor, render/cuinat, geometry → parets, tmx)
 │   ├── rooms/
 │   │   ├── detect.ts       # detectRooms + reconcileRooms (cares del graf de parets)
 │   │   ├── doors.ts        # Portes: effectiveWalls, pruneDoors, doorAt
@@ -380,6 +385,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `VIEWPORT` | Jugador→DM | Mida del canvas d'aquella pantalla (`{id,w,h}`). El DM en fa la llista del menú de pantalles de la barra superior |
 | `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
+| `STATE.appStyle` / `STATE.tileLive` / `STATE.spritePack` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat, `spritePack` (fulls en dataURL) només en respondre a un `PLAYER_READY` per WS |
 | `RESET_EXPLORED` | DM→Jugador | Reset de la memòria d'explorat d'una sala (torna a ser negra del tot). Porta el polígon `points`; DM i jugador criden `clearExploredAt(points)` a `darkrooms.ts` |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
@@ -431,6 +437,22 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **UI**: `DMView` deriva `psdStruct = struct && !struct.synthetic ? struct : null` i passa **`psdStruct`** (no `struct`) a tot el que és exclusiu del PSD: `ImportPanel`, `LayerTree`, `TopBar` («Ressaltar enemics» del menú Vista) i `TurnTracker`. El render loop segueix llegint `rStruct` (la sintètica inclosa).
 - **Sessió**: `synthetic` es desa dins de `psdStruct` i es restaura a `applySessionState` (si es perdés, la UI del PSD tornaria a sortir buida en carregar la partida).
 - **Regla**: qualsevol codi nou que es pengi de `struct` ha de decidir explícitament si vol *"hi ha mapa"* (`struct`) o *"hi ha PSD"* (`psdStruct` / `!struct.synthetic`).
+
+### App Píxel (Clàssica · Píxel) — `src/lib/sprites/`, `src/lib/tilemap/`
+- **Interruptor «Clàssica · Píxel»** (`AppSwitch` a `TopBar`, estat `pixel` amb `useStoredFlag('rpg_pixel')`, ref `R.rAppStyle`). És un canvi d'«app» sobre la mateixa partida: com es pinta i quines eines hi ha. Viatja al jugador dins de cada `STATE` (`appStyle`, lleuger) i es desa a la partida. A la Clàssica no canvia res respecte de la v4.37.
+- ⚠️ **Llicència: els sprites (Oryx «Ultimate Fantasy») NO van al repositori ni a `public/`** (el repo i Vercel són públics; servir-los seria redistribuir-los). `lib/sprites/pack.ts` els busca, en ordre: **IndexedDB** (`rpg-sprites`, on els desa el DM en carregar el `.zip` original) → **`/oryx/`** (`public/oryx/`, carpeta local que `.gitignore` exclou) → **el DM** (fulls en dataURL dins d'un `STATE` per WS quan rep `PLAYER_READY` amb l'app Píxel). Les pantalles del mateix PC llegeixen el mateix IndexedDB. Mai afegir cap PNG del paquet al repo.
+- **Manifest** (`lib/sprites/manifest.ts`, GENERAT amb `scripts/oryx-manifest.py`): només noms i coordenades (criatures, objectes, peces de retrat). El terreny i els efectes es referencien per posició a la graella del full (`palette.ts`, `pixelspells.ts`).
+- **Dibuix**: `blit` (`lib/sprites/draw.ts`) amb `imageSmoothingEnabled = false` sempre; el fons DOM porta `image-rendering: pixelated` a l'app Píxel (DM i jugador). `grayCreature` (derrotats) es fa amb `getImageData`, no amb `ctx.filter` (Safari).
+- **Tokens** (`drawPixelFigure` a `render/tokens.ts`): si l'app és Píxel, el paquet hi és i el token té `sprite` (Player, LibEnemy, PsdEnemyOverride), es pinta la figureta en lloc del disc; nom, vida, estats, aros i selecció es pinten igual. Sense `sprite` → disc de sempre. Figureta per defecte: `DEFAULT_PARTY[].sprite`, `ENEMY_TEMPLATES[].sprite`, `DEFAULT_PLAYER_SPRITE`. Es canvia al menú del clic dret (`PixelLook` a `TokenFields`).
+- **Retrats** (`Player.portrait`, dataURL PNG de 48 px): 36 de fets o compostos (`lib/sprites/portrait.ts`, ordre de capes del PSD de l'autor: fons → cap → roba → marques → celles → barba → cabell → al cap → complements). Surten al lateral, a la barra de torns i al rètol del jugador.
+- **Mapa de caselles** (`R.rTileMap`, `TileMap` a `lib/tilemap/model.ts`; codi de casella: terreny 0–999, objectes 1000+, món 2000+): l'eina **Caselles** (`'tiles'`, tecla 7, només a l'app Píxel i amb mapa de caselles) pinta amb la `TilePalette`; Sala = rectangle amb terra a dins i paret a la vora; clic dret esborra; Maj = rectangle. Les parets s'escullen soles (`wallTileFor`: vora de dalt / centre / cara / pilar segons si hi ha **terra** a dalt i a baix; el buit compta com a paret).
+  - **Es «cou» com a fons** (`bakeTileMap` → PNG → `loadBg` el primer cop, `replaceBgImage` després): la resta de l'app (jugadors, boira, desat) no sap res de caselles. Mentre s'edita, el DM veu el cuinat local (`R.rTileCanvas`, repintat per caselles amb `repaintCells`) i el fons s'envia als jugadors 350 ms després del traç.
+  - **Geometria** (`lib/tilemap/geometry.ts`, `regenGeometry` a `useTileMap`): parets = arestes entre casella de paret i casella amb terra (amb el buit no, perquè una sala envoltada de buit no tingui una «sala» exterior), marcades amb `Wall.tile`; portes `td_<casella>` (un tram pel mig de la casella, d'una paret a l'altra); llums `tl_<c>_<r>` de les torxes. Les dibuixades a mà es conserven. Les cares amb més d'un 15% de caselles de paret a dins no són sales (`keepRoomFace`).
+  - **Parts vives** (`tileLiveOf` → `R.rTileLive`, camp pesat `tileLive` del `STATE`): aigua animada, torxes i portes (oberta/tancada segons `rDoors`). Es pinten cada fotograma amb `drawTileLive` abans de `renderRoomOverlays` (DM i jugador), o sigui sota la foscor de les sales. Una aigua amb res a sobre (vora, paret, objecte) es queda quieta.
+  - **Desfer**: l'entrada de `rMapHistory` porta també `tileMap` (per referència: cada traç en crea un de nou) i `undoMapEdit` crida `R.rTileRestore`.
+  - **Tiled** (`lib/tilemap/tmx.ts`): capes en ordre del document (la primera és el terra), «walls» → parets, «props/door/castle/marker» → objectes, criatures → enemics amb figureta; capes amb opacitat < 0,6 (núvols) no; es retalla al contingut.
+- **Màgies en píxel** (`render/pixelspells.ts`): projectil del full (8 orientacions) + esclat de 5 fotogrames + segell. Les àrees persistents (dormir, greix) continuen amb l'efecte de sempre. Sense sacsejada de càmera a l'app Píxel.
+- **Rètol de torn** (`PixelTurnBanner`), **barra de torns** i **lateral**: retrat o figureta en lloc de les inicials. **Biblioteca**: «Bestiari Oryx» amb les 130 criatures.
 
 ### Finestra lateral esquerra — pestanyes per funció
 - **Escena · Mapa · Biblioteca** (`sidebarTab` a `DMView`). Abans eren «Mapa / Enemics» i els enemics vivien en dues pestanyes segons d'on sortien (els del PSD dins de l'arbre de capes, els de la biblioteca a «Enemics»): per seguir un combat calia saltar entre totes dues.
@@ -919,4 +941,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Camp numèric que aplica el valor a cada tecla | Esborrar el número per escriure'n un altre deixa el token a 0 (i s'envia un `STATE` per tecla) | Aplicar en confirmar (Enter o perdre el focus), com `NumField` a `TokenFields` |
 | Dades d'un token repartides (un camp al panell, un altre al menú…) | L'usuari no sap on es canvia cada cosa | Tot el que és d'un token, al menú del clic dret (`TokenFields`) |
 | Tancar un menú amb un camp a mig editar sense treure'n el focus | El valor escrit es perd (el camp es desmunta sense rebre el `blur`) | `blurActive()` abans de tancar, com `ContextMenuOverlay` |
+| Afegir un PNG del paquet Oryx al repo o a `public/` (fora de `public/oryx/`) | Redistribució d'uns gràfics amb llicència (repo i Vercel públics) | Els fulls es carreguen en temps d'execució (`lib/sprites/pack.ts`) |
+| Pintar sprites amb el suavitzat encès | Pixel art borrós | `blit()` (apaga `imageSmoothingEnabled`) i `image-rendering: pixelated` al DOM |
+| Animar al `tileLive` una casella amb coses a sobre | L'aigua animada tapa la vora, la paret o l'objecte | `tileLiveOf` només anima les caselles d'aigua lliures |
 | Llegir refs dins del render d'un menú | Valors que no es refresquen i error de lint `react-hooks/refs` | Passar l'estat per props (com `ContextMenuOverlay`: `libEnemies`, `players`, `psdEnemyOverrides`) |

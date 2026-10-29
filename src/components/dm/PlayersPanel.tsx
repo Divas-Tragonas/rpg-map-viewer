@@ -6,6 +6,8 @@ import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
 import { HpControl } from '@/components/ui/HpControl';
 import { IconButton } from '@/components/ui/Button';
 import type { DefeatedMap, Player } from '@/types';
+import { creatureThumb } from '@/lib/sprites/draw';
+import { useSpritePack } from '@/hooks/useSpritePack';
 
 interface Props {
   players: Player[];
@@ -21,6 +23,8 @@ interface Props {
   /** Clic dret a la fila: el mateix menú que al mapa (vida, fitxa, estats…). */
   onMenu: (id: string, x: number, y: number) => void;
   defeated: DefeatedMap;
+  /** App Píxel: retrat o figureta en lloc de les inicials. */
+  pixel?: boolean;
 }
 
 /**
@@ -30,8 +34,8 @@ interface Props {
  * Clic selecciona el token; clic dret obre el seu menú, amb la fitxa (vida màxima, velocitat,
  * visió…), com fer clic dret al token al mapa.
  */
-function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp }: {
-  pl: Player; selected: boolean; defeated: boolean;
+function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp, pixel }: {
+  pl: Player; selected: boolean; defeated: boolean; pixel?: boolean;
   onSelect: () => void; onMenu: (x: number, y: number) => void; onAdjustHp: (delta: number) => void;
 }) {
   const [hover, setHover] = useState(false);
@@ -45,9 +49,15 @@ function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp }: {
         borderRadius: RADIUS.sm, background: selected ? tint(C.room, 0.12) : hover ? 'rgba(255,255,255,0.03)' : 'transparent',
         opacity: defeated ? 0.55 : 1,
       }}>
-      <span aria-hidden style={{ width: 22, height: 22, borderRadius: '50%', background: pl.color, color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {pl.name.trim().slice(0, 2).toUpperCase()}
-      </span>
+      {pixel && (pl.portrait || pl.sprite) ? (
+        // App Píxel: el retrat (o la figureta) en lloc de les inicials.
+        <img aria-hidden src={pl.portrait ?? creatureThumb(pl.sprite!) ?? undefined} alt=""
+          style={{ width: 22, height: 22, borderRadius: RADIUS.sm, background: C.dark, boxShadow: `0 0 0 1.5px ${pl.color}`, imageRendering: 'pixelated', flexShrink: 0 }} />
+      ) : (
+        <span aria-hidden style={{ width: 22, height: 22, borderRadius: '50%', background: pl.color, color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {pl.name.trim().slice(0, 2).toUpperCase()}
+        </span>
+      )}
       <span title={pl.name} style={{
         flex: 1, minWidth: 0, fontSize: FS.sm, fontWeight: 700, color: defeated ? C.dim : C.text,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: defeated ? 'line-through' : 'none',
@@ -61,7 +71,8 @@ function PlayerRow({ pl, selected, defeated, onSelect, onMenu, onAdjustHp }: {
   );
 }
 
-export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, onMenu, defeated }: Props) {
+export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNewPColor, newPHpMax, setNewPHpMax, onAdd, onAdjustHp, onLoadParty, selectedToken, onSelect, onMenu, defeated, pixel }: Props) {
+  useSpritePack();
   const [addOpen, setAddOpen] = useState(false);
   return (
     <SidebarSection title="Jugadors" icon={<UsersIcon size={13} />} count={players.length} bodyPadding="0 6px 8px"
@@ -98,7 +109,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
         {players.map(pl => (
           <PlayerRow key={pl.id} pl={pl}
             selected={selectedToken === `pl_${pl.id}`} defeated={!!defeated[`pl_${pl.id}`]}
-            onSelect={() => onSelect(`pl_${pl.id}`)} onMenu={(x, y) => onMenu(`pl_${pl.id}`, x, y)} onAdjustHp={d => onAdjustHp(pl.id, d)} />
+            onSelect={() => onSelect(`pl_${pl.id}`)} onMenu={(x, y) => onMenu(`pl_${pl.id}`, x, y)} onAdjustHp={d => onAdjustHp(pl.id, d)} pixel={pixel} />
         ))}
       </div>
       {players.length === 0 && !addOpen && (

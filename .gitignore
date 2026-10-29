@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Sprites Oryx (llicència de l'autor: NO es poden redistribuir). Còpia local opcional per a
+# desenvolupament i LAN; veure src/lib/sprites/pack.ts
+/public/oryx/
