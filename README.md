@@ -60,7 +60,7 @@ Oryx a les màgies i al rètol de torn (també a les pantalles de jugador).
 Els fulls del paquet que fa servir l'app són a `public/sprites/` (`uf_heroes.png`,
 `uf_terrain.png`, `uf_items.png`, `uf_FX.png`, `uf_FX_impact.png`, `uf_portraits.png`,
 `uf_portraits_example.png`, `uf_skills.png`, `uf_map.png`, `uf_interface.png` i
-`uf_bone_dragon/uf_bone_dragon.png`), optimitzats sense pèrdua. Cada pantalla (DM i
+`uf_bone_dragon/uf_bone_dragon.png`), optimitzats sense pèrdua. Els fulls generats a partir d'aquests (`uf_heroes_v1/v2.png`, `uf_terrain_themes.png`, `uf_village.png`) surten dels scripts de `scripts/`. Cada pantalla (DM i
 jugadors) els carrega sola del lloc on s'ha obert l'app: no cal importar res.
 
 El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
@@ -69,6 +69,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 ---
 
 ## Changelog
+
+### v4.52 — Full de poble (primera versió)
+- **Generador de textures de poble** (`scripts/oryx-village.py` → `public/sprites/uf_village.png`): amb l'estètica dels mapes pintats de la campanya (Conyberry), en tons apagats d'aquarel·la i tinta, i no amb els verds saturats del paquet. Mateixa mida de píxel que el paquet.
+- Conté: prat, herba fosca, camí, còdols i aigua (amb reflexos animats); transicions de vora irregular per al camí, els còdols, l'aigua i l'herba fosca; arbustos, arbres de tres mides i un de molt gran, roques, tanques de fusta i murs de pedra seca (que s'enllacen amb els veïns), moll, pou i barca. Les teulades a dues aigües es dibuixen per rectangle.
+- Encara no surt a l'editor de caselles: és la base per fer-hi mapes de poble.
 
 ### v4.51 — Curació vermella i cops amb força
 - **La curació és vermella, com una poció** (no verda): el flaix i els anells de la figureta, la màgia Curar ferides en píxel (esclat i segell) i també la de l'app Clàssica.
