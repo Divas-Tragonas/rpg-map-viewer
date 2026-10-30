@@ -57,15 +57,11 @@ Interruptor **Clàssica · Píxel** a la barra superior. L'app Píxel pinta els 
 figuretes animades, té un editor de mapes per caselles i fa servir els gràfics del paquet
 Oryx a les màgies i al rètol de torn (també a les pantalles de jugador).
 
-⚠️ **Els sprites tenen llicència de l'autor i no van al repositori.** Per fer-los servir:
-
-- **Al navegador** (també a Vercel): pestanya *Mapa* → *Paquet de sprites* → *Carregar el
-  .zip* (el `.zip` original, tal com es compra). Es desa a IndexedDB; les pantalles de
-  jugador del mateix PC el llegeixen d'allà i les de la tablet el reben del DM.
-- **En local** (opcional): copiar els fulls del paquet a `public/oryx/` (Git l'ignora):
-  `uf_heroes.png`, `uf_terrain.png`, `uf_items.png`, `uf_FX.png`, `uf_FX_impact.png`,
-  `uf_portraits.png`, `uf_portraits_example.png`, `uf_skills.png`, `uf_map.png`,
-  `uf_interface.png` i `uf_bone_dragon/uf_bone_dragon.png`.
+Els fulls del paquet que fa servir l'app són a `public/sprites/` (`uf_heroes.png`,
+`uf_terrain.png`, `uf_items.png`, `uf_FX.png`, `uf_FX_impact.png`, `uf_portraits.png`,
+`uf_portraits_example.png`, `uf_skills.png`, `uf_map.png`, `uf_interface.png` i
+`uf_bone_dragon/uf_bone_dragon.png`), optimitzats sense pèrdua. Cada pantalla (DM i
+jugadors) els carrega sola del lloc on s'ha obert l'app: no cal importar res.
 
 El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 `python3 scripts/oryx-manifest.py /camí/al/paquet/descomprimit` (Pillow + numpy).
@@ -73,6 +69,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 ---
 
 ## Changelog
+
+### v4.40 — Sprites inclosos a l'app
+- **Els fulls del paquet Oryx venen amb l'app** (`public/sprites/`, PNG optimitzats sense pèrdua: de 970 KB a 414 KB amb els mateixos píxels). El DM i totes les pantalles de jugador els carreguen sols; ja no cal carregar el `.zip`.
+- El paquet ja no viatja per WebSocket (`spritePack`, `packId`) ni es desa a IndexedDB; fora la importació per `.zip`.
+- Si l'app es publica dins d'una subcarpeta, `NEXT_PUBLIC_BASE_PATH` en fixa la base (també per als sprites).
 
 ### v4.39 — App Píxel: correccions
 - **Parets com les de l'autor**: la paret de baix d'una sala fa la mateixa cara que la de dalt. La regla s'ha comprovat casella a casella contra els cinc mapes d'exemple del paquet.

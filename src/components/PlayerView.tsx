@@ -22,7 +22,7 @@ import { camToView, mediaSize, viewRect } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle } from '@/types';
-import { ensurePack, applyPackDataUrls, getPack } from '@/lib/sprites/pack';
+import { ensurePack } from '@/lib/sprites/pack';
 import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -159,16 +159,6 @@ export function PlayerView() {
   const rAppStyle      = useRef<AppStyle>('classic');
   const rTileLive      = useRef<TileLive | null>(null);
   const [pixel, setPixel] = useState(false);
-  // App Píxel sense paquet (una tablet que no el pot llegir d'enlloc): es demana al DM una
-  // sola vegada per WS. Abans el DM l'enviava sencer a cada PLAYER_READY i a cada canvi d'app.
-  const packAskedRef = useRef(false);
-  const askPackOnce = useCallback(() => {
-    if (packAskedRef.current) return;
-    packAskedRef.current = true;
-    void ensurePack().then(() => {
-      if (getPack().status !== 'ready') wsRef.current?.send(JSON.stringify({ type: 'PLAYER_READY', packId: null }));
-    });
-  }, []);
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
   // Enquadrament del DM en coordenades de MAPA. És l'autoritat de la càmera: cada frame
@@ -401,7 +391,7 @@ export function PlayerView() {
     const oc = document.createElement('canvas');
     oc.width = 1; oc.height = 1;
     drawCanvasRef.current = oc;
-    // Paquet de sprites: el del mateix navegador o de `/oryx/`; si no n'hi ha, l'envia el DM.
+    // Paquet de sprites: els fulls de `public/sprites/`, del mateix lloc que l'app.
     void ensurePack().then(() => refreshTurnBanner());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -479,9 +469,8 @@ export function PlayerView() {
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
-        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); if (msg.appStyle === 'pixel') askPackOnce(); }
+        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
-        if (msg.spritePack) void applyPackDataUrls(msg.spritePack).then(refreshTurnBanner);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
@@ -614,9 +603,8 @@ export function PlayerView() {
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
-        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); if (msg.appStyle === 'pixel') askPackOnce(); }
+        if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
-        if (msg.spritePack) void applyPackDataUrls(msg.spritePack).then(refreshTurnBanner);
         if (msg.dmPreviewActive !== undefined) {
           rDMPreviewActive.current = msg.dmPreviewActive;
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
@@ -843,9 +831,7 @@ export function PlayerView() {
       // (i no just després de crear el socket, quan encara està CONNECTING i
       // send() el descartaria) garanteix que el DM rep PLAYER_READY i respon
       // amb l'estat complet (BG + STRUCT).
-      // `packId`: quin paquet de sprites té aquesta pantalla (null = cap). El DM només li
-      // envia els fulls (1,3 MB) si no té el mateix (app Píxel).
-      ws.send(JSON.stringify({ type: 'PLAYER_READY', packId: getPack().id }));
+      ws.send(JSON.stringify({ type: 'PLAYER_READY' }));
       _reportViewport();
     }, (st) => {
       setConn(st);

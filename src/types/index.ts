@@ -366,9 +366,6 @@ export interface BCStateMessage {
   appStyle?: AppStyle;
   // Parts vives del mapa de caselles (aigua, torxes, portes): camp pesat (per referència).
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
-  // Fulls del paquet de sprites (dataURL), només quan una pantalla demana l'estat complet i
-  // no els pot llegir ella mateixa (veure `lib/sprites/pack.ts`).
-  spritePack?: { id: string; sheets: Record<string, string> };
 }
 
 export interface BCStructMessage {

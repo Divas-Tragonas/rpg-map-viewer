@@ -22,6 +22,9 @@ function lanHosts(): string[] {
 }
 
 const nextConfig: NextConfig = {
+  // Base de l'app si es publica dins d'una subcarpeta. Els fitxers de `public/` que es
+  // carreguen a mà (els fulls de `public/sprites/`) la llegeixen de la mateixa variable.
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || undefined,
   // IPs LAN del PC del DM, perquè el HUD (xip de pantalles) pugui dir quina adreça cal obrir
   // a la tablet. Només es fan servir si el DM obre l'app per localhost (veure `playerUrls`
   // a CanvasHUD): en un desplegament serien les IPs de la màquina que ha fet el build.

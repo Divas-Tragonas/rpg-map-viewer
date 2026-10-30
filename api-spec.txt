@@ -173,15 +173,12 @@ més dins d'un missatge que ja es reenvia opac. Igual el camp `spellPreview`
 vegin el radi): viatja dins del STATE, throttled a ~20 Hz mentre s'apunta.
 
 Tampoc no han calgut canvis per a l'app Píxel (v4.38): els camps `appStyle`
-('classic' | 'pixel'), `tileLive` (parts animades del mapa de caselles) i
-`spritePack` ({ id, sheets: { nom: dataURL } }) viatgen dins del STATE. `spritePack`
-només l'envia el DM per WS en rebre un PLAYER_READY amb l'app Píxel, i pot pesar
-~1,7 MB: el servidor no ha de limitar la mida dels missatges per sota d'això (la
-llibreria `ws` admet 100 MB per defecte).
+('classic' | 'pixel') i `tileLive` (parts animades del mapa de caselles) viatgen
+dins del STATE.
 
-Des de la v4.39 el PLAYER_READY pot portar `packId` (string | null): el paquet que té
-aquella pantalla. El DM només li envia `spritePack` si no coincideix amb el seu. El
-servidor ja reenvia el PLAYER_READY sencer al DM (`sendToDM(raw)`): cap canvi.
+Des de la v4.40 els sprites són a l'app (`public/sprites/`) i cada pantalla els
+carrega del mateix lloc: el camp `spritePack` del STATE i el `packId` del
+PLAYER_READY (v4.38–v4.39) ja no s'envien.
 
 Per verificar el contracte del relay: `node scripts/check-sync.mjs [ws://host:3000] [SYNC_KEY]`
 

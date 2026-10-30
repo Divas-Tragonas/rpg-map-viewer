@@ -217,7 +217,7 @@ src/
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
 │   ├── enemy-groups.ts     # groupEnemies / distinctValues / apiSupportsGroups (projecte i categoria)
-│   ├── sprites/            # App Píxel: paquet Oryx (pack.ts: d'on surten els fulls; zip.ts; draw.ts; manifest.ts GENERAT; portrait.ts)
+│   ├── sprites/            # App Píxel: paquet Oryx (pack.ts: carrega els fulls de public/sprites/; draw.ts; manifest.ts GENERAT; portrait.ts)
 │   ├── tilemap/            # App Píxel: mapa de caselles (model, palette, editor, render/cuinat, geometry → parets, tmx)
 │   ├── rooms/
 │   │   ├── detect.ts       # detectRooms + reconcileRooms (cares del graf de parets)
@@ -385,7 +385,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `VIEWPORT` | Jugador→DM | Mida del canvas d'aquella pantalla (`{id,w,h}`). El DM en fa la llista del menú de pantalles de la barra superior |
 | `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
-| `STATE.appStyle` / `STATE.tileLive` / `STATE.spritePack` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat, `spritePack` (fulls en dataURL) només en respondre a un `PLAYER_READY` per WS |
+| `STATE.appStyle` / `STATE.tileLive` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat. Els sprites NO viatgen: cada pantalla els carrega de `public/sprites/` |
 | `RESET_EXPLORED` | DM→Jugador | Reset de la memòria d'explorat d'una sala (torna a ser negra del tot). Porta el polígon `points`; DM i jugador criden `clearExploredAt(points)` a `darkrooms.ts` |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
@@ -440,8 +440,8 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ### App Píxel (Clàssica · Píxel) — `src/lib/sprites/`, `src/lib/tilemap/`
 - **Interruptor «Clàssica · Píxel»** (`AppSwitch` a `TopBar`, estat `pixel` amb `useStoredFlag('rpg_pixel')`, ref `R.rAppStyle`). És un canvi d'«app» sobre la mateixa partida: com es pinta i quines eines hi ha. Viatja al jugador dins de cada `STATE` (`appStyle`, lleuger) i es desa a la partida. A la Clàssica no canvia res respecte de la v4.37.
-- ⚠️ **Llicència: els sprites (Oryx «Ultimate Fantasy») NO van al repositori ni a `public/`** (el repo i Vercel són públics; servir-los seria redistribuir-los). `lib/sprites/pack.ts` els busca, en ordre: **IndexedDB** (`rpg-sprites`, on els desa el DM en carregar el `.zip` original) → **`/oryx/`** (`public/oryx/`, carpeta local que `.gitignore` exclou) → **el DM** (fulls en dataURL dins d'un `STATE` per WS). Les pantalles del mateix PC llegeixen el mateix IndexedDB. Mai afegir cap PNG del paquet al repo.
-  - **El DM només envia el paquet (1,3 MB) a qui no el té**: cada `PLAYER_READY` porta `packId` (el del paquet d'aquella pantalla, o `null`) i `sendPackToPlayers` no envia res si coincideix amb el seu. Una pantalla que rep `appStyle: 'pixel'` sense paquet el demana **un sol cop** (`askPackOnce` a `PlayerView`: un `PLAYER_READY` amb `packId: null`). La API reenvia el `PLAYER_READY` sencer al DM, o sigui que el camp hi arriba sense tocar-la. Abans s'enviava a cada `PLAYER_READY` i a cada canvi d'app.
+- **Els sprites (Oryx «Ultimate Fantasy») són al repositori, a `public/sprites/`** (des de la v4.40, decisió del propietari del repo). Només hi van els fulls de `SHEET_FILES` (res més del `.zip`), passats per `oxipng` sense pèrdua (mateixos píxels RGBA). `ensurePack()` (`lib/sprites/pack.ts`) els carrega amb `<img>` de `SPRITES_URL` (= `NEXT_PUBLIC_BASE_PATH` + `/sprites/`; la mateixa variable fixa el `basePath` de `next.config.ts`), un sol cop per pàgina, al DM i a cada pantalla de jugador. Si falten els obligatoris (`heroes`, `terrain`), `status: 'error'` i es torna a provar a la crida següent.
+  - **El paquet ja no viatja ni es desa**: fora l'IndexedDB `rpg-sprites`, la importació per `.zip`, la carpeta `public/oryx/` i el camp `spritePack`/`packId` (v4.38–v4.39). Un full nou: afegir-lo a `SHEET_FILES` i el PNG a `public/sprites/`.
 - **Manifest** (`lib/sprites/manifest.ts`, GENERAT amb `scripts/oryx-manifest.py`): només noms i coordenades (criatures, objectes, peces de retrat). El terreny i els efectes es referencien per posició a la graella del full (`palette.ts`, `pixelspells.ts`).
 - **Dibuix**: `blit` (`lib/sprites/draw.ts`) amb `imageSmoothingEnabled = false` sempre; el fons DOM porta `image-rendering: pixelated` a l'app Píxel (DM i jugador). `grayCreature` (derrotats) es fa amb `getImageData`, no amb `ctx.filter` (Safari).
 - **Tokens** (`drawPixelFigure` a `render/tokens.ts`): si l'app és Píxel, el paquet hi és i el token té `sprite` (Player, LibEnemy, PsdEnemyOverride), es pinta la figureta en lloc del disc; nom, vida i estats es pinten igual. Sense `sprite` → disc de sempre.
@@ -947,7 +947,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Camp numèric que aplica el valor a cada tecla | Esborrar el número per escriure'n un altre deixa el token a 0 (i s'envia un `STATE` per tecla) | Aplicar en confirmar (Enter o perdre el focus), com `NumField` a `TokenFields` |
 | Dades d'un token repartides (un camp al panell, un altre al menú…) | L'usuari no sap on es canvia cada cosa | Tot el que és d'un token, al menú del clic dret (`TokenFields`) |
 | Tancar un menú amb un camp a mig editar sense treure'n el focus | El valor escrit es perd (el camp es desmunta sense rebre el `blur`) | `blurActive()` abans de tancar, com `ContextMenuOverlay` |
-| Afegir un PNG del paquet Oryx al repo o a `public/` (fora de `public/oryx/`) | Redistribució d'uns gràfics amb llicència (repo i Vercel públics) | Els fulls es carreguen en temps d'execució (`lib/sprites/pack.ts`) |
+| Carregar un fitxer de `public/` amb un camí absolut escrit a mà (`/sprites/…`) | Es trenca si l'app es publica dins d'una subcarpeta | Prefixar amb `NEXT_PUBLIC_BASE_PATH` (veure `SPRITES_URL` a `lib/sprites/pack.ts`) |
 | Pintar sprites amb el suavitzat encès | Pixel art borrós | `blit()` (apaga `imageSmoothingEnabled`) i `image-rendering: pixelated` al DOM |
 | Rebre un `SPELL` dues vegades (BC i WS) | La màgia es pinta doble a la pantalla de jugador (només amb la API engegada) | El handler del jugador descarta un `SPELL` amb un `id` que ja té |
 | Animar al `tileLive` una casella amb coses a sobre | L'aigua animada tapa la vora, la paret o l'objecte | `tileLiveOf` només anima les caselles d'aigua lliures |

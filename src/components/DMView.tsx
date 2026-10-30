@@ -54,7 +54,7 @@ import { useTileMap } from '@/hooks/useTileMap';
 import { TilePalette } from '@/components/dm/TilePalette';
 import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
 import { useSpritePack } from '@/hooks/useSpritePack';
-import { ensurePack, packDataUrls, importPackZip } from '@/lib/sprites/pack';
+import { ensurePack } from '@/lib/sprites/pack';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import type { TileBrush } from '@/lib/tilemap/editor';
 import { PixelSwordIcon, TilesIcon } from '@/components/icons';
@@ -151,7 +151,6 @@ export function DMView() {
   const psdInputRef = React.useRef<HTMLInputElement>(null);
   const sessionInputRef = React.useRef<HTMLInputElement>(null);
   const tmxInputRef = React.useRef<HTMLInputElement>(null);
-  const zipInputRef = React.useRef<HTMLInputElement>(null);
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
   const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
@@ -327,20 +326,8 @@ export function DMView() {
 
 
   // ── App Píxel ──────────────────────────────────────────────────────────────
-  // El paquet de sprites es busca un sol cop (IndexedDB o la carpeta local `public/oryx`).
+  // Els fulls del paquet de sprites són a `public/sprites/`: cada pantalla els carrega sola.
   useEffect(() => { void ensurePack(); }, []);
-  // Fulls del paquet per a les pantalles de jugador que no els poden llegir elles mateixes
-  // (una tablet per wifi): van per WebSocket dins d'un STATE (la API el reenvia opac). Les
-  // del mateix ordinador ja els llegeixen d'IndexedDB o de `/oryx/`.
-  // Només a la pantalla que el demana (PLAYER_READY amb un `packId` diferent del nostre) i
-  // amb l'app Píxel: són 1,3 MB, i abans s'enviaven a cada PLAYER_READY i a cada canvi d'app.
-  const sendPackToPlayers = useCallback(async (theirId: string | null | undefined) => {
-    if (R.rAppStyle.current !== 'pixel') return;
-    const p = await packDataUrls(); if (!p || theirId === p.id) return;
-    R.wsRef.current?.send(JSON.stringify({ type: 'STATE', spritePack: p, appStyle: 'pixel' }));
-  }, [R]);
-  const packResendRef = React.useRef<(theirId: string | null | undefined) => void>(() => {});
-  useEffect(() => { packResendRef.current = id => { void sendPackToPlayers(id); }; }, [sendPackToPlayers]);
   // L'estil viatja dins de cada STATE: canviar d'app ho canvia també a les pantalles de jugador.
   useEffect(() => {
     R.rAppStyle.current = pixel ? 'pixel' : 'classic';
@@ -787,14 +774,11 @@ export function DMView() {
   // ── WebSocket setup (network sync for cross-device iPad/player) ───────────
   useEffect(() => {
     const ws = createSyncSocket('dm', (ev) => {
-      let msg: { type: string; id?: number | string; x?: number; y?: number; w?: number; h?: number; packId?: string | null };
+      let msg: { type: string; id?: number | string; x?: number; y?: number; w?: number; h?: number };
       try { msg = JSON.parse(ev.data as string); } catch { return; }
       if (msg.type === 'PLAYER_READY') {
-        // Una pantalla que demana només el paquet (app Píxel sense fulls) també envia
-        // PLAYER_READY: l'estat complet no fa mal i així no cal cap tipus nou a la API.
         _sendFullState();
         trResendShowRef.current();
-        if ('packId' in msg) packResendRef.current(msg.packId);
       } else if (msg.type === 'VIEWPORT' && msg.id !== undefined && msg.w && msg.h) {
         _registerScreen(String(msg.id), msg.w, msg.h);
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
@@ -1065,7 +1049,6 @@ export function DMView() {
 
   const loadAnyFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
-    if (name.endsWith('.zip')) { void importPackZip(f).then(ok => { if (ok) setPixel(true); }); return; }
     if (name.endsWith('.tmx')) { setPixel(true); void openTmx(f); return; }
     if (name.endsWith('.psd')) void openPsd(f);
     else if (name.endsWith('.json')) void openSession(f);
@@ -1810,23 +1793,10 @@ export function DMView() {
               {/* App Píxel: el mapa es pinta a casella (o s'importa de Tiled). */}
               {pixel && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 18 }}>
-                  {pack.status === 'ready' ? (
-                    <>
-                      <Button variant="primary" size="lg" onClick={() => void openTileMap(32, 22)} style={{ gap: 8, minWidth: 348 }}>
-                        <TilesIcon size={15} /> Crear un mapa de caselles
-                      </Button>
-                      <button onClick={() => tmxInputRef.current?.click()} style={welcomeLink}>Importar un mapa de Tiled (.tmx)</button>
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="primary" size="lg" onClick={() => zipInputRef.current?.click()} style={{ gap: 8, minWidth: 348 }}>
-                        <PixelSwordIcon size={15} /> Carregar el paquet de sprites (.zip)
-                      </Button>
-                      <div style={{ fontSize: FS.xs, opacity: 0.75, lineHeight: 1.5, maxWidth: 360 }}>
-                        El .zip d&apos;Oryx tal com el vas comprar. Es desa en aquest navegador i no es puja enlloc.
-                      </div>
-                    </>
-                  )}
+                  <Button variant="primary" size="lg" disabled={pack.status !== 'ready'} onClick={() => void openTileMap(32, 22)} style={{ gap: 8, minWidth: 348 }}>
+                    <TilesIcon size={15} /> {pack.status === 'ready' ? 'Crear un mapa de caselles' : pack.status === 'error' ? 'No s\'han pogut carregar els sprites' : 'Carregant els sprites…'}
+                  </Button>
+                  <button onClick={() => tmxInputRef.current?.click()} disabled={pack.status !== 'ready'} style={welcomeLink}>Importar un mapa de Tiled (.tmx)</button>
                 </div>
               )}
 
@@ -1877,8 +1847,6 @@ export function DMView() {
               onChange={e => { const f = e.target.files?.[0]; if (f) void openSession(f); e.target.value = ''; }} />
             <input ref={tmxInputRef} type="file" accept=".tmx" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; if (f) void openTmx(f); e.target.value = ''; }} />
-            <input ref={zipInputRef} type="file" accept=".zip,application/zip" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) loadAnyFile(f); e.target.value = ''; }} />
           </div>
         )}
 
@@ -1888,7 +1856,7 @@ export function DMView() {
             <div style={{ background: C.float, border: `1px solid ${C.accent}`, borderRadius: RADIUS.lg, padding: '12px 18px', color: C.bright, fontSize: FS.lg, fontWeight: 700, textAlign: 'center' }}>
               Deixa anar per carregar-lo
               <div style={{ fontSize: FS.sm, color: C.dim, fontWeight: 500, marginTop: 4 }}>
-                Imatge o vídeo → mapa{bgLoaded ? ' (substitueix l\'actual)' : ''} · .psd → capes · .json → partida · .tmx → caselles · .zip → sprites
+                Imatge o vídeo → mapa{bgLoaded ? ' (substitueix l\'actual)' : ''} · .psd → capes · .json → partida · .tmx → caselles
               </div>
             </div>
           </div>
