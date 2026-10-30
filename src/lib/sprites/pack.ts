@@ -78,7 +78,7 @@ export const getFigureGrade = () => current;
 export function setFigureGrade(g: FigureGrade | null | undefined) {
   current = g ?? null;
   const on = g && !g.off ? g : null;
-  const key = on ? JSON.stringify([on.sat, on.warm, on.gain, on.ink]) : '';
+  const key = on ? JSON.stringify([on.sat, on.warm, on.gain, on.ink, on.shadow ?? 0]) : '';
   if (key === gradeKey) return;
   grade = on; gradeKey = key; _graded.clear();
   emit({ ...state });  // la UI torna a fer les miniatures
@@ -100,8 +100,28 @@ function gradeSheet(img: SheetImage, g: FigureGrade): HTMLCanvasElement {
       px[i + k] = Math.round(Math.min(1, ink[k] + v * (1 - ink[k])) * 255);  // els negres passen a la tinta
     }
   }
+  if (g.shadow) dropShadow(px, c.width, c.height, g.shadow);
   ctx.putImageData(d, 0, 0);
   return c;
+}
+
+// Ombra de la figureta cap a baix a la dreta (2 píxels d'art = 4 px del full), dins de la seva
+// casella de 48 px: la mateixa direcció de llum que el mapa. Els píxels semitransparents (l'ombra
+// del terra que porta el full) no fan ombra; i on ja hi ha ombra més fosca, es queda la més fosca.
+const SHADOW_RGB = [34, 30, 18], SHADOW_D = 4, CELL = 48;
+function dropShadow(px: Uint8ClampedArray, w: number, h: number, alpha: number) {
+  const a = Math.round(alpha * 255);
+  const solid = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) solid[i] = px[i * 4 + 3] >= 200 ? 1 : 0;
+  for (let y = 0; y < h; y++) {
+    if (y % CELL < SHADOW_D) continue;
+    for (let x = 0; x < w; x++) {
+      if (x % CELL < SHADOW_D) continue;
+      const i = y * w + x;
+      if (solid[i] || !solid[(y - SHADOW_D) * w + x - SHADOW_D] || px[i * 4 + 3] >= a) continue;
+      px[i * 4] = SHADOW_RGB[0]; px[i * 4 + 1] = SHADOW_RGB[1]; px[i * 4 + 2] = SHADOW_RGB[2]; px[i * 4 + 3] = a;
+    }
+  }
 }
 export function packReady() { return state.status === 'ready'; }
 

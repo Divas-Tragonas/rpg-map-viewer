@@ -34,9 +34,11 @@ export const MISSIONS: Mission[] = [
     cell: 48,
     // Al camí, al sud del pou.
     party: [[17, 13], [18, 13], [16, 14], [17, 14], [18, 14]],
-    // Mesurat amb les figuretes damunt del mapa: menys saturació, cap al to càlid de
-    // l'aquarel·la i els negres a la tinta del mapa (`INK` de `scripts/oryx-village.py`).
-    figureGrade: { sat: 0.6, warm: [1, 0.97, 0.85], gain: 0.95, ink: [44, 36, 24] },
+    // Mesurat amb les figuretes damunt del mapa: una mica menys saturades i cap al to càlid de
+    // l'aquarel·la, però més clares que el mapa, amb els negres a la tinta del mapa (`INK` de
+    // `scripts/oryx-village.py`) i l'ombra cap a baix a la dreta que fan els arbres i les cases.
+    // Amb l'ajust de la v4.53 (sat 0,6, guany 0,95 i sense ombra) es barrejaven amb el camí.
+    figureGrade: { sat: 0.85, warm: [1, 0.98, 0.92], gain: 1.08, ink: [44, 36, 24], shadow: 0.55 },
   },
 ];
 
@@ -61,7 +63,10 @@ export function missionState(m: Mission, bg: Blob): Record<string, unknown> {
   return {
     bgBlob: bg, bgName: `${m.name}.png`,
     players, pos, tokenSizeOverride: sizes,
-    gridSize: m.cell, gridOriginX: 0, gridOriginY: 0, gridSnap: true, gridVisible: false, gridLineWidth: 1,
+    // La graella del mapa (una casella = 5 ft), visible, amb els tokens ajustats a la casella i
+    // els enemics que s'afegeixin de la biblioteca també a la mida de la casella.
+    gridSize: m.cell, gridOriginX: 0, gridOriginY: 0, gridSnap: true, gridVisible: true, gridLineWidth: 1,
+    gridAutoSize: true,
     zoom: 1, panOffset: { x: 0, y: 0 },
     vis: {}, conditions: {}, defeated: {}, paintedZones: [], strokeHistory: [],
     libEnemies: [], walls: [], rooms: [], doors: [], lights: [], turn: NO_TURN,

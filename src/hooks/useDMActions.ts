@@ -727,6 +727,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       strokeBaseline: _strokeBaseline(),
       gridVisible: rGridVisible.current, gridSize: rGridSize.current, gridSnap: rGridSnap.current,
       gridLineWidth: rGridLineWidth.current, gridOriginX: rGridOriginX.current, gridOriginY: rGridOriginY.current,
+      // Tokens a la mida de la casella: sense això, carregar la partida (o obrir una missió) i
+      // afegir un enemic de la biblioteca el posava amb la mida de la plantilla.
+      gridAutoSize: rGridAutoSize.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
       walls: rWalls.current, rooms: rRooms.current, doors: rDoors.current, lights: rLights.current,
@@ -864,6 +867,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.gridLineWidth !== undefined){ rGridLineWidth.current = state.gridLineWidth; S.setGridLineWidth(state.gridLineWidth); }
       if (state.gridOriginX !== undefined)  { rGridOriginX.current = state.gridOriginX; S.setGridOriginX(state.gridOriginX); }
       if (state.gridOriginY !== undefined)  { rGridOriginY.current = state.gridOriginY; S.setGridOriginY(state.gridOriginY); }
+      if (state.gridAutoSize !== undefined) { rGridAutoSize.current = !!state.gridAutoSize; S.setGridAutoSize(!!state.gridAutoSize); }
       if (state.tokenSizeOverride) { rTokenSizeOverride.current = state.tokenSizeOverride; S.setTokenSizeOverride(state.tokenSizeOverride); }
       if (state.libEnemies)    { rLibEnemies.current = state.libEnemies; S.setLibEnemies(state.libEnemies); }
       if (state.walls)         { rWalls.current = state.walls; S.setWalls(state.walls); }

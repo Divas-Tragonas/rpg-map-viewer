@@ -70,6 +70,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.55 — Figuretes que destaquen i graella de la missió
+- **Les figuretes destaquen sobre el mapa de Conyberry**: l'ajust de color és més viu (menys apagat que abans) i cada figureta fa una ombra cap a baix a la dreta, com els arbres i les cases. No és cap contorn.
+- **La missió obre amb la graella bona**: casella de 48 px (5 ft) visible i, en afegir un enemic de la Biblioteca, surt a la mida de la casella i hi encaixa.
+- La partida desa també si els tokens s'ajusten a la mida de la casella (abans es perdia en carregar-la).
+
 ### v4.54 — Poble sense contorns i arbres orgànics
 - **Res de contorns** a les peces del full de poble (arbres, roques, cases, tanques, murs, pou, barca i moll), com el paquet: la forma la fa el to fosc del seu propi color a la banda de l'ombra. Ara lliguen amb les figuretes.
 - **Arbres nous**: grups de fulles repartits a l'atzar, de mides diferents i solapats, amb la textura de fulles de la bardissa del paquet. Ja no és una graella de boles que es veia falsa.

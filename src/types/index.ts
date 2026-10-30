@@ -96,6 +96,11 @@ export interface FigureGrade {
   warm: [number, number, number];
   gain: number;
   ink: [number, number, number];
+  /**
+   * Opacitat (0..1) de l'ombra que cada figureta fa cap a baix a la dreta, com els arbres i les
+   * cases del mapa. És el que les fa destacar del fons sense posar-los cap contorn.
+   */
+  shadow?: number;
   off?: boolean;
 }
 
