@@ -170,6 +170,11 @@ export function PlayerView() {
   const visualZoomRef = useRef(1);
   const visualPanRef  = useRef({ x: 0, y: 0 });
   const visualPosRef  = useRef<PosMap>({});
+  // Pantalla incrustada (`/player?embed=1`): el tauler de missions de la wiki la posa dins d'un
+  // iframe i hi fa l'onada que transforma el mapa pintat en el de píxel. `fit` = ensenyar el
+  // mapa sencer (com la imatge de l'onada) en lloc de la càmera del DM; `glide` = anar d'un a
+  // l'altre lent. Veure l'efecte de sota i el tick.
+  const embedRef      = useRef({ on: false, fit: false, glide: false });
   const roomAnimRef   = useRef<Record<string, number>>({});
   const zoneAppearRef = useRef<Record<string, number>>({});
 
@@ -965,12 +970,20 @@ export function PlayerView() {
       // La cinemàtica de boss té prioritat sobre la càmera d'un diàleg.
       const cinRect = cinematicCamRef.current.rect ?? dialogHostRef.current?.cam ?? null;
       const cinView = cinRect ? camToView(cinRect, W, H, mw, mh) : null;
-      const _tgtZ   = cinView ? cinView.zoom : rZoom.current;
-      const _tgtPan = cinView ? cinView.pan  : rPanOffset.current;
+      // Incrustada a la wiki: mentre la wiki hi fa l'onada, el mapa sencer (zoom 1, sense pan),
+      // tal com és la imatge de l'onada. Entrar-hi i sortir-ne llisca lent (`glide`).
+      const em = embedRef.current;
+      const fitMap = em.fit && !cinView;
+      const _tgtZ   = fitMap ? 1 : cinView ? cinView.zoom : rZoom.current;
+      const _tgtPan = fitMap ? { x: 0, y: 0 } : cinView ? cinView.pan  : rPanOffset.current;
       const dzP = _tgtZ - visualZoomRef.current;
       const dxP = _tgtPan.x - visualPanRef.current.x;
       const dyP = _tgtPan.y - visualPanRef.current.y;
-      if (cinView) {
+      if (em.glide && !cinView) {
+        if (Math.abs(dzP) < 0.002 && Math.abs(dxP) < 0.5 && Math.abs(dyP) < 0.5) {
+          visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y; em.glide = false;
+        } else { visualZoomRef.current += dzP * 0.04; visualPanRef.current.x += dxP * 0.04; visualPanRef.current.y += dyP * 0.04; }
+      } else if (cinView) {
         if (Math.abs(dzP) < 0.0005 && Math.abs(dxP) < 0.3 && Math.abs(dyP) < 0.3) {
           visualZoomRef.current = _tgtZ; visualPanRef.current.x = _tgtPan.x; visualPanRef.current.y = _tgtPan.y;
         } else { visualZoomRef.current += dzP * 0.032; visualPanRef.current.x += dxP * 0.032; visualPanRef.current.y += dyP * 0.032; }
@@ -1127,6 +1140,29 @@ export function PlayerView() {
     rafRef.current = requestAnimationFrame(tick);
     return () => { alive = false; cancelAnimationFrame(rafRef.current); };
   }, []);
+
+  // Incrustada a la wiki: `?fit=1` comença amb el mapa sencer i la wiki diu quan cal seguir el DM
+  // (`{ rpg: 'embed', fit }`). La pantalla li diu si ja té mapa i com va la connexió. Res d'això
+  // va al DM: per a ell és una pantalla de jugador més.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('embed') !== '1' || window.parent === window) return;
+    const em = embedRef.current;
+    em.on = true; em.fit = q.get('fit') === '1';
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== window.parent) return;
+      const d = e.data as { rpg?: string; fit?: unknown } | null;
+      if (d?.rpg !== 'embed' || typeof d.fit !== 'boolean') return;
+      if (em.fit !== d.fit) em.glide = true;
+      em.fit = d.fit;
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  useEffect(() => {
+    if (!embedRef.current.on) return;
+    window.parent.postMessage({ rpg: 'player', ready: playerReady, conn: conn.status }, '*');
+  }, [playerReady, conn.status]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

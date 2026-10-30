@@ -70,6 +70,12 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.56 — La pantalla de jugador dins del tauler de missions de la wiki
+- **Cony Cirera en píxel des de la wiki.** Al tauler de missions de Cony Cirera, en mode DM, el botó «Mapa en píxel» (o la tecla P) transforma el mapa pintat en el del visor amb una onada de caselles que s'aixequen i giren. Després hi entra la pantalla de jugador en directe, s'eixampla a tota la pantalla i segueix la teva càmera. Esc torna al tauler amb l'onada al revés.
+- **Com cal tenir-ho**: el visor obert en mode DM amb la missió de Cony Cirera i la seva API engegada (la pantalla de la wiki s'hi connecta pel WebSocket, com la tauleta). L'adreça del visor es canvia al botó «Visor» del mode DM del tauler (per defecte `http://localhost:3001`).
+- **Pantalla incrustada** (`/player?embed=1`): pot ensenyar el mapa sencer mentre la wiki hi fa l'onada i lliscar lent fins a la càmera del DM, i li diu a la wiki si ja té el mapa i com va la connexió.
+- La missió «Conyberry» ara es diu **Cony Cirera**, com a la wiki.
+
 ### v4.55 — Figuretes que destaquen i graella de la missió
 - **Les figuretes destaquen sobre el mapa de Conyberry**: l'ajust de color és més viu (menys apagat que abans) i cada figureta fa una ombra cap a baix a la dreta, com els arbres i les cases. No és cap contorn.
 - **La missió obre amb la graella bona**: casella de 48 px (5 ft) visible i, en afegir un enemic de la Biblioteca, surt a la mida de la casella i hi encaixa.

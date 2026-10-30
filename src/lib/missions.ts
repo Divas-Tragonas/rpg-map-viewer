@@ -28,7 +28,7 @@ export interface Mission {
 export const MISSIONS: Mission[] = [
   {
     id: 'conyberry',
-    name: 'Conyberry',
+    name: 'Cony Cirera',
     subtitle: 'El poble abandonat del llac',
     map: 'missions/conyberry/mapa.png',
     cell: 48,

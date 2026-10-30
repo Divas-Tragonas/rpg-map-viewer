@@ -152,6 +152,7 @@ Sempre que es detecti o implementi un canvi a la API, actualitzar `api-spec.txt`
 |---|---|---|
 | `/` | `DMView` | Vista del Dungeon Master (pantalla principal) |
 | `/player` | `PlayerView` | Vista del jugador (pantalla secundària) |
+| `/player?embed=1` | `PlayerView` | La mateixa, incrustada al tauler de missions de la wiki (veure «Pantalla de jugador dins de la wiki») |
 | `/expositor` | `ExpositorPage` | **Visor local** per a un monitor de recanvi: obres un fitxer a mà i es veu a pantalla completa. **No és l'Expositor del DM** (no rep res del BC ni del WS) |
 
 ---
@@ -495,12 +496,21 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 
 ### Missions (`src/lib/missions.ts`) — mapa preparat + colla + ajust de color
 - **Una missió és una partida feta**: `missionState(m, blob)` retorna l'estat en el format de la partida (fons com a `bgBlob`, graella, colla de `DEFAULT_PARTY` a les caselles de `m.party`, tot el que no és de la missió buit) i `openMission` (`DMView`) el carrega amb `applySessionState`, posa l'app Píxel i el mode Jugar. Així desar, desat automàtic i sincronització funcionen sense res de nou. Entrades: «Missió · …» a la pantalla de benvinguda i secció «Missions» del menú **Partida**.
+- La missió `conyberry` es diu **Cony Cirera** (el nom de la wiki); l'`id` i la carpeta es queden igual perquè la wiki hi apunta (`missions/conyberry/mapa.png`).
 - **De moment al repositori** (decisió del propietari: més endavant aniran al back office): el mapa és `public/missions/<id>/mapa.png`, generat amb `scripts/mission-<id>.py` (Conyberry: disposició a mà dins del script —`GRID` de caràcters, murs, tanques, cases en px d'art, pou, barca, roques, arbres— amb el full de poble). Una missió nova: script + PNG + entrada a `MISSIONS`.
 - **Ajust de color de les figuretes** (`FigureGrade` a `types`; `setFigureGrade`/`getFigureGrade` a `lib/sprites/pack.ts`): el paquet és molt saturat i sobre un mapa de tons apagats «canta». `sheet(id)` retorna, per als fulls de criatures (`heroes`, `heroes_v1/v2`, `dragon`), una còpia ajustada (saturació, multiplicador càlid, guany, negres → tinta del mapa), feta **un sol cop per full** amb `getImageData` (no `ctx.filter`: Safari). ⚠️ Les memòries cau per figureta (`_gray`, `_thumbs` de `draw.ts`; `_strips` de `states.ts`) porten `figureGradeKey()` dins de la clau: una memòria cau nova de figuretes l'ha de portar també, si no es quedaria amb els colors d'abans.
   - **És del mapa, no de la UI**: viu a `pack.ts` (no en un ref del DM), es desa a la partida (`figureGrade`), `loadBg` el treu (un fons nou no en té) i `applySessionState` el torna a posar si la partida en porta. Viatja a les pantalles de jugador com a camp lleuger del `STATE` i del `STRUCT` (la API el reenvia opac: cap canvi a la API).
   - `off: true` = el mapa en té però està apagat: interruptor «Figuretes a to amb el mapa» del menú **Vista** (només surt si el mapa en porta). Afecta totes les pantalles.
   - **Ombra de les figuretes** (`FigureGrade.shadow`, v4.55; `dropShadow` a `pack.ts`): amb l'ajust, cada figureta fa una ombra de 2 píxels d'art cap a baix a la dreta (la direcció de llum del mapa), de l'opacitat que diu la missió. És el que les fa destacar del fons: amb l'ajust apagat de la v4.53 (saturació 0,6 i sense ombra) es barrejaven amb el camí. ⚠️ **No és cap contorn** (l'usuari no en vol enlloc): només hi ha ombra a la banda de l'ombra. Es fa al full ajustat, dins de cada casella de 48 px; els píxels semitransparents (l'ombra del terra del full) no en fan.
 - **Graella de la missió**: `missionState` posa la mida de la casella del mapa (`m.cell`), visible, amb els tokens ajustats a la casella i **`gridAutoSize`** encès (els enemics que s'afegeixen de la biblioteca surten a la mida de la casella). `gridAutoSize` es desa a la partida des de la v4.55 (abans es perdia en carregar-la).
+
+### Pantalla de jugador dins de la wiki (`/player?embed=1`)
+- **Per a què**: el tauler de missions de la wiki (`divas-tragonas/wiki`, `public/missions/app.js`, secció «mapa en píxel») té un botó del mode DM, «Mapa en píxel», que transforma el mapa pintat de Cony Cirera en el d'aquesta app amb una onada de caselles i hi posa a sobre aquesta pantalla de jugador en directe (iframe). El DM fa servir el visor en una altra finestra, com sempre.
+- **Sincronització**: la de sempre. Dins d'un iframe d'un altre lloc, el `BroadcastChannel` queda aïllat al Chrome de debò (particionat per lloc), o sigui que **cal la API engegada**: la pantalla hi va pel WebSocket, com la tauleta. La pàgina de la wiki és `https`, i el navegador només hi deixa entrar per `https` o per `http://localhost` (contingut mixt): des del PC del DM, `http://localhost:3001` funciona.
+- **Protocol amb la wiki** (`postMessage`, només entre la pantalla i la pàgina que la conté; res va al DM ni a la API):
+  - wiki → pantalla: `{ rpg: 'embed', fit: boolean }`. `fit` = el mapa sencer (zoom 1, sense pan), tal com és la imatge de l'onada; `false` = la càmera del DM. El canvi llisca lent (`embedRef.glide`, LERP 0,04 al tick). `?fit=1` comença amb `fit` encès.
+  - pantalla → wiki: `{ rpg: 'player', ready, conn }` cada cop que canvia si ja té mapa (`playerReady`) o l'estat del WebSocket.
+- L'encaix de l'onada depèn que el mapa de la missió i el de la wiki tinguin la mateixa proporció (1728×1200 i 4950×3431). Si es torna a generar el mapa amb una altra mida, cal canviar `pixel` de `TOWNS` a la wiki (mida i caselles).
 
 ### Finestra lateral esquerra — pestanyes per funció
 - **Escena · Mapa · Biblioteca** (`sidebarTab` a `DMView`). Abans eren «Mapa / Enemics» i els enemics vivien en dues pestanyes segons d'on sortien (els del PSD dins de l'arbre de capes, els de la biblioteca a «Enemics»): per seguir un combat calia saltar entre totes dues.
