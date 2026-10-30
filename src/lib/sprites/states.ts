@@ -56,9 +56,9 @@ const mix = (a: readonly number[], b: readonly number[], t: number) => [0, 1, 2]
 const STONE = [[48, 46, 42], [206, 200, 186]] as const;
 const POISON = [[16, 80, 28], [160, 240, 110]] as const;
 const BLOOD = [[80, 6, 10], [240, 90, 76]] as const;
-// Flaixos de `hitfx.ts`: silueta blanca (cop) o verd clar (curació).
+// Flaixos de `hitfx.ts`: silueta blanca (cop) o vermell de poció (curació).
 const WHITE = [[255, 255, 255], [255, 255, 255]] as const;
-const HEAL = [[150, 255, 170], [235, 255, 235]] as const;
+const HEAL = [[214, 34, 58], [255, 190, 198]] as const;
 const SKIN_RAMP = { stone: STONE, poison: POISON, blood: BLOOD, white: WHITE, heal: HEAL } as const;
 const hexRgb = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 

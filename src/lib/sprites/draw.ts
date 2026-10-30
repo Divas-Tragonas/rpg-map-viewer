@@ -110,6 +110,32 @@ export function grayCreature(sprite: string): HTMLCanvasElement | null {
   return c;
 }
 
+/**
+ * Retall d'un full tenyit per lluminositat amb una rampa de colors (fosc → clar): els efectes
+ * del full en gris o d'un altre color passats a la paleta d'una escola (`PAL`). Un sol cop per
+ * retall i rampa. Null mentre el full no hi és.
+ */
+const _tintedRegions = new Map<string, HTMLCanvasElement>();
+export function tintedRegion(id: SheetId, sx: number, sy: number, w: number, h: number,
+  stops: readonly (readonly number[])[]): HTMLCanvasElement | null {
+  const key = `${id}:${sx},${sy},${w},${h}:${stops.join('|')}`;
+  const hit = _tintedRegions.get(key); if (hit) return hit;
+  const img = sheet(id); if (!img) return null;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(img, sx, sy, w, h, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h);
+  for (let i = 0; i < d.data.length; i += 4) {
+    if (!d.data[i + 3]) continue;
+    const l = Math.min(0.999, (d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11) / 255) * (stops.length - 1);
+    const k = Math.floor(l), f = l - k, a = stops[k], b = stops[k + 1];
+    for (let j = 0; j < 3; j++) d.data[i + j] = a[j] + (b[j] - a[j]) * f;
+  }
+  g.putImageData(d, 0, 0);
+  _tintedRegions.set(key, c);
+  return c;
+}
+
 /** Miniatura d'una criatura en un dataURL (per a la UI: selectors, files, rètol). */
 const _thumbs = new Map<string, string>();
 export function creatureThumb(sprite: string): string | null {

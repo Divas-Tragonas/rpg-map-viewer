@@ -9,8 +9,7 @@
  * sempre: han de mostrar l'àrea de reglament.
  */
 import type { Point } from '@/types';
-import { blit } from '@/lib/sprites/draw';
-import { sheet } from '@/lib/sprites/pack';
+import { blit, tintedRegion } from '@/lib/sprites/draw';
 import { AREA_SPELL_DATA } from '@/constants';
 import { PAL, type Palette } from './fxsprites';
 
@@ -33,36 +32,18 @@ const BURST = { grey: [0, 0], ice: [5, 0], fire: [0, 1], poison: [5, 1] } as con
  * Esclats d'altres elements: l'esclat gris del full tenyit per lluminositat amb la paleta de
  * l'escola (`PAL`, la mateixa dels efectes procedurals), un sol cop per element.
  */
-const BURST_TINT = { arcane: PAL.arcane, storm: PAL.storm, radiant: PAL.radiant, charm: PAL.charm } as const;
+const BURST_TINT = { arcane: PAL.arcane, storm: PAL.storm, radiant: PAL.radiant, charm: PAL.charm, potion: PAL.potion } as const;
 type BurstKind = keyof typeof BURST | keyof typeof BURST_TINT;
-const _bursts = new Map<string, HTMLCanvasElement>();
-function tintedBurst(kind: keyof typeof BURST_TINT): HTMLCanvasElement | null {
-  const hit = _bursts.get(kind); if (hit) return hit;
-  const img = sheet('fx'); if (!img) return null;
-  const c = document.createElement('canvas'); c.width = FX * 5; c.height = FX;
-  const g = c.getContext('2d', { willReadFrequently: true })!;
-  g.drawImage(img, 0, 0, FX * 5, FX, 0, 0, FX * 5, FX);
-  const d = g.getImageData(0, 0, c.width, c.height);
-  const p: Palette = BURST_TINT[kind];
-  const stops = [p.deep, p.mid, p.light, p.white];
-  for (let i = 0; i < d.data.length; i += 4) {
-    if (!d.data[i + 3]) continue;
-    const l = Math.min(0.999, (d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11) / 255) * (stops.length - 1);
-    const k = Math.floor(l), f = l - k, a = stops[k], b = stops[k + 1];
-    for (let j = 0; j < 3; j++) d.data[i + j] = a[j] + (b[j] - a[j]) * f;
-  }
-  g.putImageData(d, 0, 0);
-  _bursts.set(kind, c);
-  return c;
-}
-type Seal = { frames: [number, number][]; ms: number; scale?: number };
+const ramp = (p: Palette) => [p.deep, p.mid, p.light, p.white];
+const tintedBurst = (kind: keyof typeof BURST_TINT) => tintedRegion('fx', 0, 0, FX * 5, FX, ramp(BURST_TINT[kind]));
+type Seal = { frames: [number, number][]; ms: number; scale?: number; /** Tenyit amb aquesta paleta. */ tint?: Palette };
 const SEAL: Record<string, Seal> = {
   stars:   { frames: [[0, 4], [1, 4]], ms: 140 },
   zzz:     { frames: [[2, 4]], ms: 400 },
   bang:    { frames: [[6, 4], [7, 4], [8, 4], [9, 4]], ms: 110 },
   shield:  { frames: [[1, 2]], ms: 400, scale: 2.2 },
   sparkle: { frames: [[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3]], ms: 90 },
-  heal:    { frames: [[6, 3], [7, 3], [8, 3], [9, 3]], ms: 120, scale: 1.4 },
+  heal:    { frames: [[6, 3], [7, 3], [8, 3], [9, 3]], ms: 120, scale: 1.4, tint: PAL.potion },  // vermell de poció
   arcane:  { frames: [[6, 2], [7, 2], [8, 2], [9, 2]], ms: 120, scale: 1.4 },
   zap:     { frames: [[0, 6], [1, 6], [2, 6], [3, 6]], ms: 70, scale: 1.4 },
   light:   { frames: [[0, 7], [1, 7], [2, 7], [3, 7], [4, 7], [5, 7]], ms: 110, scale: 1.8 },
@@ -100,7 +81,7 @@ const DEFS: Record<string, PixelSpellDef> = {
   sacred_flame:     { burst: 'radiant', seal: 'light' },
   thaumaturgy:      { burst: 'grey', seal: 'bang', onCaster: true },
   bless:            { seal: 'stars' },
-  cure_wounds:      { burst: 'poison', seal: 'heal' },
+  cure_wounds:      { burst: 'potion', seal: 'heal' },
   charm_person:     { proj: 'arcane', burst: 'charm', seal: 'arcane' },
 };
 
@@ -206,7 +187,10 @@ export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts:
       ctx.globalAlpha = fade * Math.min(1, k / 0.12);
       const bob = Math.sin(k * 5) * cell * 0.06;
       const above = def.seal === 'shield' || def.seal === 'light' || def.seal === 'target' || def.seal === 'heal' || def.seal === 'arcane' || def.seal === 'zap';
-      fx(ctx, fr[0], fr[1], at.x, at.y - (above ? 0 : cell * 0.75) + bob, size);
+      const sy = at.y - (above ? 0 : cell * 0.75) + bob;
+      const t = s.tint ? tintedRegion('fx', fr[0] * FX, fr[1] * FX, FX, FX, ramp(s.tint)) : null;
+      if (t) ctx.drawImage(t, at.x - size / 2, sy - size / 2, size, size);
+      else fx(ctx, fr[0], fr[1], at.x, sy, size);
       ctx.globalAlpha = 1;
     }
   }

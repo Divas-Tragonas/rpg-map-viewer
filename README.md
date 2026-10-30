@@ -70,6 +70,14 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.51 — Curació vermella i cops amb força
+- **La curació és vermella, com una poció** (no verda): el flaix i els anells de la figureta, la màgia Curar ferides en píxel (esclat i segell) i també la de l'app Clàssica.
+- **La força del cop es nota**, segons la vida perduda respecte de la màxima:
+  - **Lleu** (1–2 punts o ≤5%): un sol flaix, un impacte petit i una empenta mínima.
+  - **Normal**: dos flaixos i l'impacte de sempre.
+  - **Fort** (≥25% de la vida o 15 punts): tres flaixos, la figura tremola, l'impacte gran amb un esclat al darrere i gotes de sang, i l'envestida de qui ataca és més llarga.
+- **Número que puja** sobre la figura: «−N» blanc (lleu), groc (normal) o vermell i gros (fort), i «+N» vermell clar per a les curacions. Fet amb la lletra de píxel del paquet.
+
 ### v4.50 — Temes de masmorra i cops a les figuretes
 - **Temes de masmorra** per al mapa de caselles (app Píxel): **Gel**, **Volcà**, **Cripta de molsa** i **Temple daurat**. Cada tema té un joc de paret (amb pilar i portes) i un terra que es trien a la paleta com els de sempre.
   - Són els jocs de l'autor recolorits per lluminositat, de manera que la textura i les ombres es conserven.

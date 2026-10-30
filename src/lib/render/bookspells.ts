@@ -447,13 +447,13 @@ export function drawSpellBless(ctx: CanvasRenderingContext2D, pts: Point[], e: n
   end(ctx);
 }
 
-// ── Curar ferides — llum verda que puja i una creu que brilla ────────────────
+// ── Curar ferides — llum vermella de poció que puja i una creu que brilla ────
 
 export const CURE_WOUNDS_DUR = 2.2;
 
 export function drawSpellCureWounds(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.life, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.potion, cell = fxCell(sc, gridSize), px = 1 / sc;
   const a = fadeIO(e, CURE_WOUNDS_DUR, 0.15, 0.7);
   begin(ctx);
   impactBurst(ctx, B.x, B.y, cell * 0.4, P, e / 0.5, seed, px);

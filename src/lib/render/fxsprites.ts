@@ -204,6 +204,8 @@ export const PAL = {
   storm:  { white: [245, 248, 255], light: [170, 200, 255], mid: [100, 140, 255], deep: [50, 70, 220] },
   radiant:{ white: [255, 252, 235], light: [255, 232, 150], mid: [255, 200, 70],  deep: [210, 140, 20] },
   life:   { white: [240, 255, 240], light: [150, 245, 170], mid: [60, 210, 110],  deep: [20, 140, 70] },
+  // Curació: vermell de poció (l'usuari no la vol verda).
+  potion: { white: [255, 228, 232], light: [255, 122, 134], mid: [214, 34, 58],   deep: [118, 10, 30] },
 } satisfies Record<string, Palette>;
 
 export const rgb = (c: RGB3) => `rgb(${c[0]},${c[1]},${c[2]})`;
