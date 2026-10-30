@@ -1,15 +1,18 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import { Upload, ZapIcon } from '@/components/icons';
+import { Upload, ZapIcon, Eye } from '@/components/icons';
+import { Button } from '@/components/ui/Button';
 import { C, FS, RADIUS } from '@/constants';
 
 interface SceneImgPickerProps {
   defaultCanvas: HTMLCanvasElement | HTMLImageElement | null;
   onTrigger: (imgEl: HTMLCanvasElement | HTMLImageElement | null, isCustom?: boolean) => void;
   onCancel: () => void;
+  /** Veure-la només a la pantalla del DM abans de llançar-la. */
+  onPreview?: (imgEl: HTMLCanvasElement | HTMLImageElement | null) => void;
 }
 
-export function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }: SceneImgPickerProps) {
+export function SceneImgPicker({ defaultCanvas, onTrigger, onPreview }: SceneImgPickerProps) {
   const [custom, setCustom] = useState<{ url: string; imgEl: HTMLImageElement } | null>(null);
   const defaultUrl = useMemo(() => {
     if (!defaultCanvas) return null;
@@ -45,11 +48,19 @@ export function SceneImgPicker({ defaultCanvas, onTrigger, onCancel }: SceneImgP
           {custom ? 'Canviar imatge' : defaultCanvas ? 'Imatge del token (clic per canviar)' : 'Importar imatge'}
         </span>
       </label>
+      <div style={{ display: 'flex', gap: 6 }}>
+      {onPreview && (
+        <Button variant="secondary" size="md" title="Només a la teva pantalla: els jugadors no la veuen"
+          onMouseDown={e => { e.stopPropagation(); onPreview(imgEl); }}>
+          <Eye size={13} /> Veure-la
+        </Button>
+      )}
       <button
         onMouseDown={e => { e.stopPropagation(); onTrigger(imgEl, !!custom); }}
-        style={{ width: '100%', padding: '8px', background: `${C.magic}2e`, border: `1px solid ${C.magic}8c`, borderRadius: RADIUS.md, color: C.magicBright, cursor: 'pointer', fontSize: FS.md, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        style={{ flex: 1, padding: '8px', background: `${C.magic}2e`, border: `1px solid ${C.magic}8c`, borderRadius: RADIUS.md, color: C.magicBright, cursor: 'pointer', fontSize: FS.md, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <ZapIcon size={13} /> Llançar la cinemàtica
       </button>
+      </div>
     </>
   );
 }

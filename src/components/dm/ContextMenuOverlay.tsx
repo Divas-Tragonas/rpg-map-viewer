@@ -27,7 +27,6 @@ interface Props {
   setDefeated: (v: DefeatedMap) => void;
   setConditions: (v: ConditionsMap) => void;
   removeLibEnemy: (id: number) => void;
-  onLaunchBossIntro: (req: import('@/hooks/useCinematic').BossIntroRequest) => Promise<string | null>;
   onCreateGroup: (ids: (number | string)[]) => void;
   onDissolveGroup: (groupId: string) => void;
   onLeaveGroup: (id: number | string) => void;
@@ -140,7 +139,6 @@ export function ContextMenuOverlay({
   onClose: closeMenu, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
   setDefeated, setConditions,
   removeLibEnemy,
-  onLaunchBossIntro,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
   onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell,
 }: Props) {
@@ -354,15 +352,7 @@ export function ContextMenuOverlay({
               </Button>
             )}
             <Button size="sm" variant="tint" color={C.magicBright} style={actionBtn} title="Presentació del boss a les pantalles de jugador"
-              onMouseDown={e => {
-                e.stopPropagation();
-                if (lib?.imageData) {
-                  const img = new Image(); img.src = lib.imageData;
-                  void onLaunchBossIntro({ tokenId: contextMenu.id, bossName: t.name, portrait: img, tokenPos: contextMenu.tokenPos ?? null });
-                  onClose(); return;
-                }
-                onOpenSceneConfig();
-              }}>
+              onMouseDown={e => { e.stopPropagation(); onOpenSceneConfig(); }}>
               <ZapIcon size={11} /> Cinemàtica
             </Button>
             {lib && (

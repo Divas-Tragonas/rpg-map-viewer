@@ -243,7 +243,7 @@ src/
 │   │   ├── zonefx.ts       # Zones màgiques a la pantalla del jugador (vora SDF + fotogrames clau fosos + arcs del llamp)
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
-│   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador)
+│   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador) + pixelIntros.ts (les 10 de pixel art)
 │   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)
 │   ├── conditions/
 │   │   ├── icons.ts        # CONDITION_ICONS: isotips vectorials (paths SVG) dels estats
@@ -375,7 +375,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `MEASURE` | DM→Jugador | Punts A/B de la regla de mesura |
 | `SPELL` | DM→Jugador | Inici d'animació de spell |
 | `DELETE_SPELL` | DM→Jugador | Eliminar un spell d'àrea actiu |
-| `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal |
+| `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal. `style` (absent = la de sempre) + `sprite` i `party` per a les de pixel art |
 | `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
 | `EXPOSITOR_SHOW/HIDE/SYNC` | DM→Jugador | Expositor d'imatge/vídeo (veure feature) |
 | `TEXTREVEAL_SHOW` | DM→Jugador | Revelador de text: text complet + `pos`, `cps`, `fadeMs` |
@@ -639,6 +639,14 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - ⚠️ **Rendiment: animar només `transform` i `opacity`.** El resplendor del nom animava un `text-shadow` amb desenfocs de 220 px i feia caure els fps de 60 a ~36 (tot el nom es repintava a cada frame). Ara és una còpia del nom amb una ombra de 50 px + un halo de degradat radial, pintats un cop, i se n'anima l'opacitat. Desenfocs grossos (`text-shadow`, `filter: blur`) només estàtics i de mida moderada.
 - `SceneImgPicker` per importar imatge custom al menú de configuració.
 - **Pendent**: no té en compte la boira de guerra (si el boss és dins d'una sala fosca, la càmera hi fa zoom i es veu negre) ni l'agafa una pantalla que es connecti a mitja cinemàtica.
+
+### Cinemàtiques de boss en pixel art (`src/lib/cinematic/pixelIntros.ts`)
+- **Selector** a `SceneConfigOverlay` (botó «Cinemàtica» del menú d'un token, que ara obre sempre el selector): «La de sempre» + les 10 de `PIXEL_INTROS` (encontre salvatge, repte del líder, apareix un monstre, vidre trencat, portal del temps, fons psicodèlic, WARNING, versus, rètol del boss, l'ombra). L'última triada es recorda a `localStorage['rpg_boss_intro']` (`useStoredString`). **«Veure-la»** (`BossIntroRequest.preview`) la reprodueix només al DM: no s'envia.
+- **Motor** (`playPixelIntro`): mateix contracte que `playBossIntro` (`BossIntro`: `tick`/`skip`/`dispose`), o sigui que `cinematicRef`, l'Esc i `BOSS_INTRO_SKIP` funcionen igual. Pinta en una **pantalla virtual** d'uns 200 px d'alt (píxel `P = round(H/200)`) ampliada amb `image-rendering: pixelated`: sprites, lletra i finestres queden a la mateixa escala de píxel. Cada escena és una funció pura de (t, llavor) → totes les pantalles veuen el mateix al mateix moment. Comença amb una captura de l'escenari (`snapshotStage`) per a les que trenquen o tapen el mapa.
+- **Material** (tot dels fulls de `public/sprites/`, també a l'app Clàssica): figureta del boss (`sprite`; sense figureta, el retrat), la colla (`party`, fins a 5 jugadors visibles amb la seva figureta), la lletra 7×7 del full d'interfície (`text`: només majúscules sense accents, `pixelText`; la «I» es corregeix al full tenyit i la decorada fa servir la normal perquè semblava un «1»), la finestra fosca en 9 trossos (`panel`, x 8 y 88, 72×32) i les barres de vida (`hpBar`), i els efectes de `uf_FX`/`uf_FX_impact`.
+- **Sync**: el mateix `BOSS_INTRO` amb `style`, `sprite` i `party` (la API el reenvia opac: cap canvi a la API). Sense `cam`: tapen tot l'escenari i no cal acostar la càmera.
+- Mentre els fulls es carreguen (o si no s'han pogut llegir) no es poden triar al DM, i una pantalla de jugador sense fulls fa la de sempre.
+- **Afegir-ne una**: funció `Scene` + entrada a `PIXEL_INTROS` (amb `dur`) i a `SCENES`.
 
 ### Bola de foc (`src/lib/render/fireball.ts`)
 - **Quatre temps** (constants `CHARGE`, `TRAVEL`, `IMPACT_AT`, `FIREBALL_DUR`): ignició directa a la mà (flamarada + flaix direccional, 0,14 s; **res de cercles rúnics**: l'usuari els va trobar massa místics) → projectil que accelera amb cua de foc que queda al món → impacte (flaix, bola que s'infla i es refreda, ona expansiva amb anell de pols, terra que s'encén, runa, fum) → socarrim amb brases. Radi visual: 15 ft (`BLAST_FT`).

@@ -70,6 +70,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.41 — Deu cinemàtiques de boss en pixel art
+- **Es pot triar la cinemàtica**: el botó «Cinemàtica» del menú d'un token obre un selector amb «La de sempre» i deu de noves en pixel art, inspirades en entrades de boss de jocs retro: *Encontre salvatge* (Pokémon), *Repte del líder*, *Apareix un monstre* (Dragon Quest), *Vidre trencat* (Final Fantasy), *Portal del temps* (Chrono Trigger), *Fons psicodèlic* (EarthBound), *WARNING* (Mega Man), *Versus* (Street Fighter), *Rètol del boss* (Zelda) i *L'ombra* (Souls).
+- Fan servir el material del paquet Oryx: la figureta del token (o la seva imatge si no en té), la colla amb les seves figuretes, la lletra, les finestres i les barres de vida del full d'interfície i els efectes.
+- **«Veure-la»**: la reprodueix només a la pantalla del DM abans de llançar-la. L'última triada es recorda.
+
 ### v4.40 — Sprites inclosos a l'app
 - **Els fulls del paquet Oryx venen amb l'app** (`public/sprites/`, PNG optimitzats sense pèrdua: de 970 KB a 414 KB amb els mateixos píxels). El DM i totes les pantalles de jugador els carreguen sols; ja no cal carregar el `.zip`.
 - El paquet ja no viatja per WebSocket (`spritePack`, `packId`) ni es desa a IndexedDB; fora la importació per `.zip`.

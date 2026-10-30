@@ -12,7 +12,7 @@ import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '
 import { renderSpells, spellShake, followSpellPreview } from '@/lib/render/spells';
 import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
-import { playBossIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
+import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
@@ -22,7 +22,7 @@ import { camToView, mediaSize, viewRect } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle } from '@/types';
-import { ensurePack } from '@/lib/sprites/pack';
+import { ensurePack, packReady } from '@/lib/sprites/pack';
 import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -353,13 +353,16 @@ export function PlayerView() {
   const triggerBossIntro = useCallback((d: {
     tokenId: number | string; bossName: string; tokenPos: Point | null; cam?: CamRect | null;
     portrait: HTMLCanvasElement | HTMLImageElement | null; offsetMs: number;
+    style?: string; sprite?: string | null; party?: { name: string; sprite?: string }[];
   }) => {
     const stage = stageRef.current; if (!stage) return;
     // El DM no en llança cap altra fins que s'acaba la que corre: si n'arriba una,
     // aquesta pantalla anava endarrerida. Es reemplaça.
     cinematicRef.current?.dispose();
+    // Les de pixel art necessiten el paquet: una pantalla sense els fulls fa la clàssica.
+    const pixel = isPixelIntro(d.style) && packReady();
     let cam = d.cam ?? null;
-    if (!cam && d.tokenPos) {
+    if (!cam && d.tokenPos && !pixel) {
       // DM antic (sense `cam`): es calcula aquí a partir de l'enquadrament compartit.
       const { mw, mh } = mediaSize(mediaRef.current);
       const cvs = canvasRef.current;
@@ -367,7 +370,7 @@ export function PlayerView() {
       if (cur) cam = bossCamRect(d.tokenPos, cur, mw, mh);
     }
     cinematicCamRef.current.rect = cam;
-    const intro = playBossIntro({
+    const common = {
       stage, bossName: d.bossName, portrait: d.portrait, seed: seedFor(d.tokenId), offsetMs: d.offsetMs,
       onCamEnd: () => { cinematicCamRef.current.rect = null; },
       onDone: () => {
@@ -375,7 +378,10 @@ export function PlayerView() {
         cinematicRef.current = null;
         cinematicCamRef.current.rect = null;
       },
-    });
+    };
+    const intro = pixel && isPixelIntro(d.style)
+      ? playPixelIntro({ ...common, style: d.style, sprite: d.sprite ?? null, party: d.party ?? [] })
+      : playBossIntro(common);
     cinematicRef.current = intro;
   }, []);
 
@@ -683,6 +689,7 @@ export function PlayerView() {
         const _run = (portrait: HTMLCanvasElement | HTMLImageElement | null) => triggerBossIntroRef.current({
           tokenId: msg.tokenId, bossName: msg.bossName, tokenPos: msg.tokenPos, cam: msg.cam, portrait,
           offsetMs: Math.min(600, performance.now() - receivedAt),
+          style: msg.style, sprite: msg.sprite, party: msg.party,
         });
         const fallback = () => _run(rLayerImages.current[msg.tokenId as number] || null);
         if (msg.portraitDataUrl) {

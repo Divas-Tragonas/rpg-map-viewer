@@ -37,3 +37,24 @@ export function useStoredFlag(key: string, fallback: boolean): [boolean, (v: boo
   }, [key]);
   return [value, set];
 }
+
+const memoryStr = new Map<string, string>();
+function readStr(key: string, fallback: string): string {
+  if (!memoryStr.has(key)) {
+    let v = fallback;
+    try { v = localStorage.getItem(key) ?? fallback; } catch { /* sense localStorage */ }
+    memoryStr.set(key, v);
+  }
+  return memoryStr.get(key) ?? fallback;
+}
+
+/** Com `useStoredFlag`, per a un text (p. ex. l'última cinemàtica triada). */
+export function useStoredString(key: string, fallback: string): [string, (v: string) => void] {
+  const value = useSyncExternalStore(subscribe, () => readStr(key, fallback), () => fallback);
+  const set = useCallback((v: string) => {
+    memoryStr.set(key, v);
+    try { localStorage.setItem(key, v); } catch { /* es queda en memòria */ }
+    listeners.forEach(l => l());
+  }, [key]);
+  return [value, set];
+}

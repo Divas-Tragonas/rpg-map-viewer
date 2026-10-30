@@ -1906,7 +1906,6 @@ export function DMView() {
         onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}
         setDefeated={setDefeated} setConditions={setConditions}
         removeLibEnemy={removeLibEnemy}
-        onLaunchBossIntro={launchBossIntro}
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}
         onSetRoomDark={handleSetRoomDark} onToggleRoomReveal={handleToggleRoomReveal}
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}

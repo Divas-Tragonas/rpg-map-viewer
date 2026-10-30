@@ -421,7 +421,9 @@ export type BCMessage =
   | { type: 'MEASURE'; a: Point | null; b: Point | null }
   | { type: 'SPELL'; spell: Omit<Spell, 'startTime'> & { startTime: number } }
   | { type: 'DELETE_SPELL'; id: string }
-  | { type: 'BOSS_INTRO'; tokenId: number | string; bossName: string; tokenPos: Point | null; cam?: CamRect | null; portraitDataUrl: string | null }
+  | { type: 'BOSS_INTRO'; tokenId: number | string; bossName: string; tokenPos: Point | null; cam?: CamRect | null; portraitDataUrl: string | null;
+      /** Estil (`BossIntroStyle`); absent = la clàssica. Les de pixel art porten la figureta i la colla. */
+      style?: string; sprite?: string | null; party?: { name: string; sprite?: string }[] }
   | { type: 'BOSS_INTRO_SKIP' }
   | { type: 'PLAYER_READY' }
   // Format de pantalla d'un client (jugador→DM): el DM llista les pantalles connectades
