@@ -83,3 +83,5 @@ export const SkullIcon    = mkIcon(<><path d="M8 20v2h8v-2"/><path d="M16 20a2 2
 export const TilesIcon    = mkIcon(<><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><path d="M13 17h8M17 13v8"/></>);
 export const PixelSwordIcon = mkIcon(<path d="M20 4h-4v2h-2v2h-2v2h-2v2H8v2H6l-2 2 2 2 2-2v2l2 2 2-2-2-2h2v-2h2v-2h2V8h2V6h2z"/>);
 export const FastForwardIcon = mkIcon(<><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></>);
+export const ChevronLeft  = mkIcon(<polyline points="15 18 9 12 15 6"/>);
+export const SpeechIcon   = mkIcon(<><path d="M21 12a8 8 0 0 1-11.6 7.14L4 21l1.5-4.6A8 8 0 1 1 21 12Z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></>);

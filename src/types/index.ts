@@ -315,6 +315,54 @@ export type TokenSizeMap = Record<string, number>;
  */
 export interface CamRect { cx: number; cy: number; w: number; h: number }
 
+// ── Diàlegs de personatges (veure `lib/dialog/`) ──────────────────────────────
+/** Com es diu una línia: canvia el color, la velocitat i la finestra. */
+export type DialogStyle = 'normal' | 'crit' | 'xiuxiueig' | 'pensament';
+/** Què fa la càmera en una línia d'escena. */
+export type DialogCamMode = 'auto' | 'enfoca' | 'dos' | 'quiet';
+
+/** Diàleg preparat, desat a un token (dins de la partida i del desat automàtic). */
+export interface SavedDialog {
+  id: string;
+  title: string;
+  /** Guió en format teatre (`Nom (opcions): text`), veure `lib/dialog/script.ts`. */
+  script: string;
+  /** Nom del guió → token de l'escena (`pl_3`, `lib_7`, id del PSD) o `null` = veu sense token. */
+  cast: Record<string, string | null>;
+  /** Començar just després de la cinemàtica de boss del token que el té desat. */
+  afterBoss?: boolean;
+}
+
+/**
+ * Diàleg que es veu ara mateix a totes les pantalles: camp lleuger `dialog` del STATE i del
+ * STRUCT (`null` = cap). El retrat NO viatja: cada pantalla el treu del token (`tokenId`).
+ */
+export interface DialogSync {
+  /** Id de l'execució (canvia a cada llançament). */
+  id: string;
+  /** Línia del guió (canvia a cada intervenció, també en tornar enrere). */
+  line: number;
+  /** Escena (barres, càmera, caixa) o globus sobre el token (combat). */
+  kind: 'scene' | 'bubble';
+  tokenId: string | null;
+  /** Nom que es veu (buit = veu sense nom, «???»). */
+  name: string;
+  /** Sense retrat ni càmera: narrador, «???» o algú que els jugadors no poden veure. */
+  voice: boolean;
+  text: string;
+  style: DialogStyle;
+  cps: number;
+  /** Mil·lisegons que feia que havia començat la línia quan el DM ha enviat el missatge. */
+  age: number;
+  /** El DM ha completat la línia: totes les pantalles la mostren sencera. */
+  done: boolean;
+  bars: boolean;
+  /** Enquadrament de la càmera (coords de mapa) o `null` = vista normal. */
+  cam: CamRect | null;
+  /** Opcions de resposta numerades (quan la línia en té). */
+  options?: string[];
+}
+
 export interface BCStateMessage {
   type: 'STATE';
   vis?: VisMap;
@@ -366,6 +414,8 @@ export interface BCStateMessage {
   appStyle?: AppStyle;
   // Parts vives del mapa de caselles (aigua, torxes, portes): camp pesat (per referència).
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
+  // Diàleg en curs (camp lleuger, sempre; `null` = cap). Absent → DM antic, no tocar res.
+  dialog?: DialogSync | null;
 }
 
 export interface BCStructMessage {
@@ -408,6 +458,7 @@ export interface BCStructMessage {
   spellPreview?: SpellPreview | null;
   appStyle?: AppStyle;
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
+  dialog?: DialogSync | null;
 }
 
 export type BCMessage =

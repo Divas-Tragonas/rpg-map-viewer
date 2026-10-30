@@ -4,7 +4,7 @@ import type {
   MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
   Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
-  Wall, Room, Door, TurnState, CamRect, AppStyle,
+  Wall, Room, Door, TurnState, CamRect, AppStyle, DialogSync, SavedDialog,
 } from '@/types';
 import type { TileMap } from '@/lib/tilemap/model';
 import type { TileLive } from '@/lib/tilemap/render';
@@ -12,6 +12,7 @@ import type { TileBrush } from '@/lib/tilemap/editor';
 import { newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
 import type { UndoEntry } from '@/lib/undo';
+import type { DialogHost } from '@/lib/dialog/host';
 
 export function useDMRefs() {
   const stageRef  = useRef<HTMLDivElement>(null);
@@ -205,6 +206,14 @@ export function useDMRefs() {
   const cinematicActiveRef   = useRef(false);
   const cinematicRef         = useRef<BossIntro | null>(null);
   const cinematicCamRef      = useRef<CinematicCam>(newCinematicCam());
+  // Diàleg en curs (el que viatja als jugadors dins del STATE) i quan ha començat la línia
+  // (`performance.now()`, per enviar l'`age` real a qui es connecta a mitja línia).
+  const rDialog              = useRef<DialogSync | null>(null);
+  const rDialogT0            = useRef(0);
+  // Diàlegs preparats, per token (`pl_3`, `lib_7`, id del PSD). Es desen a la partida.
+  const rDialogs             = useRef<Record<string, SavedDialog[]>>({});
+  // Pantalla del DM: vista del diàleg i objectiu de la càmera (veure `lib/dialog/host.ts`).
+  const dialogHostRef        = useRef<DialogHost | null>(null);
 
   return {
     stageRef, canvasRef, mediaRef,
@@ -228,6 +237,7 @@ export function useDMRefs() {
     cinematicActiveRef, cinematicRef, cinematicCamRef,
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
     rAppStyle, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileRestore,
+    rDialog, rDialogT0, rDialogs, dialogHostRef,
   };
 }
 

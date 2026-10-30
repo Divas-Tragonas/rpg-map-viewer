@@ -176,6 +176,13 @@ Tampoc no han calgut canvis per a l'app Píxel (v4.38): els camps `appStyle`
 ('classic' | 'pixel') i `tileLive` (parts animades del mapa de caselles) viatgen
 dins del STATE.
 
+Tampoc no ha calgut cap canvi per als diàlegs de personatges (v4.42): el camp
+`dialog` (DialogSync | null, veure `src/types/index.ts`) viatja dins del STATE i del
+STRUCT, que el servidor ja reenvia opacs. Porta: id, line, kind ('scene' | 'bubble'),
+tokenId, name, voice, text, style, cps, age (ms que feia que la línia havia començat
+quan s'ha enviat), done, bars, cam (CamRect | null) i options. Pocs centenars de bytes;
+el retrat no hi va (cada pantalla el treu del token). `null` = no hi ha cap diàleg.
+
 Des de la v4.40 els sprites són a l'app (`public/sprites/`) i cada pantalla els
 carrega del mateix lloc: el camp `spritePack` del STATE i el `packId` del
 PLAYER_READY (v4.38–v4.39) ja no s'envien.

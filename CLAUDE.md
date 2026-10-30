@@ -178,7 +178,8 @@ src/
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
 │   │   ├── TopBar          # Barra superior: nom del mapa, Clàssica·Píxel, Preparar·Jugar, Mostrar als jugadors, pantalles, partida, vista, ⋯
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
-│   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text del panell «Mostrar als jugadors»
+│   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text / Diàleg del panell «Mostrar als jugadors»
+│   │   ├── DialogPanel, DialogControls  # Diàlegs: pestanya per escriure el guió i barra del DM mentre corre
 │   │   ├── CanvasHUD (selector de càmera + zoom a la cantonada + rètol de calibratge), ShortcutsHelp (finestra de dreceres, tecla ?)
 │   │   └── ContextMenuOverlay, SceneConfigOverlay,
 │   │       SpellMenuOverlay, ShapeMenuOverlay
@@ -203,6 +204,7 @@ src/
 │   ├── useTileMap.ts       # App Píxel: crear/editar/cuinar el mapa de caselles i regenerar-ne parets, portes i llums
 │   ├── useSpritePack.ts    # Estat del paquet de sprites per a la UI
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
+│   ├── useDialog.ts        # Diàlegs al DM: llançar, avançar, enrere, opcions, càmera, tecles, desats als tokens
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
 │   ├── useKeyboardHandlers.ts
@@ -217,7 +219,8 @@ src/
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
 │   ├── enemy-groups.ts     # groupEnemies / distinctValues / apiSupportsGroups (projecte i categoria)
-│   ├── sprites/            # App Píxel: paquet Oryx (pack.ts: carrega els fulls de public/sprites/; draw.ts; manifest.ts GENERAT; portrait.ts)
+│   ├── sprites/            # App Píxel: paquet Oryx (pack.ts: carrega els fulls de public/sprites/; draw.ts; manifest.ts GENERAT; portrait.ts; font.ts lletra de píxel; window.ts finestres 9-slice)
+│   ├── dialog/             # Diàlegs: script.ts (guió), reveal.ts (lletra a lletra), camera.ts, tokens.ts, scene.ts (motor), host.ts (DM i jugador)
 │   ├── tilemap/            # App Píxel: mapa de caselles (model, palette, editor, render/cuinat, geometry → parets, tmx)
 │   ├── rooms/
 │   │   ├── detect.ts       # detectRooms + reconcileRooms (cares del graf de parets)
@@ -386,6 +389,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
 | `STATE.appStyle` / `STATE.tileLive` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat. Els sprites NO viatgen: cada pantalla els carrega de `public/sprites/` |
+| `STATE.dialog` / `STRUCT.dialog` | DM→Jugador | Diàleg en curs (`DialogSync`, camp lleuger, sempre; `null` = cap). Veure «Diàlegs de personatges» |
 | `RESET_EXPLORED` | DM→Jugador | Reset de la memòria d'explorat d'una sala (torna a ser negra del tot). Porta el polígon `points`; DM i jugador criden `clearExploredAt(points)` a `darkrooms.ts` |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
@@ -429,6 +433,24 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Extracció imatges: `extractLayerImages` → `Record<number, HTMLCanvasElement>`
 - Arbre de capes: `buildTree` + `validateStructure` → `MapStructure`
 - Grups esperats al PSD: `zones`, `enemies`, `extras`
+
+### Diàlegs de personatges (`src/lib/dialog/` + `useDialog` + pestanya «Diàleg»)
+- **Dos usos, un motor** (`playDialog` a `lib/dialog/scene.ts`): **escena** (barres negres, càmera a qui parla i caixa de diàleg) i **globus** sobre el token en combat (sense barres ni càmera; no toca el `TurnState`). Com `bossIntro`, cada diàleg és propietari de tot el que crea i `dispose()` ho desfà tot. Només s'animen `transform` i `opacity`.
+  - **App Píxel**: la caixa és un llenç en píxels del paquet ampliat a un **múltiple enter** (`pk()`: `SH/250` a l'escena) amb `pixelated`: finestra 9-slice (`lib/sprites/window.ts`, `navy`; `plum` per al xiuxiueig i el pensament), lletra de píxel (`lib/sprites/font.ts`) i la figureta a 1:1 (animació d'espera; en grisos si està derrotada).
+  - **App Clàssica**: DOM amb `FONT_SERIF`, retrat (imatge del token, `Player.portrait` o capa del PSD) o inicials. Mides amb `s(px)` proporcional a l'**escenari** (no a la finestra).
+- **Lletra de píxel** (`lib/sprites/font.ts`): majúscules, xifres i signes de `uf_interface.png` en una graella de 8 px (fila 8 = xifres i signes, fila 24 = majúscules). Minúscules → majúscules; **À È É Í Ï Ò Ó Ú Ü Ç Ñ** es componen amb la lletra base + els píxels de la marca (`MARKS`); `·` (L·L) i el punt es pinten com un quadrat de 2×2 (el punt del full es llegia com «+»); la **I** es pinta amb el peu recte (la del full té una cua i es llegia «J»). Una línia fa `PF_LINE` = 12 px (3 per als accents). El color es fa amb una còpia tenyida de la zona de la lletra (`tinted`, una per color). ⚠️ Codi nou que pinti la lletra o les finestres del paquet ha de fer servir aquests dos mòduls; les cinemàtiques de pixel art (`lib/cinematic/pixelIntros.ts`, v4.41) en tenen encara una còpia interna (monoespaiada i sense accents) que s'hauria de passar a `font.ts`/`window.ts`.
+- **Guió** (`lib/dialog/script.ts`, format teatre): `Nom (opcions): text` · opcions = estil (`normal`, `crit`, `xiuxiueig`, `pensament`) i càmera (`auto`, `enfoca`, `dos`, `quiet`) · `> text -> etiqueta` (opció de resposta) · `# etiqueta` · `-> etiqueta` / `-> fi` · `//` comentari · una línia sense «Nom:» continua l'anterior. «Narrador» i «???» no tenen token ni nom visible. Els selectors d'estil i càmera de la pestanya reescriuen el parèntesi (`setLineOpts`): el guió és l'única font.
+- **Repartiment** (`matchCast`): cada nom amb el token de l'escena que es diu igual (sense accents ni majúscules) o que hi comença; el que s'ha canviat a mà es conserva.
+- **Text lletra a lletra** (`lib/dialog/reveal.ts`): funció pura de (text, cps) → cada pantalla compta les lletres amb el seu rellotge. `*paraula*` = èmfasi (color + tremolor), `...` pausa llarga, pauses als punts i a les comes. Velocitat per estil (`STYLE_SPEED`).
+- **Sincronització** (sense canvis a la API): camp lleuger **`dialog`** (`DialogSync`) del `STATE` i del `STRUCT`. `age` = ms que feia que havia començat la línia **en el moment d'enviar** (`_dialogNow` a `useDMActions`): la pantalla fixa l'inici a `performance.now() − age`, o sigui que no depèn del rellotge del dispositiu i qui es connecta a mitja línia la continua des d'on va. `done` = el DM l'ha completada (totes la mostren sencera). El retrat **no viatja**: cada pantalla el treu del `tokenId`.
+- **Un sol host per a les dues pantalles** (`DialogHost` a `lib/dialog/host.ts`): `apply(d)` crea/actualitza la vista, `tick(now, toScreen)` resol el retrat del token cada frame (derrotat → grisos, eliminat → veu) i el globus, i `cam` és l'objectiu de la càmera. Al DM el crida `useRafLoop` (abans del `if (!s)`); al jugador, el tick de `PlayerView`.
+- **Càmera** (`dialogCamRect`, coords de mapa com `bossCamRect` però més tancada, i baixada un 12% perquè qui parla quedi per sobre de la caixa). `auto`: si el que ha parlat abans és a prop (`nearEnough`), enquadra els dos. Fa servir la mateixa interpolació de la cinemàtica (`cinematicCamRef` al DM, `visualZoomRef` al jugador), amb **prioritat per a la cinemàtica de boss**. En acabar, tothom torna a la vista d'abans (al DM, la privada inclosa). Si qui parla es mou, `useDialog` recalcula la càmera cada 150 ms i la reenvia si canvia (`sameCam`).
+- ⚠️ **No revelar posicions** (`dialogToken(...).hidden`): invisible, ull tancat, coberta del PSD o dins d'una sala fosca no revelada sense cap jugador a dins → parla com a **veu**: `tokenId: null`, sense retrat ni càmera ni globus damunt seu. Ho decideix el DM; la pantalla de jugador no rep el token.
+- **Prioritat**: començar un diàleg amaga l'Expositor i el Revelador de text, i mostrar-ne un acaba el diàleg (`dialogEndRef`), com fan ells entre ells. Començar-lo tanca el panell (la barra de control ho té tot).
+- **Controls del DM** (`DialogControls`, a dalt a l'esquerra de l'escenari): línia actual, la següent («Després · …»), opcions per clicar la que han triat, ← / Següent / ✕. Tecles en fase de captura (`useDialog`): **Espai** o **→** completa la línia i, si ja és sencera, passa a la següent; **←** enrere; **1…9** opció; **Esc** acaba a totes les pantalles.
+- **Desats al token** (`R.rDialogs`: token → `SavedDialog[]`, dins de `_buildSessionCore` → partida i desat automàtic; `onDialogsChange` refresca la UI en carregar). Menú del clic dret → **Parlar**: frase al moment (Enter = globus, Maj+Enter = escena), els diàlegs desats i «Preparar…». `afterBoss`: llança la cinemàtica de boss del token i comença quan `cinematicActiveRef` torna a ser fals.
+- `prefers-reduced-motion`: sense tremolors ni sacsejada, barres amb fos, i la càmera salta (220 ms després) sota un vel negre.
+- ⚠️ `useDialog` no escriu `R.x.current`: llegeix els refs per `refs.current` (un `useRef(R)` propi). Amb `R.x.current = …` dins dels callbacks, el lint dona `react-hooks/immutability`; i un efecte amb `[R]` com a dependència es tornaria a executar a cada render (`useDMRefs` retorna un objecte nou cada vegada) — el host es destruïa i el DM no veia res.
 
 ### Mapa només amb imatge (el PSD és OPCIONAL)
 - **Problema que resol**: `tick()` (DM i jugador) surt aviat amb `if (!s) return` quan no hi ha `MapStructure`. Sense PSD no es dibuixava **res**: ni grid, ni sales, ni tokens.
@@ -541,7 +563,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Els moviments de combat que es desfan són els que fan **els jugadors** des de `/player` (el DM pot desfer-ne un de mal fet); els que fa el DM arrossegant no s'apilen.
 
 ### Panell «Mostrar als jugadors» (`ShowPanelHeader` + `DMView`)
-- L'Expositor i el Revelador de text són **les dues pestanyes d'un sol panell** (Imatge o vídeo · Text), que obre el botó «Mostrar als jugadors» de la barra. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
+- L'Expositor, el Revelador de text i el Diàleg són **les pestanyes d'un sol panell** (Imatge o vídeo · Text · Diàleg), que obre el botó «Mostrar als jugadors» de la barra. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
 - Cada pestanya continua obrint el seu estat de sempre (`expositorOpen` / `textRevealOpen`, un sol obert alhora) i la pestanya recordada és `showTab`: els bucles RAF i les dreceres de teclat de cada un no han canviat. En obrir el panell, si s'està mostrant alguna cosa, s'obre per aquella pestanya.
 - Un punt verd a la pestanya (i al botó de la barra) diu què s'està mostrant als jugadors.
 - Amplada fixa `SHOW_PANEL_W` (560) per a les dues pestanyes: canviar de pestanya no fa saltar el panell. Va a `top: 12` de l'escenari.
@@ -638,6 +660,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Esc al DM la salta a tot arreu (`BOSS_INTRO_SKIP`); Esc a la pantalla de jugador només la salta allà. Amb `prefers-reduced-motion`, flaix suau i sense glitch ni parallax.
 - ⚠️ **Rendiment: animar només `transform` i `opacity`.** El resplendor del nom animava un `text-shadow` amb desenfocs de 220 px i feia caure els fps de 60 a ~36 (tot el nom es repintava a cada frame). Ara és una còpia del nom amb una ombra de 50 px + un halo de degradat radial, pintats un cop, i se n'anima l'opacitat. Desenfocs grossos (`text-shadow`, `filter: blur`) només estàtics i de mida moderada.
 - `SceneImgPicker` per importar imatge custom al menú de configuració.
+- **Diàleg després de la cinemàtica**: un diàleg desat amb «Després de la cinemàtica de boss» la llança i comença quan s'acaba (veure «Diàlegs de personatges»).
 - **Pendent**: no té en compte la boira de guerra (si el boss és dins d'una sala fosca, la càmera hi fa zoom i es veu negre) ni l'agafa una pantalla que es connecti a mitja cinemàtica.
 
 ### Cinemàtiques de boss en pixel art (`src/lib/cinematic/pixelIntros.ts`)
@@ -955,6 +978,8 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Camp numèric que aplica el valor a cada tecla | Esborrar el número per escriure'n un altre deixa el token a 0 (i s'envia un `STATE` per tecla) | Aplicar en confirmar (Enter o perdre el focus), com `NumField` a `TokenFields` |
 | Dades d'un token repartides (un camp al panell, un altre al menú…) | L'usuari no sap on es canvia cada cosa | Tot el que és d'un token, al menú del clic dret (`TokenFields`) |
 | Tancar un menú amb un camp a mig editar sense treure'n el focus | El valor escrit es perd (el camp es desmunta sense rebre el `blur`) | `blurActive()` abans de tancar, com `ContextMenuOverlay` |
+| Efecte d'un hook amb `[R]` (refs del DM) com a dependència | Es torna a executar a cada render: el que crea (p. ex. el host del diàleg) es destrueix i no es veu res | `R` és un objecte nou a cada render: dependències `[]` i llegir els refs per un `useRef(R)` (veure `useDialog`) |
+| Text de joc pintat amb una tipografia que no és la del paquet a l'app Píxel | No lliga amb la resta de la pixel art | `pfDraw`/`pfDrawChar` (`lib/sprites/font.ts`) a escala entera, i `drawWindow` per a les finestres |
 | Carregar un fitxer de `public/` amb un camí absolut escrit a mà (`/sprites/…`) | Es trenca si l'app es publica dins d'una subcarpeta | Prefixar amb `NEXT_PUBLIC_BASE_PATH` (veure `SPRITES_URL` a `lib/sprites/pack.ts`) |
 | Pintar sprites amb el suavitzat encès | Pixel art borrós | `blit()` (apaga `imageSmoothingEnabled`) i `image-rendering: pixelated` al DOM |
 | Rebre un `SPELL` dues vegades (BC i WS) | La màgia es pinta doble a la pantalla de jugador (només amb la API engegada) | El handler del jugador descarta un `SPELL` amb un `id` que ja té |

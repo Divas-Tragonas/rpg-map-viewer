@@ -50,6 +50,16 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     ],
   },
   {
+    title: 'Diàleg (mentre en corre un)',
+    rows: [
+      ['Espai · →', 'Completar la línia que s\'escriu; si ja és sencera, la següent'],
+      ['←', 'Tornar a la línia anterior'],
+      ['1 … 9', 'Triar l\'opció de resposta que han dit els jugadors'],
+      ['Esc', 'Acabar el diàleg a totes les pantalles'],
+      ['Clic dret → Parlar', 'Frase al moment: Enter = globus, Maj+Enter = escena'],
+    ],
+  },
+  {
     // Abans era a la finestreta del botó de Màgies; ara la finestreta és d'una línia.
     title: 'Màgies (eina 3): el gest tria la roda',
     rows: [

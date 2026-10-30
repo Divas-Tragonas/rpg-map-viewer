@@ -23,6 +23,7 @@ import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, Conditio
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle } from '@/types';
 import { ensurePack, packReady } from '@/lib/sprites/pack';
+import { DialogHost } from '@/lib/dialog/host';
 import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -201,6 +202,8 @@ export function PlayerView() {
   const cinematicRef         = useRef<BossIntro | null>(null);
   // Només es fa servir `rect`: el LERP de càmera del jugador ja suavitza l'anada i la tornada.
   const cinematicCamRef      = useRef<CinematicCam>(newCinematicCam());
+  // Diàleg en curs (camp `dialog` del STATE/STRUCT): caixa, globus i objectiu de la càmera.
+  const dialogHostRef        = useRef<DialogHost | null>(null);
 
   const bcRef = useRef<BroadcastChannel | null>(null);
   // Handler únic dels missatges del DM: el criden tant el BroadcastChannel (finestres
@@ -399,6 +402,11 @@ export function PlayerView() {
     drawCanvasRef.current = oc;
     // Paquet de sprites: els fulls de `public/sprites/`, del mateix lloc que l'app.
     void ensurePack().then(() => refreshTurnBanner());
+    const host = new DialogHost(() => stageRef.current, {
+      rPos, rPlayers, rLibEnemies, rStruct, rPsdEnemyOverrides, rTokenSizeOverride, rDefeated, rConditions, rVis, rRooms, rLayerImages, visualPosRef,
+    }, () => rAppStyle.current === 'pixel');
+    dialogHostRef.current = host;
+    return () => { host.dispose(); dialogHostRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Drag de tokens de jugador (només pl_*) amb ratolí o tacte (mòbil/tablet)
@@ -477,6 +485,8 @@ export function PlayerView() {
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
+        // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
+        if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
@@ -611,6 +621,8 @@ export function PlayerView() {
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
+        // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
+        if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
         if (msg.dmPreviewActive !== undefined) {
           rDMPreviewActive.current = msg.dmPreviewActive;
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
@@ -908,7 +920,8 @@ export function PlayerView() {
         rZoom.current = t.zoom; rPanOffset.current = t.pan;
       }
 
-      const cinRect = cinematicCamRef.current.rect;
+      // La cinemàtica de boss té prioritat sobre la càmera d'un diàleg.
+      const cinRect = cinematicCamRef.current.rect ?? dialogHostRef.current?.cam ?? null;
       const cinView = cinRect ? camToView(cinRect, W, H, mw, mh) : null;
       const _tgtZ   = cinView ? cinView.zoom : rZoom.current;
       const _tgtPan = cinView ? cinView.pan  : rPanOffset.current;
@@ -970,6 +983,9 @@ export function PlayerView() {
           trLastTsRef.current = 0;
         }
       }
+
+      // Diàleg: abans del `if (!s)` (el narrador també funciona sense mapa).
+      dialogHostRef.current?.tick(performance.now(), p => ({ x: ox + p.x * sc, y: oy + p.y * sc }));
 
       if (!s) return;
 

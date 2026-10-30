@@ -38,6 +38,8 @@ interface Setters {
   setExpanded: (v: Record<number, boolean> | ((prev: Record<number, boolean>) => Record<number, boolean>)) => void;
   /** Les piles de desfer han canviat: el «Desfer» de la barra ha de tornar a mirar què desfaria. */
   onUndoChange: () => void;
+  /** Els diàlegs preparats han canviat (s'ha carregat una partida). */
+  onDialogsChange?: () => void;
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setGridSize: (v: number) => void;
   setGridSnap: (v: boolean) => void;
@@ -108,6 +110,13 @@ export function useDMActions(R: DMRefs, S: Setters) {
     return cam;
   }, []);
 
+  // Diàleg en curs amb l'`age` d'ara: una pantalla que l'agafa a mitja línia continua
+  // l'efecte d'escriure des d'on va, no des del començament.
+  const _dialogNow = () => {
+    const d = R.rDialog.current;
+    return d ? { ...d, age: Math.round(performance.now() - R.rDialogT0.current) } : null;
+  };
+
   const _broadcastState = useCallback((extra: Record<string, unknown> = {}) => {
     // Tota mutació d'estat del DM passa per aquí, o sigui que és el lloc natural per
     // marcar que hi ha canvis sense desar (`useAutosave` no escriu res si això és false).
@@ -140,6 +149,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       spellPreview: rSpellPreview.current,
       // Estil de l'app (Clàssic / Píxel): lleuger, s'envia sempre.
       appStyle: R.rAppStyle.current,
+      // Diàleg en curs (lleuger, sempre): així qui es connecta o reconnecta a mitja
+      // conversa veu la línia d'ara mateix. Veure `useDialog`.
+      dialog: _dialogNow(),
     };
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
@@ -185,6 +197,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       spellPreview: rSpellPreview.current,
       appStyle: R.rAppStyle.current,
       tileLive: R.rTileLive.current,
+      dialog: _dialogNow(),
       // Historial de traços de dibuix: perquè el jugador reconstrueixi el drawCanvas en
       // connectar-se (late join) o en carregar una partida (els STROKE són incrementals i
       // un jugador que no hi era quan es van dibuixar no els tenia).
@@ -583,6 +596,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // carregar una partida desada és una sorpresa, no una decisió de l'usuari. Com a
       // parells perquè un Map no sobreviu al JSON.
       tokenGroups: [...R.rTokenGroups.current],
+      // Diàlegs preparats de cada token.
+      dialogs: R.rDialogs.current,
       // Estil Píxel: l'estil amb què es jugava i el mapa de caselles (per poder-lo seguir editant).
       appStyle: R.rAppStyle.current,
       tileMap: R.rTileMap.current,
@@ -699,6 +714,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.lights)        { rLights.current = state.lights; S.setLights(state.lights); }
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (Array.isArray(state.tokenGroups)) R.rTokenGroups.current = new Map(state.tokenGroups);
+      R.rDialogs.current = state.dialogs && typeof state.dialogs === 'object' ? state.dialogs : {};
+      S.onDialogsChange?.();
       // Mapa de caselles: el fons ja ve cuinat i les parets ja hi són; només cal tornar-lo a
       // tenir per editar-lo i per a les parts vives (aigua, torxes, portes).
       R.rTileMap.current = state.tileMap ? reviveTileMap(state.tileMap) : null;

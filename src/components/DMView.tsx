@@ -38,6 +38,9 @@ import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
 import { TopBar } from '@/components/dm/TopBar';
 import { ShowPanelHeader, type ShowTab } from '@/components/dm/ShowPanelHeader';
+import { DialogPanel, EMPTY_DRAFT, type DialogDraft } from '@/components/dm/DialogPanel';
+import { DialogControls } from '@/components/dm/DialogControls';
+import { useDialog } from '@/hooks/useDialog';
 import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { SidebarSection } from '@/components/ui/SidebarSection';
@@ -196,6 +199,9 @@ export function DMView() {
 
   // ── Revelador de text ──────────────────────────────────────────────────────
   const [textRevealOpen, setTextRevealOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  // Acaba el diàleg en curs (l'Expositor i el Revelador el criden en mostrar-se).
+  const dialogEndRef = React.useRef<() => void>(() => {});
   // «Mostrar als jugadors»: Expositor i Revelador són les dues pestanyes d'un sol panell.
   // Cada pestanya continua obrint el seu estat de sempre (expositorOpen / textRevealOpen),
   // així els seus bucles i dreceres de teclat no canvien; la pestanya recorda l'última.
@@ -301,8 +307,12 @@ export function DMView() {
     else setUndoNext({ kind: 'stroke' });
   }, [R]);
 
+  // Els diàlegs desats es refresquen a la UI quan es carrega una partida (`useDialog` es
+  // crea més avall: hi arriba per ref).
+  const dialogsChangedRef = React.useRef<() => void>(() => {});
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
+    onDialogsChange: () => dialogsChangedRef.current(),
     setBgLoaded, setBgName, setPsdInfo, setStruct, setWarnings, setParseError, setParsing,
     setLayerImages, setVis, setPos, setZoom, setPlayers, setConditions, setDefeated,
     setPaintedZones, setExpanded, onUndoChange: refreshUndo, setActiveSpells, setGridSize, setGridSnap,
@@ -1145,7 +1155,9 @@ export function DMView() {
     const file = expositorFileRef.current;
     if (!file) return;
     // Sinergia: en mostrar una imatge/vídeo, amaguem el revelador de text (crossfade al jugador)
+    // i acabem el diàleg (cadascun amaga els altres).
     if (trActiveRef.current) hideTextRevealOnPlayer();
+    dialogEndRef.current();
     const buf = await file.arrayBuffer();
     R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
     R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_SHOW_META', mimeType: file.type }));
@@ -1166,14 +1178,46 @@ export function DMView() {
     setShowTab(t);
     setExpositorOpen(t === 'imatge');
     setTextRevealOpen(t === 'text');
+    setDialogOpen(t === 'dialeg');
   }, []);
-  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); }, []);
-  const showPanelOpen = expositorOpen || textRevealOpen;
+  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); setDialogOpen(false); }, []);
+  const showPanelOpen = expositorOpen || textRevealOpen || dialogOpen;
+
+  // ── Diàlegs de personatges (pestanya «Diàleg», veure `useDialog`) ─────────
+  const dlg = useDialog(R, {
+    broadcast: () => _broadcastState({}),
+    hideOthers: () => {
+      if (expositorActiveRef.current) hideExpositorOnPlayer();
+      if (trActiveRef.current) hideTextRevealOnPlayer();
+    },
+    launchBossIntro,
+  });
+  useEffect(() => { dialogEndRef.current = () => { if (R.rDialog.current) dlg.end(); }; dialogsChangedRef.current = dlg.reloadDialogs; });
+  const [dialogDraft, setDialogDraft] = useState<DialogDraft>(EMPTY_DRAFT);
+  // Tokens de l'escena per relacionar-hi els noms del guió (de l'estat, no dels refs).
+  const sceneTokenList = useMemo(() => [
+    ...players.map(p => ({ key: `pl_${p.id}`, name: p.name })),
+    ...libEnemies.map(e => ({ key: `lib_${e.id}`, name: e.name })),
+    ...(struct?.enemyRooms ?? []).flatMap(r => r.enemies).map(e => ({ key: String(e.id), name: psdEnemyOverrides[e.id]?.name || e.name })),
+  ], [players, libEnemies, struct, psdEnemyOverrides]);
+  const saveDraft = useCallback((d: DialogDraft) => {
+    if (!d.owner) return;
+    const id = d.id ?? Math.random().toString(36).slice(2, 10);
+    dlg.saveDialog(d.owner, { id, title: d.title.trim() || 'Diàleg', script: d.script, cast: d.cast, afterBoss: d.afterBoss });
+    setDialogDraft({ ...d, id });
+  }, [dlg]);
+  const startDraft = useCallback((d: DialogDraft) => {
+    setDialogDraft(d);
+    // El panell es tanca: el DM ha de veure l'escena, i la barra de control ja ho té tot.
+    closeShowPanel();
+    dlg.start({ title: d.title.trim() || 'Diàleg', script: d.script, cast: d.cast, cps: d.cps, afterBossOf: d.afterBoss ? d.owner : null });
+  }, [dlg, closeShowPanel]);
+
   const toggleShowPanel = useCallback(() => {
     if (showPanelOpen) closeShowPanel();
     // Si ara mateix s'està mostrant alguna cosa, s'obre per aquella pestanya.
-    else openShowTab(textRevealActive ? 'text' : expositorActive ? 'imatge' : showTab);
-  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, expositorActive, showTab]);
+    else openShowTab(dlg.ui ? 'dialeg' : textRevealActive ? 'text' : expositorActive ? 'imatge' : showTab);
+  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, expositorActive, showTab, dlg.ui]);
 
   // ── Expositor RAF loop: KB animation + EXPOSITOR_SYNC broadcast ───────────
   useEffect(() => {
@@ -1302,8 +1346,9 @@ export function DMView() {
     let eng = trEngineRef.current;
     if (!eng || eng.n === 0) { trBuild(); eng = trEngineRef.current; }
     if (!eng || eng.n === 0) return;
-    // Sinergia: en llançar text, amaguem l'expositor d'imatge (crossfade al jugador)
+    // Sinergia: en llançar text, amaguem l'expositor d'imatge (crossfade al jugador) i el diàleg
     if (expositorActiveRef.current) hideExpositorOnPlayer();
+    dialogEndRef.current();
     trBroadcastShow();
     trActiveRef.current = true;
     setTextRevealActive(true);
@@ -1419,7 +1464,7 @@ export function DMView() {
         mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
         sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         mode={mode} onModeChange={switchMode}
-        showOpen={showPanelOpen} showActive={expositorActive || textRevealActive} onToggleShow={toggleShowPanel}
+        showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui} onToggleShow={toggleShowPanel}
         undoLabel={undoLabel} onUndo={undoLast}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt}
@@ -1595,7 +1640,7 @@ export function DMView() {
         {/* Expositor floating panel */}
         {expositorOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive}
+            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui}
               hint="Espai: reinicia / pausa el moviment" onClose={closeShowPanel} />
             {/* Preview area with KB animation and pan/zoom */}
             <div
@@ -1678,7 +1723,7 @@ export function DMView() {
         {/* Revelador de text floating panel */}
         {textRevealOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive}
+            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui}
               hint="Espai: revela / pausa · ←→ navega · R reinicia" onClose={closeShowPanel} />
 
             <div style={{ overflowY: 'auto', minHeight: 0 }}>
@@ -1777,6 +1822,20 @@ export function DMView() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Diàleg: pestanya del panell «Mostrar als jugadors» */}
+        {dialogOpen && (
+          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+            <ShowPanelHeader tab="dialeg" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui}
+              hint="Espai/→ avança · ← enrere · Esc acaba" onClose={closeShowPanel} />
+            <DialogPanel draft={dialogDraft} onDraft={setDialogDraft} tokens={sceneTokenList} saved={dlg.dialogs}
+              running={!!dlg.ui} onStart={startDraft} onEnd={dlg.end} onSave={saveDraft} onDelete={dlg.deleteDialog} />
+          </div>
+        )}
+        {/* Barra de control del DM mentre corre un diàleg */}
+        {dlg.ui && (
+          <DialogControls ui={dlg.ui} onAdvance={dlg.advance} onBack={dlg.back} onChoose={dlg.choose} onEnd={dlg.end} />
         )}
 
         {!bgLoaded && (
@@ -1912,6 +1971,10 @@ export function DMView() {
         onAddDoor={handleAddDoorToRoom}
         onResetExplored={onResetExplored}
         onCastSpell={castFromToken}
+        dialogs={dlg.dialogs}
+        onSpeak={dlg.speak}
+        onPlayDialog={dlg.playSaved}
+        onEditDialogs={(key: string) => { setDialogDraft(d => ({ ...EMPTY_DRAFT, cps: d.cps, owner: key })); openShowTab('dialeg'); }}
       />
       <SceneConfigOverlay
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

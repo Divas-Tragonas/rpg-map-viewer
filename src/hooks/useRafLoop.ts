@@ -73,16 +73,21 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       const cinCam = R.cinematicCamRef.current;
       const normZ = R.rZoom.current * R.dmLocalZoom.current;
       const normPan = { x: R.rPanOffset.current.x + R.dmLocalPan.current.x, y: R.rPanOffset.current.y + R.dmLocalPan.current.y };
+      // Càmera d'un diàleg (veure `useDialog`): fa servir la mateixa interpolació que la
+      // cinemàtica, que té prioritat si totes dues volen la càmera alhora.
+      const dlgCam = R.dialogHostRef.current?.cam ?? null;
+      if (dlgCam && !cinCam.active) { cinCam.active = true; cinCam.curZoom = normZ; cinCam.curPan = { ...normPan }; }
+      const camRect = cinCam.rect ?? dlgCam;
       if (cinCam.active) {
         // Objectiu en coords de mapa (`rect`) traduït a aquesta finestra; sense `rect`,
         // torna suau a la vista normal i llavors s'apaga.
-        const tgt = cinCam.rect ? camToView(cinCam.rect, W, H, mw, mh) : { zoom: normZ, pan: normPan };
+        const tgt = camRect ? camToView(camRect, W, H, mw, mh) : { zoom: normZ, pan: normPan };
         const CL = 0.035;
         const dz = tgt.zoom - cinCam.curZoom;
         const dx = tgt.pan.x - cinCam.curPan.x, dy = tgt.pan.y - cinCam.curPan.y;
         if (Math.abs(dz) < 0.0005 && Math.abs(dx) < 0.3 && Math.abs(dy) < 0.3) {
           cinCam.curZoom = tgt.zoom; cinCam.curPan = { ...tgt.pan };
-          if (!cinCam.rect) cinCam.active = false;
+          if (!camRect) cinCam.active = false;
         } else { cinCam.curZoom += dz * CL; cinCam.curPan.x += dx * CL; cinCam.curPan.y += dy * CL; }
         z = cinCam.curZoom; pan = cinCam.curPan;
       } else {
@@ -140,6 +145,10 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         const pix = R.rAppStyle.current === 'pixel';
         if (pix !== prevPixelated) { media.style.imageRendering = pix ? 'pixelated' : ''; prevPixelated = pix; }
       }
+
+      // Diàleg: caixa, text que s'escriu i globus sobre el token (en píxels de l'escenari).
+      // Abans del `if (!s)`: el narrador també funciona sense mapa.
+      R.dialogHostRef.current?.tick(performance.now(), p => ({ x: ox + p.x * sc, y: oy + p.y * sc }));
 
       if (!s) {
         const oc2pre = R.drawCanvasRef.current;
@@ -355,6 +364,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
 
       // Cinematic tick
       R.cinematicRef.current?.tick(performance.now());
+
     };
 
     R.rafRef.current = requestAnimationFrame(tick);

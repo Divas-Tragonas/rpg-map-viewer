@@ -70,6 +70,15 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.42 — Diàlegs de personatges
+- **Pestanya «Diàleg»** al panell «Mostrar als jugadors»: guió en format teatre (`Nom: text`), cada nom relacionat amb el token que es diu igual (es pot canviar), estil i càmera per línia, opcions de resposta amb etiquetes i velocitat.
+- **Escena**: barres negres, càmera que s'acosta a qui parla (o enquadra els dos que parlen) i caixa amb retrat, nom i text que apareix lletra a lletra. App Píxel amb la finestra i la lletra del paquet (accents catalans compostos); Clàssica amb EB Garamond i el retrat o les inicials.
+- **Globus en combat** sobre el token (clic dret → Parlar), sense barres ni càmera i sense tocar els torns.
+- Diàlegs desats al token (partida i desat automàtic), llançables des del clic dret i encadenables després de la cinemàtica de boss.
+- Espai/→ avança (primer completa la línia), ← enrere, 1…9 tria l'opció, Esc acaba a totes les pantalles. El DM veu la línia següent.
+- No revela posicions: qui és invisible, amagat o dins d'una sala fosca parla com a veu, sense retrat ni càmera. Derrotat → retrat en grisos.
+- Viatja com a camp lleuger `dialog` del STATE/STRUCT (sense canvis a la API): la tablet que entra a mitja conversa veu la línia d'ara.
+
 ### v4.41 — Deu cinemàtiques de boss en pixel art
 - **Es pot triar la cinemàtica**: el botó «Cinemàtica» del menú d'un token obre un selector amb «La de sempre» i deu de noves en pixel art, inspirades en entrades de boss de jocs retro: *Encontre salvatge* (Pokémon), *Repte del líder*, *Apareix un monstre* (Dragon Quest), *Vidre trencat* (Final Fantasy), *Portal del temps* (Chrono Trigger), *Fons psicodèlic* (EarthBound), *WARNING* (Mega Man), *Versus* (Street Fighter), *Rètol del boss* (Zelda) i *L'ombra* (Souls).
 - Fan servir el material del paquet Oryx: la figureta del token (o la seva imatge si no en té), la colla amb les seves figuretes, la lletra, les finestres i les barres de vida del full d'interfície i els efectes.

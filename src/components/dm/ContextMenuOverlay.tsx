@@ -1,12 +1,12 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon } from '@/components/icons';
+import { X, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
 import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/components/dm/TokenFields';
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
-import type { ContextMenuState, ConditionsMap, DefeatedMap } from '@/types';
+import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog } from '@/types';
 
 interface Props {
   contextMenu: ContextMenuState | null;
@@ -38,6 +38,54 @@ interface Props {
   onResetExplored: (id: string) => void;
   /** Llança una màgia del grimori d'un jugador des del seu token (`origin` = centre). */
   onCastSpell: (type: import('@/types').SpellType, origin: import('@/types').Point) => void;
+  /** Diàlegs preparats de cada token (veure `useDialog`). */
+  dialogs: Record<string, SavedDialog[]>;
+  /** Frase improvisada: globus sobre el token (combat) o escena (barres i càmera). */
+  onSpeak: (tokenKey: string, text: string, kind: 'scene' | 'bubble') => void;
+  onPlayDialog: (tokenKey: string, id: string) => void;
+  /** Obre la pestanya «Diàleg» per preparar-ne un per a aquest token. */
+  onEditDialogs: (tokenKey: string) => void;
+}
+
+/**
+ * «Parlar»: una frase al moment (globus sobre el token, que no trenca els torns, o escena
+ * amb barres i càmera) i els diàlegs preparats d'aquest token.
+ */
+function TokenSpeech({ tokenKey, dialogs, onSpeak, onPlay, onEdit }: {
+  tokenKey: string; dialogs: SavedDialog[];
+  onSpeak: (text: string, kind: 'scene' | 'bubble') => void; onPlay: (id: string) => void; onEdit: () => void;
+}) {
+  const [text, setText] = useState('');
+  const send = (kind: 'scene' | 'bubble') => { if (text.trim()) { onSpeak(text, kind); setText(''); } };
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, padding: '7px 8px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 0 }}>
+        <SpeechIcon size={11} /> Parlar
+        <span style={{ flex: 1 }} />
+        <button onMouseDown={e => { e.stopPropagation(); onEdit(); }} title="Preparar un diàleg per a aquest token"
+          style={{ background: 'none', border: 'none', color: C.dim, fontSize: FS.xs, cursor: 'pointer', textDecoration: 'underline', padding: 0, textTransform: 'none', letterSpacing: 0 }}>Preparar…</button>
+      </div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input value={text} onChange={e => setText(e.target.value)} placeholder="Què diu?" aria-label="Frase que diu el token"
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send(e.shiftKey ? 'scene' : 'bubble'); } }}
+          style={{ ...fieldStyle, flex: 1, minWidth: 0 }} data-token={tokenKey} />
+        <Button size="sm" variant="secondary" disabled={!text.trim()} onMouseDown={e => { e.stopPropagation(); send('bubble'); }}
+          title="Globus sobre el token, sense barres ni càmera (Enter)">Globus</Button>
+        <Button size="sm" variant="secondary" disabled={!text.trim()} onMouseDown={e => { e.stopPropagation(); send('scene'); }}
+          title="Escena: barres, càmera i caixa de diàleg (Maj+Enter)">Escena</Button>
+      </div>
+      {dialogs.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {dialogs.map(dl => (
+            <Button key={dl.id} size="sm" variant="tint" color={C.magicBright} onMouseDown={e => { e.stopPropagation(); onPlay(dl.id); }}
+              title={dl.afterBoss ? 'Comença després de la cinemàtica de boss' : 'Començar aquest diàleg'}>
+              <PlayIcon size={9} /> {dl.title || 'Diàleg'}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Amplada dels menús: prou per als quatre camps de la fitxa d'un jugador en una fila. */
@@ -141,6 +189,7 @@ export function ContextMenuOverlay({
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
   onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell,
+  dialogs, onSpeak, onPlayDialog, onEditDialogs,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
   // així que el botó demana confirmació en dos passos (com el ✕ del TurnTracker). Es desa
@@ -336,6 +385,11 @@ export function ContextMenuOverlay({
         const origin = contextMenu.casterPos;
         return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
       })()}
+
+      <TokenSpeech tokenKey={t.key} dialogs={dialogs[t.key] ?? []}
+        onSpeak={(text, kind) => { onSpeak(t.key, text, kind); onClose(); }}
+        onPlay={dlgId => { onPlayDialog(t.key, dlgId); onClose(); }}
+        onEdit={() => { onEditDialogs(t.key); onClose(); }} />
 
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px 8px' }}>
         {pl && confirmDelPlayer === t.key ? (
