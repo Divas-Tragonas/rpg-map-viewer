@@ -1,4 +1,4 @@
-import type { StrokeData, StrokeAnimState } from '@/types';
+import type { StrokeData } from '@/types';
 import type { FrameContext } from './types';
 
 export function replayStroke(ctx2: CanvasRenderingContext2D, stroke: StrokeData): void {

@@ -1,7 +1,7 @@
 import type { MutableRefObject } from 'react';
 import type {
   MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, SpellPreview,
-  ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData, Point, DrawTool,
+  ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, Point, DrawTool,
   Wall, Room, Door, TurnState,
 } from '@/types';
 

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Upload, ZapIcon, Eye } from '@/components/icons';
 import { Button } from '@/components/ui/Button';
 import { C, FS, RADIUS } from '@/constants';
@@ -14,6 +14,11 @@ interface SceneImgPickerProps {
 
 export function SceneImgPicker({ defaultCanvas, onTrigger, onPreview }: SceneImgPickerProps) {
   const [custom, setCustom] = useState<{ url: string; imgEl: HTMLImageElement } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // L'URL de la imatge triada abans s'ha de revocar a mà: tria'n tres i queden tres imatges
+  // senceres a memòria.
+  const customUrlRef = useRef<string | null>(null);
+  useEffect(() => () => { if (customUrlRef.current) URL.revokeObjectURL(customUrlRef.current); }, []);
   const defaultUrl = useMemo(() => {
     if (!defaultCanvas) return null;
     try { return (defaultCanvas as HTMLCanvasElement).toDataURL?.() || (defaultCanvas as HTMLImageElement).src || null; } catch { return null; }
@@ -22,10 +27,22 @@ export function SceneImgPicker({ defaultCanvas, onTrigger, onPreview }: SceneImg
   const imgEl: HTMLCanvasElement | HTMLImageElement | null = custom?.imgEl || defaultCanvas;
 
   const handleFile = (file: File) => {
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError(`«${file.name}» no és una imatge.`); return; }
+    setError(null);
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => setCustom({ url, imgEl: img });
+    img.onload = () => {
+      if (customUrlRef.current) URL.revokeObjectURL(customUrlRef.current);
+      customUrlRef.current = url;
+      setCustom({ url, imgEl: img });
+    };
+    // Sense això, una imatge malmesa deixava el quadre igual que abans i semblava que el
+    // clic no hagués fet res.
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setError(`No s'ha pogut obrir «${file.name}».`);
+    };
     img.src = url;
     if (file.type === 'image/gif') {
       const reader = new FileReader();
@@ -44,8 +61,8 @@ export function SceneImgPicker({ defaultCanvas, onTrigger, onPreview }: SceneImg
         {previewUrl
           ? <img src={previewUrl} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: RADIUS.sm, flexShrink: 0 }} alt="portrait" />
           : <Upload size={14} color={`${C.magic}b3`} />}
-        <span style={{ color: `${C.magic}d9`, fontSize: FS.sm, lineHeight: 1.3 }}>
-          {custom ? 'Canviar imatge' : defaultCanvas ? 'Imatge del token (clic per canviar)' : 'Importar imatge'}
+        <span style={{ color: error ? C.enemy : `${C.magic}d9`, fontSize: FS.sm, lineHeight: 1.3 }}>
+          {error || (custom ? 'Canviar imatge' : defaultCanvas ? 'Imatge del token (clic per canviar)' : 'Importar imatge')}
         </span>
       </label>
       <div style={{ display: 'flex', gap: 6 }}>

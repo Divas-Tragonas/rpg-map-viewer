@@ -1,19 +1,4 @@
-import type { ParsedPSD, PSDLayer } from '@/types';
-
-function unpackBits(src: Uint8Array, unpacked: Uint8Array): void {
-  let i = 0, j = 0;
-  while (i < src.length && j < unpacked.length) {
-    const n = src[i++];
-    if (n === 128) continue;
-    if (n < 128) {
-      const count = n + 1;
-      for (let k = 0; k < count && i < src.length && j < unpacked.length; k++) unpacked[j++] = src[i++];
-    } else {
-      const count = 256 - n + 1, val = src[i++];
-      for (let k = 0; k < count && j < unpacked.length; k++) unpacked[j++] = val;
-    }
-  }
-}
+import type { ParsedPSD } from '@/types';
 
 export function parsePSDStructure(buffer: ArrayBuffer): ParsedPSD {
   const result: ParsedPSD = { width: 0, height: 0, bitDepth: 8, layers: [], channelDataOffset: 0, error: null };

@@ -38,6 +38,8 @@ interface Props {
   camAr: number | null;
   onOpenPlayer: () => void;
   autosaveEnabled: boolean; autosaveAt: number | null;
+  /** El desat automàtic porta fallades seguides (quota plena, finestra privada). */
+  autosaveFailing: boolean;
   onToggleAutosave: () => void; onSaveNow: () => void;
   onExport: () => void; onImport: (file: File) => void;
   /** Partides al servidor (només si hi ha API configurada). */
@@ -235,9 +237,9 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
  * L'etiqueta del botó és l'estat del desat, que es refresca sola perquè «fa 2 min» no es
  * quedi congelat entre desats.
  */
-function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt, onToggleAutosave, onSaveNow, onExport, onImport, onOpenServer }: {
+function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt, autosaveFailing, onToggleAutosave, onSaveNow, onExport, onImport, onOpenServer }: {
   open: boolean; onToggle: () => void; onClose: () => void; hasMap: boolean;
-} & Pick<Props, 'autosaveEnabled' | 'autosaveAt' | 'onToggleAutosave' | 'onSaveNow' | 'onExport' | 'onImport' | 'onOpenServer'>) {
+} & Pick<Props, 'autosaveEnabled' | 'autosaveAt' | 'autosaveFailing' | 'onToggleAutosave' | 'onSaveNow' | 'onExport' | 'onImport' | 'onOpenServer'>) {
   const [, tick] = useState(0);
   useEffect(() => {
     const iv = setInterval(() => tick(n => n + 1), 15_000);
@@ -245,16 +247,21 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
   }, []);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const label = !hasMap ? 'Partida' : !autosaveEnabled ? 'Sense desar' : autosaveAt ? `Desat ${agoLabel(autosaveAt)}` : 'Desant…';
+  // Quan el desat falla, el botó ho ha de dir: l'única pista que hi havia era que l'etiqueta
+  // deixava d'avançar, i te n'assabentaves en perdre la partida.
+  const failing = hasMap && autosaveEnabled && autosaveFailing;
+  const label = !hasMap ? 'Partida' : !autosaveEnabled ? 'Sense desar' : failing ? 'No es pot desar' : autosaveAt ? `Desat ${agoLabel(autosaveAt)}` : 'Desant…';
   const title = !hasMap ? 'Obrir o importar una partida'
-    : autosaveEnabled ? 'Desat automàtic actiu (cada 30 s i en amagar la pestanya)'
-      : 'Desat automàtic apagat: si tanques o refresques, perdràs la partida';
+    : failing ? 'El desat automàtic NO pot escriure (espai del navegador ple o finestra privada). Exporta la partida a un fitxer per no perdre-la.'
+      : autosaveEnabled ? 'Desat automàtic actiu (cada 30 s i en amagar la pestanya)'
+        : 'Desat automàtic apagat: si tanques o refresques, perdràs la partida';
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} title={title}>
-        {hasMap && autosaveEnabled && autosaveAt ? <CheckIcon size={14} color={C.hpHigh} /> : <SaveIcon size={14} />}
+        {hasMap && autosaveEnabled && autosaveAt && !failing ? <CheckIcon size={14} color={C.hpHigh} /> : <SaveIcon size={14} />}
         {label}
         {hasMap && !autosaveEnabled && <Dot color={C.warn} />}
+        {failing && <Dot color={C.enemy} />}
         <ChevronDown size={12} color={C.dim} />
       </BarButton>
       <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
@@ -267,7 +274,9 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Desat automàtic</span>
                   <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.45 }}>
-                    {autosaveEnabled
+                    {failing
+                      ? `No pot escriure (espai ple o finestra privada). ${autosaveAt ? `L'últim que va funcionar: ${agoLabel(autosaveAt)}.` : 'No s\'ha arribat a desar res.'} Exporta la partida a un fitxer.`
+                      : autosaveEnabled
                       ? `Cada 30 s i en amagar la pestanya. ${autosaveAt ? `Últim: ${agoLabel(autosaveAt)}.` : 'Encara no s\'ha desat res.'}`
                       : 'Apagat: si refresques o tanques, perds la partida.'}
                   </span>
@@ -514,7 +523,7 @@ export function TopBar(p: Props) {
         <ScreensMenu open={menu === 'screens'} onToggle={toggle('screens')} onClose={close}
           playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} />
         <GameMenu open={menu === 'game'} onToggle={toggle('game')} onClose={close} hasMap={hasMap}
-          autosaveEnabled={p.autosaveEnabled} autosaveAt={p.autosaveAt}
+          autosaveEnabled={p.autosaveEnabled} autosaveAt={p.autosaveAt} autosaveFailing={p.autosaveFailing}
           onToggleAutosave={p.onToggleAutosave} onSaveNow={p.onSaveNow}
           onExport={p.onExport} onImport={p.onImport} onOpenServer={p.onOpenServer} />
         {hasMap && (

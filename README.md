@@ -70,6 +70,16 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.43 — Res no falla en silenci, i el dibuix deixa de créixer sense fre
+- Recuperada i fusionada una branca de la v4.15 que s'havia quedat penjada fora del `master`.
+- **El fons ja diu quan no es pot obrir**: amb un fitxer malmès o un còdec no admès, l'app es donava el mapa per carregat amb la pantalla negra. Ara es reverteix i es diu què passa. Es valida el tipus (només imatge o vídeo) i la mida (màxim 256 MB, avís a partir de 40 MB).
+- **Avisos a la pantalla**: una partida corrupta, un `.json` que no és una partida o la demo sense connexió ara surten com a avís a dalt de l'escenari, en lloc de quedar-se a la consola.
+- **El desat automàtic avisa quan no pot escriure** (espai ple, finestra privada): el botó Partida diu «No es pot desar» amb un punt vermell i surt un avís, un sol cop per ratxa.
+- **L'historial de dibuix ja no creix sense límit**: es conserven els últims 120 traços i els més antics es rasteritzen a una base. El dibuix es veu igual, però el `STRUCT`, el desfer i el desat automàtic deixen de créixer en una sessió llarga.
+- **Fuites de memòria**: es revoca l'object URL del fons anterior i el de la imatge triada per a un token (que ara també diu quan no es pot obrir).
+- `/expositor` passa a dir-se **visor local** i explica que no està connectat amb el DM.
+- Codi mort fora: `doorPlacementAt`, `rDoorWidthCells` i la còpia d'`unpackBits` del parser de PSD.
+
 ### v4.42 — Diàlegs de personatges
 - **Pestanya «Diàleg»** al panell «Mostrar als jugadors»: guió en format teatre (`Nom: text`), cada nom relacionat amb el token que es diu igual (es pot canviar), estil i càmera per línia, opcions de resposta amb etiquetes i velocitat.
 - **Escena**: barres negres, càmera que s'acosta a qui parla (o enquadra els dos que parlen) i caixa amb retrat, nom i text que apareix lletra a lletra. App Píxel amb la finestra i la lletra del paquet (accents catalans compostos); Clàssica amb EB Garamond i el retrat o les inicials.
