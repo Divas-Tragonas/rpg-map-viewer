@@ -70,6 +70,17 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.47 — Els estats es veuen a la figureta
+- A l'app Píxel, la figureta del token també mostra els estats que té (els badges i l'anell continuen dient quins són):
+  - **Tombat, Inconscient i Morint**: estirada a terra. Inconscient i Morint, a més, no es mouen.
+  - **Petrificat**: de pedra i quieta.
+  - **Enverinat**: batec verd. **Morint**: batec vermell.
+  - **Paralitzat** i **Encisat**: contorn del color de l'estat (groc i rosa) que batega.
+  - **Agafat, Retingut i Incapacitat**: deixa de fer l'animació d'espera.
+  - **Atordit**: es balanceja. **Espantat**: tremola. **Cansament**: respira a mig ritme.
+- Amb la figura estirada, els badges dels estats baixen fins a ella. Amb «reduir el moviment» del sistema, res no tremola ni balla.
+- Es veu igual al DM i a les pantalles de jugador (els estats ja hi arribaven): sense canvis a la API.
+
 ### v4.46 — Variants de color amb criteri
 - Fora la paleta lliure de la v4.45: amb colors a l'atzar sortien espases roses, ocells d'un sol color i soldats empastats.
 - Ara cada figureta té **dues variants fetes amb criteri** (122 de les 130 criatures), i al menú del clic dret del token es tria entre l'original i les variants, en miniatura.

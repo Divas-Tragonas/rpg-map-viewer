@@ -2,7 +2,8 @@ import type { FrameContext } from './types';
 import { TOKEN_LERP, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
 import { packReady } from '@/lib/sprites/pack';
-import { hasCreature, drawCreature, grayCreature, creatureFrame } from '@/lib/sprites/draw';
+import { hasCreature, drawCreature, grayCreature } from '@/lib/sprites/draw';
+import { drawFigureState, figureLook, isLying } from '@/lib/sprites/states';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
@@ -20,6 +21,9 @@ function ringPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
   else ctx.arc(cx, cy, r, 0, Math.PI * 2);
 }
 
+/** Centre per als badges dels estats: amb la figura estirada, baixen fins a ella (no suren on hi hauria el cap). */
+const badgeY = (cy: number, R: number, sprite: string | null, conds: readonly string[]) => sprite && isLying(conds) ? cy + R * 1.4 : cy;
+
 /** El token es pinta com a figureta? (estil Píxel, paquet carregat i criatura coneguda). */
 function pixelSprite(fc: FrameContext, sprite: string | undefined): string | null {
   return fc.rAppStyle?.current === 'pixel' && packReady() && hasCreature(sprite) ? sprite : null;
@@ -31,7 +35,7 @@ function pixelSprite(fc: FrameContext, sprite: string | undefined): string | nul
  * grisos. Substitueix només el disc del token: nom, vida, estats i aros es pinten igual.
  */
 function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
-  cx: number, cy: number, R: number, team: string, opts: { defeated?: number; alpha?: number; invis?: boolean }) {
+  cx: number, cy: number, R: number, team: string, opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[] }) {
   const { sc } = fc;
   const f = _facing.get(key);
   if (!f) _facing.set(key, { x: cx, left: false });
@@ -60,7 +64,8 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
     }
   } else {
     if (opts.invis) ctx.globalAlpha *= 0.45;
-    drawCreature(ctx, sprite, creatureFrame(performance.now(), key.length * 3.1 + key.charCodeAt(key.length - 1)), cx - S / 2, cy - S * 0.62, S, left);
+    // Amb els estats a la figura (`lib/sprites/states.ts`): estirada, de pedra, quieta, contorn…
+    drawFigureState(ctx, sprite, figureLook(opts.conds ?? []), cx, cy + R * 0.62, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1));
   }
   ctx.restore();
 }
@@ -205,7 +210,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     ctx.globalAlpha = enAlpha;
 
     if (psdSprite) {
-      drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis });
+      drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
     } else if (isDefeated && !isDM) {
       const desatAlpha = Math.min(1, crossProg * 2);
       if (desatAlpha > 0) {
@@ -270,7 +275,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     }
     ctx.globalAlpha = 1;
-    if (!isDM && isInvis) { /* skip badges */ } else { drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc, psdSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined); }
+    if (!isDM && isInvis) { /* skip badges */ } else { drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, psdSprite, enCondIds), R, enCondIds, sc, psdSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined); }
 
     const _ha = rHighlightAlpha.current;
     if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
@@ -384,7 +389,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     }
 
     if (libSprite) {
-      drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis });
+      drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -438,7 +443,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.fillText(en.name, ep.x, ep.y + R + 12 / sc);
     }
     ctx.globalAlpha = 1;
-    if (showStates) drawConditionBadges(ctx, ep.x, ep.y, R, enCondIds, sc, libSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
+    if (showStates) drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, libSprite, enCondIds), R, enCondIds, sc, libSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
 
     const _ha = rHighlightAlpha.current;
     if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
@@ -597,7 +602,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
     }
     if (plSprite) {
-      drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis });
+      drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -629,7 +634,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     ctx.fillStyle = 'rgba(8,12,18,.8)'; ctx.fillRect(ppos.x + R - tw2 / 2 - 4 / sc, ppos.y + R * 2 + 3 / sc, tw2 + 8 / sc, 12 / sc);
     ctx.fillStyle = pl.color; ctx.fillText(pl.name, ppos.x + R, ppos.y + R * 2 + 12 / sc);
     ctx.textAlign = 'left';
-    drawConditionBadges(ctx, ppos.x + R, ppos.y + R, R, plCondIds, sc, plSprite ? { footY: ppos.y + R + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
+    drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? { footY: ppos.y + R + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
 
     if (isDM && pl.hpMax > 0) {
       const hp = pl.hp ?? pl.hpMax, hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));

@@ -38,7 +38,7 @@ export const hasCreature = (n: string | undefined | null): n is string => !!n &&
 const FRAMES = 3;  // fotogrames de l'animació d'espera (els 3 primers del full)
 const variantSheet = (variant: number) => `heroes_v${variant}` as SheetId;
 /** El full que pinta exactament aquesta figureta ja hi és? (per no desar a les memòries cau l'original en lloc de la variant) */
-const sheetReady = (sprite: string) => { const v = parseSprite(sprite).variant; return !!sheet(v ? variantSheet(v) : 'heroes'); };
+export const sheetReady = (sprite: string) => { const v = parseSprite(sprite).variant; return !!sheet(v ? variantSheet(v) : 'heroes'); };
 
 /** Retall genèric d'un full, a (dx,dy,dw,dh). Retorna false si el full encara no hi és. */
 export function blit(ctx: CanvasRenderingContext2D, id: SheetId, sx: number, sy: number, sw: number, sh: number,
