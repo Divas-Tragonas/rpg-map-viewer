@@ -15,8 +15,10 @@ Criteri:
   - colors: rampes de 5 tons (fosc → clar) mesurades a la pintura de Conyberry (`RAMPS`);
     les terres del paquet (herba, terra clara, aigua) hi es passen amb un mapa de gradient,
     o sigui que conserven la textura de l'autor;
-  - forma: llum de dalt a l'esquerra, contorn de tinta (`INK`) i ombra al terra cap a baix a
-    la dreta, com les peces de l'autor;
+  - forma: llum de dalt a l'esquerra i ombra al terra cap a baix a la dreta, SENSE contorn (com tot
+    el paquet: figuretes, roques, bardissa i parets es defineixen pel to fosc del seu propi color);
+  - fullatge: grups de fulles a l'atzar i solapats amb la textura de la bardissa del paquet (res
+    de graelles de boles ni de soroll fi: es veia fals);
   - transicions (camí, còdols, aigua sobre el que hi hagi a sota): graella dual (cada peça va
     a la cantonada de quatre caselles i es tria per quines són del terreny de sobre), amb vora
     irregular de soroll periòdic, així peces veïnes casen sempre.
@@ -32,6 +34,8 @@ OUT = os.path.join(ROOT, 'public', 'sprites', 'uf_village.png')
 A = 24          # píxels d'art per casella
 COLS = 20
 
+# To més fosc del mapa: no és cap contorn (no n'hi ha), és on van a parar els negres de les
+# figuretes quan s'ajusten al mapa (`figureGrade` de les missions).
 INK = (44, 36, 24)
 SHADOW = (34, 30, 18)
 RAMPS = {
@@ -143,7 +147,7 @@ def water_frames(n=4):
         frames.append(img)
     return frames
 
-def transition(tex, bits, seed, rim_out=(INK, 0.30), rim_in=None, jitter=0.5):
+def transition(tex, bits, seed, rim_out=(SHADOW, 0.18), rim_in=None, jitter=0.5):
     """
     Peça de graella dual: `bits` = cantonades del terreny de sobre (1 dalt-esq., 2 dalt-dreta,
     4 baix-dreta, 8 baix-esq.). Transparent on hi ha el de sota; la vora de fora s'enfosqueix.
@@ -167,98 +171,109 @@ def transition(tex, bits, seed, rim_out=(INK, 0.30), rim_in=None, jitter=0.5):
     return out[1:-1, 1:-1]
 
 # ── arbres i roques ─────────────────────────────────────────────────────────
-def blob(size, R, seed, stops, lumps=7, cluster=True, flat=1.0, shadow=0.36, cx=None, cy=None):
-    """Copa d'arbre (o roca) vista de dalt: unió de bonys amb relleu, llum de dalt a l'esquerra."""
+def vnoise(h, w, cell, seed):
+    """Soroll de valor suau (no periòdic) amb cel·les de `cell` px: per a les masses de fulles."""
     rng = np.random.default_rng(seed)
-    H = W = size
-    cx = size / 2 - R * 0.12 if cx is None else cx; cy = size / 2 - R * 0.16 if cy is None else cy
-    yy, xx = np.mgrid[0:H, 0:W] + 0.5
-    blobs = [(cx, cy, R * 0.74, R * 0.25)]
-    for k in range(lumps):
-        a = 2 * math.pi * k / lumps + rng.uniform(-0.35, 0.35); rr = R * rng.uniform(0.48, 0.6); r = R * rng.uniform(0.36, 0.46)
-        blobs.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr, r, 0))
-    hgt = np.full((H, W), -1.0)
-    for bx, by, r, z in blobs:
-        d2 = ((xx - bx) ** 2 + (yy - by) ** 2) / r ** 2
-        hgt = np.maximum(hgt, np.where(d2 < 1, np.sqrt(np.clip(1 - d2, 0, 1)) * r * flat + z, -1))
-    mask = hgt >= 0
-    if cluster:
-        bump = np.zeros((H, W))
-        n = int(R * R * 0.16)
-        for _ in range(n):
-            bx, by = rng.uniform(cx - R, cx + R), rng.uniform(cy - R, cy + R); r = rng.uniform(2.2, 3.6)
-            d2 = ((xx - bx) ** 2 + (yy - by) ** 2) / r ** 2
-            bump = np.maximum(bump, np.where(d2 < 1, np.sqrt(np.clip(1 - d2, 0, 1)) * r * 0.9, 0))
-        hgt = np.where(mask, hgt + bump, hgt)
-    gy, gx = np.gradient(np.where(mask, hgt, 0))
-    n = np.dstack([-gx, -gy, np.ones_like(gx)]); n /= np.linalg.norm(n, axis=2, keepdims=True)
-    L = np.array([-0.55, -0.68, 0.48]); L /= np.linalg.norm(L)
-    sh = (n @ L) + 0.35 * hgt / max(hgt.max(), 1e-6)
-    v = sh[mask]
-    cuts = np.percentile(v, [10, 32, 64, 88])
-    lvl = np.digitize(sh, cuts)
-    img = np.zeros((H, W, 4), np.uint8)
-    pal = np.array(stops, np.uint8)
-    img[mask, :3] = pal[lvl[mask]]; img[mask, 3] = 255
-    edge = mask & ~erode(mask)
-    img[edge, :3] = np.array(INK) if stops is not RAMPS['stone'] else np.array(INK)
-    out = np.zeros((H, W, 4), np.uint8)
-    if shadow:
-        sx, sy = int(round(R * 0.22)) + 1, int(round(R * 0.3)) + 1
-        sm = np.zeros_like(mask); sm[sy:, sx:] = mask[:H - sy, :W - sx]
-        out[sm, :3] = SHADOW; out[sm, 3] = int(shadow * 255)
-    over(out, img)
-    return out
+    gh, gw = int(h / cell) + 3, int(w / cell) + 3
+    g = rng.random((gh, gw))
+    y = np.arange(h) / cell; x = np.arange(w) / cell
+    y0 = y.astype(int); x0 = x.astype(int); fy = y - y0; fx = x - x0
+    fy = fy * fy * (3 - 2 * fy); fx = fx * fx * (3 - 2 * fx)
+    a = g[np.ix_(y0, x0)]; b = g[np.ix_(y0, x0 + 1)]; c = g[np.ix_(y0 + 1, x0)]; d = g[np.ix_(y0 + 1, x0 + 1)]
+    fy = fy[:, None]; fx = fx[None, :]
+    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
 
-def canopy(size, R, seed, stops, clump=5.5):
+_leaf = None
+def leaf_texture():
+    """El fullatge del paquet (dalt de la bardissa, `uf_terrain` fila 22), en lluminositat 0..1."""
+    global _leaf
+    if _leaf is None:
+        L = [lum(oryx(c, 22)[..., :3]) for c in (1, 4)]
+        lo, hi = np.percentile(np.concatenate([l.ravel() for l in L]), [3, 97])
+        _leaf = [np.clip((l - lo) / (hi - lo), 0, 1) for l in L]
+    return _leaf
+
+def canopy(size, R, seed, stops, clump=5.5, leafy=1.0):
     """
-    Copa d'arbre a l'estil de les figuretes del paquet: grups de fulles rodons i ben marcats
-    (contorn fosc, llum a dalt a l'esquerra, punt de brillantor i plec fosc a baix a la dreta),
-    els de baix tapant els de dalt, i contorn de tinta a la silueta. Res de gra de soroll.
+    Copa d'arbre (o roca) a l'estil del paquet: SENSE contorn ni línies (el paquet no en fa servir
+    enlloc: la forma surt de l'ombrejat del seu propi color). Grups de fulles repartits a l'atzar,
+    de mides diferents i molt solapats (els del mig damunt dels de fora: fa la cúpula), cadascun
+    amb la llum de dalt a l'esquerra, i la textura de fulles de la bardissa del paquet per sobre.
     """
     rng = np.random.default_rng(seed)
     H = W = size
     cx, cy = size / 2 - R * 0.12, size / 2 - R * 0.16
     yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    t1, t2 = leaf_texture()
+    oy, ox = rng.integers(0, A, 2); oy2, ox2 = rng.integers(0, A, 2)
+    iy, ix = yy.astype(int), xx.astype(int)
+    tex = 0.5 * t1[(iy + oy) % A, (ix + ox) % A] + 0.5 * t2[::-1, ::-1][(iy + oy2) % A, (ix + ox2) % A]
+    # grups: a l'atzar amb una distància mínima (res de graella), mides variades
     pts = []
-    # anell de grups a la vora (silueta rodona i bonyeguda) + interior en graella amb soroll
-    n = max(5, int(2 * math.pi * (R - clump) / (clump * 1.3)))
-    for k in range(n):
-        a = 2 * math.pi * (k + rng.uniform(-0.2, 0.2)) / n
-        rr = R - clump * rng.uniform(0.85, 1.05)
-        pts.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr, clump * rng.uniform(0.85, 1.2)))
-    step = clump * 1.3
-    for j, y in enumerate(np.arange(cy - R, cy + R + 1, step * 0.87)):
-        for x in np.arange(cx - R - (j % 2) * step / 2, cx + R + 1, step):
-            px, py = x + rng.uniform(-1.6, 1.6), y + rng.uniform(-1.6, 1.6)
-            if np.hypot(px - cx, py - cy) < R - clump * 1.6: pts.append((px, py, clump * rng.uniform(1.0, 1.4)))
-    pts.sort(key=lambda p: p[1] + p[0] * 0.25)
-    lvl = np.full((H, W), -1)
+    for _ in range(4000):
+        a = rng.uniform(0, 2 * math.pi); rr = R * math.sqrt(rng.uniform(0, 1)) * 0.9
+        px, py = cx + math.cos(a) * rr, cy + math.sin(a) * rr
+        r = clump * rng.uniform(0.75, 1.4) * (1.15 - 0.35 * rr / R)
+        if rr + r > R * 1.02: r = R * 1.02 - rr
+        if r < clump * 0.55: continue
+        if any((px - qx) ** 2 + (py - qy) ** 2 < (0.62 * (r + qr)) ** 2 for qx, qy, qr in pts): continue
+        pts.append((px, py, r))
+    # dels de fora cap als del mig (els del mig queden a dalt de tot)
+    pts.sort(key=lambda p: -np.hypot(p[0] - cx, p[1] - cy) + p[1] * 0.15)
+    v = np.full((H, W), np.nan)
     for px, py, r in pts:
-        d = np.hypot(xx - px, yy - py)
-        g = -((px - cx) * 0.5 + (py - cy) * 0.8) / R           # posició dins de la copa (-1 ombra .. 1 llum)
-        base = int(np.clip(round(2 + g * 0.9), 1, 3))
-        side = ((xx - px) * 0.55 + (yy - py) * 0.8) / r      # -1 dalt a l'esquerra .. 1 baix a la dreta
-        ring = (d < r) & (d >= r - 1.0)
-        lvl[ring & (side > -0.25)] = 0                         # plec fosc entre grups, només a baix
-        lvl[ring & (side <= -0.25)] = base if (base := int(np.clip(round(2 + (-((px - cx) * 0.5 + (py - cy) * 0.8) / R) * 0.9), 1, 3))) else 1
-        inner = d < r - 1.0
-        lvl[inner] = base
-        lvl[inner & (((xx - px) * 0.55 + (yy - py) * 0.8) > r * 0.35)] = base - 1
-        hl = np.hypot(xx - (px - r * 0.28), yy - (py - r * 0.32)) < r * 0.5
-        lvl[inner & hl] = min(4, base + 1)
-        if g > -0.4:
-            sp = np.hypot(xx - (px - r * 0.36), yy - (py - r * 0.42)) < max(1.0, r * 0.2)
-            lvl[inner & sp] = min(4, base + 2)
-    mask = lvl >= 0
+        dx, dy = (xx - px) / r, (yy - py) / r
+        d2 = dx * dx + dy * dy
+        m = d2 < 1
+        # vora del grup trencada per la textura de fulles (no un cercle perfecte)
+        m &= ~((d2 > 0.72) & (tex < 0.35 + 0.1 * (1 - leafy)))
+        if not m.any(): continue
+        nz = np.sqrt(np.clip(1 - d2, 0, 1))
+        light = (-dx * 0.55 - dy * 0.7 + nz * 0.5)
+        hgt = 1 - np.hypot(px - cx, py - cy) / R
+        side = -((px - cx) * 0.55 + (py - cy) * 0.7) / R     # tota la copa: llum a dalt a l'esquerra
+        v[m] = (light * 0.9 + hgt * 0.45 + side * 0.45 + (tex - 0.5) * 0.45 * leafy)[m]
+    mask = ~np.isnan(v)
+    mask = dilate(erode(mask)) & mask
+    vv = np.where(mask, v, 0)
+    cuts = np.percentile(vv[mask], [12, 33, 62, 87])
+    lvl = np.digitize(vv, cuts)
     img = np.zeros((H, W, 4), np.uint8)
     pal = np.array(stops, np.uint8)
     img[mask, :3] = pal[lvl[mask]]; img[mask, 3] = 255
-    img[mask & ~erode(mask), :3] = INK
     out = np.zeros((H, W, 4), np.uint8)
     sx, sy = int(round(R * 0.22)) + 1, int(round(R * 0.3)) + 1
     sm = np.zeros_like(mask); sm[sy:, sx:] = mask[:H - sy, :W - sx]
-    out[sm, :3] = SHADOW; out[sm, 3] = int(0.36 * 255)
+    out[sm, :3] = SHADOW; out[sm, 3] = int(0.34 * 255)
+    over(out, img)
+    return out
+
+def rock(R, seed, flat=0.75):
+    """Roca llisa com les del paquet: sense contorn, llum a dalt, costats foscos i una esquerda."""
+    rng = np.random.default_rng(seed)
+    H = W = A
+    cx, cy = A / 2 - 1, A / 2 - 1
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    ang = np.arctan2(yy - cy, xx - cx)
+    rad = R * (1 + sum(rng.uniform(0.04, 0.09) * np.cos(k * ang + rng.uniform(0, 6.3)) for k in (2, 3)))
+    dx, dy = (xx - cx) / rad, (yy - cy) / (rad * flat)
+    d2 = dx * dx + dy * dy
+    mask = d2 < 1
+    nz = np.sqrt(np.clip(1 - d2, 0, 1))
+    v = -dx * 0.45 - dy * 0.75 + nz * 0.9
+    cuts = np.percentile(v[mask], [14, 36, 66, 90])
+    lvl = np.digitize(v, cuts)
+    # esquerda: un traç curt d'un to fosc
+    k = rng.integers(0, 2)
+    for i in range(int(R)):
+        x = int(cx - R * 0.3 + i * 0.6); y = int(cy - R * 0.2 + i * (0.35 if k else -0.2))
+        if 0 <= x < W and 0 <= y < H and mask[y, x]: lvl[y, x] = max(0, lvl[y, x] - 2)
+    img = np.zeros((H, W, 4), np.uint8)
+    pal = np.array(RAMPS['stone'], np.uint8)
+    img[mask, :3] = pal[lvl[mask]]; img[mask, 3] = 255
+    out = np.zeros((H, W, 4), np.uint8)
+    sm = np.zeros_like(mask); sm[2:, 2:] = mask[:-2, :-2]
+    out[sm, :3] = SHADOW; out[sm, 3] = 90
     over(out, img)
     return out
 
@@ -268,7 +283,7 @@ def trees():
     T['tree_m'] = [canopy(2 * A, 18, 200 + i, RAMPS['leaf' if i % 2 else 'leaf2'], clump=5.2) for i in range(4)]
     T['tree_l'] = [canopy(3 * A, 28, 300 + i, RAMPS['leaf' if i % 2 == 0 else 'leaf2'], clump=6.2) for i in range(4)]
     T['tree_xl'] = [canopy(4 * A, 39, 400 + i, RAMPS['leaf'], clump=7.2) for i in range(2)]
-    T['rock'] = [canopy(A, 6.5 + i % 2 * 1.5, 500 + i, RAMPS['stone'], clump=3.6 + i % 2) for i in range(4)]
+    T['rock'] = [rock(5.5 + i % 2 * 2, 500 + i) for i in range(4)]
     return T
 
 # ── tanques i murs (4 bits: 1 amunt, 2 dreta, 4 avall, 8 esquerra) ──────────
@@ -284,12 +299,13 @@ def fence(bits):
     if bits & 4: rect(c + 1, c, c + 3, A, SHADOW, 80)
     if bits & 1: rect(c + 1, 0, c + 3, c, SHADOW, 80)
     for y in (10, 14):  # dos travessers
-        if bits & 2: rect(c, y - 1, A, y, INK); rect(c, y, A, y + 1, W[3]); rect(c, y + 1, A, y + 2, W[1]); rect(c, y + 2, A, y + 3, INK)
-        if bits & 8: rect(0, y - 1, c, y, INK); rect(0, y, c, y + 1, W[3]); rect(0, y + 1, c, y + 2, W[1]); rect(0, y + 2, c, y + 3, INK)
-    if bits & 1: rect(c - 2, 0, c - 1, c, INK); rect(c - 1, 0, c, c, W[3]); rect(c, 0, c + 1, c, W[1]); rect(c + 1, 0, c + 2, c, INK)
-    if bits & 4: rect(c - 2, c, c - 1, A, INK); rect(c - 1, c, c, A, W[3]); rect(c, c, c + 1, A, W[1]); rect(c + 1, c, c + 2, A, INK)
-    # pal
-    rect(c - 3, 7, c + 2, 18, INK); rect(c - 2, 8, c + 1, 17, W[2]); rect(c - 2, 8, c + 1, 9, W[4]); rect(c, 9, c + 1, 17, W[1])
+        # travesser: cara de dalt clara, cara del davant fosca (sense contorn: el paquet no en fa)
+        if bits & 2: rect(c, y, A, y + 1, W[3]); rect(c, y + 1, A, y + 2, W[1]); rect(c, y + 2, A, y + 3, W[0])
+        if bits & 8: rect(0, y, c, y + 1, W[3]); rect(0, y + 1, c, y + 2, W[1]); rect(0, y + 2, c, y + 3, W[0])
+    if bits & 1: rect(c - 1, 0, c, c, W[3]); rect(c, 0, c + 1, c, W[1]); rect(c + 1, 0, c + 2, c, W[0])
+    if bits & 4: rect(c - 1, c, c, A, W[3]); rect(c, c, c + 1, A, W[1]); rect(c + 1, c, c + 2, A, W[0])
+    # pal: cap clar, costat il·luminat i costat fosc
+    rect(c - 2, 8, c + 2, 18, W[2]); rect(c - 2, 8, c + 2, 9, W[4]); rect(c - 2, 9, c - 1, 18, W[3]); rect(c + 1, 9, c + 2, 18, W[0]); rect(c, 9, c + 1, 18, W[1])
     rect(c + 2, 17, c + 4, 19, SHADOW, 90)
     return img
 
@@ -303,9 +319,10 @@ def _stone(img, x, y, rx, ry, rng):
     sh = np.zeros_like(m); sh[2:, 1:] = m[:-2, :-1]
     s = sh & ~m & (img[..., 3] < 255)
     img[s, :3] = SHADOW; img[s, 3] = np.maximum(img[s, 3], 90)
-    edge = m & ~erode(m)
+    # vora de baix a la dreta del to més fosc de la pedra (la junta); la de dalt, sense res
+    edge = m & ~erode(m) & ((xx - x) * 0.4 + (yy - y) * 0.9 > -0.3 * ry)
     img[m, :3] = np.round(col[m]); img[m, 3] = 255
-    img[edge, :3] = INK
+    img[edge, :3] = RAMPS['stone'][0]
 
 def stonewall(bits):
     """Mur de pedra seca: cadena de pedres del centre cap a cada veí (les de la vora casen)."""
@@ -327,7 +344,7 @@ def stonewall(bits):
 def dock():
     W = RAMPS['wood']; img = np.zeros((A, A, 4), np.uint8); img[..., 3] = 255
     for i in range(0, A, 6):
-        img[:, i:i + 6, :3] = W[2]; img[:, i, :3] = INK; img[:, i + 1, :3] = W[3]; img[:, i + 5, :3] = W[1]
+        img[:, i:i + 6, :3] = W[2]; img[:, i, :3] = W[0]; img[:, i + 1, :3] = W[3]; img[:, i + 5, :3] = W[1]
         for j in range(3 + i % 7, A, 9): img[j, i + 1:i + 5, :3] = W[1]
     return img
 
@@ -346,10 +363,12 @@ def well():
     inner = d < 5.5
     img[inner, :3] = RAMPS['water'][0]; img[inner, 3] = 255
     img[(d < 3.5) & (yy < c), :3] = RAMPS['water'][1]
-    edge = (d < 10) & (d >= 9.2) | ((d < 6.2) & (d >= 5.5))
-    img[edge, :3] = INK; img[edge, 3] = 255
+    edge = (d < 10) & (d >= 9.2) & (yy > c)          # cara de fora, a la banda de l'ombra
+    img[edge, :3] = RAMPS['stone'][0]
+    lip = (d < 6.4) & (d >= 5.5) & (yy < c + 1)      # vora de dins, a l'ombra de la paret
+    img[lip, :3] = RAMPS['stone'][1]
     W = RAMPS['wood']   # travesser del torn
-    img[int(c) - 1:int(c) + 1, 3:A - 3, :3] = W[3]; img[int(c) + 1, 3:A - 3, :3] = INK; img[int(c) - 2, 3:A - 3, :3] = INK
+    img[int(c) - 1:int(c) + 1, 3:A - 3, :3] = W[3]; img[int(c) + 1, 3:A - 3, :3] = W[0]; img[int(c) - 2, 3:A - 3, :3] = W[4]
     img[int(c) - 2:int(c) + 2, 3:A - 3, 3] = 255
     return img
 
@@ -367,7 +386,7 @@ def boat():
     img[inner, :3] = Wd[1]
     img[inner & (yy < cy - 1), :3] = Wd[2]
     for x in (cx - 7, cx + 5): img[inner & (np.abs(xx - x) < 1.5), :3] = Wd[4]
-    img[hull & ~erode(hull), :3] = INK
+    img[hull & ~erode(hull) & (yy > cy), :3] = Wd[1]
     img[inner & ~erode(inner), :3] = Wd[0]
     return img
 
@@ -394,36 +413,48 @@ def roof(canvas, x0, y0, x1, y1, kind='red', seed=0):
     dx = w // 2 - 2
     img[fy + 1:, dx:dx + 4, :3] = Wd[0]; img[fy + 1:, dx + 1:dx + 3, :3] = Wd[1]
     for x in range(4, w - 4, 8):
-        if abs(x - dx) > 4: img[fy + 1:fy + 3, x:x + 2, :3] = INK
-    # teulada
+        if abs(x - dx) > 4: img[fy + 1:fy + 3, x:x + 2, :3] = Wd[0]
+    # teulada: files de teules d'amplada variable, desplaçades a l'atzar, amb alguna teula més clara
+    # o més fosca i taques de desgast (soroll). Res de patró regular de rajola.
     rh = fy
     horiz = w >= rh
-    for y in range(rh):
-        for x in range(w):
-            a, b = (y, x) if horiz else (x, y)            # a = distància a la vora del costat del pendent
-            span = rh if horiz else w
-            lit = a < span / 2
-            row = a // 3 if lit else (span - 1 - a) // 3
-            k = 4 if lit else 2
-            if (a % 3 == 0 and lit) or ((span - 1 - a) % 3 == 0 and not lit): k -= 2
-            elif (b + (row % 2) * 2) % 5 == 0: k -= 1
-            img[y, x, :3] = R[max(0, k)]
-    # teules gastades
-    for _ in range(w * rh // 40):
-        x, y = rng.integers(0, w), rng.integers(0, rh)
-        img[y, x:x + 2, :3] = R[1] if (y < rh / 2) == horiz or not horiz else R[3]
+    span, length = (rh, w) if horiz else (w, rh)
+    wear = vnoise(span, length, 6, seed + 7)
+    grid = np.zeros((span, length), int)
+    for row in range(0, span, 3):
+        lit = row + 1 < span / 2
+        base = 4 if lit else 2
+        b = -int(rng.integers(0, 5))
+        while b < length:
+            wdt = int(rng.integers(3, 7))
+            k = base + (1 if rng.random() < 0.08 else -1 if rng.random() < 0.18 else 0)
+            for a in range(row, min(row + 3, span)):
+                for x in range(max(b, 0), min(b + wdt, length)):
+                    kk = k - (1 if (a == row and rng.random() > 0.12) else 0)   # junta de la fila (trencada)
+                    if wear[a, x] > 0.72: kk -= 1                                # desgast
+                    grid[a, x] = kk
+            if 0 <= b < length: grid[row + 1:min(row + 3, span), b] = k - 1     # junta entre teules
+            b += wdt
+    grid = np.clip(grid, 0, 4)
+    pal = np.array(R, np.uint8)
+    for a in range(span):
+        for x in range(length):
+            y_, x_ = (a, x) if horiz else (x, a)
+            img[y_, x_, :3] = pal[grid[a, x]]
     if horiz:
         m = rh // 2; img[m - 1:m + 1, :, :3] = R[4]; img[m + 1, :, :3] = R[0]
     else:
         m = w // 2; img[:rh, m - 1:m + 1, :3] = R[4]; img[:rh, m + 1, :3] = R[0]
-    img[rh - 1, :, :3] = INK
-    img[0, :, :3] = INK; img[-1, :, :3] = INK; img[:, 0, :3] = INK; img[:, -1, :3] = INK
+    # ràfec: la vora de baix de la teulada fa ombra a la façana (del to més fosc, sense contorn)
+    img[rh - 1, :, :3] = R[0]
+    if horiz: img[:rh, -1, :3] = R[1]
+    else: img[rh // 2:rh, :, :3] = img[rh // 2:rh, :, :3]
     # xemeneia
     if w > 10 and rh > 10:
         cx = x0 * 0 + int(w * 0.25); cy = 2 if horiz else int(rh * 0.25)
         img[cy:cy + 5, cx:cx + 4, :3] = RAMPS['stone'][2]; img[cy:cy + 1, cx:cx + 4, :3] = RAMPS['stone'][4]
-        img[cy + 1:cy + 2, cx + 1:cx + 3, :3] = INK
-        img[cy:cy + 5, cx - 1, :3] = INK; img[cy:cy + 5, cx + 4, :3] = INK; img[cy + 5, cx - 1:cx + 5, :3] = INK
+        img[cy + 1:cy + 2, cx + 1:cx + 3, :3] = RAMPS['stone'][0]
+        img[cy:cy + 5, cx + 3, :3] = RAMPS['stone'][1]; img[cy + 5, cx:cx + 4, :3] = R[0]
     over(canvas, img, x0, y0)
 
 # ── full ────────────────────────────────────────────────────────────────────
@@ -457,9 +488,9 @@ def build():
 
 def overlays(F):
     return {
-        'path': {b: transition(F['path'][0], b, 11, rim_out=(INK, 0.22)) for b in range(16)},
-        'sand': {b: transition(F['sand'][0], b, 12, rim_out=(INK, 0.18)) for b in range(16)},
-        'water': {b: transition(F['water'][0], b, 13, rim_out=(INK, 0.45), rim_in=((214, 218, 204), 0.55), jitter=0.35) for b in range(16)},
+        'path': {b: transition(F['path'][0], b, 11, rim_out=(SHADOW, 0.14)) for b in range(16)},
+        'sand': {b: transition(F['sand'][0], b, 12, rim_out=(SHADOW, 0.12)) for b in range(16)},
+        'water': {b: transition(F['water'][0], b, 13, rim_out=(RAMPS['water'][0], 0.5), rim_in=((214, 218, 204), 0.55), jitter=0.35) for b in range(16)},
         'meadow': {b: transition(F['meadow'][0], b, 14, rim_out=None, jitter=0.7) for b in range(16)},
     }
 

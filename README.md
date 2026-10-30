@@ -70,6 +70,12 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.54 — Poble sense contorns i arbres orgànics
+- **Res de contorns** a les peces del full de poble (arbres, roques, cases, tanques, murs, pou, barca i moll), com el paquet: la forma la fa el to fosc del seu propi color a la banda de l'ombra. Ara lliguen amb les figuretes.
+- **Arbres nous**: grups de fulles repartits a l'atzar, de mides diferents i solapats, amb la textura de fulles de la bardissa del paquet. Ja no és una graella de boles que es veia falsa.
+- **Roques** llises com les del paquet, i **teulades** amb teules d'amplada variable i desgast, sense patró de rajola.
+- El mapa de la missió de Conyberry s'ha tornat a generar amb les peces noves.
+
 ### v4.53 — Missió de Conyberry
 - **Missions preparades**: «Missió · Conyberry» a la pantalla de benvinguda i al menú **Partida**. Obre el mapa del poble amb la colla ja col·locada al camí, al sud del pou, i passa a l'app Píxel. És una partida feta: es desa i se sincronitza amb els jugadors com qualsevol altra.
 - **Figuretes a to amb el mapa**: en aquest mapa, les figuretes del paquet (molt saturades) es passen pels colors del mapa (menys saturació, to càlid i negres de tinta), al DM i a les pantalles de jugador. Es pot apagar i encendre al menú **Vista** («Figuretes a to amb el mapa»).
