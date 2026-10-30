@@ -70,6 +70,17 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.50 — Temes de masmorra i cops a les figuretes
+- **Temes de masmorra** per al mapa de caselles (app Píxel): **Gel**, **Volcà**, **Cripta de molsa** i **Temple daurat**. Cada tema té un joc de paret (amb pilar i portes) i un terra que es trien a la paleta com els de sempre.
+  - Són els jocs de l'autor recolorits per lluminositat, de manera que la textura i les ombres es conserven.
+  - Les juntes del terra fan de gebre, de brases o d'or segons el tema.
+  - Les portes, els estendards i les calaveres no canvien.
+- **Cops a les figuretes**, deduïts de la vida (sense canvis de sincronització; es veuen igual a totes les pantalles):
+  - **Cop rebut**: quan a un token li baixa la vida, la figura fa dos flaixos blancs, rep una petita empenta i hi surt l'impacte del full d'efectes.
+  - **Atac**: en combat, el token que té el torn s'inclina i fa una envestida cap a qui ha rebut el cop. L'impacte depèn de qui ataca: arc d'espasa (jugadors), tall (gent armada), urpada (animals i monstres) o cop (gòlems, elementals…).
+  - **Curació**: si la vida puja, la figura fa un flaix verd suau amb els anells de curar.
+- **Esclats nous** a les màgies en píxel: arcà (projectil màgic, raig màgic), llamp (raig elèctric, contacte electritzant), radiant (flama sagrada) i encantament (encisar persona, riure horrible), amb els mateixos colors que els efectes de sempre.
+
 ### v4.49 — Menús del clic dret flotants
 - Els menús del clic dret (token, selecció múltiple, sala, zona màgica) es poden arrossegar pel mànec de sis punts de la capçalera o per qualsevol tros buit d'aquesta.
 - Un cop moguts, són **flotants**: es queden oberts on els has deixat mentre treballes al mapa (un clic fora no els tanca). Si fas clic dret a un altre token, el menú canvia al nou token al mateix lloc. El mànec i la vora es tornen daurats per indicar-ho.

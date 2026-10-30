@@ -47,7 +47,7 @@ export const plainLook = (l: FigureLook) => sameLook(l, NONE);
 
 // ── Tires d'efecte (els 3 fotogrames d'espera, un canvas per figureta i efecte) ──
 const FRAMES = 3;
-type Kind = 'clean' | 'stone' | 'poison' | 'blood' | `outline:${string}`;
+type Kind = 'clean' | 'stone' | 'poison' | 'blood' | 'white' | 'heal' | `outline:${string}`;
 const _strips = new Map<string, HTMLCanvasElement>();
 
 /** Hash enter de la posició dins del fotograma: el gra de la pedra és igual a tots els fotogrames. */
@@ -56,6 +56,10 @@ const mix = (a: readonly number[], b: readonly number[], t: number) => [0, 1, 2]
 const STONE = [[48, 46, 42], [206, 200, 186]] as const;
 const POISON = [[16, 80, 28], [160, 240, 110]] as const;
 const BLOOD = [[80, 6, 10], [240, 90, 76]] as const;
+// Flaixos de `hitfx.ts`: silueta blanca (cop) o verd clar (curació).
+const WHITE = [[255, 255, 255], [255, 255, 255]] as const;
+const HEAL = [[150, 255, 170], [235, 255, 235]] as const;
+const SKIN_RAMP = { stone: STONE, poison: POISON, blood: BLOOD, white: WHITE, heal: HEAL } as const;
 const hexRgb = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 
 function strip(sprite: string, kind: Kind): HTMLCanvasElement | null {
@@ -86,7 +90,7 @@ function strip(sprite: string, kind: Kind): HTMLCanvasElement | null {
     let rgb = [d[i], d[i + 1], d[i + 2]];
     if (kind !== 'clean') {
       const l = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) / 255;
-      const [lo, hi] = kind === 'stone' ? STONE : kind === 'poison' ? POISON : BLOOD;
+      const [lo, hi] = SKIN_RAMP[kind as keyof typeof SKIN_RAMP];  // el contorn ja ha fet `continue`
       rgb = mix(lo, hi, kind === 'stone' ? Math.min(1, Math.max(0, l * 1.05 + (grain(x % TILE, y) - 0.5) * 0.16)) : l);
     }
     out[i] = rgb[0]; out[i + 1] = rgb[1]; out[i + 2] = rgb[2]; out[i + 3] = 255;
@@ -103,7 +107,7 @@ function strip(sprite: string, kind: Kind): HTMLCanvasElement | null {
 const FOOT_TO_CENTER = 0.62 + 0.62 / 2.4 - 0.5;
 
 let _reduced: MediaQueryList | null = null;
-const reducedMotion = () => {
+export const reducedMotion = () => {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return (_reduced ??= window.matchMedia('(prefers-reduced-motion: reduce)')).matches;
 };
@@ -113,7 +117,9 @@ const reducedMotion = () => {
  * mida del quadrat de la figura; `seed` desfasa les animacions entre tokens.
  */
 export function drawFigureState(ctx: CanvasRenderingContext2D, sprite: string, look: FigureLook,
-  cx: number, footY: number, S: number, left: boolean, seed: number, now = performance.now()) {
+  cx: number, footY: number, S: number, left: boolean, seed: number, now = performance.now(),
+  /** Flaix d'un cop o d'una curació (`hitfx.ts`), damunt de tot amb la mateixa postura. */
+  flash: { alpha: number; tint: 'white' | 'heal' } | null = null) {
   const calm = reducedMotion();
   const frame = look.motion === 'frozen' ? 0 : creatureFrame(look.motion === 'slow' ? now * 0.5 : now, seed);
   const px = S / TILE;  // un píxel de l'art
@@ -142,6 +148,10 @@ export function drawFigureState(ctx: CanvasRenderingContext2D, sprite: string, l
   if (look.skin === 'poison' || look.skin === 'blood') {
     const t = strip(sprite, look.skin);
     if (t) { const a = ctx.globalAlpha; ctx.globalAlpha = a * (0.35 + 0.3 * pulse); at(t); ctx.globalAlpha = a; }
+  }
+  if (flash && flash.alpha > 0) {
+    const t = strip(sprite, flash.tint);
+    if (t) { const a = ctx.globalAlpha; ctx.globalAlpha = a * flash.alpha; at(t); ctx.globalAlpha = a; }
   }
   ctx.restore();
 }

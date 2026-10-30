@@ -6,16 +6,19 @@
 import { sheet } from '@/lib/sprites/pack';
 import { blit, drawItem } from '@/lib/sprites/draw';
 import {
-  TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX,
+  TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX, THEME_BASE,
   type TileMap, cellOf, isWall, inMap,
 } from './model';
-import { WALL_BY_ID, objectDef, groundAnim } from './palette';
+import { WALL_BY_ID, objectDef, groundAnim, wallPiece } from './palette';
 import { t } from './model';
 
 /** Pinta una peça codificada (veure `model.ts`) al quadrat (dx, dy, size). */
 export function drawTile(ctx: CanvasRenderingContext2D, tile: number, dx: number, dy: number, size = TILE): void {
   if (tile < 0) return;
-  if (tile >= WORLD_BASE) {
+  if (tile >= THEME_BASE) {
+    const i = tile - THEME_BASE;
+    blit(ctx, 'terrain_themes', (i % TERRAIN_COLS) * TILE, Math.floor(i / TERRAIN_COLS) * TILE, TILE, TILE, dx, dy, size, size);
+  } else if (tile >= WORLD_BASE) {
     const i = tile - WORLD_BASE;
     blit(ctx, 'map', (i % WORLD_COLS) * WORLD_PX, Math.floor(i / WORLD_COLS) * WORLD_PX, WORLD_PX, WORLD_PX, dx, dy, size, size);
   } else if (tile >= ITEM_BASE) {
@@ -51,18 +54,18 @@ export function wallTileFor(m: TileMap, c: number, r: number): number {
   if (m.wallRaw[i] >= 0) return m.wallRaw[i];
   const set = WALL_BY_ID.get(m.wallSet[i]);
   if (!set) return -1;
-  const B = set.row;
+  const W = (col: number, dr: number) => wallPiece(set, col, dr);
   const wall = (cc: number, rr: number) => inMap(m, cc, rr) && isWall(m, cc, rr);
   // Fila de dalt d'un mur de dues files (terra a dalt, cara a sota).
   const band = (cc: number) => wall(cc, r) && !wall(cc, r - 1) && wall(cc, r + 1) && !wall(cc, r + 2);
   const h = hash(c, r);
   if (!wall(c, r + 1)) {
-    if (!wall(c, r - 1) && !wall(c - 1, r) && !wall(c + 1, r)) return t(8, B + 1);
-    return t(FACE_COLS[h % FACE_COLS.length], B + 2);
+    if (!wall(c, r - 1) && !wall(c - 1, r) && !wall(c + 1, r)) return W(8, 1);
+    return W(FACE_COLS[h % FACE_COLS.length], 2);
   }
   // Vora de dalt si el mur de dues files continua al costat (també on hi arriba una columna).
-  if (!wall(c, r - 1) && (band(c - 1) || band(c + 1))) return t(TOP_COLS[h % TOP_COLS.length], B);
-  return t(MID_COLS[h % MID_COLS.length], B + 1);
+  if (!wall(c, r - 1) && (band(c - 1) || band(c + 1))) return W(TOP_COLS[h % TOP_COLS.length], 0);
+  return W(MID_COLS[h % MID_COLS.length], 1);
 }
 
 /** Les dues orientacions d'una porta: dins d'una paret horitzontal (veïns E-O) o vertical (N-S). */
@@ -167,16 +170,17 @@ export function tileLiveOf(m: TileMap): TileLive {
   const doors: TileLive['doors'] = [];
   for (const [k, setId] of Object.entries(m.doors)) {
     const i = +k, c = i % m.cols, r = Math.floor(i / m.cols);
-    const B = WALL_BY_ID.get(setId)?.row ?? 12;
+    const set = WALL_BY_ID.get(setId) ?? WALL_BY_ID.get('dungeon')!;
+    const W = (col: number, dr: number) => wallPiece(set, col, dr);
     // Peces de l'autor (columnes 10–13 del joc de paret, com als mapes d'exemple):
     //  - paret horitzontal: tancada = la porta doble (10); oberta = els dos muntants (11);
     //  - paret lateral: tancada = la porta vista de cantell, un muntant al mig (12); oberta =
     //    la fulla de cara, girada contra la paret (13). Totes dues ocupen dues caselles d'alt.
-    const piece = (col: number) => [{ dy: -1, tile: t(col, B) }, { dy: 0, tile: t(col, B + 1) }];
+    const piece = (col: number) => [{ dy: -1, tile: W(col, 0) }, { dy: 0, tile: W(col, 1) }];
     const h = doorAxis(m, c, r) === 'h';
     doors.push({
       id: `td_${i}`, x: c * TILE, y: r * TILE,
-      closed: h ? [{ dy: 0, tile: t(10, B + 1) }] : piece(12),
+      closed: h ? [{ dy: 0, tile: W(10, 1) }] : piece(12),
       open: h ? piece(11) : piece(13),
     });
   }

@@ -3,7 +3,7 @@
  * fa servir (terres amb variants, aigua animada, jocs de paret, objectes de més d'una
  * casella). Les coordenades són de la graella de 48 px del full (columna, fila).
  */
-import { t, TERRAIN_COLS } from './model';
+import { t, TERRAIN_COLS, THEME_BASE } from './model';
 import { ITEMS } from '@/lib/sprites/manifest';
 
 const row = (r: number, c0: number, c1: number) => Array.from({ length: c1 - c0 + 1 }, (_, i) => t(c0 + i, r));
@@ -28,6 +28,23 @@ export const FLOORS: FloorDef[] = [
   { id: 'tile_sand', label: 'Rajola de sorra', tiles: row(10, 1, 4) },
   { id: 'stone', label: 'Pedra grisa', tiles: row(10, 5, 8) },
 ];
+
+/**
+ * Temes de masmorra (`uf_terrain_themes.png`, generat amb `scripts/oryx-themes.py`): jocs de paret
+ * i terres de l'autor recolorits. Cada tema és un bloc de 4 files: el joc de paret sencer (files
+ * 0–2, amb les peces a les mateixes columnes) i el terra (fila 3, variants a les columnes 1–5).
+ * ⚠️ Mateix ordre que `THEMES` del script.
+ */
+const THEMES = [
+  { id: 'ice', label: 'Gel' },
+  { id: 'lava', label: 'Volcà' },
+  { id: 'moss', label: 'Cripta de molsa' },
+  { id: 'temple', label: 'Temple daurat' },
+];
+const themeTile = (c: number, r: number) => THEME_BASE + t(c, r);
+FLOORS.push(...THEMES.map((th, i) => ({
+  id: `th_${th.id}`, label: th.label, tiles: [1, 2, 3, 4, 5].map(c => themeTile(c, 4 * i + 3)),
+})));
 export const FLOOR_BY_ID = new Map(FLOORS.map(f => [f.id, f]));
 
 /** Aigües animades: 4 fotogrames en fila a partir de `base`. */
@@ -47,7 +64,11 @@ export const WATERS: WaterDef[] = [
  * columna 8 de la fila del mig és el pilar (paret d'una sola casella d'alt). Les portes del
  * joc són a les columnes 10 (tancada) i 11 (oberta: els dos muntants).
  */
-export interface WallSetDef { id: string; label: string; row: number; floor: string }
+export interface WallSetDef {
+  id: string; label: string; row: number; floor: string;
+  /** Full on és: 0 = `uf_terrain.png`; `THEME_BASE` = el dels temes (`row` és la del seu full). */
+  base?: number;
+}
 export const WALL_SETS: WallSetDef[] = [
   { id: 'dungeon', label: 'Masmorra', row: 12, floor: 'dirt' },
   { id: 'crypt', label: 'Cripta', row: 15, floor: 'slab_blue' },
@@ -55,7 +76,10 @@ export const WALL_SETS: WallSetDef[] = [
   { id: 'hedge', label: 'Bardissa', row: 21, floor: 'grass' },
   { id: 'ruins', label: 'Ruïnes', row: 24, floor: 'sand' },
   { id: 'cave', label: 'Cova', row: 27, floor: 'cracked' },
+  ...THEMES.map((th, i) => ({ id: `th_${th.id}`, label: th.label, row: 4 * i, floor: `th_${th.id}`, base: THEME_BASE })),
 ];
+/** Peça d'un joc de paret: columna `col` de la fila `row + dr` del seu full. */
+export const wallPiece = (set: WallSetDef, col: number, dr: number) => (set.base ?? 0) + t(col, set.row + dr);
 export const WALL_BY_ID = new Map(WALL_SETS.map(w => [w.id, w]));
 
 /** Una part d'un objecte: desplaçament en caselles respecte de l'àncora i peça (o fotogrames). */

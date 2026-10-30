@@ -10,7 +10,9 @@
  */
 import type { Point } from '@/types';
 import { blit } from '@/lib/sprites/draw';
+import { sheet } from '@/lib/sprites/pack';
 import { AREA_SPELL_DATA } from '@/constants';
+import { PAL, type Palette } from './fxsprites';
 
 const FX = 24;
 /** Columna del full per a cada orientació (angle de canvas: 0 = dreta, 90 = avall). */
@@ -27,6 +29,32 @@ function dirCol(angDeg: number): number {
 // Files de projectils i esclats (columna inicial, fila; 5 fotogrames en fila).
 const PROJ = { fire: 8, ice: 9, stone: 10, arcane: 11, shadow: 12, poison: 13, spark: 14, meteor: 15 } as const;
 const BURST = { grey: [0, 0], ice: [5, 0], fire: [0, 1], poison: [5, 1] } as const;
+/**
+ * Esclats d'altres elements: l'esclat gris del full tenyit per lluminositat amb la paleta de
+ * l'escola (`PAL`, la mateixa dels efectes procedurals), un sol cop per element.
+ */
+const BURST_TINT = { arcane: PAL.arcane, storm: PAL.storm, radiant: PAL.radiant, charm: PAL.charm } as const;
+type BurstKind = keyof typeof BURST | keyof typeof BURST_TINT;
+const _bursts = new Map<string, HTMLCanvasElement>();
+function tintedBurst(kind: keyof typeof BURST_TINT): HTMLCanvasElement | null {
+  const hit = _bursts.get(kind); if (hit) return hit;
+  const img = sheet('fx'); if (!img) return null;
+  const c = document.createElement('canvas'); c.width = FX * 5; c.height = FX;
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(img, 0, 0, FX * 5, FX, 0, 0, FX * 5, FX);
+  const d = g.getImageData(0, 0, c.width, c.height);
+  const p: Palette = BURST_TINT[kind];
+  const stops = [p.deep, p.mid, p.light, p.white];
+  for (let i = 0; i < d.data.length; i += 4) {
+    if (!d.data[i + 3]) continue;
+    const l = Math.min(0.999, (d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11) / 255) * (stops.length - 1);
+    const k = Math.floor(l), f = l - k, a = stops[k], b = stops[k + 1];
+    for (let j = 0; j < 3; j++) d.data[i + j] = a[j] + (b[j] - a[j]) * f;
+  }
+  g.putImageData(d, 0, 0);
+  _bursts.set(kind, c);
+  return c;
+}
 type Seal = { frames: [number, number][]; ms: number; scale?: number };
 const SEAL: Record<string, Seal> = {
   stars:   { frames: [[0, 4], [1, 4]], ms: 140 },
@@ -46,7 +74,7 @@ interface PixelSpellDef {
   proj?: keyof typeof PROJ;
   /** Quants projectils (projectil màgic en tira tres). */
   count?: number;
-  burst?: keyof typeof BURST;
+  burst?: BurstKind;
   seal?: keyof typeof SEAL;
   /** El segell va al llançador (personals) en lloc del destí. */
   onCaster?: boolean;
@@ -56,24 +84,24 @@ interface PixelSpellDef {
 
 const DEFS: Record<string, PixelSpellDef> = {
   fireball:         { proj: 'fire', burst: 'fire' },
-  lightning:        { proj: 'spark', burst: 'ice', seal: 'zap' },
-  magic_beam:       { proj: 'arcane', burst: 'grey', seal: 'arcane' },
-  magic_missile:    { proj: 'arcane', count: 3, burst: 'grey' },
-  hideous_laughter: { proj: 'arcane', seal: 'bang' },
+  lightning:        { proj: 'spark', burst: 'storm', seal: 'zap' },
+  magic_beam:       { proj: 'arcane', burst: 'arcane', seal: 'arcane' },
+  magic_missile:    { proj: 'arcane', count: 3, burst: 'arcane' },
+  hideous_laughter: { proj: 'arcane', burst: 'charm', seal: 'bang' },
   burning_hands:    { proj: 'fire', cone: true },
   ray_of_frost:     { proj: 'ice', burst: 'ice' },
-  shocking_grasp:   { burst: 'ice', seal: 'zap' },
+  shocking_grasp:   { burst: 'storm', seal: 'zap' },
   mage_hand:        { proj: 'stone', seal: 'sparkle' },
   prestidigitation: { seal: 'sparkle' },
   mage_armor:       { seal: 'shield', onCaster: true },
   shield:           { seal: 'shield', onCaster: true },
   detect_magic:     { seal: 'target', onCaster: true },
   light:            { seal: 'light' },
-  sacred_flame:     { burst: 'fire', seal: 'light' },
+  sacred_flame:     { burst: 'radiant', seal: 'light' },
   thaumaturgy:      { burst: 'grey', seal: 'bang', onCaster: true },
   bless:            { seal: 'stars' },
   cure_wounds:      { burst: 'poison', seal: 'heal' },
-  charm_person:     { proj: 'arcane', seal: 'arcane' },
+  charm_person:     { proj: 'arcane', burst: 'charm', seal: 'arcane' },
 };
 
 export const hasPixelSpell = (type: string) => type in DEFS;
@@ -156,11 +184,17 @@ export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts:
     const areaFt = type === 'fireball' ? 15 : (AREA_SPELL_DATA[type]?.aoeRadiusFt ?? 0);
     const radius = areaFt >= 5 ? (areaFt / 5) * cell : cell * 0.75;
     if (def.burst) {
-      const [c0, r] = BURST[def.burst];
       const frame = Math.min(4, Math.floor(k / 0.07));
       if (k < 0.07 * 6) {
         ctx.globalAlpha = frame === 4 ? 0.6 : 1;
-        fx(ctx, c0 + frame, r, at.x, at.y, radius * 2.1);
+        const size = radius * 2.1;
+        if (def.burst in BURST) {
+          const [c0, r] = BURST[def.burst as keyof typeof BURST];
+          fx(ctx, c0 + frame, r, at.x, at.y, size);
+        } else {
+          const t = tintedBurst(def.burst as keyof typeof BURST_TINT);
+          if (t) ctx.drawImage(t, frame * FX, 0, FX, FX, at.x - size / 2, at.y - size / 2, size, size);
+        }
         ctx.globalAlpha = 1;
       }
     }

@@ -12,6 +12,8 @@ export const SHEET_FILES = {
   heroes_v1: 'uf_heroes_v1.png',
   heroes_v2: 'uf_heroes_v2.png',
   terrain: 'uf_terrain.png',
+  // Temes de masmorra (gel, volcà…) recolorits del terreny (`scripts/oryx-themes.py`).
+  terrain_themes: 'uf_terrain_themes.png',
   items: 'uf_items.png',
   fx: 'uf_FX.png',
   impact: 'uf_FX_impact.png',

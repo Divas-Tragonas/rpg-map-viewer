@@ -3,7 +3,8 @@ import { TOKEN_LERP, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
 import { packReady } from '@/lib/sprites/pack';
 import { hasCreature, drawCreature, grayCreature } from '@/lib/sprites/draw';
-import { drawFigureState, figureLook, isLying } from '@/lib/sprites/states';
+import { drawFigureState, figureLook, isLying, reducedMotion } from '@/lib/sprites/states';
+import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
@@ -37,8 +38,13 @@ function pixelSprite(fc: FrameContext, sprite: string | undefined): string | nul
  * dels peus (veure `renderEnemyTokens`), perquè quedin sota la figura.
  */
 function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
-  cx: number, cy: number, R: number, team: string, opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[] }): () => void {
+  cx: number, cy: number, R: number, team: string,
+  opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[]; hp?: number }): () => void {
   const { sc } = fc;
+  // Cops i curacions (`lib/sprites/hitfx.ts`): es dedueixen de la vida; qui ataca és qui té el torn.
+  const turn = fc.rTurn?.current;
+  const now = performance.now();
+  noteFigure(key, sprite, opts.hp, cx, cy + R * 0.62, turn?.active ? String(turn.order[turn.turnIndex]) : null, now);
   const f = _facing.get(key);
   if (!f) _facing.set(key, { x: cx, left: false });
   else if (Math.abs(cx - f.x) > R * 0.25) { f.left = cx < f.x; f.x = cx; }  // marge: res de girs per tremolors del LERP
@@ -60,6 +66,11 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   return () => {
     ctx.save();
     ctx.globalAlpha = alpha;
+    const hit = figureFx(key, cx, cy + R * 0.62, S, now, reducedMotion());
+    if (hit.dx || hit.dy || hit.rot) {
+      // Envestida i empenta: la figura es mou i s'inclina sobre els peus (l'ombra es queda).
+      ctx.translate(cx + hit.dx, cy + R * 0.62 + hit.dy); ctx.rotate(hit.rot); ctx.translate(-cx, -(cy + R * 0.62));
+    }
     const d = opts.defeated ?? 0;
     if (d > 0) {
       // Derrotat: la figura es queda dreta, quieta i perd el color (es fon des del color).
@@ -74,9 +85,10 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
     } else {
       if (opts.invis) ctx.globalAlpha *= 0.45;
       // Amb els estats a la figura (`lib/sprites/states.ts`): estirada, de pedra, quieta, contorn…
-      drawFigureState(ctx, sprite, figureLook(opts.conds ?? []), cx, cy + R * 0.62, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1));
+      drawFigureState(ctx, sprite, figureLook(opts.conds ?? []), cx, cy + R * 0.62, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1), now, hit.flash);
     }
     ctx.restore();
+    if (alpha > 0.3) drawFigureHitFx(ctx, key, cx, cy + R * 0.62, S, now);
   };
 }
 
@@ -221,7 +233,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 
     let fig: (() => void) | null = null;
     if (psdSprite) {
-      fig = drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
+      fig = drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: ov?.hpMax ? Math.max(0, ov.hp ?? ov.hpMax) : undefined });
     } else if (isDefeated && !isDM) {
       const desatAlpha = Math.min(1, crossProg * 2);
       if (desatAlpha > 0) {
@@ -411,7 +423,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     let fig: (() => void) | null = null;
     if (libSprite) {
-      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
+      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -634,7 +646,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     }
     let fig: (() => void) | null = null;
     if (plSprite) {
-      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds });
+      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;

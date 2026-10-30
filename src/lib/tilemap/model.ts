@@ -10,13 +10,15 @@
  * Codificació d'una casella (`number`, -1 = buida):
  *   0 … 999      → `uf_terrain.png` (20 columnes de 48 px): índex = fila·20 + columna, com Tiled
  *   1000 … 1999  → `uf_items.png` (22 columnes de 48 px)
- *   2000 …       → `uf_map.png`, el mapa del món (25 columnes de 24 px, es pinta a 48)
+ *   2000 … 2999  → `uf_map.png`, el mapa del món (25 columnes de 24 px, es pinta a 48)
+ *   3000 …       → `uf_terrain_themes.png`, els temes de masmorra (20 columnes, com el terreny)
  */
 
 export const TILE = 48;
 export const TERRAIN_COLS = 20;
 export const ITEM_BASE = 1000, ITEM_COLS = 22;
 export const WORLD_BASE = 2000, WORLD_COLS = 25, WORLD_PX = 24;
+export const THEME_BASE = 3000;
 export const EMPTY = -1;
 
 /** Objecte posat sobre el mapa (pot ocupar més d'una casella: estàtua, torxa, font…). */

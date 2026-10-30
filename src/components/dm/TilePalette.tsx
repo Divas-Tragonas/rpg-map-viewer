@@ -4,7 +4,7 @@ import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Button } from '@/components/ui/Button';
 import { useSpritePack } from '@/hooks/useSpritePack';
-import { FLOORS, WATERS, WALL_SETS, DECOR, OBJECT_KEYS, LOOT_KEYS, OBJECTS, objectDef } from '@/lib/tilemap/palette';
+import { FLOORS, WATERS, WALL_SETS, DECOR, OBJECT_KEYS, LOOT_KEYS, OBJECTS, objectDef, wallPiece } from '@/lib/tilemap/palette';
 import { t } from '@/lib/tilemap/model';
 import { tileThumb, worldTiles } from '@/lib/tilemap/render';
 import type { TileBrush } from '@/lib/tilemap/editor';
@@ -79,7 +79,7 @@ export function TilePalette({ brush, onBrush }: Props) {
                 <Label>Paret</Label>
                 <Grid>
                   {WALL_SETS.map(w => (
-                    <Swatch key={w.id} thumb={tileThumb(t(1, w.row + 2))} label={w.label} active={roomWall === w.id}
+                    <Swatch key={w.id} thumb={tileThumb(wallPiece(w, 1, 2))} label={w.label} active={roomWall === w.id}
                       onClick={() => { setRoomWall(w.id); setRoomFloor(w.floor); pick({ kind: 'room', floor: w.floor, wall: w.id }); }} />
                   ))}
                 </Grid>
@@ -110,7 +110,7 @@ export function TilePalette({ brush, onBrush }: Props) {
               <>
                 <Label>Paret (s&apos;ajusta sola)</Label>
                 <Grid>
-                  {WALL_SETS.map(w => <Swatch key={w.id} thumb={tileThumb(t(1, w.row + 2))} label={w.label} active={is({ kind: 'wall', wall: w.id })} onClick={() => pick({ kind: 'wall', wall: w.id })} />)}
+                  {WALL_SETS.map(w => <Swatch key={w.id} thumb={tileThumb(wallPiece(w, 1, 2))} label={w.label} active={is({ kind: 'wall', wall: w.id })} onClick={() => pick({ kind: 'wall', wall: w.id })} />)}
                 </Grid>
                 <Label>Porta</Label>
                 <Grid>
