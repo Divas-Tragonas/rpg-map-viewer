@@ -70,6 +70,16 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.44 — Cinemàtiques de boss en grup i amb missatge propi
+- **Cinemàtiques de grup**: al selector de la cinemàtica es poden triar fins a quatre enemics més de l'escena que entren amb el boss (de costat i una mica enrere; a «Apareix un monstre», en fila com a Dragon Quest). El missatge els anomena tots.
+- **Missatge propi**: les cinemàtiques que tenen text deixen escriure'n un altre (`{nom}` = el nom de l'enemic o del grup).
+- *Encontre salvatge*: figures més grans, com al joc, i la barra de vida amb els extrems bons (agafava un tros de la peça del costat).
+- *Repte del líder*: el boss més gran i la cinemàtica més llarga.
+- *Apareix un monstre*: ara es juga un tros de torn. El cursor tria MÀGIA, repassa les màgies, torna enrere i tria LLUITAR, i el boss ni s'immuta amb l'atac. Sense jugadors no surt la barra de dalt, els noms i les figuretes van centrats i la fletxa de «continua» és al marge de baix a l'esquerra.
+- *Vidre trencat* passa a ser **Mirall trencat**: dos cops esquerden el mapa, el vidre esclata cap a la càmera i el boss el travessa (res de les finestres de Final Fantasy).
+- *Versus*: enemics més grans. *Rètol del boss*: el boss ja no queda enganxat a terra.
+- Lletra: coma i punt bons (la coma perdia la cua i el full no té punt).
+
 ### v4.43 — Res no falla en silenci, i el dibuix deixa de créixer sense fre
 - Recuperada i fusionada una branca de la v4.15 que s'havia quedat penjada fora del `master`.
 - **El fons ja diu quan no es pot obrir**: amb un fitxer malmès o un còdec no admès, l'app es donava el mapa per carregat amb la pantalla negra. Ara es reverteix i es diu què passa. Es valida el tipus (només imatge o vídeo) i la mida (màxim 256 MB, avís a partir de 40 MB).

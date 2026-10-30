@@ -1469,6 +1469,11 @@ export function DMView() {
   // sintètica que desbloqueja el render loop). `psdStruct` és el PSD real: la UI que
   // només té sentit amb capes de Photoshop es penja d'aquest, no de `struct`.
   const psdStruct = struct && !struct.synthetic ? struct : null;
+  // Enemics de l'escena que poden entrar en una cinemàtica de grup (PSD i biblioteca).
+  const sceneFoes = useMemo(() => [
+    ...(psdStruct?.enemyRooms.flatMap(r => r.enemies) ?? []).map(en => ({ id: en.id, name: psdEnemyOverrides[en.id]?.name ?? en.name })),
+    ...libEnemies.map(en => ({ id: `lib_${en.id}`, name: en.name })),
+  ], [psdStruct, psdEnemyOverrides, libEnemies]);
   // Etiqueta del «Desfer» de la barra: què desfarà (els moviments de combat són de jugadors).
   const undoLabel = !undoNext ? null
     : undoNext.kind === 'stroke' ? 'traç de dibuix'
@@ -1997,8 +2002,9 @@ export function DMView() {
         onPlayDialog={dlg.playSaved}
         onEditDialogs={(key: string) => { setDialogDraft(d => ({ ...EMPTY_DRAFT, cps: d.cps, owner: key })); openShowTab('dialeg'); }}
       />
-      <SceneConfigOverlay
+      <SceneConfigOverlay key={String(sceneConfigMenu?.id ?? '')}
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}
+        sceneFoes={sceneFoes}
         rPsdEnemyImgCache={R.rPsdEnemyImgCache}
         libEnemies={libEnemies} psdEnemyOverrides={psdEnemyOverrides}
         onClose={() => setSceneConfigMenu(null)}

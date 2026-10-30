@@ -1,6 +1,6 @@
 'use client';
 import { useCallback } from 'react';
-import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, encodePortrait, seedFor, type BossIntroStyle } from '@/lib/cinematic';
+import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, encodePortrait, seedFor, MAX_FOES, type BossIntroStyle, type PixelFoe } from '@/lib/cinematic';
 import { clampCamToMap, mediaSize, viewRect } from '@/lib/camera';
 import type { CamRect, Point } from '@/types';
 import type { DMRefs } from './useDMRefs';
@@ -16,7 +16,14 @@ export interface BossIntroRequest {
   style?: BossIntroStyle;
   /** Només al DM, per veure-la abans de llançar-la (no s'envia als jugadors). */
   preview?: boolean;
+  /** Més enemics que entren amb el boss (ids de token; només les de pixel art). */
+  extras?: (number | string)[];
+  /** Missatge propi en lloc del de la cinemàtica (`{nom}` = el nom de l'enemic o del grup). */
+  message?: string;
 }
+
+/** Un enemic del grup tal com viatja a les pantalles de jugador. */
+export interface WireFoe { name: string; sprite?: string | null; img?: string | null }
 
 /**
  * Cinemàtica de boss al DM. `launchBossIntro` és l'ÚNIC punt de llançament: la
@@ -36,6 +43,40 @@ function tokenSprite(R: DMRefs, id: number | string): string | null {
   return hasCreature(sprite) ? sprite : null;
 }
 
+/** Imatge d'un enemic sense figureta, petita (la cinemàtica la pinta a ~100 px). */
+function smallImage(img: HTMLCanvasElement | HTMLImageElement | null, max = 96): string | null {
+  if (!img) return null;
+  const w = (img as HTMLCanvasElement).width || (img as HTMLImageElement).naturalWidth;
+  const h = (img as HTMLCanvasElement).height || (img as HTMLImageElement).naturalHeight;
+  if (!w || !h) return null;
+  const k = Math.min(1, max / Math.max(w, h));
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  try { c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height); return c.toDataURL('image/png'); } catch { return null; }
+}
+
+/** Nom, figureta i (sense figureta) imatge d'un enemic de l'escena, per a una cinemàtica de grup. */
+function foeOf(R: DMRefs, id: number | string): { wire: WireFoe; foe: PixelFoe } | null {
+  const k = String(id);
+  let name: string | undefined, img: HTMLCanvasElement | HTMLImageElement | null = null;
+  if (k.startsWith('lib_')) {
+    const en = R.rLibEnemies.current.find(e => `lib_${e.id}` === k);
+    if (!en) return null;
+    name = en.name;
+    if (en.imageData) { const im = new Image(); im.src = en.imageData; img = im; }
+  } else if (k.startsWith('pl_')) {
+    name = R.rPlayers.current.find(p => `pl_${p.id}` === k)?.name;
+  } else {
+    const n = Number(id);
+    const en = R.rStruct.current?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === n);
+    name = R.rPsdEnemyOverrides.current[n]?.name ?? en?.name;
+    img = R.rPsdEnemyImgCache.current[n] || R.rLayerImages.current[n] || null;
+  }
+  if (!name) return null;
+  const sprite = tokenSprite(R, id);
+  const url = sprite ? null : smallImage(img);
+  return { wire: { name, sprite, img: url }, foe: { name, sprite, img: sprite ? null : img } };
+}
+
 function spritePortrait(R: DMRefs, id: number | string): HTMLCanvasElement | null {
   if (R.rAppStyle.current !== 'pixel' || !packReady()) return null;
   const sprite = tokenSprite(R, id);
@@ -49,7 +90,7 @@ export function useCinematic(R: DMRefs) {
   const { stageRef, canvasRef, mediaRef, rZoom, rPanOffset, dmLocalPan, dmLocalZoom, cinematicActiveRef, cinematicRef, cinematicCamRef, bcRef, wsRef } = R;
 
   const _play = useCallback((bossName: string, tokenId: number | string, portrait: BossIntroRequest['portrait'], cam: CamRect | null,
-    pixel: { style: BossIntroStyle; sprite: string | null; party: { name: string; sprite?: string }[] } | null) => {
+    pixel: { style: BossIntroStyle; sprite: string | null; party: { name: string; sprite?: string }[]; extras: PixelFoe[]; message: string | null } | null) => {
     const stage = stageRef.current; if (!stage) return;
     cinematicActiveRef.current = true;
     const cc = cinematicCamRef.current;
@@ -70,7 +111,7 @@ export function useCinematic(R: DMRefs) {
       },
     };
     const intro = pixel && isPixelIntro(pixel.style)
-      ? playPixelIntro({ ...common, style: pixel.style, sprite: pixel.sprite, party: pixel.party })
+      ? playPixelIntro({ ...common, style: pixel.style, sprite: pixel.sprite, party: pixel.party, extras: pixel.extras, message: pixel.message })
       : playBossIntro(common);
     cinematicRef.current = intro;
   }, []);
@@ -81,8 +122,8 @@ export function useCinematic(R: DMRefs) {
     const style: BossIntroStyle = isPixelIntro(req.style) && packReady() ? req.style : 'classic';
     const pixel = style !== 'classic';
     // App Píxel: el retrat de la clàssica és la figureta del token (pixel art ampliat).
-    const sprite = pixel ? null : spritePortrait(R, req.tokenId);
-    const portrait = sprite ?? req.portrait;
+    const spriteImg = pixel ? null : spritePortrait(R, req.tokenId);
+    const portrait = spriteImg ?? req.portrait;
     // Les imatges de la biblioteca arriben com a `new Image()` sense carregar.
     if (portrait instanceof HTMLImageElement && !portrait.complete) {
       try { await portrait.decode(); } catch { /* sense retrat */ }
@@ -101,20 +142,23 @@ export function useCinematic(R: DMRefs) {
       }
     }
     const portraitDataUrl = encodePortrait(portrait);
-    const extra = pixel ? {
-      style, sprite: tokenSprite(R, req.tokenId),
-      party: R.rPlayers.current.filter(p => p.visible !== false).slice(0, 5).map(p => ({ name: p.name, sprite: p.sprite })),
-    } : null;
-    _play(req.bossName, req.tokenId, portrait, cam, extra);
+    // Cinemàtica de grup: els altres enemics triats (els que ja no hi són se salten).
+    const group = pixel ? (req.extras ?? []).filter(id => String(id) !== String(req.tokenId))
+      .map(id => foeOf(R, id)).filter(f => f !== null).slice(0, MAX_FOES - 1) : [];
+    const message = pixel ? req.message?.trim() || null : null;
+    const party = R.rPlayers.current.filter(p => p.visible !== false).slice(0, 5).map(p => ({ name: p.name, sprite: p.sprite }));
+    const sprite = pixel ? tokenSprite(R, req.tokenId) : null;
+    _play(req.bossName, req.tokenId, portrait, cam, pixel ? { style, sprite, party, extras: group.map(g => g.foe), message } : null);
     if (req.preview) return null;
     const msg = {
       type: 'BOSS_INTRO' as const, tokenId: req.tokenId, bossName: req.bossName,
-      tokenPos: pixel ? null : req.tokenPos, cam, portraitDataUrl, ...(extra ?? {}),
+      tokenPos: pixel ? null : req.tokenPos, cam, portraitDataUrl,
+      ...(pixel ? { style, sprite, party, extras: group.map(g => g.wire), message } : {}),
     };
     bcRef.current?.postMessage(msg);
     wsRef.current?.send(JSON.stringify(msg));
     // La figureta no s'ha de desar com a imatge del token (qui la llança desa el que es retorna).
-    return sprite ? null : portraitDataUrl;
+    return spriteImg ? null : portraitDataUrl;
   }, [_play]);
 
   const skipBossIntro = useCallback(() => {

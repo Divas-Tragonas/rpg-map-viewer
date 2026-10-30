@@ -483,7 +483,11 @@ export type BCMessage =
   | { type: 'DELETE_SPELL'; id: string }
   | { type: 'BOSS_INTRO'; tokenId: number | string; bossName: string; tokenPos: Point | null; cam?: CamRect | null; portraitDataUrl: string | null;
       /** Estil (`BossIntroStyle`); absent = la clàssica. Les de pixel art porten la figureta i la colla. */
-      style?: string; sprite?: string | null; party?: { name: string; sprite?: string }[] }
+      style?: string; sprite?: string | null; party?: { name: string; sprite?: string }[];
+      /** Cinemàtica de grup: els altres enemics (`img` = dataURL petit si no tenen figureta). */
+      extras?: { name: string; sprite?: string | null; img?: string | null }[];
+      /** Missatge escrit pel DM (`{nom}` = nom de l'enemic o del grup). */
+      message?: string | null }
   | { type: 'BOSS_INTRO_SKIP' }
   | { type: 'PLAYER_READY' }
   // Format de pantalla d'un client (jugador→DM): el DM llista les pantalles connectades

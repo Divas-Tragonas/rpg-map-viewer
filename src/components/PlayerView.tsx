@@ -390,6 +390,7 @@ export function PlayerView() {
     tokenId: number | string; bossName: string; tokenPos: Point | null; cam?: CamRect | null;
     portrait: HTMLCanvasElement | HTMLImageElement | null; offsetMs: number;
     style?: string; sprite?: string | null; party?: { name: string; sprite?: string }[];
+    extras?: { name: string; sprite?: string | null; img?: string | null }[]; message?: string | null;
   }) => {
     const stage = stageRef.current; if (!stage) return;
     // El DM no en llança cap altra fins que s'acaba la que corre: si n'arriba una,
@@ -416,7 +417,15 @@ export function PlayerView() {
       },
     };
     const intro = pixel && isPixelIntro(d.style)
-      ? playPixelIntro({ ...common, style: d.style, sprite: d.sprite ?? null, party: d.party ?? [] })
+      ? playPixelIntro({
+        ...common, style: d.style, sprite: d.sprite ?? null, party: d.party ?? [], message: d.message,
+        // La imatge d'un enemic sense figureta arriba en dataURL: es pinta quan s'ha carregat.
+        extras: (d.extras ?? []).map(f => {
+          let img: HTMLImageElement | null = null;
+          if (f.img) { img = new Image(); img.src = f.img; }
+          return { name: f.name, sprite: f.sprite ?? null, img };
+        }),
+      })
       : playBossIntro(common);
     cinematicRef.current = intro;
   }, []);
@@ -730,7 +739,7 @@ export function PlayerView() {
         const _run = (portrait: HTMLCanvasElement | HTMLImageElement | null) => triggerBossIntroRef.current({
           tokenId: msg.tokenId, bossName: msg.bossName, tokenPos: msg.tokenPos, cam: msg.cam, portrait,
           offsetMs: Math.min(600, performance.now() - receivedAt),
-          style: msg.style, sprite: msg.sprite, party: msg.party,
+          style: msg.style, sprite: msg.sprite, party: msg.party, extras: msg.extras, message: msg.message,
         });
         const fallback = () => _run(rLayerImages.current[msg.tokenId as number] || null);
         if (msg.portraitDataUrl) {

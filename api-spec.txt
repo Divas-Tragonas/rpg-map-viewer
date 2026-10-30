@@ -143,7 +143,7 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | MEASURE             | { a: Point | null, b: Point | null }                            | Regla de mesura                    |
 | SPELL               | { spell: Spell }                                                | Animació de spell                  |
 | DELETE_SPELL        | { id: string }                                                  | Eliminar spell d'àrea actiu        |
-| BOSS_INTRO          | { tokenId, bossName, tokenPos, cam?, portraitDataUrl, style?, sprite?, party? } | Cinematica boss (cam: CamRect mapa; style: pixel art) |
+| BOSS_INTRO          | { tokenId, bossName, tokenPos, cam?, portraitDataUrl, style?, sprite?, party?, extras?, message? } | Cinematica boss (cam: CamRect mapa; style: pixel art; extras: enemics del grup) |
 | BOSS_INTRO_SKIP     | —                                                               | Saltar cinematica                  |
 | EXPOSITOR_HIDE      | —                                                               | Amagar expositor                   |
 | EXPOSITOR_SYNC      | { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }                  | Sincronització expositor           |
