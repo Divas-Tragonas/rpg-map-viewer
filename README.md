@@ -70,6 +70,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.49 — Menús del clic dret flotants
+- Els menús del clic dret (token, selecció múltiple, sala, zona màgica) es poden arrossegar pel mànec de sis punts de la capçalera o per qualsevol tros buit d'aquesta.
+- Un cop moguts, són **flotants**: es queden oberts on els has deixat mentre treballes al mapa (un clic fora no els tanca). Si fas clic dret a un altre token, el menú canvia al nou token al mateix lloc. El mànec i la vora es tornen daurats per indicar-ho.
+- ✕ o Esc el tanquen del tot, i el pròxim torna a obrir-se al costat del cursor.
+
 ### v4.48 — Els aros dels peus, sota la figureta
 - A l'app Píxel, l'anell dels estats es pintava per sobre de la figureta i li tapava els peus (i la figura estirada). Passava igual amb l'aro del torn, el de ressaltar enemics i el de selecció. Ara tots van per sota de la figura, i només els badges dels estats i la creu de derrotat queden a sobre.
 

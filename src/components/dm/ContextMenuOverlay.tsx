@@ -1,6 +1,6 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon } from '@/components/icons';
+import { X, GripIcon, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +8,17 @@ import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/com
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog } from '@/types';
 
+/** Posició d'un menú flotant, en píxels de la finestra (cantonada de dalt a l'esquerra). */
+export interface MenuPos { x: number; y: number }
+
 interface Props {
+  /**
+   * Menú flotant: el DM l'ha arrossegat i es queda on l'ha deixat, obert mentre treballa al mapa
+   * (un clic fora no el tanca). Els menús nous (clic dret a un altre token) surten al mateix lloc.
+   * `onFloat(null)` = deixa de ser flotant (✕ o Esc).
+   */
+  floatPos: MenuPos | null;
+  onFloat: (p: MenuPos | null) => void;
   contextMenu: ContextMenuState | null;
   conditions: ConditionsMap;
   defeated: DefeatedMap;
@@ -100,6 +110,15 @@ const menuBox = (x: number, y: number, maxH: number): React.CSSProperties => ({
   zIndex: 9999, boxShadow: SHADOW.menu,
 });
 
+/** Posició d'un menú flotant (l'ha mogut el DM): on l'ha deixat, amb la capçalera sempre a la vista. */
+const floatBox = (p: MenuPos): React.CSSProperties => {
+  const top = Math.max(8, Math.min(p.y, window.innerHeight - 48));
+  return {
+    ...menuBox(p.x, top, 0), top, maxHeight: window.innerHeight - top - 8,
+    border: `1px solid ${tint(C.accent, 0.45)}`,
+  };
+};
+
 const sectionLabel: React.CSSProperties = {
   fontSize: FS.xs, color: C.dim, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.08em',
 };
@@ -118,10 +137,21 @@ function blurActive() {
   if (el instanceof HTMLElement) el.blur();
 }
 
-/** Capçalera comuna dels menús: títol, accessoris opcionals i ✕ de tancar (✕ = tancar, sempre). */
-function MenuHeader({ title, children, onClose }: { title: React.ReactNode; children?: React.ReactNode; onClose: () => void }) {
+/**
+ * Capçalera comuna dels menús: mànec per moure'l, títol, accessoris opcionals i ✕ de tancar
+ * (✕ = tancar, sempre). S'arrossega pel mànec o per qualsevol tros buit de la capçalera.
+ */
+function MenuHeader({ title, children, onClose, onDrag, floating }: {
+  title: React.ReactNode; children?: React.ReactNode; onClose: () => void;
+  onDrag: (e: React.PointerEvent<HTMLElement>) => void; floating: boolean;
+}) {
   return (
-    <div style={{ padding: '7px 8px 7px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div onPointerDown={onDrag}
+      style={{ padding: '7px 8px 7px 4px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6, cursor: 'grab', touchAction: 'none' }}>
+      <span title={floating ? 'Menú flotant: es queda obert on l\'has deixat (✕ o Esc per tancar-lo)' : 'Arrossega per moure el menú i deixar-lo fix al costat del mapa'}
+        style={{ display: 'flex', flexShrink: 0, color: floating ? C.accent : C.dim, padding: '2px 0' }}>
+        <GripIcon size={13} />
+      </span>
       {typeof title === 'string'
         ? <span style={{ flex: 1, minWidth: 0, color: C.bright, fontFamily: FONT_SERIF, fontWeight: 600, fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         : <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>{title}</div>}
@@ -189,7 +219,7 @@ export function ContextMenuOverlay({
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
   onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell,
-  dialogs, onSpeak, onPlayDialog, onEditDialogs,
+  dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
   // així que el botó demana confirmació en dos passos (com el ✕ del TurnTracker). Es desa
@@ -200,15 +230,37 @@ export function ContextMenuOverlay({
   const [confirmDelPlayer, setConfirmDelPlayer] = useState<string | null>(null);
   // Tancar = primer aplicar el camp a mig editar (nom, vida màxima…), després desmuntar.
   const onClose = useCallback(() => { blurActive(); closeMenu(); }, [closeMenu]);
+  // ✕ i Esc tanquen del tot: també deixa de ser flotant (el pròxim s'obre al costat del cursor).
+  // Les accions del menú que el tanquen (parlar, llançar un conjur…) conserven el lloc flotant.
+  const onDismiss = useCallback(() => { onFloat(null); onClose(); }, [onFloat, onClose]);
+  const floating = !!floatPos;
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = (e: MouseEvent) => { if (!(e.target as Element).closest?.('[data-ctxmenu]')) onClose(); };
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    // Flotant: un clic fora (al mapa, al lateral) no el tanca; per això s'ha mogut.
+    const close = (e: MouseEvent) => { if (!floating && !(e.target as Element).closest?.('[data-ctxmenu]')) onClose(); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss(); };
     window.addEventListener('mousedown', close);
     window.addEventListener('keydown', esc);
     return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', esc); };
-  }, [contextMenu, onClose]);
+  }, [contextMenu, onClose, onDismiss, floating]);
+
+  /** Arrossegar el menú per la capçalera (no des dels camps ni dels botons que hi ha). */
+  const startDrag = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0 || (e.target as Element).closest('input, textarea, select, button')) return;
+    const menu = e.currentTarget.closest('[data-ctxmenu]');
+    if (!menu) return;
+    e.preventDefault();
+    const r = menu.getBoundingClientRect();
+    const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const move = (ev: PointerEvent) => onFloat({ x: ev.clientX - dx, y: ev.clientY - dy });
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    onFloat({ x: r.left, y: r.top });
+  };
+  const box = (x: number, y: number, maxH: number) => floatPos ? floatBox(floatPos) : menuBox(x, y, maxH);
+  const head = { onClose: onDismiss, onDrag: startDrag, floating };
 
   if (!contextMenu) return null;
   const id = String(contextMenu.id);
@@ -219,8 +271,8 @@ export function ContextMenuOverlay({
     const dark = !!contextMenu.roomDark;
     const revealed = !!contextMenu.roomRevealed;
     return (
-      <div data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, 300)}>
-        <MenuHeader title="Sala" onClose={onClose}>
+      <div data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, 300)}>
+        <MenuHeader title="Sala" {...head}>
           <span style={{ color: C.dim, fontSize: FS.xs }}>{dark ? (revealed ? 'fosca · revelada' : 'fosca · amagada') : 'normal'}</span>
         </MenuHeader>
         <div style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>
@@ -277,8 +329,8 @@ export function ContextMenuOverlay({
     const idsStr = ids.map(String);
     const libCount = ids.filter(tid => typeof tid === 'string' && tid.startsWith('lib_')).length;
     return (
-      <div data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, 440)}>
-        <MenuHeader title={contextMenu.name} onClose={onClose} />
+      <div data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, 440)}>
+        <MenuHeader title={contextMenu.name} {...head} />
         <ConditionPicker
           multi
           active={[]}
@@ -324,8 +376,8 @@ export function ContextMenuOverlay({
   // ── Zona màgica / encanteri d'àrea ────────────────────────────────────────
   if (contextMenu.isPaintedZone || contextMenu.isAreaSpell) {
     return (
-      <div data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, 140)}>
-        <MenuHeader title={contextMenu.name} onClose={onClose}>
+      <div data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, 140)}>
+        <MenuHeader title={contextMenu.name} {...head}>
           <span style={{ color: C.dim, fontSize: FS.xs }}>{contextMenu.isPaintedZone ? 'Zona màgica' : 'Encanteri d\'àrea'}</span>
         </MenuHeader>
         <div style={{ padding: 8 }}>
@@ -355,8 +407,8 @@ export function ContextMenuOverlay({
   const book = contextMenu.casterPos ? spellbookFor(t.name) : [];
   const actionBtn: React.CSSProperties = { flex: '1 1 auto', minWidth: 0 };
   return (
-    <div key={t.key} data-ctxmenu="1" style={menuBox(contextMenu.x, contextMenu.y, book.length > 0 ? 620 : 400)}>
-      <MenuHeader title={<NameField key={`${t.key}:${t.name}`} value={t.name} onCommit={t.rename} />} onClose={onClose}>
+    <div key={t.key} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, book.length > 0 ? 620 : 400)}>
+      <MenuHeader title={<NameField key={`${t.key}:${t.name}`} value={t.name} onCommit={t.rename} />} {...head}>
         {/* Derrotat és un interruptor amb nom: abans era un ✕ solt just on s'espera el botó
             de tancar el menú, i en tota la resta de l'app ✕ vol dir tancar o eliminar. */}
         <Button size="sm" variant="secondary" active={isDefeated} color={C.enemy}

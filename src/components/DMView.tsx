@@ -33,7 +33,7 @@ import { CanvasHUD } from '@/components/dm/CanvasHUD';
 import { NoticeStack } from '@/components/ui/NoticeStack';
 import { SpellMenuOverlay } from '@/components/dm/SpellMenuOverlay';
 import { ShapeMenuOverlay } from '@/components/dm/ShapeMenuOverlay';
-import { ContextMenuOverlay } from '@/components/dm/ContextMenuOverlay';
+import { ContextMenuOverlay, type MenuPos } from '@/components/dm/ContextMenuOverlay';
 import { SceneConfigOverlay } from '@/components/dm/SceneConfigOverlay';
 import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
@@ -166,6 +166,15 @@ export function DMView() {
   const [enemyHighlight, setEnemyHighlight] = useState(false);
   const [highlightLocked, setHighlightLocked] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  // Menú del clic dret flotant (l'ha arrossegat el DM): on és i, en ref, si n'hi ha (per al ratolí).
+  const [menuFloat, setMenuFloatState] = useState<MenuPos | null>(null);
+  const menuFloatRef = useRef<MenuPos | null>(null);
+  const setMenuFloat = useCallback((p: MenuPos | null) => { menuFloatRef.current = p; setMenuFloatState(p); }, []);
+  // Des del mapa, un clic dret en buit tanca el menú… menys si és flotant: s'ha mogut per tenir-lo obert.
+  const setContextMenuFromMap = useCallback((m: ContextMenuState | null) => {
+    if (m === null && menuFloatRef.current) return;
+    setContextMenu(m);
+  }, []);
   const [sceneConfigMenu, setSceneConfigMenu] = useState<SceneConfigMenuState | null>(null);
   const [spellMenu, setSpellMenu] = useState<SpellMenuState | null>(null);
   const [shapeMenu, setShapeMenu] = useState<ShapeMenuState | null>(null);
@@ -893,7 +902,7 @@ export function DMView() {
   // ── Mouse handlers ────────────────────────────────────────────────────────
   const mouseSetters = useMemo(() => ({
     setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
-    setActiveSpells, setPaintedZones, setContextMenu, onUndoChange: refreshUndo,
+    setActiveSpells, setPaintedZones, setContextMenu: setContextMenuFromMap, onUndoChange: refreshUndo,
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
@@ -1987,6 +1996,7 @@ export function DMView() {
         }}
         onRemovePlayer={removePlayer}
         onClose={() => setContextMenu(null)}
+        floatPos={menuFloat} onFloat={setMenuFloat}
         onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone} onDeleteAreaSpell={deleteAreaSpell}
         onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}
         setDefeated={setDefeated} setConditions={setConditions}
