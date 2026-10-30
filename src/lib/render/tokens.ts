@@ -31,11 +31,13 @@ function pixelSprite(fc: FrameContext, sprite: string | undefined): string | nul
 
 /**
  * Figureta damunt d'una base: ombra el·líptica, anell del color de l'equip als peus i la
- * criatura animada (4 fotogrames d'espera, desfasats per token). Derrotat → estirada i en
+ * criatura animada (4 fotogrames d'espera, desfasats per token). Derrotat → dreta i en
  * grisos. Substitueix només el disc del token: nom, vida, estats i aros es pinten igual.
+ * Pinta la base i RETORNA la funció que pinta la figura: qui crida la crida després dels aros
+ * dels peus (veure `renderEnemyTokens`), perquè quedin sota la figura.
  */
 function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
-  cx: number, cy: number, R: number, team: string, opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[] }) {
+  cx: number, cy: number, R: number, team: string, opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[] }): () => void {
   const { sc } = fc;
   const f = _facing.get(key);
   if (!f) _facing.set(key, { x: cx, left: false });
@@ -51,23 +53,31 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   if (opts.invis) ctx.setLineDash([5 / sc, 3 / sc]);
   ctx.beginPath(); ctx.ellipse(cx, cy + R * 0.62, R * 0.86, R * 0.31, 0, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]);
-  const d = opts.defeated ?? 0;
-  if (d > 0) {
-    // Derrotat: la figura es queda dreta, quieta i perd el color (es fon des del color).
-    const gray = grayCreature(sprite);
-    ctx.imageSmoothingEnabled = false;
-    if (d < 1) drawCreature(ctx, sprite, 0, cx - S / 2, cy - S * 0.62, S, left);
-    ctx.globalAlpha *= Math.min(1, d) * 0.85;
-    if (gray) {
-      if (left) { ctx.translate(cx + S / 2, 0); ctx.scale(-1, 1); ctx.drawImage(gray, 0, cy - S * 0.62, S, S); }
-      else ctx.drawImage(gray, cx - S / 2, cy - S * 0.62, S, S);
-    }
-  } else {
-    if (opts.invis) ctx.globalAlpha *= 0.45;
-    // Amb els estats a la figura (`lib/sprites/states.ts`): estirada, de pedra, quieta, contorn…
-    drawFigureState(ctx, sprite, figureLook(opts.conds ?? []), cx, cy + R * 0.62, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1));
-  }
   ctx.restore();
+  // La figura es pinta DESPRÉS: abans hi van els aros dels peus (estats, torn, ressaltat,
+  // selecció), que no l'han de tapar mai.
+  const alpha = opts.alpha ?? 1;
+  return () => {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const d = opts.defeated ?? 0;
+    if (d > 0) {
+      // Derrotat: la figura es queda dreta, quieta i perd el color (es fon des del color).
+      const gray = grayCreature(sprite);
+      ctx.imageSmoothingEnabled = false;
+      if (d < 1) drawCreature(ctx, sprite, 0, cx - S / 2, cy - S * 0.62, S, left);
+      ctx.globalAlpha *= Math.min(1, d) * 0.85;
+      if (gray) {
+        if (left) { ctx.translate(cx + S / 2, 0); ctx.scale(-1, 1); ctx.drawImage(gray, 0, cy - S * 0.62, S, S); }
+        else ctx.drawImage(gray, cx - S / 2, cy - S * 0.62, S, S);
+      }
+    } else {
+      if (opts.invis) ctx.globalAlpha *= 0.45;
+      // Amb els estats a la figura (`lib/sprites/states.ts`): estirada, de pedra, quieta, contorn…
+      drawFigureState(ctx, sprite, figureLook(opts.conds ?? []), cx, cy + R * 0.62, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1));
+    }
+    ctx.restore();
+  };
 }
 
 // Moviment del token seguint el camí (corba suau de Chaikin): velocitat de creuer (fracció
@@ -209,8 +219,9 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
     ctx.save();
     ctx.globalAlpha = enAlpha;
 
+    let fig: (() => void) | null = null;
     if (psdSprite) {
-      drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
+      fig = drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
     } else if (isDefeated && !isDM) {
       const desatAlpha = Math.min(1, crossProg * 2);
       if (desatAlpha > 0) {
@@ -275,7 +286,11 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     }
     ctx.globalAlpha = 1;
-    if (!isDM && isInvis) { /* skip badges */ } else { drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, psdSprite, enCondIds), R, enCondIds, sc, psdSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined); }
+    const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
+      if (!isDM && isInvis) return;
+      drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, psdSprite, enCondIds), R, enCondIds, sc, psdSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined, parts);
+    };
+    badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
 
     const _ha = rHighlightAlpha.current;
     if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
@@ -290,22 +305,25 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.restore();
     }
 
-    if (isDefeated && showStates && (isDM || crossProg > 0)) {
-      const cr = R * 0.82;
-      ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
-      if (isDM) {
-        ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke();
-      } else {
-        const lineLen = cr * 2 * 1.42;
-        const p1 = Math.min(1, crossProg * 2);
-        if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke(); }
-        const p2 = Math.max(0, crossProg * 2 - 1);
-        if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke(); }
-        ctx.setLineDash([]);
+    const drawCross = () => {
+      if (isDefeated && showStates && (isDM || crossProg > 0)) {
+        const cr = R * 0.82;
+        ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
+        if (isDM) {
+          ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke();
+        } else {
+          const lineLen = cr * 2 * 1.42;
+          const p1 = Math.min(1, crossProg * 2);
+          if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke(); }
+          const p2 = Math.max(0, crossProg * 2 - 1);
+          if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke(); }
+          ctx.setLineDash([]);
+        }
+        ctx.restore();
       }
-      ctx.restore();
-    }
+    };
+    if (!fig) drawCross();
 
     // Aro daurat del torn actiu (també per als enemics: el DM ha de veure d'un cop d'ull
     // a qui li toca moure, no només a la barra d'iniciativa).
@@ -318,6 +336,9 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
       ringPath(ctx, ep.x, ep.y, R + 7 / sc, R, !!psdSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
+
+    // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
+    if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
 
     ctx.restore();
   }));
@@ -388,8 +409,9 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.beginPath(); ctx.arc(ep.x + 2 / sc, ep.y + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
     }
 
+    let fig: (() => void) | null = null;
     if (libSprite) {
-      drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
+      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -443,7 +465,10 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.fillText(en.name, ep.x, ep.y + R + 12 / sc);
     }
     ctx.globalAlpha = 1;
-    if (showStates) drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, libSprite, enCondIds), R, enCondIds, sc, libSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
+    const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
+      if (showStates) drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, libSprite, enCondIds), R, enCondIds, sc, libSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined, parts);
+    };
+    badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
 
     const _ha = rHighlightAlpha.current;
     if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
@@ -472,22 +497,25 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     }
 
-    if (isDefeated && showStates && (isDM || crossProg > 0)) {
-      const cr = R * 0.82;
-      ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
-      if (isDM) {
-        ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke();
-      } else {
-        const lineLen = cr * 2 * 1.42;
-        const p1 = Math.min(1, crossProg * 2);
-        if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke(); }
-        const p2 = Math.max(0, crossProg * 2 - 1);
-        if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke(); }
-        ctx.setLineDash([]);
+    const drawCross = () => {
+      if (isDefeated && showStates && (isDM || crossProg > 0)) {
+        const cr = R * 0.82;
+        ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
+        if (isDM) {
+          ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke();
+        } else {
+          const lineLen = cr * 2 * 1.42;
+          const p1 = Math.min(1, crossProg * 2);
+          if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke(); }
+          const p2 = Math.max(0, crossProg * 2 - 1);
+          if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke(); }
+          ctx.setLineDash([]);
+        }
+        ctx.restore();
       }
-      ctx.restore();
-    }
+    };
+    if (!fig) drawCross();
 
     // Aro daurat del torn actiu (veure renderEnemyTokens).
     if (_activeId != null && _activeId === `lib_${en.id}` && !isDefeated && enAlpha > 0.3) {
@@ -499,6 +527,9 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
       ringPath(ctx, ep.x, ep.y, R + 7 / sc, R, !!libSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
+
+    // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
+    if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
 
     ctx.globalAlpha = 1;
   });
@@ -601,8 +632,9 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.fillStyle = 'rgba(0,0,0,.4)';
       ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
     }
+    let fig: (() => void) | null = null;
     if (plSprite) {
-      drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds });
+      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -634,7 +666,9 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     ctx.fillStyle = 'rgba(8,12,18,.8)'; ctx.fillRect(ppos.x + R - tw2 / 2 - 4 / sc, ppos.y + R * 2 + 3 / sc, tw2 + 8 / sc, 12 / sc);
     ctx.fillStyle = pl.color; ctx.fillText(pl.name, ppos.x + R, ppos.y + R * 2 + 12 / sc);
     ctx.textAlign = 'left';
-    drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? { footY: ppos.y + R + R * FOOT_DY, flat: FOOT_FLAT } : undefined);
+    const badges = (parts?: { ring?: boolean; badges?: boolean }) =>
+      drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? { footY: ppos.y + R + R * FOOT_DY, flat: FOOT_FLAT } : undefined, parts);
+    badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
 
     if (isDM && pl.hpMax > 0) {
       const hp = pl.hp ?? pl.hpMax, hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
@@ -646,22 +680,25 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH + 9 / sc); ctx.textAlign = 'left';
     }
 
-    if (isDefeated && (isDM || crossProg > 0)) {
-      const cx = ppos.x + R, cy = ppos.y + R, cr = R * 0.82;
-      ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
-      if (isDM) {
-        ctx.beginPath(); ctx.moveTo(cx - cr, cy - cr); ctx.lineTo(cx + cr, cy + cr); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx + cr, cy - cr); ctx.lineTo(cx - cr, cy + cr); ctx.stroke();
-      } else {
-        const lineLen = cr * 2 * 1.42;
-        const p1 = Math.min(1, crossProg * 2);
-        if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(cx - cr, cy - cr); ctx.lineTo(cx + cr, cy + cr); ctx.stroke(); }
-        const p2 = Math.max(0, crossProg * 2 - 1);
-        if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(cx + cr, cy - cr); ctx.lineTo(cx - cr, cy + cr); ctx.stroke(); }
-        ctx.setLineDash([]);
+    const drawCross = () => {
+      if (isDefeated && (isDM || crossProg > 0)) {
+        const cx = ppos.x + R, cy = ppos.y + R, cr = R * 0.82;
+        ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
+        if (isDM) {
+          ctx.beginPath(); ctx.moveTo(cx - cr, cy - cr); ctx.lineTo(cx + cr, cy + cr); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(cx + cr, cy - cr); ctx.lineTo(cx - cr, cy + cr); ctx.stroke();
+        } else {
+          const lineLen = cr * 2 * 1.42;
+          const p1 = Math.min(1, crossProg * 2);
+          if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(cx - cr, cy - cr); ctx.lineTo(cx + cr, cy + cr); ctx.stroke(); }
+          const p2 = Math.max(0, crossProg * 2 - 1);
+          if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(cx + cr, cy - cr); ctx.lineTo(cx - cr, cy + cr); ctx.stroke(); }
+          ctx.setLineDash([]);
+        }
+        ctx.restore();
       }
-      ctx.restore();
-    }
+    };
+    if (!fig) drawCross();
 
     if (isDM && (rSelectedToken.current === `pl_${pl.id}` || rMultiSelected.current.has(`pl_${pl.id}`))) {
       const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
@@ -670,5 +707,8 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     }
 
     if (_activeId != null && _activeId === `pl_${pl.id}` && !isDefeated) drawActiveTurnRing(ctx, ppos.x + R, ppos.y + R, R, sc, !!plSprite);
+
+    // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
+    if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
   });
 }

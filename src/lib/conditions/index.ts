@@ -108,6 +108,11 @@ export function drawConditionBadges(
   ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, condIds: string[], sc: number,
   /** App Píxel: l'anell va als peus (`footY`), aplanat (`flat`), i els badges sobre el cap. */
   foot?: { footY: number; flat: number },
+  /**
+   * Quina part pintar (per defecte totes dues). A l'app Píxel l'anell va SOTA la figureta i els
+   * badges a sobre, i per això `render/tokens.ts` les pinta en dos moments.
+   */
+  parts: { ring?: boolean; badges?: boolean } = {},
 ): void {
   if (!condIds || condIds.length === 0) return;
   const list: Condition[] = [];
@@ -118,8 +123,11 @@ export function drawConditionBadges(
   // el de ressaltar enemics i el blau de selecció, i s'hi trepitjarien.
   const ringW = Math.max(3 / sc, R * 0.11);
   const Rring = Math.max(ringW, R - ringW / 2);
-  if (foot) drawConditionRing(ctx, cx, foot.footY, R * 0.98, list, ringW * 0.9, foot.flat);
-  else drawConditionRing(ctx, cx, cy, Rring, list, ringW);
+  if (parts.ring !== false) {
+    if (foot) drawConditionRing(ctx, cx, foot.footY, R * 0.98, list, ringW * 0.9, foot.flat);
+    else drawConditionRing(ctx, cx, cy, Rring, list, ringW);
+  }
+  if (parts.badges === false) return;
   // La figureta fa més d'alt que el disc: els badges pugen fins sobre el cap.
   if (foot) cy -= R * 0.55;
 

@@ -70,6 +70,9 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.48 — Els aros dels peus, sota la figureta
+- A l'app Píxel, l'anell dels estats es pintava per sobre de la figureta i li tapava els peus (i la figura estirada). Passava igual amb l'aro del torn, el de ressaltar enemics i el de selecció. Ara tots van per sota de la figura, i només els badges dels estats i la creu de derrotat queden a sobre.
+
 ### v4.47 — Els estats es veuen a la figureta
 - A l'app Píxel, la figureta del token també mostra els estats que té (els badges i l'anell continuen dient quins són):
   - **Tombat, Inconscient i Morint**: estirada a terra. Inconscient i Morint, a més, no es mouen.
