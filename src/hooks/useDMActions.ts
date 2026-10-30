@@ -18,6 +18,7 @@ import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 import { reviveTileMap } from '@/lib/tilemap/model';
+import { getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
 
 interface Setters {
   setBgLoaded: (v: boolean) => void;
@@ -40,6 +41,8 @@ interface Setters {
   onUndoChange: () => void;
   /** Els diàlegs preparats han canviat (s'ha carregat una partida). */
   onDialogsChange?: () => void;
+  /** L'ajust de color de les figuretes del mapa ha canviat (missió, partida o fons nou). */
+  onFigureGradeChange?: (g: import('@/types').FigureGrade | null) => void;
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setGridSize: (v: number) => void;
   setGridSnap: (v: boolean) => void;
@@ -233,6 +236,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       spellPreview: rSpellPreview.current,
       // Estil de l'app (Clàssic / Píxel): lleuger, s'envia sempre.
       appStyle: R.rAppStyle.current,
+      // Ajust de color de les figuretes del mapa (missions): lleuger, s'envia sempre.
+      figureGrade: getFigureGrade(),
       // Diàleg en curs (lleuger, sempre): així qui es connecta o reconnecta a mitja
       // conversa veu la línia d'ara mateix. Veure `useDialog`.
       dialog: _dialogNow(),
@@ -280,6 +285,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       turn: rTurn.current,
       spellPreview: rSpellPreview.current,
       appStyle: R.rAppStyle.current,
+      figureGrade: getFigureGrade(),
       tileLive: R.rTileLive.current,
       dialog: _dialogNow(),
       // Dibuix a ploma: perquè el jugador reconstrueixi el drawCanvas en connectar-se (late
@@ -344,6 +350,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     }
     const buf = await file.arrayBuffer();
     bgBufferRef.current = { buffer: buf, mimeType: mime };
+    // L'ajust de color de les figuretes és d'un mapa concret (missions): un fons nou no en té.
+    // Si el fons ve d'una partida, `applySessionState` el torna a posar just després.
+    if (getFigureGrade()) { setFigureGrade(null); S.onFigureGradeChange?.(null); }
     const stage = stageRef.current; if (!stage) return;
     if (mediaRef.current) { mediaRef.current.remove(); (mediaRef as React.MutableRefObject<HTMLImageElement | HTMLVideoElement | null>).current = null; }
     // L'URL del fons anterior s'ha de revocar a mà: si no, cada canvi de mapa deixa penjada
@@ -731,6 +740,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // Estil Píxel: l'estil amb què es jugava i el mapa de caselles (per poder-lo seguir editant).
       appStyle: R.rAppStyle.current,
       tileMap: R.rTileMap.current,
+      // Ajust de color de les figuretes: és del mapa (una missió el porta), no de la UI.
+      figureGrade: getFigureGrade(),
     };
     if (rStruct2.current) {
       state.psdStruct = rStruct2.current;
@@ -867,6 +878,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // tenir per editar-lo i per a les parts vives (aigua, torxes, portes).
       R.rTileMap.current = state.tileMap ? reviveTileMap(state.tileMap) : null;
       R.rTileRestore.current({ rebake: false });
+      // L'ajust de color de les figuretes és del mapa: una partida que no en porta no en té.
+      setFigureGrade(state.figureGrade && typeof state.figureGrade === 'object' ? state.figureGrade : null);
+      S.onFigureGradeChange?.(getFigureGrade());
       if ((state.strokeHistory && state.strokeHistory.length > 0) || strokeBaseRef.current) {
         const oc = drawCanvasRef.current;
         if (oc) {

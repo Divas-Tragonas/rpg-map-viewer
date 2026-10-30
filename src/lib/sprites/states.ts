@@ -15,6 +15,7 @@
  */
 import { CONDITIONS } from '@/constants';
 import { TILE, drawCreature, creatureFrame, hasCreature, sheetReady } from './draw';
+import { figureGradeKey } from './pack';
 
 export interface FigureLook {
   lying: boolean;
@@ -63,7 +64,7 @@ const SKIN_RAMP = { stone: STONE, poison: POISON, blood: BLOOD, white: WHITE, he
 const hexRgb = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 
 function strip(sprite: string, kind: Kind): HTMLCanvasElement | null {
-  const key = `${sprite}|${kind}`;
+  const key = `${figureGradeKey()}|${sprite}|${kind}`;
   const hit = _strips.get(key); if (hit) return hit;
   if (!hasCreature(sprite) || !sheetReady(sprite)) return null;
   const W = TILE * FRAMES;

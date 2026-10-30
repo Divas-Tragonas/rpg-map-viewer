@@ -70,6 +70,12 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.53 — Missió de Conyberry
+- **Missions preparades**: «Missió · Conyberry» a la pantalla de benvinguda i al menú **Partida**. Obre el mapa del poble amb la colla ja col·locada al camí, al sud del pou, i passa a l'app Píxel. És una partida feta: es desa i se sincronitza amb els jugadors com qualsevol altra.
+- **Figuretes a to amb el mapa**: en aquest mapa, les figuretes del paquet (molt saturades) es passen pels colors del mapa (menys saturació, to càlid i negres de tinta), al DM i a les pantalles de jugador. Es pot apagar i encendre al menú **Vista** («Figuretes a to amb el mapa»).
+- **Arbres nous** al full de poble: grups de fulles rodons amb contorn, llum i plec, al mateix estil de píxel que les figuretes. Els d'abans tenien una textura de soroll fina que no hi lligava. Les roques, igual.
+- El mapa es genera amb `scripts/mission-conyberry.py` (disposició escrita a mà dins del script, per anar-la polint) i de moment viu al repositori (`public/missions/conyberry/`).
+
 ### v4.52 — Full de poble (primera versió)
 - **Generador de textures de poble** (`scripts/oryx-village.py` → `public/sprites/uf_village.png`): amb l'estètica dels mapes pintats de la campanya (Conyberry), en tons apagats d'aquarel·la i tinta, i no amb els verds saturats del paquet. Mateixa mida de píxel que el paquet.
 - Conté: prat, herba fosca, camí, còdols i aigua (amb reflexos animats); transicions de vora irregular per al camí, els còdols, l'aigua i l'herba fosca; arbustos, arbres de tres mides i un de molt gran, roques, tanques de fusta i murs de pedra seca (que s'enllacen amb els veïns), moll, pou i barca. Les teulades a dues aigües es dibuixen per rectangle.

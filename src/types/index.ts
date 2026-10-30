@@ -85,6 +85,20 @@ export interface Player {
 /** Estil de l'app: el clàssic de sempre o el Píxel (sprites, mapes de caselles). */
 export type AppStyle = 'classic' | 'pixel';
 
+/**
+ * Ajust de color de les figuretes (app Píxel) perquè lliguin amb un mapa de tons apagats (les
+ * missions: el paquet és molt saturat). Es fa per píxel als fulls de criatures, un sol cop
+ * (`setFigureGrade` a `lib/sprites/pack.ts`): saturació, multiplicador càlid i guany, i els
+ * negres passen a la tinta del mapa. `off` → el mapa en té, però el DM l'ha apagat.
+ */
+export interface FigureGrade {
+  sat: number;
+  warm: [number, number, number];
+  gain: number;
+  ink: [number, number, number];
+  off?: boolean;
+}
+
 export interface Point {
   x: number;
   y: number;
@@ -416,6 +430,8 @@ export interface BCStateMessage {
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   // Diàleg en curs (camp lleuger, sempre; `null` = cap). Absent → DM antic, no tocar res.
   dialog?: DialogSync | null;
+  // Ajust de color de les figuretes del mapa (lleuger, sempre; `null` = cap). Absent → DM antic.
+  figureGrade?: FigureGrade | null;
 }
 
 export interface BCStructMessage {
@@ -459,6 +475,7 @@ export interface BCStructMessage {
   appStyle?: AppStyle;
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   dialog?: DialogSync | null;
+  figureGrade?: FigureGrade | null;
   /**
    * Dibuix a ploma per a qui es connecta tard o carrega una partida. Els traços més antics
    * surten de `strokeHistory` i viatgen ja rasteritzats a `strokeBaseline` (PNG en dataURL),

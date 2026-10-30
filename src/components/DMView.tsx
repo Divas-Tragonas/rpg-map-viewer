@@ -9,7 +9,7 @@ import type {
   MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, LightSource, TurnState, Notice, Notify,
+  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, LightSource, TurnState, Notice, Notify, FigureGrade,
 } from '@/types';
 import { clearExploredAt } from '@/lib/render/darkrooms';
 import { useDMRefs, type DMRefs } from '@/hooks/useDMRefs';
@@ -58,7 +58,8 @@ import { useTileMap } from '@/hooks/useTileMap';
 import { TilePalette } from '@/components/dm/TilePalette';
 import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
 import { useSpritePack } from '@/hooks/useSpritePack';
-import { ensurePack } from '@/lib/sprites/pack';
+import { ensurePack, getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
+import { MISSIONS, missionState, missionUrl } from '@/lib/missions';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import type { TileBrush } from '@/lib/tilemap/editor';
 import { PixelSwordIcon, TilesIcon } from '@/components/icons';
@@ -148,6 +149,8 @@ export function DMView() {
   const pack = useSpritePack();
   // Mapa de caselles obert (n'hi ha prou amb la mida per a la UI; el mapa viu a R.rTileMap).
   const [tileMapSize, setTileMapSize] = useState<{ cols: number; rows: number } | null>(null);
+  // Ajust de color de les figuretes del mapa (missions). Mirall per a la UI (viu a `lib/sprites/pack`).
+  const [figureGrade, setFigureGradeUI] = useState<FigureGrade | null>(null);
   // Fitxer arrossegant-se damunt del canvas (tota la pantalla accepta el mapa, el PSD o la partida).
   const [fileOver, setFileOver] = useState(false);
   const fileDragDepth = React.useRef(0);
@@ -340,6 +343,7 @@ export function DMView() {
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
     onDialogsChange: () => dialogsChangedRef.current(),
+    onFigureGradeChange: setFigureGradeUI,
     setBgLoaded, setBgName, setPsdInfo, setStruct, setWarnings, setParseError, setParsing,
     setLayerImages, setVis, setPos, setZoom, setPlayers, setConditions, setDefeated,
     setPaintedZones, setExpanded, onUndoChange: refreshUndo, setActiveSpells, setGridSize, setGridSnap,
@@ -1075,6 +1079,29 @@ export function DMView() {
   const openSession = useCallback((f: File) => { switchMode('jugar'); return loadSession(f); }, [switchMode, loadSession]);
   const openServerSession = useCallback((id: string) => { switchMode('jugar'); return serverLoadSession(id); }, [switchMode, serverLoadSession]);
   const openDemo = useCallback(() => { switchMode('jugar'); dropTileMap(); return loadDemo(); }, [switchMode, loadDemo, dropTileMap]);
+  // Missió: una partida preparada (mapa + colla col·locada + ajust de color de les figuretes),
+  // sempre a l'app Píxel (les figuretes són part del disseny del mapa).
+  const openMission = useCallback(async (id: string) => {
+    const m = MISSIONS.find(x => x.id === id); if (!m) return;
+    let blob: Blob;
+    try {
+      const res = await fetch(missionUrl(m));
+      if (!res.ok) throw new Error(String(res.status));
+      blob = await res.blob();
+    } catch {
+      notify(`No s'ha pogut carregar el mapa de la missió ${m.name}. Comprova la connexió i torna-ho a provar.`);
+      return;
+    }
+    switchMode('jugar'); dropTileMap(); setPixel(true);
+    await applySessionState(missionState(m, blob));
+  }, [switchMode, dropTileMap, setPixel, applySessionState, notify]);
+  // Encendre o apagar l'ajust de color del mapa (a totes les pantalles: va dins del STATE).
+  const toggleFigureGrade = useCallback(() => {
+    const g = getFigureGrade(); if (!g) return;
+    const next = { ...g, off: !g.off };
+    setFigureGrade(next); setFigureGradeUI(next);
+    _broadcastState({});
+  }, [_broadcastState]);
 
   const openTileMap = useCallback(async (cols: number, rows: number) => {
     switchMode('preparar');
@@ -1505,6 +1532,8 @@ export function DMView() {
         onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
         onExport={saveSession} onImport={f => void openSession(f)}
         onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
+        missions={MISSIONS} onOpenMission={id => void openMission(id)}
+        figureGrade={figureGrade ? { on: !figureGrade.off } : null} onToggleFigureGrade={toggleFigureGrade}
         bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
         gridVisible={gridVisible} onToggleGrid={toggleGridVisible}
         enemyHighlight={enemyHighlight} highlightLocked={highlightLocked}
@@ -1902,6 +1931,15 @@ export function DMView() {
                   <DieIcon size={15} /> Provar la demo
                 </Button>
               </div>
+
+              {/* Missions preparades: el mapa amb la colla ja col·locada (veure `lib/missions.ts`). */}
+              {MISSIONS.map(m => (
+                <div key={m.id} style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                  <Button variant="secondary" size="lg" onClick={() => void openMission(m.id)} title={m.subtitle} style={{ gap: 8, minWidth: 348 }}>
+                    <MapIcon size={15} /> Missió · {m.name}
+                  </Button>
+                </div>
+              ))}
 
               {/* Recuperació del desat automàtic: l'única sortida després d'un F5 accidental. */}
               {autosaveMeta && (

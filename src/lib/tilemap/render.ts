@@ -229,7 +229,7 @@ let _world: number[] | null = null;
 export function worldTiles(): number[] {
   if (_world) return _world;
   const img = sheet('map'); if (!img) return [];
-  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const g = c.getContext('2d', { willReadFrequently: true })!;
   g.drawImage(img, 0, 0);
   const d = g.getImageData(0, 0, c.width, c.height).data;

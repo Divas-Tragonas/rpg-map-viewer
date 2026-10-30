@@ -22,7 +22,7 @@ import { camToView, mediaSize, viewRect } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle } from '@/types';
-import { ensurePack, packReady } from '@/lib/sprites/pack';
+import { ensurePack, packReady, setFigureGrade } from '@/lib/sprites/pack';
 import { DialogHost } from '@/lib/dialog/host';
 import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
 
@@ -526,6 +526,8 @@ export function PlayerView() {
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        // Ajust de color de les figuretes del mapa (missions). Absent → DM antic: no tocar res.
+        if (msg.figureGrade !== undefined) setFigureGrade(msg.figureGrade);
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
         // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
         if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
@@ -658,6 +660,8 @@ export function PlayerView() {
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        // Ajust de color de les figuretes del mapa (missions). Absent → DM antic: no tocar res.
+        if (msg.figureGrade !== undefined) setFigureGrade(msg.figureGrade);
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
         // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
         if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);

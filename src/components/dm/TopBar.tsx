@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
   ExternalLink, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
-  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon,
+  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon, MapIcon,
 } from '@/components/icons';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
@@ -44,6 +44,10 @@ interface Props {
   onExport: () => void; onImport: (file: File) => void;
   /** Partides al servidor (només si hi ha API configurada). */
   onOpenServer?: () => void;
+  /** Missions preparades (`lib/missions.ts`): mapa amb la colla ja col·locada. */
+  missions: { id: string; name: string; subtitle: string }[]; onOpenMission: (id: string) => void;
+  /** El mapa té ajust de color de les figuretes (missions): `on` = aplicat. */
+  figureGrade: { on: boolean } | null; onToggleFigureGrade: () => void;
   bgOpacity: number; onBgOpacityChange: (v: number) => void;
   /** Ensenyar o amagar la graella (també als jugadors). La configuració és a Preparar. */
   gridVisible: boolean; onToggleGrid: () => void;
@@ -237,9 +241,9 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
  * L'etiqueta del botó és l'estat del desat, que es refresca sola perquè «fa 2 min» no es
  * quedi congelat entre desats.
  */
-function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt, autosaveFailing, onToggleAutosave, onSaveNow, onExport, onImport, onOpenServer }: {
+function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt, autosaveFailing, onToggleAutosave, onSaveNow, onExport, onImport, onOpenServer, missions, onOpenMission }: {
   open: boolean; onToggle: () => void; onClose: () => void; hasMap: boolean;
-} & Pick<Props, 'autosaveEnabled' | 'autosaveAt' | 'autosaveFailing' | 'onToggleAutosave' | 'onSaveNow' | 'onExport' | 'onImport' | 'onOpenServer'>) {
+} & Pick<Props, 'autosaveEnabled' | 'autosaveAt' | 'autosaveFailing' | 'onToggleAutosave' | 'onSaveNow' | 'onExport' | 'onImport' | 'onOpenServer' | 'missions' | 'onOpenMission'>) {
   const [, tick] = useState(0);
   useEffect(() => {
     const iv = setInterval(() => tick(n => n + 1), 15_000);
@@ -300,6 +304,17 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
               <MenuItem icon={<Cloud size={14} />} label="Partides al servidor…" onClick={() => { onOpenServer(); onClose(); }} />
             </>
           )}
+          {missions.length > 0 && (
+            <>
+              <MenuDivider />
+              <div style={{ padding: '6px 10px 2px', fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 0.4 }}>Missions</div>
+              {missions.map(m => (
+                <MenuItem key={m.id} icon={<MapIcon size={14} />} label={m.name} hint={m.subtitle}
+                  title={hasMap ? `Obre ${m.name} amb la colla. El mapa d'ara es tanca (exporta'l abans si el vols guardar).` : `Obre ${m.name} amb la colla`}
+                  onClick={() => { onOpenMission(m.id); onClose(); }} />
+              ))}
+            </>
+          )}
         </Popover>
       )}
     </div>
@@ -310,9 +325,9 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
  * Vista (només a la pantalla del DM): opacitat del mapa i ressaltar enemics. Abans eren un
  * lliscador al peu del lateral i dos xips a dalt al centre.
  */
-function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridVisible, onToggleGrid, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked }: {
+function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridVisible, onToggleGrid, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked, figureGrade, onToggleFigureGrade }: {
   open: boolean; onToggle: () => void; onClose: () => void;
-} & Pick<Props, 'bgOpacity' | 'onBgOpacityChange' | 'gridVisible' | 'onToggleGrid' | 'enemyHighlight' | 'highlightLocked' | 'onToggleEnemyHighlight' | 'onToggleHighlightLocked'>) {
+} & Pick<Props, 'bgOpacity' | 'onBgOpacityChange' | 'gridVisible' | 'onToggleGrid' | 'enemyHighlight' | 'highlightLocked' | 'onToggleEnemyHighlight' | 'onToggleHighlightLocked' | 'figureGrade' | 'onToggleFigureGrade'>) {
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} title="Opcions de vista de la teva pantalla">
@@ -329,6 +344,20 @@ function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridV
             </div>
             <Switch on={gridVisible} onChange={onToggleGrid} label="Graella visible" />
           </div>
+          {/* Només amb un mapa que en porta (missions): és un ajust del mapa, no de la UI. */}
+          {figureGrade && (
+            <>
+              <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <PixelSwordIcon size={14} color={C.dim} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Figuretes a to amb el mapa</span>
+                  <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.4 }}>Colors apagats com els del mapa. A totes les pantalles.</span>
+                </div>
+                <Switch on={figureGrade.on} onChange={onToggleFigureGrade} label="Figuretes a to amb el mapa" />
+              </div>
+            </>
+          )}
           <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label htmlFor="dm-bg-opacity" style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.md, fontWeight: 700, color: C.bright }}>
@@ -525,13 +554,15 @@ export function TopBar(p: Props) {
         <GameMenu open={menu === 'game'} onToggle={toggle('game')} onClose={close} hasMap={hasMap}
           autosaveEnabled={p.autosaveEnabled} autosaveAt={p.autosaveAt} autosaveFailing={p.autosaveFailing}
           onToggleAutosave={p.onToggleAutosave} onSaveNow={p.onSaveNow}
-          onExport={p.onExport} onImport={p.onImport} onOpenServer={p.onOpenServer} />
+          onExport={p.onExport} onImport={p.onImport} onOpenServer={p.onOpenServer}
+          missions={p.missions} onOpenMission={p.onOpenMission} />
         {hasMap && (
           <ViewMenu open={menu === 'view'} onToggle={toggle('view')} onClose={close}
             bgOpacity={p.bgOpacity} onBgOpacityChange={p.onBgOpacityChange}
             gridVisible={p.gridVisible} onToggleGrid={p.onToggleGrid}
             enemyHighlight={p.enemyHighlight} highlightLocked={p.highlightLocked}
-            onToggleEnemyHighlight={p.onToggleEnemyHighlight} onToggleHighlightLocked={p.onToggleHighlightLocked} />
+            onToggleEnemyHighlight={p.onToggleEnemyHighlight} onToggleHighlightLocked={p.onToggleHighlightLocked}
+            figureGrade={p.figureGrade} onToggleFigureGrade={p.onToggleFigureGrade} />
         )}
         <MoreMenu open={menu === 'more'} onToggle={toggle('more')} onClose={close} onShowShortcuts={p.onShowShortcuts} />
       </div>

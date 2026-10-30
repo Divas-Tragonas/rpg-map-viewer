@@ -210,13 +210,65 @@ def blob(size, R, seed, stops, lumps=7, cluster=True, flat=1.0, shadow=0.36, cx=
     over(out, img)
     return out
 
+def canopy(size, R, seed, stops, clump=5.5):
+    """
+    Copa d'arbre a l'estil de les figuretes del paquet: grups de fulles rodons i ben marcats
+    (contorn fosc, llum a dalt a l'esquerra, punt de brillantor i plec fosc a baix a la dreta),
+    els de baix tapant els de dalt, i contorn de tinta a la silueta. Res de gra de soroll.
+    """
+    rng = np.random.default_rng(seed)
+    H = W = size
+    cx, cy = size / 2 - R * 0.12, size / 2 - R * 0.16
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    pts = []
+    # anell de grups a la vora (silueta rodona i bonyeguda) + interior en graella amb soroll
+    n = max(5, int(2 * math.pi * (R - clump) / (clump * 1.3)))
+    for k in range(n):
+        a = 2 * math.pi * (k + rng.uniform(-0.2, 0.2)) / n
+        rr = R - clump * rng.uniform(0.85, 1.05)
+        pts.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr, clump * rng.uniform(0.85, 1.2)))
+    step = clump * 1.3
+    for j, y in enumerate(np.arange(cy - R, cy + R + 1, step * 0.87)):
+        for x in np.arange(cx - R - (j % 2) * step / 2, cx + R + 1, step):
+            px, py = x + rng.uniform(-1.6, 1.6), y + rng.uniform(-1.6, 1.6)
+            if np.hypot(px - cx, py - cy) < R - clump * 1.6: pts.append((px, py, clump * rng.uniform(1.0, 1.4)))
+    pts.sort(key=lambda p: p[1] + p[0] * 0.25)
+    lvl = np.full((H, W), -1)
+    for px, py, r in pts:
+        d = np.hypot(xx - px, yy - py)
+        g = -((px - cx) * 0.5 + (py - cy) * 0.8) / R           # posició dins de la copa (-1 ombra .. 1 llum)
+        base = int(np.clip(round(2 + g * 0.9), 1, 3))
+        side = ((xx - px) * 0.55 + (yy - py) * 0.8) / r      # -1 dalt a l'esquerra .. 1 baix a la dreta
+        ring = (d < r) & (d >= r - 1.0)
+        lvl[ring & (side > -0.25)] = 0                         # plec fosc entre grups, només a baix
+        lvl[ring & (side <= -0.25)] = base if (base := int(np.clip(round(2 + (-((px - cx) * 0.5 + (py - cy) * 0.8) / R) * 0.9), 1, 3))) else 1
+        inner = d < r - 1.0
+        lvl[inner] = base
+        lvl[inner & (((xx - px) * 0.55 + (yy - py) * 0.8) > r * 0.35)] = base - 1
+        hl = np.hypot(xx - (px - r * 0.28), yy - (py - r * 0.32)) < r * 0.5
+        lvl[inner & hl] = min(4, base + 1)
+        if g > -0.4:
+            sp = np.hypot(xx - (px - r * 0.36), yy - (py - r * 0.42)) < max(1.0, r * 0.2)
+            lvl[inner & sp] = min(4, base + 2)
+    mask = lvl >= 0
+    img = np.zeros((H, W, 4), np.uint8)
+    pal = np.array(stops, np.uint8)
+    img[mask, :3] = pal[lvl[mask]]; img[mask, 3] = 255
+    img[mask & ~erode(mask), :3] = INK
+    out = np.zeros((H, W, 4), np.uint8)
+    sx, sy = int(round(R * 0.22)) + 1, int(round(R * 0.3)) + 1
+    sm = np.zeros_like(mask); sm[sy:, sx:] = mask[:H - sy, :W - sx]
+    out[sm, :3] = SHADOW; out[sm, 3] = int(0.36 * 255)
+    over(out, img)
+    return out
+
 def trees():
     T = {}
-    T['bush'] = [blob(A, 8.5, 100 + i, RAMPS['leaf'], lumps=5) for i in range(4)]
-    T['tree_m'] = [blob(2 * A, 17, 200 + i, RAMPS['leaf' if i % 2 else 'leaf2']) for i in range(4)]
-    T['tree_l'] = [blob(3 * A, 27, 300 + i, RAMPS['leaf' if i % 2 == 0 else 'leaf2'], lumps=8) for i in range(4)]
-    T['tree_xl'] = [blob(4 * A, 38, 400 + i, RAMPS['leaf'], lumps=9) for i in range(2)]
-    T['rock'] = [blob(A, 6 + i % 2 * 2, 500 + i, RAMPS['stone'], lumps=3, cluster=False, flat=0.7, shadow=0.3) for i in range(4)]
+    T['bush'] = [canopy(A, 9, 100 + i, RAMPS['leaf'], clump=4.2) for i in range(4)]
+    T['tree_m'] = [canopy(2 * A, 18, 200 + i, RAMPS['leaf' if i % 2 else 'leaf2'], clump=5.2) for i in range(4)]
+    T['tree_l'] = [canopy(3 * A, 28, 300 + i, RAMPS['leaf' if i % 2 == 0 else 'leaf2'], clump=6.2) for i in range(4)]
+    T['tree_xl'] = [canopy(4 * A, 39, 400 + i, RAMPS['leaf'], clump=7.2) for i in range(2)]
+    T['rock'] = [canopy(A, 6.5 + i % 2 * 1.5, 500 + i, RAMPS['stone'], clump=3.6 + i % 2) for i in range(4)]
     return T
 
 # ── tanques i murs (4 bits: 1 amunt, 2 dreta, 4 avall, 8 esquerra) ──────────
