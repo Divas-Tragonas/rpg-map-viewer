@@ -5,7 +5,8 @@ import { C, FS, RADIUS, DEFAULT_SPEED_FT, DEFAULT_VISION_FT, feetFromRadius, FON
 import type { LibEnemy, MapStructure, Player, PsdEnemyOverride, PsdEnemyOverrides, TokenSizeMap } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { SpritePicker, PortraitBuilder } from '@/components/dm/PixelPickers';
-import { creatureThumb } from '@/lib/sprites/draw';
+import { creatureFamilies, creatureThumb } from '@/lib/sprites/draw';
+import { buildSprite, parseSprite, TINT_SWATCHES, NEUTRAL } from '@/lib/sprites/recolor';
 import { useSpritePack } from '@/hooks/useSpritePack';
 
 /** Dades i accions per editar un token des del menú del clic dret. */
@@ -209,6 +210,7 @@ function PixelLook({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
   const thumb = t.sprite ? creatureThumb(t.sprite) : null;
   const box: React.CSSProperties = { width: 32, height: 32, borderRadius: RADIUS.sm, background: C.dark, border: `1px solid ${C.border}`, imageRendering: 'pixelated', flexShrink: 0 };
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       {thumb ? <img src={thumb} alt="" style={box} /> : <div style={box} />}
       <Button size="sm" variant="secondary" onMouseDown={e => { e.stopPropagation(); setOpen('sprite'); }} style={{ flex: 1, height: 26 }}>
@@ -222,6 +224,54 @@ function PixelLook({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
       )}
       {open === 'sprite' && <SpritePicker value={t.sprite} onPick={t.setSprite} onClose={() => setOpen(null)} />}
       {open === 'portrait' && pl && <PortraitBuilder onPick={url => p.onSetPlayerLook?.(pl.id, { portrait: url })} onClose={() => setOpen(null)} />}
+    </div>
+    {t.sprite && <SpriteColors sprite={t.sprite} onChange={t.setSprite} />}
+    </div>
+  );
+}
+
+const swatch = (hex: string, on: boolean, size: number): React.CSSProperties => ({
+  width: size, height: size, padding: 0, flexShrink: 0, cursor: 'pointer', borderRadius: RADIUS.sm, background: `#${hex}`,
+  border: `1px solid ${C.dark}`, boxShadow: on ? `0 0 0 2px ${C.accent}` : 'none',
+});
+
+/**
+ * Recolor de la figureta (`lib/sprites/recolor.ts`): una mostra per cada família de color de
+ * la criatura (túnica, ribet, pell…); en clicar-ne una surt la paleta per canviar-la. La primera
+ * mostra de la paleta és el color original de la família.
+ */
+function SpriteColors({ sprite, onChange }: { sprite: string; onChange: (s: string) => void }) {
+  const [edit, setEdit] = useState<string | null>(null);
+  const { name, tints } = parseSprite(sprite);
+  const fam = creatureFamilies(name);
+  if (!fam?.list.length) return null;
+  const set = (k: string, hex: string | null) => {
+    const next = { ...tints };
+    if (hex) next[k] = hex; else delete next[k];
+    onChange(buildSprite(name, next));
+  };
+  const editing = fam.list.find(f => f.key === edit);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: FS.sm, color: C.dim, width: 44 }}>Colors</span>
+        {fam.list.map((f, i) => (
+          <button key={f.key} onClick={() => setEdit(edit === f.key ? null : f.key)} style={swatch(tints[f.key] ?? f.color, edit === f.key, 22)}
+            title={`${f.key === NEUTRAL ? 'Grisos' : `Color ${i + 1}`}${tints[f.key] ? ' (canviat)' : ''} · clic per canviar-lo`} aria-label={`Color ${i + 1}`} />
+        ))}
+        <div style={{ flex: 1 }} />
+        {Object.keys(tints).length > 0 && (
+          <Button size="sm" variant="ghost" onClick={() => { onChange(name); setEdit(null); }} title="Torna als colors de la figureta">Original</Button>
+        )}
+      </div>
+      {editing && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 50 }}>
+          <button onClick={() => set(editing.key, null)} style={swatch(editing.color, !tints[editing.key], 18)} title="Original" aria-label="Original" />
+          {TINT_SWATCHES.map(w => (
+            <button key={w.hex} onClick={() => set(editing.key, w.hex)} style={swatch(w.hex, tints[editing.key] === w.hex, 18)} title={w.label} aria-label={w.label} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

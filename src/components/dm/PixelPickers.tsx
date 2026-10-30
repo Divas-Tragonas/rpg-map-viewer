@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/ScrollArea';
 import { X, DieIcon } from '@/components/icons';
 import { useSpritePack } from '@/hooks/useSpritePack';
 import { creatureNames, creatureThumb, drawFace, FACE_COUNT } from '@/lib/sprites/draw';
+import { parseSprite } from '@/lib/sprites/recolor';
 import { PORTRAIT_CATEGORIES, partLabel, randomPortrait, drawPortrait, portraitDataUrl, type PortraitChoice } from '@/lib/sprites/portrait';
 import { drawPortraitPart } from '@/lib/sprites/draw';
 
@@ -42,6 +43,8 @@ export function SpritePicker({ value, onPick, onClose }: { value?: string; onPic
   const [q, setQ] = useState('');
   const all = useMemo(() => creatureNames(), []);
   const list = all.filter(n => nice(n).includes(q.trim().toLowerCase()));
+  // Tornar a triar la mateixa criatura en conserva el recolor; una altra el perd (té altres colors).
+  const base = value ? parseSprite(value).name : undefined;
   return (
     <Modal title="Figureta del token" width={520} onClose={onClose}>
       <div style={{ padding: 10, display: 'flex', gap: 8, borderBottom: `1px solid ${C.border}` }}>
@@ -52,10 +55,10 @@ export function SpritePicker({ value, onPick, onClose }: { value?: string; onPic
       <ScrollArea style={{ flex: 1, minHeight: 0, maxHeight: 460 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 4, padding: 10 }}>
           {list.map(n => {
-            const on = n === value;
+            const on = n === base;
             const th = creatureThumb(n);
             return (
-              <button key={n} onClick={() => { onPick(n); onClose(); }} title={nice(n)}
+              <button key={n} onClick={() => { onPick(on ? value : n); onClose(); }} title={nice(n)}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: 4, borderRadius: RADIUS.sm, cursor: 'pointer', border: `1px solid ${on ? C.accent : C.border}`, background: on ? tint(C.accent, 0.12) : C.dark }}>
                 {th ? <img src={th} alt="" style={{ width: 48, height: 48, imageRendering: 'pixelated' }} /> : <div style={{ width: 48, height: 48 }} />}
                 <span style={{ fontSize: FS.xs, color: on ? C.accent : C.dim, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nice(n)}</span>

@@ -70,6 +70,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.45 — Figuretes de colors
+- **Recolor de figuretes** (app Píxel): al menú del clic dret d'un token, sota «Canviar la figureta», hi ha una mostra per cada color de la criatura (túnica, ribet, pell, armadura…). Se'n clica una i es tria el color nou d'una paleta de 12. Així es poden fer tres goblins de colors diferents, un mag de foc o un esquelet negre amb una sola figureta.
+- El canvi es fa sobre les rampes de color de l'autor, conservant ombres i llums: sembla dibuixat així. Els grisos (armadures, ossos) també es poden tenyir. «Original» ho desfà.
+- Surt a tot arreu on surt la figureta: mapa (DM i jugadors), lateral, barra de torns, rètol del jugador, diàlegs i cinemàtiques. Es desa amb la partida. Sense canvis a la API.
+
 ### v4.44 — Cinemàtiques de boss en grup i amb missatge propi
 - **Cinemàtiques de grup**: al selector de la cinemàtica es poden triar fins a quatre enemics més de l'escena que entren amb el boss (de costat i una mica enrere; a «Apareix un monstre», en fila com a Dragon Quest). El missatge els anomena tots.
 - **Missatge propi**: les cinemàtiques que tenen text deixen escriure'n un altre (`{nom}` = el nom de l'enemic o del grup).
