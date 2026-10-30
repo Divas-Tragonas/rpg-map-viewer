@@ -8,6 +8,9 @@
 
 export const SHEET_FILES = {
   heroes: 'uf_heroes.png',
+  // Variants de color de les figuretes, a les mateixes coordenades (`scripts/oryx-variants.py`).
+  heroes_v1: 'uf_heroes_v1.png',
+  heroes_v2: 'uf_heroes_v2.png',
   terrain: 'uf_terrain.png',
   items: 'uf_items.png',
   fx: 'uf_FX.png',

@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { X, DieIcon } from '@/components/icons';
 import { useSpritePack } from '@/hooks/useSpritePack';
-import { creatureNames, creatureThumb, drawFace, FACE_COUNT } from '@/lib/sprites/draw';
-import { parseSprite } from '@/lib/sprites/recolor';
+import { creatureNames, creatureThumb, drawFace, FACE_COUNT, parseSprite } from '@/lib/sprites/draw';
 import { PORTRAIT_CATEGORIES, partLabel, randomPortrait, drawPortrait, portraitDataUrl, type PortraitChoice } from '@/lib/sprites/portrait';
 import { drawPortraitPart } from '@/lib/sprites/draw';
 
@@ -43,7 +42,7 @@ export function SpritePicker({ value, onPick, onClose }: { value?: string; onPic
   const [q, setQ] = useState('');
   const all = useMemo(() => creatureNames(), []);
   const list = all.filter(n => nice(n).includes(q.trim().toLowerCase()));
-  // Tornar a triar la mateixa criatura en conserva el recolor; una altra el perd (té altres colors).
+  // Tornar a triar la mateixa criatura en conserva la variant de color.
   const base = value ? parseSprite(value).name : undefined;
   return (
     <Modal title="Figureta del token" width={520} onClose={onClose}>

@@ -4,7 +4,7 @@
  */
 import { sheet, type SheetId } from './pack';
 import { CREATURES, ITEMS, PORTRAIT_PARTS } from './manifest';
-import { parseSprite, findFamilies, recolorPixels, type Families } from './recolor';
+import { CREATURE_VARIANTS } from './variants';
 
 export const TILE = 48;
 /**
@@ -16,47 +16,29 @@ const CREATURE_CYCLE = [0, 1, 2, 1];
 const CREATURE_FRAME_MS = 300;
 
 export function creatureNames(): string[] { return Object.keys(CREATURES); }
-/** La figureta existeix? Accepta el nom amb recolor (`wizard~14=c0392b`, veure `recolor.ts`). */
+/**
+ * Variant de color d'una figureta (`scripts/oryx-variants.py`): viatja dins del nom (`goblin~2`),
+ * o sigui que la porten sols el STATE, la partida, el rètol, els diàlegs i les cinemàtiques, sense
+ * camps nous ni canvis a la API. Un sufix que no és una variant (el recolor lliure de la v4.45,
+ * `goblin~14=c0392b`) es llegeix com l'original.
+ */
+export function parseSprite(s: string): { name: string; variant: number } {
+  const i = s.indexOf('~');
+  if (i < 0) return { name: s, variant: 0 };
+  const name = s.slice(0, i), v = Number(s.slice(i + 1));
+  return { name, variant: Number.isInteger(v) && v > 0 && v <= (CREATURE_VARIANTS[name]?.length ?? 0) ? v : 0 };
+}
+export const spriteName = (name: string, variant: number) => variant ? `${name}~${variant}` : name;
+/** Colors de les variants d'una criatura (buit si no en té). */
+export const creatureVariants = (name: string): readonly string[] => CREATURE_VARIANTS[name] ?? [];
+
+/** La figureta existeix? Accepta el nom amb variant. */
 export const hasCreature = (n: string | undefined | null): n is string => !!n && parseSprite(n).name in CREATURES;
 
-/** Fotogrames de l'animació d'espera d'una criatura (els 3 primers del full, en fila). */
-const FRAMES = 3;
-function creatureStrip(name: string): ImageData | null {
-  const p = CREATURES[name], img = sheet('heroes');
-  if (!p || !img) return null;
-  const c = document.createElement('canvas'); c.width = TILE * FRAMES; c.height = TILE;
-  const g = c.getContext('2d', { willReadFrequently: true })!;
-  g.drawImage(img, p[0], p[1], TILE * FRAMES, TILE, 0, 0, TILE * FRAMES, TILE);
-  return g.getImageData(0, 0, TILE * FRAMES, TILE);
-}
-
-/** Famílies de color d'una criatura (per al selector del recolor). Es calculen un sol cop. */
-const _families = new Map<string, Families>();
-export function creatureFamilies(name: string): Families | null {
-  const hit = _families.get(name); if (hit) return hit;
-  const strip = creatureStrip(name); if (!strip) return null;
-  const f = findFamilies(strip.data);
-  _families.set(name, f);
-  return f;
-}
-
-/**
- * Fotogrames ja recolorits d'una figureta amb recolor (null si no en té o el full encara no
- * hi és). Un canvas per nom complet: tots els tokens iguals el comparteixen.
- */
-const _tinted = new Map<string, HTMLCanvasElement>();
-function tintedStrip(sprite: string): HTMLCanvasElement | null {
-  const hit = _tinted.get(sprite); if (hit) return hit;
-  const { name, tints } = parseSprite(sprite);
-  if (!Object.keys(tints).length) return null;
-  const fam = creatureFamilies(name), strip = creatureStrip(name);
-  if (!fam || !strip) return null;
-  recolorPixels(strip.data, fam, tints);
-  const c = document.createElement('canvas'); c.width = strip.width; c.height = TILE;
-  c.getContext('2d')!.putImageData(strip, 0, 0);
-  _tinted.set(sprite, c);
-  return c;
-}
+const FRAMES = 3;  // fotogrames de l'animació d'espera (els 3 primers del full)
+const variantSheet = (variant: number) => `heroes_v${variant}` as SheetId;
+/** El full que pinta exactament aquesta figureta ja hi és? (per no desar a les memòries cau l'original en lloc de la variant) */
+const sheetReady = (sprite: string) => { const v = parseSprite(sprite).variant; return !!sheet(v ? variantSheet(v) : 'heroes'); };
 
 /** Retall genèric d'un full, a (dx,dy,dw,dh). Retorna false si el full encara no hi és. */
 export function blit(ctx: CanvasRenderingContext2D, id: SheetId, sx: number, sy: number, sw: number, sh: number,
@@ -76,25 +58,19 @@ export function creatureFrame(now: number, seed = 0): number {
 
 /**
  * Criatura dins del quadrat (dx,dy,size). `flip` → mirall horitzontal (mira cap a l'esquerra).
- * `sprite` pot portar recolor: es pinta des dels fotogrames recolorits.
+ * Amb variant es pinta del seu full; si encara no s'ha carregat, de l'original.
  */
 export function drawCreature(ctx: CanvasRenderingContext2D, sprite: string, frame: number,
   dx: number, dy: number, size: number, flip = false): boolean {
-  const name = parseSprite(sprite).name;
+  const { name, variant } = parseSprite(sprite);
   const p = CREATURES[name]; if (!p) return false;
-  const img = sheet('heroes'); if (!img) return false;
-  const tinted = tintedStrip(sprite);
-  const draw = (x: number) => {
-    if (!tinted) { blit(ctx, 'heroes', p[0] + (frame % FRAMES) * TILE, p[1], TILE, TILE, x, dy, size, size); return; }
-    const prev = ctx.imageSmoothingEnabled;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(tinted, (frame % FRAMES) * TILE, 0, TILE, TILE, x, dy, size, size);
-    ctx.imageSmoothingEnabled = prev;
-  };
-  if (!flip) { draw(dx); return true; }
+  const id = variant && sheet(variantSheet(variant)) ? variantSheet(variant) : 'heroes';
+  if (!sheet(id)) return false;
+  const sx = p[0] + (frame % FRAMES) * TILE;
+  if (!flip) return blit(ctx, id, sx, p[1], TILE, TILE, dx, dy, size, size);
   ctx.save();
-  ctx.translate(dx + size, 0); ctx.scale(-1, 1);
-  draw(0);
+  ctx.translate(dx + size, dy); ctx.scale(-1, 1);
+  blit(ctx, id, sx, p[1], TILE, TILE, 0, 0, size, size);
   ctx.restore();
   return true;
 }
@@ -120,10 +96,10 @@ export function drawFace(ctx: CanvasRenderingContext2D, i: number, dx: number, d
 const _gray = new Map<string, HTMLCanvasElement>();
 export function grayCreature(sprite: string): HTMLCanvasElement | null {
   const hit = _gray.get(sprite); if (hit) return hit;
-  if (!sheet('heroes') || !hasCreature(sprite)) return null;
+  if (!hasCreature(sprite) || !sheetReady(sprite)) return null;
   const c = document.createElement('canvas'); c.width = TILE; c.height = TILE;
   const g = c.getContext('2d')!;
-  drawCreature(g, sprite, 0, 0, 0, TILE);  // amb el recolor: el gris d'un goblin vermell no és el d'un de verd
+  drawCreature(g, sprite, 0, 0, 0, TILE);  // amb la variant: el gris d'un goblin vermell no és el d'un de verd
   const d = g.getImageData(0, 0, TILE, TILE);
   for (let i = 0; i < d.data.length; i += 4) {
     const l = d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11;
@@ -138,7 +114,7 @@ export function grayCreature(sprite: string): HTMLCanvasElement | null {
 const _thumbs = new Map<string, string>();
 export function creatureThumb(sprite: string): string | null {
   const hit = _thumbs.get(sprite); if (hit) return hit;
-  if (!sheet('heroes') || !hasCreature(sprite)) return null;
+  if (!hasCreature(sprite) || !sheetReady(sprite)) return null;
   const c = document.createElement('canvas'); c.width = TILE; c.height = TILE;
   drawCreature(c.getContext('2d')!, sprite, 0, 0, 0, TILE);
   const url = c.toDataURL();

@@ -70,6 +70,13 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.46 — Variants de color amb criteri
+- Fora la paleta lliure de la v4.45: amb colors a l'atzar sortien espases roses, ocells d'un sol color i soldats empastats.
+- Ara cada figureta té **dues variants fetes amb criteri** (122 de les 130 criatures), i al menú del clic dret del token es tria entre l'original i les variants, en miniatura.
+- Només canvia la roba (capa, túnica, caputxa, plomall) o el cos dels monstres i dels animals. Armes, armadures, pell, cabells, barbes, cuir i ribets daurats es queden com són, perquè les parts continuïn distingint-se.
+- Colors segons la criatura: roba en colors heràldics, animals en colors naturals (rata grisa, serp marró, falcó gris), monstres en colors de fantasia, i res de rosa. També hi ha triats a mà alguns casos: dracs d'or, negre, plata, bronze i coure; goblins i trolls amb pell olivàcia o rogenca; bàrbars i presoners amb tons de pell; i el mímic de plata.
+- Les variants són dos fulls nous a `public/sprites/` (`uf_heroes_v1.png` i `uf_heroes_v2.png`), generats amb `scripts/oryx-variants.py`. Una figureta recolorida amb la v4.45 torna a l'original.
+
 ### v4.45 — Figuretes de colors
 - **Recolor de figuretes** (app Píxel): al menú del clic dret d'un token, sota «Canviar la figureta», hi ha una mostra per cada color de la criatura (túnica, ribet, pell, armadura…). Se'n clica una i es tria el color nou d'una paleta de 12. Així es poden fer tres goblins de colors diferents, un mag de foc o un esquelet negre amb una sola figureta.
 - El canvi es fa sobre les rampes de color de l'autor, conservant ombres i llums: sembla dibuixat així. Els grisos (armadures, ossos) també es poden tenyir. «Original» ho desfà.
