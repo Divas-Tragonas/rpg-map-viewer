@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, APP_VERSION, DEFAULT_SPEED_FT, tint, FONT_SERIF } from '@/constants';
+import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, APP_VERSION, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
@@ -61,6 +61,8 @@ import { useSpritePack } from '@/hooks/useSpritePack';
 import { ensurePack, getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
 import { MISSIONS, missionState, missionUrl } from '@/lib/missions';
 import { useMissionScenes } from '@/hooks/useMissionScenes';
+import { useCompactLayout } from '@/hooks/useCompact';
+import { useCanvasPointer } from '@/hooks/useCanvasPointer';
 import { PlacesMenu } from '@/components/dm/PlacesMenu';
 import { SceneCurtain } from '@/components/ui/SceneCurtain';
 import { relayBoards, openBoard } from '@/lib/relay';
@@ -140,6 +142,11 @@ export function DMView() {
   const [sidebarTab, setSidebarTab] = useState<'escena' | 'mapa' | 'biblioteca'>('escena');
   // Lateral plegable (botó a la barra superior): més mapa quan no cal la llista. Es recorda.
   const [sidebarOpen, setSidebarOpen] = useStoredFlag('rpg_sidebar_open', true);
+  // Mòbil (veure `useCompact`): el lateral és un calaix que comença tancat i no es recorda.
+  const compact = useCompactLayout();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const sideOpen = compact ? drawerOpen : sidebarOpen;
+  const toggleSide = useCallback(() => { if (compact) setDrawerOpen(v => !v); else setSidebarOpen(!sidebarOpen); }, [compact, sidebarOpen, setSidebarOpen]);
   // Preparar (construir el mapa) o Jugar (a la taula): decideix quines eines i pestanyes
   // surten. El ref és perquè el wrapper de setDrawTool el pugui consultar sense dependències.
   const [mode, setMode] = useState<DMMode>('jugar');
@@ -930,6 +937,12 @@ export function DMView() {
   const handleMouseUp = useCallback(() => {
     onMouseUp(setPos, snapAllTokens, sizeAllTokens, setGridSize, setGridOriginX, setGridOriginY, setGridCalibrating);
   }, [onMouseUp, setPos, snapAllTokens, sizeAllTokens, setGridSize, setGridOriginX, setGridOriginY, setGridCalibrating]);
+  // Ratolí i dit al canvas: el dit hi afegeix pinça, mantenir premut (menú) i doble toc.
+  const canvasPointer = useCanvasPointer(R, {
+    down: onMouseDown, move: onMouseMove, up: handleMouseUp, leave: onMouseLeaveCanvas,
+    context: onContextMenu, dbl: onDoubleClick,
+    setZoom, setDmPrivateActive, broadcast: () => _broadcastState({}),
+  });
 
   // ── Multi-selection group delete (Delete/Backspace removes lib enemies in the selection) ──
   const onDeleteSelection = useCallback(() => {
@@ -1546,12 +1559,12 @@ export function DMView() {
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
+    <div className="full-stage" style={{ display: 'flex', flexDirection: 'column', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
 
       {/* ── Barra superior ───────────────────────────────────────────────── */}
       <TopBar
         mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
-        sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        sidebarOpen={sideOpen} onToggleSidebar={toggleSide}
         mode={mode} onModeChange={switchMode}
         showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui} onToggleShow={toggleShowPanel}
         undoLabel={undoLabel} onUndo={undoLast}
@@ -1579,8 +1592,17 @@ export function DMView() {
       {/* Plegable: s'anima l'amplada del contenidor i el contingut manté els seus 270 px (no es
           reorganitza a mig plegar). `inert` perquè el Tab no entri al que no es veu. El canvas
           ja s'adapta sol a la mida nova (el tick la mira cada frame). */}
-      <div style={{ width: sidebarOpen ? SIDEBAR_W : 0, flexShrink: 0, overflow: 'hidden', borderRight: sidebarOpen ? `1px solid ${C.border}` : 'none', transition: 'width .2s ease' }}>
-      <div inert={!sidebarOpen} style={{ width: SIDEBAR_W, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Mòbil: el lateral és un calaix per sobre del mapa (el mapa es queda tota l'amplada). */}
+      {compact && sideOpen && (
+        <div onClick={() => setDrawerOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 29, background: 'rgba(0,0,0,0.45)' }} />
+      )}
+      <div style={compact ? {
+        position: 'absolute', top: 0, left: 0, bottom: 0, zIndex: 30, width: 'min(310px, 88vw)', background: C.bg,
+        borderRight: `1px solid ${C.border}`, boxShadow: sideOpen ? SHADOW.menu : 'none', overflow: 'hidden',
+        transform: sideOpen ? 'none' : 'translateX(-105%)', transition: 'transform .22s ease',
+        paddingLeft: 'env(safe-area-inset-left)', paddingBottom: 'env(safe-area-inset-bottom)',
+      } : { width: sidebarOpen ? SIDEBAR_W : 0, flexShrink: 0, overflow: 'hidden', borderRight: sidebarOpen ? `1px solid ${C.border}` : 'none', transition: 'width .2s ease' }}>
+      <div inert={!sideOpen} style={{ width: compact ? '100%' : SIDEBAR_W, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           {/* Mapa només a Preparar (i primera). Escena i Biblioteca, als dos modes: col·locar
@@ -1673,11 +1695,8 @@ export function DMView() {
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: panning ? 'grabbing' : spaceHeld ? 'grab' : (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : (areaSelectMode || drawToolState === 'wall' || drawToolState === 'light') ? 'crosshair' : canvasCursor }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={onMouseLeaveCanvas}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, touchAction: 'none', cursor: panning ? 'grabbing' : spaceHeld ? 'grab' : (drawToolState === 'pen' || drawToolState === 'eraser' || drawToolState === 'pointer') ? 'none' : (areaSelectMode || drawToolState === 'wall' || drawToolState === 'light') ? 'crosshair' : canvasCursor }}
+          {...canvasPointer}
           onContextMenu={onContextMenu}
           onDoubleClick={onDoubleClick}
         />
@@ -1737,7 +1756,7 @@ export function DMView() {
         />}
         {/* Expositor floating panel */}
         {expositorOpen && (
-          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', overflowY: 'auto', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
             <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui}
               hint="Espai: reinicia / pausa el moviment" onClose={closeShowPanel} />
             {/* Preview area with KB animation and pan/zoom */}
@@ -1939,8 +1958,9 @@ export function DMView() {
         {!bgLoaded && (
           // Pantalla de benvinguda. Tres accions grans en lloc d'un text que enviava a una
           // caixa petita del panell lateral; i tot el canvas accepta fitxers (veure onStageDrop).
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none', padding: 24 }}>
-            <div style={{ textAlign: 'center', color: C.dim, maxWidth: 440, pointerEvents: 'auto' }}>
+          // `margin: auto` centra quan hi cap i fa scroll quan no (mòbil ajagut).
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 3, overflowY: 'auto', padding: compact ? '16px 14px' : 24 }}>
+            <div style={{ textAlign: 'center', color: C.dim, maxWidth: 440, width: '100%', margin: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: pixel ? C.accent : C.dim, opacity: pixel ? 0.9 : 0.5 }}>{pixel ? <PixelSwordIcon size={34} /> : <MapIcon size={34} />}</div>
               <div style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1, color: C.bright }}>{pixel ? 'Comença una partida en píxel' : 'Comença una partida'}</div>
               <div style={{ fontSize: FS.md, marginTop: 6, lineHeight: 1.5 }}>
@@ -1950,7 +1970,7 @@ export function DMView() {
               {/* App Píxel: el mapa es pinta a casella (o s'importa de Tiled). */}
               {pixel && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 18 }}>
-                  <Button variant="primary" size="lg" disabled={pack.status !== 'ready'} onClick={() => void openTileMap(32, 22)} style={{ gap: 8, minWidth: 348 }}>
+                  <Button variant="primary" size="lg" disabled={pack.status !== 'ready'} onClick={() => void openTileMap(32, 22)} style={{ gap: 8, width: '100%', maxWidth: 348 }}>
                     <TilesIcon size={15} /> {pack.status === 'ready' ? 'Crear un mapa de caselles' : pack.status === 'error' ? 'No s\'han pogut carregar els sprites' : 'Carregant els sprites…'}
                   </Button>
                   <button onClick={() => tmxInputRef.current?.click()} disabled={pack.status !== 'ready'} style={welcomeLink}>Importar un mapa de Tiled (.tmx)</button>
@@ -1958,10 +1978,10 @@ export function DMView() {
               )}
 
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: pixel ? 12 : 18, flexWrap: 'wrap' }}>
-                <Button variant={pixel ? 'secondary' : 'primary'} size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, minWidth: 170 }}>
+                <Button variant={pixel ? 'secondary' : 'primary'} size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, flex: '1 1 150px', maxWidth: 170 }}>
                   <FolderOpen size={15} /> Obrir mapa
                 </Button>
-                <Button variant="secondary" size="lg" onClick={() => void openDemo()} style={{ gap: 8, minWidth: 170 }}>
+                <Button variant="secondary" size="lg" onClick={() => void openDemo()} style={{ gap: 8, flex: '1 1 150px', maxWidth: 170 }}>
                   <DieIcon size={15} /> Provar la demo
                 </Button>
               </div>
@@ -1969,7 +1989,7 @@ export function DMView() {
               {/* Missions preparades: el mapa amb la colla ja col·locada (veure `lib/missions.ts`). */}
               {MISSIONS.map(m => (
                 <div key={m.id} style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-                  <Button variant="secondary" size="lg" onClick={() => void openMission(m.id)} title={m.subtitle} style={{ gap: 8, minWidth: 348 }}>
+                  <Button variant="secondary" size="lg" onClick={() => void openMission(m.id)} title={m.subtitle} style={{ gap: 8, width: '100%', maxWidth: 348 }}>
                     <MapIcon size={15} /> Missió · {m.name}
                   </Button>
                 </div>
@@ -1980,7 +2000,7 @@ export function DMView() {
                 <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <Button variant="secondary" size="lg" onClick={() => void recoverAutosave()} disabled={recovering}
                     title={`Desada automàticament el ${new Date(autosaveMeta.savedAt).toLocaleString('ca-ES')}`}
-                    style={{ gap: 8, minWidth: 348 }}>
+                    style={{ gap: 8, width: '100%', maxWidth: 348 }}>
                     {!recovering && <RotateCcw size={14} />}
                     {recovering ? 'Recuperant…' : `Recuperar l'última partida · ${agoLabel(autosaveMeta.savedAt)}`}
                   </Button>
@@ -1995,7 +2015,7 @@ export function DMView() {
                 </div>
               )}
 
-              <div style={{ marginTop: 16, fontSize: FS.sm, display: 'flex', gap: 14, justifyContent: 'center' }}>
+              <div style={{ marginTop: 16, fontSize: FS.sm, display: 'flex', gap: '6px 14px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => psdInputRef.current?.click()} style={welcomeLink}>Carregar un PSD</button>
                 <button onClick={() => sessionInputRef.current?.click()} style={welcomeLink}>Carregar una partida (.json)</button>
               </div>

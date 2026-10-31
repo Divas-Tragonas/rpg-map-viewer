@@ -12,6 +12,7 @@ import { C, FS, RADIUS, SHADOW, APP_VERSION, FONT_SERIF, tint } from '@/constant
 import { extraSeen } from '@/lib/camera';
 import { agoLabel } from '@/lib/autosave';
 import type { DMMode } from '@/lib/dm-mode';
+import { CompactContext, useCompact, useCompactLayout } from '@/hooks/useCompact';
 
 /** Alçada de la barra superior (el lateral i l'escenari comencen just a sota). */
 export const TOP_BAR_H = 48;
@@ -100,11 +101,16 @@ function Popover({ onClose, width, padding = 6, children }: {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
+  // Mòbil: el menú ocupa l'amplada de la pantalla, sota la barra, i fa scroll si no hi cap.
+  const compact = useCompact();
+  const place: React.CSSProperties = compact
+    ? { position: 'fixed', top: TOP_BAR_H + 6, left: 8, right: 8, maxHeight: `calc(100dvh - ${TOP_BAR_H + 20}px)`, overflowY: 'auto' }
+    : { position: 'absolute', top: 'calc(100% + 8px)', right: 0, width };
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 1 }} onClick={onClose} />
       <div style={{
-        position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 2, width,
+        ...place, zIndex: 2,
         background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.menu,
         padding, display: 'flex', flexDirection: 'column', gap: 2,
       }}>
@@ -131,6 +137,9 @@ function MenuItem({ icon, label, hint, onClick, disabled, title }: {
   );
 }
 
+/** Text d'un botó de la barra: al mòbil (barra compacta) només hi queda la icona. */
+const Label = ({ children }: { children: React.ReactNode }) => (useCompact() ? null : <>{children}</>);
+
 const MenuDivider = () => <div style={{ height: 1, background: C.border, margin: '4px 4px' }} />;
 
 const Dot = ({ color }: { color: string }) => (
@@ -143,8 +152,10 @@ const Dot = ({ color }: { color: string }) => (
 function BarButton({ active, onClick, title, ariaLabel, children }: {
   active?: boolean; onClick: () => void; title?: string; ariaLabel?: string; children: React.ReactNode;
 }) {
+  const compact = useCompact();
   return (
-    <Button size="md" active={active} onClick={onClick} title={title} aria-label={ariaLabel} aria-expanded={active} style={{ height: 32, gap: 7 }}>
+    <Button size="md" active={active} onClick={onClick} title={title} aria-label={ariaLabel ?? (compact ? title : undefined)} aria-expanded={active}
+      style={{ height: compact ? 36 : 32, gap: compact ? 4 : 7, ...(compact ? { padding: '0 9px' } : {}) }}>
       {children}
     </Button>
   );
@@ -196,8 +207,8 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
       <BarButton active={open} onClick={() => { setUrls(playerUrls()); onToggle(); }}
         title={none ? 'Cap pantalla de jugador connectada · clic per obrir-ne una' : `${ids.length} pantalla${ids.length === 1 ? '' : 'es'} de jugador · clic per veure-les`}>
         <Monitor size={14} />
-        {none ? 'Cap pantalla de jugador' : `${ids.length} pantall${ids.length === 1 ? 'a' : 'es'}`}
-        {!none && worst > 0 && <span style={{ color: worst >= 15 ? C.hpMid : C.dim, fontWeight: 600 }}>+{worst}%</span>}
+        <Label>{none ? 'Cap pantalla de jugador' : `${ids.length} pantall${ids.length === 1 ? 'a' : 'es'}`}</Label>
+        {!none && worst > 0 && <Label><span style={{ color: worst >= 15 ? C.hpMid : C.dim, fontWeight: 600 }}>+{worst}%</span></Label>}
         <Dot color={none ? C.warn : C.ok} />
       </BarButton>
       {open && (
@@ -222,7 +233,7 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
               </div>
             )}
             <Button variant="primary" block onClick={() => { onOpenPlayer(); onClose(); }} style={{ gap: 6 }}>
-              <Maximize2 size={12} /> Obrir-ne una en aquest PC
+              <Maximize2 size={12} /> Obrir-ne una en aquest dispositiu
             </Button>
             <Button variant="secondary" block onClick={() => { onOpenBoard(); onClose(); }} style={{ gap: 6 }}
               title="El tauler de missions de la wiki, en una finestra nova. Amb «Mapa en píxel» hi entra aquesta partida, sense API.">
@@ -269,10 +280,10 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} title={title}>
         {hasMap && autosaveEnabled && autosaveAt && !failing ? <CheckIcon size={14} color={C.hpHigh} /> : <SaveIcon size={14} />}
-        {label}
+        <Label>{label}</Label>
         {hasMap && !autosaveEnabled && <Dot color={C.warn} />}
         {failing && <Dot color={C.enemy} />}
-        <ChevronDown size={12} color={C.dim} />
+        <Label><ChevronDown size={12} color={C.dim} /></Label>
       </BarButton>
       <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; if (f) onImport(f); e.target.value = ''; onClose(); }} />
@@ -337,7 +348,7 @@ function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridV
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} title="Opcions de vista de la teva pantalla">
-        <SlidersIcon size={14} /> Vista
+        <SlidersIcon size={14} /> <Label>Vista</Label>
         {enemyHighlight && <Dot color={C.enemyHL} />}
       </BarButton>
       {open && (
@@ -404,9 +415,11 @@ function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridV
   );
 }
 
-function MoreMenu({ open, onToggle, onClose, onShowShortcuts }: {
+function MoreMenu({ open, onToggle, onClose, onShowShortcuts, pixel, onSetPixel }: {
   open: boolean; onToggle: () => void; onClose: () => void; onShowShortcuts: () => void;
+  pixel: boolean; onSetPixel: (v: boolean) => void;
 }) {
+  const compact = useCompact();
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} ariaLabel="Més opcions" title="Més opcions">
@@ -414,6 +427,16 @@ function MoreMenu({ open, onToggle, onClose, onShowShortcuts }: {
       </BarButton>
       {open && (
         <Popover onClose={onClose} width={240}>
+          {/* Mòbil: a la barra no hi cap el canvi d'app, viu aquí. */}
+          {compact && (
+            <>
+              <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ flex: 1, fontSize: FS.md, fontWeight: 700, color: C.bright }}>App</span>
+                <AppSwitch pixel={pixel} onChange={onSetPixel} />
+              </div>
+              <MenuDivider />
+            </>
+          )}
           <MenuItem icon={<Keyboard size={14} />} label="Dreceres de teclat"
             hint={<kbd style={{ fontFamily: 'inherit', border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: '1px 5px' }}>?</kbd>}
             onClick={() => { onShowShortcuts(); onClose(); }} />
@@ -436,6 +459,7 @@ function MoreMenu({ open, onToggle, onClose, onShowShortcuts }: {
  * No canvia res del que veuen els jugadors.
  */
 function ModeSwitch({ mode, onChange }: { mode: DMMode; onChange: (m: DMMode) => void }) {
+  const compact = useCompact();
   const opts: [DMMode, string, React.ReactNode, string][] = [
     ['preparar', 'Preparar', <WallIcon key="p" size={13} />, 'Construir el mapa: parets, portes, llums, graella i capes'],
     ['jugar', 'Jugar', <SwordsIcon key="j" size={13} />, 'A la taula: regla, dibuix, màgies i torns'],
@@ -445,13 +469,13 @@ function ModeSwitch({ mode, onChange }: { mode: DMMode; onChange: (m: DMMode) =>
       {opts.map(([m, label, icon, title]) => {
         const on = mode === m;
         return (
-          <button key={m} role="radio" aria-checked={on} onClick={() => onChange(m)} title={title}
+          <button key={m} role="radio" aria-checked={on} onClick={() => onChange(m)} title={title} aria-label={label}
             style={{
-              height: 26, display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', border: 'none', borderRadius: RADIUS.md,
+              height: compact ? 30 : 26, display: 'flex', alignItems: 'center', gap: 6, padding: compact ? '0 9px' : '0 12px', border: 'none', borderRadius: RADIUS.md,
               background: on ? tint(C.accent, 0.16) : 'transparent', color: on ? C.accent : C.dim,
               fontSize: FS.sm, fontWeight: 700, cursor: 'pointer', transition: 'background .15s, color .15s',
             }}>
-            {icon} {label}
+            {icon} <Label>{label}</Label>
           </button>
         );
       })}
@@ -502,12 +526,24 @@ export function TopBar(p: Props) {
   const close = useCallback(() => setMenu(null), []);
   const toggle = (id: MenuId) => () => setMenu(m => (m === id ? null : id));
   const hasMap = p.mapName !== null;
+  // Mòbil: només icones, sense el bloc del nom (el lateral és un calaix) i el canvi d'app al menú ⋯.
+  const compact = useCompactLayout();
 
   return (
+    <CompactContext.Provider value={compact}>
     <header style={{
-      position: 'relative', zIndex: 1, height: TOP_BAR_H, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
-      padding: '0 12px', background: C.panel, borderBottom: `1px solid ${C.border}`,
+      position: 'relative', zIndex: 1, height: TOP_BAR_H, flexShrink: 0, display: 'flex', alignItems: 'center', gap: compact ? 5 : 8,
+      padding: compact ? '0 max(6px, env(safe-area-inset-right)) 0 max(6px, env(safe-area-inset-left))' : '0 12px',
+      background: C.panel, borderBottom: `1px solid ${C.border}`,
     }}>
+      {compact ? (
+        <IconButton variant="ghost" size={36} onClick={p.onToggleSidebar} aria-pressed={p.sidebarOpen}
+          aria-label={p.sidebarOpen ? 'Amagar el panell lateral' : 'Mostrar el panell lateral'}
+          title={p.sidebarOpen ? 'Amagar el panell lateral' : 'Jugadors, enemics i biblioteca'}
+          style={{ color: p.sidebarOpen ? C.accent : C.text, flexShrink: 0 }}>
+          <PanelLeftIcon size={17} />
+        </IconButton>
+      ) : (
       <div style={{ width: IDENTITY_W, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
         {p.pixel ? <PixelSwordIcon size={20} color={C.accent} /> : <DieIcon size={20} color={C.accent} />}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
@@ -527,8 +563,9 @@ export function TopBar(p: Props) {
           <PanelLeftIcon size={15} />
         </IconButton>
       </div>
+      )}
 
-      <AppSwitch pixel={p.pixel} onChange={p.onSetPixel} />
+      {!compact && <AppSwitch pixel={p.pixel} onChange={p.onSetPixel} />}
       <ModeSwitch mode={p.mode} onChange={p.onModeChange} />
 
       {/* És cosa de la partida: a Preparar només surt si hi ha alguna cosa en pantalla
@@ -536,22 +573,23 @@ export function TopBar(p: Props) {
       {(p.mode === 'jugar' || p.showActive || p.showOpen) && (
         <BarButton active={p.showOpen} onClick={p.onToggleShow}
           title="Ensenya una imatge, un vídeo o un text a pantalla completa als jugadors">
-          <ImageIcon size={14} /> Mostrar als jugadors
+          <ImageIcon size={14} /> <Label>Mostrar als jugadors</Label>
           {p.showActive && <Dot color={C.ok} />}
         </BarButton>
       )}
 
       <div style={{ flex: 1, minWidth: 0 }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 4 : 6, flexShrink: 0 }}>
         {/* Un sol desfer per a tot (traços, canvis del mapa, moviments de combat), i diu què
             desfarà: abans n'hi havia tres i el Ctrl+Z en triava un segons l'eina. */}
         <Button size="md" onClick={p.onUndo} disabled={!p.undoLabel}
           title={p.undoLabel ? `Desfer: ${p.undoLabel} (Ctrl+Z)` : 'No hi ha res a desfer'}
-          style={{ height: 32, gap: 7, maxWidth: 230 }}>
+          aria-label="Desfer"
+          style={{ height: compact ? 36 : 32, gap: 7, maxWidth: 230, ...(compact ? { padding: '0 9px' } : {}) }}>
           <RotateCcw size={14} />
-          Desfer
-          {p.undoLabel && (
+          <Label>Desfer</Label>
+          {p.undoLabel && !compact && (
             <span style={{ color: C.dim, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>· {p.undoLabel}</span>
           )}
         </Button>
@@ -570,8 +608,10 @@ export function TopBar(p: Props) {
             onToggleEnemyHighlight={p.onToggleEnemyHighlight} onToggleHighlightLocked={p.onToggleHighlightLocked}
             figureGrade={p.figureGrade} onToggleFigureGrade={p.onToggleFigureGrade} />
         )}
-        <MoreMenu open={menu === 'more'} onToggle={toggle('more')} onClose={close} onShowShortcuts={p.onShowShortcuts} />
+        <MoreMenu open={menu === 'more'} onToggle={toggle('more')} onClose={close} onShowShortcuts={p.onShowShortcuts}
+          pixel={p.pixel} onSetPixel={p.onSetPixel} />
       </div>
     </header>
+    </CompactContext.Provider>
   );
 }

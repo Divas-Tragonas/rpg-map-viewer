@@ -205,6 +205,8 @@ src/
 │   ├── useAutosave.ts      # Desat automàtic periòdic de la partida (IndexedDB)
 │   ├── useEnemyGrouping.ts # Agrupació dels enemics de la BD i grups plegats (recordat a localStorage)
 │   ├── useStoredFlag.ts    # Sí/no de la UI recordat a localStorage sense error d'hidratació (lateral plegat)
+│   ├── useCompact.ts       # Pantalla compacta (mòbil): useCompactLayout + CompactContext
+│   ├── useCanvasPointer.ts # Ratolí i dit al canvas del DM (pointer events): pinça, mantenir premut, doble toc
 │   ├── useTileMap.ts       # App Píxel: crear/editar/cuinar el mapa de caselles i regenerar-ne parets, portes i llums
 │   ├── useSpritePack.ts    # Estat del paquet de sprites per a la UI
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
@@ -543,6 +545,13 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - `maxBodyHeight` dóna **scroll propi** a una secció (amb `ScrollArea`): les llistes llargues (capes del PSD, sales, llums) no empenyen la resta del panell fora de la pantalla.
 - L'usen `ImportPanel`, `LayerTree` (embolcallat des de `DMView`), `RoomsPanel`, `PlayersPanel` i `EnemyLibraryPanel`.
 - **`defaultOpen` només s'aplica en muntar.** Per fer que una secció es plegui sola quan canvia una condició, cal remuntar-la amb un `key` (ho fa `ImportPanel`: `key={bgLoaded ? 'loaded' : 'empty'}`).
+
+### El DM al mòbil (`useCompact` + `useCanvasPointer`, v4.60)
+- **Pantalla compacta** = `(max-width: 760px), (max-height: 500px)` (`COMPACT_QUERY`): un telèfon dret o ajagut. `useCompactLayout()` la llegeix amb `useSyncExternalStore` (al servidor, `false`: res d'error d'hidratació). Dins de la barra, els components la llegeixen del context (`CompactContext`/`useCompact`), sense props.
+- **Barra superior compacta** (`TopBar`): sense el bloc del nom (només el botó del lateral), botons d'una icona (el text va dins de `Label`, que no pinta res en compacte; el nom passa a l'`aria-label`) i el canvi d'app (Clàssica · Píxel) al menú **⋯**. Els menús (`Popover`) s'obren a l'amplada de la pantalla, sota la barra, amb scroll. ⚠️ Un botó nou de la barra ha de posar el text dins de `Label`: si no, en un iPhone dret la barra no hi cap i els menús de la dreta (Pantalles, Partida) queden fora de la pantalla — que és el que passava.
+- **Lateral = calaix** (`drawerOpen` a `DMView`, no es recorda): per sobre del mapa, amb un vel que el tanca en tocar-lo; el mapa ocupa tota l'amplada. A l'escriptori, el lateral plegable de sempre.
+- **Benvinguda, `CanvasHUD`, `PlacesMenu` i panells** s'encongeixen (botons a l'amplada que hi ha, càmera només amb icones, «Sortir» curt, panells amb `maxHeight` i scroll). L'arrel del DM fa servir `.full-stage` (`100dvh`).
+- **Dit al canvas** (`useCanvasPointer`): el canvas fa servir **pointer events** (`touch-action: none`) i passa els esdeveniments als gestors de sempre de `useMouseHandlers` (un `PointerEvent` és un `MouseEvent`): amb el ratolí no canvia res. Amb el dit: un dit = botó esquerre; **dos dits** = pinça (zoom ancorat al mig dels dits) + desplaçar, a la vista compartida o, en Privada, a la local (mateixes fórmules que `useWheelZoom`); **mantenir premut** 0,5 s quiet = clic dret (`onContextMenu` amb un esdeveniment sintètic); **doble toc** = doble clic. En començar la pinça o el menú, el gest d'un dit s'atura **sense comptar com a clic** (`abortSingle` treu l'`onClick` del `panDragRef`: si no, revelaria la sala fosca de sota) i els dits queden «muts» fins que s'aixequen.
 
 ### Lateral plegable (`sidebarOpen` a `DMView` + botó a `TopBar`)
 - Botó de panell (`PanelLeftIcon`) a la dreta del bloc del nom del mapa de la barra superior: plega o desplega tot el lateral per donar més espai al mapa. Es recorda entre sessions (`useStoredFlag('rpg_sidebar_open')`, localStorage amb `useSyncExternalStore`: llegir-lo al primer render donaria error d'hidratació).
@@ -1034,6 +1043,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Estat de combat passat sencer a React al jugador | `PlayerView` es re-renderitza ~20 cops/s (el `turn` va dins de cada STATE) | Projectar-lo amb `buildTurnBanner` + `sameBanner` i retornar `prev` quan no canvia |
 | Component definit dins d'un altre component | El hover es queda enganxat / l'estat intern es perd a cada render | Declarar-lo a nivell de mòdul (veure `ToolButton` a `FloatingToolbar`) |
 | Mode nou només al teclat | L'usuari no sap que existeix | Una sola funció `toggle*` a `DMView`, compartida pel botó de `FloatingToolbar` i per `useKeyboardHandlers` |
+| Gestor nou al canvas del DM amb `onMouse*` o un gest que només sap fer el ratolí | Al mòbil no fa res (el dit no té clic dret ni roda) | El canvas va amb pointer events via `useCanvasPointer`; el que necessiti clic dret o roda ha de tenir també el seu gest (mantenir premut, pinça) |
 | Commutar un mode en el keydown d'un modificador (Ctrl, Maj…) | Ctrl+Z o Maj+clic encenen el mode sense voler | Només amb un toc net (keydown+keyup sense res pel mig), com fa `useKeyboardHandlers` |
 | ✕ per a una acció que no és tancar/eliminar | L'usuari el prem per tancar i fa una altra cosa (p. ex. marcar derrotat) | ✕ només tanca o elimina; la resta, botó amb nom (`💀 Derrotar`) |
 | Ull amb un significat diferent segons la llista | Es revela o s'amaga el contrari del que es volia | L'ull sempre vol dir «ho veuen els jugadors?» (vigilar `vis` de les zones del PSD, que és invers) |

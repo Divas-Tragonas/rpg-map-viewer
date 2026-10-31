@@ -70,6 +70,12 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.60 — El DM al mòbil
+- **La pantalla del DM s'adapta al mòbil** (provat a la mida d'un iPhone, dret i ajagut): la barra de dalt passa a icones i tots els menús hi caben (Pantalles, Partida, Vista, ⋯), oberts a l'amplada de la pantalla. Des del mòbil ja es pot obrir una pantalla de jugador (Pantalles → «Obrir-ne una en aquest dispositiu») i la missió de Cony Cirera.
+- El lateral (jugadors, enemics, biblioteca) és un calaix que s'obre amb el botó de dalt a l'esquerra i es tanca tocant fora.
+- **Gestos al mapa**: un dit fa el que feia el ratolí (moure tokens, moure el mapa en buit, dibuixar…), **dos dits** fan zoom i mouen el mapa, **mantenir premut** obre el menú del token (el clic dret) i el **doble toc** entra a les portes dels llocs de la missió.
+- El canvi d'app (Clàssica · Píxel) és al menú ⋯ al mòbil.
+
 ### v4.59 — Entrar a les cases de Cony Cirera
 - **Set llocs on entrar** a la missió de Cony Cirera, els grups de cases marcats al mapa: **Farga vella** (el pati vist de prop, amb l'enclusa rovellada a fora), **Casa del batlle** (sala gran, despatx, cambra, cuina, rebost, magatzem esfondrat i el pati tancat), **Graner** (sostre caigut i bardissa seca… on s'amaguen les plagues de branquetes), **Casa de la taula parada** (un eco de la Gran Guerra), **Rectoria**, **Capella enrunada** (campana caiguda, forat al sostre i cementiri) i **Hostal vell** (barra, cuina, rebost i estables). Contingut tret de la wiki i del Notion.
 - **Canvi d'escena amb fos a negre** a totes les pantalles i el nom del lloc al mig (en lletra de píxel). La colla entra sencera (vida, estats, diàlegs) i el combat s'acaba; en sortir, apareix davant de la porta.

@@ -2,6 +2,7 @@
 import React from 'react';
 import { Eye, LockIcon, ExternalLink, X, TargetIcon } from '@/components/icons';
 import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
+import { useCompactLayout } from '@/hooks/useCompact';
 
 interface Props {
   gridCalibrating: boolean;
@@ -50,6 +51,8 @@ function segment(on: boolean, color: string): React.CSSProperties {
  * Aquí també hi queda el rètol del calibratge de la graella.
  */
 export function CanvasHUD({ gridCalibrating, hasMap, zoom, onZoomChange, onResetView, privateView, tempShared, onSetPrivate, onSendView, onEndTemp }: Props) {
+  // Mòbil: només les icones de la càmera, perquè hi càpiga el menú de llocs a l'esquerra.
+  const compact = useCompactLayout();
   const setZoom = (z: number) => onZoomChange(Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)) * 100) / 100);
   return (
     <>
@@ -59,7 +62,7 @@ export function CanvasHUD({ gridCalibrating, hasMap, zoom, onZoomChange, onReset
         </div>
       )}
       {hasMap && (
-        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', alignItems: 'center', gap: compact ? 6 : 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {tempShared && (
             <div style={{ ...box, borderColor: tint(C.ok, 0.5), color: C.ok, fontSize: FS.xs, fontWeight: 700, padding: '3px 3px 3px 10px', gap: 6 }}
               title="Vista compartida temporal (toc de Ctrl): els jugadors et segueixen i, en sortir-ne, tothom torna a l'enquadrament d'abans.">
@@ -74,25 +77,25 @@ export function CanvasHUD({ gridCalibrating, hasMap, zoom, onZoomChange, onReset
           {privateView && (
             <button onClick={onSendView} title="Els jugadors passen a veure el que veus ara. Continues en vista privada."
               style={{ ...box, ...segment(false, C.room), height: 36, padding: '0 12px', color: C.room, borderColor: tint(C.room, 0.45), background: C.float }}>
-              <ExternalLink size={13} /> Enviar aquesta vista
+              <ExternalLink size={13} /> {compact ? 'Enviar' : 'Enviar aquesta vista'}
             </button>
           )}
 
           <div role="radiogroup" aria-label="Què veuen els jugadors" style={box}>
             <button role="radio" aria-checked={!privateView} onClick={() => onSetPrivate(false)} style={segment(!privateView, C.ok)}
               title="Vista compartida: els jugadors veuen el que tu veus i et segueixen quan mous el mapa o fas zoom.">
-              <Eye size={13} /> Compartida
+              <Eye size={13} /> {!compact && 'Compartida'}
             </button>
             <button role="radio" aria-checked={privateView} onClick={() => onSetPrivate(true)} style={segment(privateView, C.room)}
               title="Vista privada (toc de Maj): mou-te i fes zoom sense que els jugadors ho vegin; la seva pantalla es queda on era. També cal per amagar una sala ja revelada.">
-              <LockIcon size={12} /> Privada
+              <LockIcon size={12} /> {!compact && 'Privada'}
             </button>
           </div>
 
           <div style={box}>
             <button onClick={() => setZoom(zoom - ZOOM_STEP)} aria-label="Allunyar" title="Allunyar" style={zoomBtn}>−</button>
             <button onClick={onResetView} title="Restablir la vista (zoom i posició)"
-              style={{ ...zoomBtn, minWidth: 52, fontSize: FS.md, fontWeight: 700, color: C.bright, fontVariantNumeric: 'tabular-nums' }}>
+              style={{ ...zoomBtn, minWidth: compact ? 44 : 52, fontSize: FS.md, fontWeight: 700, color: C.bright, fontVariantNumeric: 'tabular-nums' }}>
               {Math.round(zoom * 100)}%
             </button>
             <button onClick={() => setZoom(zoom + ZOOM_STEP)} aria-label="Apropar" title="Apropar" style={zoomBtn}>+</button>
