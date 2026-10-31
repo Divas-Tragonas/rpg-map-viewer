@@ -37,6 +37,8 @@ interface Props {
   /** Format (amplada/alçada) de l'enquadrament actual del DM; null si encara no n'hi ha. */
   camAr: number | null;
   onOpenPlayer: () => void;
+  /** Obre el tauler de missions de la wiki, que hi rep la pantalla de jugador (veure `lib/relay.ts`). */
+  onOpenBoard: () => void;
   autosaveEnabled: boolean; autosaveAt: number | null;
   /** El desat automàtic porta fallades seguides (quota plena, finestra privada). */
   autosaveFailing: boolean;
@@ -173,9 +175,9 @@ function CopyRow({ url }: { url: string }) {
  * no veu menys que el DM, però una de format diferent en veu MÉS als costats: el menú diu
  * quantes n'hi ha i quant en veuen de més. Sense cap, el botó surt en color d'avís.
  */
-function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlayer }: {
+function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlayer, onOpenBoard }: {
   open: boolean; onToggle: () => void; onClose: () => void;
-  playerScreens: Props['playerScreens']; camAr: Props['camAr']; onOpenPlayer: () => void;
+  playerScreens: Props['playerScreens']; camAr: Props['camAr']; onOpenPlayer: () => void; onOpenBoard: () => void;
 }) {
   const [urls, setUrls] = useState<string[]>([]);
   const ids = Object.keys(playerScreens);
@@ -221,6 +223,10 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
             )}
             <Button variant="primary" block onClick={() => { onOpenPlayer(); onClose(); }} style={{ gap: 6 }}>
               <Maximize2 size={12} /> Obrir-ne una en aquest PC
+            </Button>
+            <Button variant="secondary" block onClick={() => { onOpenBoard(); onClose(); }} style={{ gap: 6 }}
+              title="El tauler de missions de la wiki, en una finestra nova. Amb «Mapa en píxel» hi entra aquesta partida, sense API.">
+              <MapIcon size={12} /> Obrir el tauler de missions
             </Button>
             {urls.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -550,7 +556,7 @@ export function TopBar(p: Props) {
           )}
         </Button>
         <ScreensMenu open={menu === 'screens'} onToggle={toggle('screens')} onClose={close}
-          playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} />
+          playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} onOpenBoard={p.onOpenBoard} />
         <GameMenu open={menu === 'game'} onToggle={toggle('game')} onClose={close} hasMap={hasMap}
           autosaveEnabled={p.autosaveEnabled} autosaveAt={p.autosaveAt} autosaveFailing={p.autosaveFailing}
           onToggleAutosave={p.onToggleAutosave} onSaveNow={p.onSaveNow}

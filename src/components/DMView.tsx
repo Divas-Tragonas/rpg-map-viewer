@@ -60,6 +60,7 @@ import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
 import { useSpritePack } from '@/hooks/useSpritePack';
 import { ensurePack, getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
 import { MISSIONS, missionState, missionUrl } from '@/lib/missions';
+import { relayBoards, openBoard } from '@/lib/relay';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import type { TileBrush } from '@/lib/tilemap/editor';
 import { PixelSwordIcon, TilesIcon } from '@/components/icons';
@@ -798,20 +799,23 @@ export function DMView() {
   useEffect(() => {
     const bc = new BroadcastChannel(BC_CHANNEL);
     R.bcRef.current = bc;
-    bc.onmessage = (e) => {
-      const msg = e.data;
+    const onMsg = (e: { data: unknown }) => {
+      const msg = e.data as { type?: string; id?: string | number; w?: number; h?: number; x?: number; y?: number } | null;
       if (msg?.type === 'PLAYER_READY') {
         _sendFullState();
         trResendShowRef.current();
       } else if (msg?.type === 'VIEWPORT' && msg.id) {
-        _registerScreen(msg.id, msg.w, msg.h);
+        _registerScreen(String(msg.id), msg.w ?? 0, msg.h ?? 0);
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment fet des de la pantalla de jugador (mateix ordinador via BC). La validació
         // (bloqueig, torn actiu i saldo de peus) i la propagació viuen a handlePlayerTokenMove.
         handlePlayerTokenMove(msg.id, msg.x, msg.y);
       }
     };
-    return () => { bc.close(); R.bcRef.current = null; };
+    bc.onmessage = onMsg;
+    // El tauler de missions de la wiki rep el canal per postMessage (veure `lib/relay.ts`).
+    const unrelay = relayBoards(bc, onMsg);
+    return () => { unrelay(); bc.close(); R.bcRef.current = null; };
   }, [_sendFullState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── WebSocket setup (network sync for cross-device iPad/player) ───────────
@@ -1528,6 +1532,7 @@ export function DMView() {
         showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui} onToggleShow={toggleShowPanel}
         undoLabel={undoLabel} onUndo={undoLast}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
+        onOpenBoard={() => { if (!openBoard()) notify("El navegador no ha deixat obrir el tauler de missions: permet les finestres emergents d'aquesta pàgina."); }}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt} autosaveFailing={autosaveFailing}
         onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
         onExport={saveSession} onImport={f => void openSession(f)}

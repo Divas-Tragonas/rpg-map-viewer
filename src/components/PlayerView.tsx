@@ -14,6 +14,7 @@ import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDrag
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
+import { relayToParent } from '@/lib/relay';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
@@ -1142,8 +1143,9 @@ export function PlayerView() {
   }, []);
 
   // Incrustada a la wiki: `?fit=1` comença amb el mapa sencer i la wiki diu quan cal seguir el DM
-  // (`{ rpg: 'embed', fit }`). La pantalla li diu si ja té mapa i com va la connexió. Res d'això
-  // va al DM: per a ell és una pantalla de jugador més.
+  // (`{ rpg: 'embed', fit }`). La pantalla li diu si ja té mapa i com va la connexió. Dins de
+  // l'iframe el canal queda aïllat (el navegador el particiona per lloc), així que el canal també
+  // passa per la wiki, que el porta fins al DM (`relayToParent`, veure `lib/relay.ts`): no cal API.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get('embed') !== '1' || window.parent === window) return;
@@ -1157,8 +1159,16 @@ export function PlayerView() {
       em.fit = d.fit;
     };
     window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
-  }, []);
+    const relay = relayToParent(bcRef.current, e => { void bcHandlerRef.current?.(e as MessageEvent); });
+    bcRef.current = relay.channel;
+    relay.channel.postMessage({ type: 'PLAYER_READY' });
+    _reportViewport();
+    return () => {
+      window.removeEventListener('message', onMsg);
+      relay.undo();
+      if (bcRef.current === relay.channel) bcRef.current = null;
+    };
+  }, [_reportViewport]);
   useEffect(() => {
     if (!embedRef.current.on) return;
     window.parent.postMessage({ rpg: 'player', ready: playerReady, conn: conn.status }, '*');

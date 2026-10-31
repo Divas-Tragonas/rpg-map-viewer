@@ -70,6 +70,10 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.57 — El tauler de missions sense API
+- **El mapa en píxel de la wiki ja no necessita la API.** Obre el tauler des del visor: menú **Pantalles → «Obrir el tauler de missions»**. El visor i el tauler es passen els missatges directament entre finestres, i la pantalla de dins de la wiki rep la partida igual que una pantalla del mateix ordinador. Funciona amb el visor de Vercel.
+- El tauler ja no demana l'adreça del visor: la treu del visor que l'ha obert.
+
 ### v4.56 — La pantalla de jugador dins del tauler de missions de la wiki
 - **Cony Cirera en píxel des de la wiki.** Al tauler de missions de Cony Cirera, en mode DM, el botó «Mapa en píxel» (o la tecla P) transforma el mapa pintat en el del visor amb una onada de caselles que s'aixequen i giren. Després hi entra la pantalla de jugador en directe, s'eixampla a tota la pantalla i segueix la teva càmera. Esc torna al tauler amb l'onada al revés.
 - **Com cal tenir-ho**: el visor obert en mode DM amb la missió de Cony Cirera i la seva API engegada (la pantalla de la wiki s'hi connecta pel WebSocket, com la tauleta). L'adreça del visor es canvia al botó «Visor» del mode DM del tauler (per defecte `http://localhost:3001`).
