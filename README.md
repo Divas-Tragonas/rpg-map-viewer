@@ -70,6 +70,9 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.58 — Documentació del tauler de missions
+- El `CLAUDE.md` apunta on és ara el codi del tauler a la wiki (`src/missions/pixel.js`) i on es configura.
+
 ### v4.57 — El tauler de missions sense API
 - **El mapa en píxel de la wiki ja no necessita la API.** Obre el tauler des del visor: menú **Pantalles → «Obrir el tauler de missions»**. El visor i el tauler es passen els missatges directament entre finestres, i la pantalla de dins de la wiki rep la partida igual que una pantalla del mateix ordinador. Funciona amb el visor de Vercel.
 - El tauler ja no demana l'adreça del visor: la treu del visor que l'ha obert.
