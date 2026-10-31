@@ -200,6 +200,15 @@ function collectLights(fc: FrameContext): Light[] {
 
 // Esborra de la memòria d'explorat el polígon d'una sala: torna a ser negra del tot (com si
 // mai s'hi hagués entrat). Es crida al DM (localment) i al jugador (via RESET_EXPLORED).
+/**
+ * Oblida tota la boira explorada (canvi d'escena d'una missió: el mapa nou pot tenir la mateixa
+ * mida que l'anterior i, si no, s'hi veuria el terreny memoritzat de l'altre lloc).
+ */
+export function resetExplored(): void {
+  _exploredDirty = true;
+  _exploredSig = '';
+}
+
 export function clearExploredAt(points: { x: number; y: number }[]): void {
   // Força una acumulació d'explorat al proper frame encara que res no s'hagi mogut (si no,
   // la zona il·luminada ARA no es tornaria a memoritzar fins que algú es mogués).

@@ -70,6 +70,13 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.59 — Entrar a les cases de Cony Cirera
+- **Set llocs on entrar** a la missió de Cony Cirera, els grups de cases marcats al mapa: **Farga vella** (el pati vist de prop, amb l'enclusa rovellada a fora), **Casa del batlle** (sala gran, despatx, cambra, cuina, rebost, magatzem esfondrat i el pati tancat), **Graner** (sostre caigut i bardissa seca… on s'amaguen les plagues de branquetes), **Casa de la taula parada** (un eco de la Gran Guerra), **Rectoria**, **Capella enrunada** (campana caiguda, forat al sostre i cementiri) i **Hostal vell** (barra, cuina, rebost i estables). Contingut tret de la wiki i del Notion.
+- **Canvi d'escena amb fos a negre** a totes les pantalles i el nom del lloc al mig (en lletra de píxel). La colla entra sencera (vida, estats, diàlegs) i el combat s'acaba; en sortir, apareix davant de la porta.
+- **Menú de llocs** a dalt a l'esquerra del mapa i **marques a les portes** (només les veu el DM): doble clic a la marca per entrar o sortir.
+- Cada lloc porta les parets, les portes i les sales amb nom: sales fosques, llum per línia de visió i col·lisions sense dibuixar res. Cada lloc es recorda tal com es va deixar (enemics, dibuix, sales revelades) i es desa a la partida.
+- Sense canvis a la API.
+
 ### v4.58 — Documentació del tauler de missions
 - El `CLAUDE.md` apunta on és ara el codi del tauler a la wiki (`src/missions/pixel.js`) i on es configura.
 

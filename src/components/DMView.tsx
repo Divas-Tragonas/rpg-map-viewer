@@ -60,6 +60,9 @@ import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
 import { useSpritePack } from '@/hooks/useSpritePack';
 import { ensurePack, getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
 import { MISSIONS, missionState, missionUrl } from '@/lib/missions';
+import { useMissionScenes } from '@/hooks/useMissionScenes';
+import { PlacesMenu } from '@/components/dm/PlacesMenu';
+import { SceneCurtain } from '@/components/ui/SceneCurtain';
 import { relayBoards, openBoard } from '@/lib/relay';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import type { TileBrush } from '@/lib/tilemap/editor';
@@ -324,6 +327,9 @@ export function DMView() {
   // Els diàlegs desats es refresquen a la UI quan es carrega una partida (`useDialog` es
   // crea més avall: hi arriba per ref).
   const dialogsChangedRef = React.useRef<() => void>(() => {});
+  // Escenes de la missió (carregar una partida o canviar d'escena): l'assigna `useMissionScenes`.
+  const scenesChangedRef = React.useRef<(s: import('@/types').MissionScenes | null) => void>(() => {});
+  const dropScenesRef = React.useRef<() => void>(() => {});
 
   // ── Avisos a la pantalla ───────────────────────────────────────────────────
   // Abans, tot el que fallava en carregar (fons il·legible, partida corrupta, desat
@@ -344,6 +350,7 @@ export function DMView() {
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
     onDialogsChange: () => dialogsChangedRef.current(),
+    onMissionScenesChange: (sc: import('@/types').MissionScenes | null) => scenesChangedRef.current(sc),
     onFigureGradeChange: setFigureGradeUI,
     setBgLoaded, setBgName, setPsdInfo, setStruct, setWarnings, setParseError, setParsing,
     setLayerImages, setVis, setPos, setZoom, setPlayers, setConditions, setDefeated,
@@ -1078,11 +1085,13 @@ export function DMView() {
     R.rTileMap.current = null; R.rTileRestore.current({ rebake: false });
     if (R.rDrawTool.current === 'tiles') setDrawTool('none');
   }, [R, setDrawTool]);
-  const openNewMap = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); return loadBg(f); }, [switchMode, loadBg, dropTileMap]);
-  const openPsd = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); return loadPSD(f); }, [switchMode, loadPSD, dropTileMap]);
+  // Un mapa o un PSD nous deixen enrere la missió i els seus llocs.
+  const dropScenes = useCallback(() => dropScenesRef.current(), []);
+  const openNewMap = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); dropScenes(); return loadBg(f); }, [switchMode, loadBg, dropTileMap, dropScenes]);
+  const openPsd = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); dropScenes(); return loadPSD(f); }, [switchMode, loadPSD, dropTileMap, dropScenes]);
   const openSession = useCallback((f: File) => { switchMode('jugar'); return loadSession(f); }, [switchMode, loadSession]);
   const openServerSession = useCallback((id: string) => { switchMode('jugar'); return serverLoadSession(id); }, [switchMode, serverLoadSession]);
-  const openDemo = useCallback(() => { switchMode('jugar'); dropTileMap(); return loadDemo(); }, [switchMode, loadDemo, dropTileMap]);
+  const openDemo = useCallback(() => { switchMode('jugar'); dropTileMap(); dropScenes(); return loadDemo(); }, [switchMode, loadDemo, dropTileMap, dropScenes]);
   // Missió: una partida preparada (mapa + colla col·locada + ajust de color de les figuretes),
   // sempre a l'app Píxel (les figuretes són part del disseny del mapa).
   const openMission = useCallback(async (id: string) => {
@@ -1108,14 +1117,14 @@ export function DMView() {
   }, [_broadcastState]);
 
   const openTileMap = useCallback(async (cols: number, rows: number) => {
-    switchMode('preparar');
+    switchMode('preparar'); dropScenes();
     await createTileMap(cols, rows);
     setDrawTool('tiles');
-  }, [switchMode, createTileMap, setDrawTool]);
+  }, [switchMode, createTileMap, setDrawTool, dropScenes]);
   const openTmx = useCallback(async (f: File) => {
-    switchMode('preparar');
+    switchMode('preparar'); dropScenes();
     try { await importTmx(f); } catch (err) { console.error('Error important el .tmx:', err); }
-  }, [switchMode, importTmx]);
+  }, [switchMode, importTmx, dropScenes]);
 
   const loadAnyFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
@@ -1253,6 +1262,21 @@ export function DMView() {
     launchBossIntro,
   });
   useEffect(() => { dialogEndRef.current = () => { if (R.rDialog.current) dlg.end(); }; dialogsChangedRef.current = dlg.reloadDialogs; });
+
+  // ── Llocs de la missió (entrar i sortir de les cases amb fos a negre) ───────
+  const scenes = useMissionScenes(R, {
+    applySessionState: st => applySessionState(st),
+    buildCore: () => buildAutosaveRecord().state,
+    broadcast: () => _broadcastState({}),
+    notify: text => notify(text),
+    onBeforeSwitch: () => {
+      setContextMenu(null); setMenuFloat(null);
+      if (R.rDialog.current) dlg.end();
+      setSelectedToken(null);
+    },
+    onUndoChange: refreshUndo,
+  });
+  useEffect(() => { scenesChangedRef.current = scenes.setScenes; dropScenesRef.current = scenes.drop; }, [scenes.setScenes, scenes.drop]);
   const [dialogDraft, setDialogDraft] = useState<DialogDraft>(EMPTY_DRAFT);
   // Tokens de l'escena per relacionar-hi els noms del guió (de l'estat, no dels refs).
   const sceneTokenList = useMemo(() => [
@@ -1657,6 +1681,11 @@ export function DMView() {
           onContextMenu={onContextMenu}
           onDoubleClick={onDoubleClick}
         />
+        {scenes.mission && scenes.scenes && bgLoaded && (
+          <PlacesMenu mission={scenes.mission} current={scenes.scenes.current} busy={scenes.busy}
+            onGo={id => void scenes.goTo(id)} onHover={scenes.hover} />
+        )}
+        <SceneCurtain closed={!!scenes.curtain?.closed} title={scenes.curtain?.title ?? ''} pixel={pixel} zIndex={45} />
         <CanvasHUD
           gridCalibrating={gridCalibrating} hasMap={bgLoaded}
           zoom={zoom} onZoomChange={onZoomChange} onResetView={onResetView}

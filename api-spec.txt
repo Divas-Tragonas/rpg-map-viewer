@@ -183,6 +183,10 @@ tokenId, name, voice, text, style, cps, age (ms que feia que la línia havia com
 quan s'ha enviat), done, bars, cam (CamRect | null) i options. Pocs centenars de bytes;
 el retrat no hi va (cada pantalla el treu del token). `null` = no hi ha cap diàleg.
 
+Tampoc no ha calgut cap canvi per als llocs de les missions (v4.59): el camp `curtain`
+(SceneCurtain | null: { closed, scene, title }) viatja dins del STATE i del STRUCT. És el fos a
+negre del canvi d'escena; el mapa nou arriba pel BG de sempre.
+
 Des de la v4.40 els sprites són a l'app (`public/sprites/`) i cada pantalla els
 carrega del mateix lloc: el camp `spritePack` del STATE i el `packId` del
 PLAYER_READY (v4.38–v4.39) ja no s'envien.

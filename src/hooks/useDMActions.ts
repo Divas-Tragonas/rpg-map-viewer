@@ -43,6 +43,8 @@ interface Setters {
   onDialogsChange?: () => void;
   /** L'ajust de color de les figuretes del mapa ha canviat (missió, partida o fons nou). */
   onFigureGradeChange?: (g: import('@/types').FigureGrade | null) => void;
+  /** Escenes de la missió (en carregar una partida o canviar d'escena): refresca el menú de llocs. */
+  onMissionScenesChange?: (s: import('@/types').MissionScenes | null) => void;
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setGridSize: (v: number) => void;
   setGridSnap: (v: boolean) => void;
@@ -241,6 +243,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // Diàleg en curs (lleuger, sempre): així qui es connecta o reconnecta a mitja
       // conversa veu la línia d'ara mateix. Veure `useDialog`.
       dialog: _dialogNow(),
+      // Fos a negre del canvi d'escena (missions amb llocs): lleuger, sempre.
+      curtain: R.rCurtain.current,
     };
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
@@ -288,6 +292,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       figureGrade: getFigureGrade(),
       tileLive: R.rTileLive.current,
       dialog: _dialogNow(),
+      curtain: R.rCurtain.current,
       // Dibuix a ploma: perquè el jugador reconstrueixi el drawCanvas en connectar-se (late
       // join) o en carregar una partida (els STROKE són incrementals i un jugador que no hi
       // era quan es van dibuixar no els tenia). Els traços vells van rasteritzats a la base.
@@ -745,6 +750,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       tileMap: R.rTileMap.current,
       // Ajust de color de les figuretes: és del mapa (una missió el porta), no de la UI.
       figureGrade: getFigureGrade(),
+      // Escenes d'una missió amb llocs: on és la colla i com es van deixar els altres llocs.
+      missionScenes: R.rMissionScenes.current,
     };
     if (rStruct2.current) {
       state.psdStruct = rStruct2.current;
@@ -885,6 +892,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // L'ajust de color de les figuretes és del mapa: una partida que no en porta no en té.
       setFigureGrade(state.figureGrade && typeof state.figureGrade === 'object' ? state.figureGrade : null);
       S.onFigureGradeChange?.(getFigureGrade());
+      // Escenes de la missió: una partida que no en porta no és d'una missió amb llocs.
+      R.rMissionScenes.current = state.missionScenes && typeof state.missionScenes === 'object' ? state.missionScenes : null;
+      S.onMissionScenesChange?.(R.rMissionScenes.current);
       if ((state.strokeHistory && state.strokeHistory.length > 0) || strokeBaseRef.current) {
         const oc = drawCanvasRef.current;
         if (oc) {

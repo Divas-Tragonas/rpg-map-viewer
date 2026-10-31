@@ -91,6 +91,29 @@ export type AppStyle = 'classic' | 'pixel';
  * (`setFigureGrade` a `lib/sprites/pack.ts`): saturació, multiplicador càlid i guany, i els
  * negres passen a la tinta del mapa. `off` → el mapa en té, però el DM l'ha apagat.
  */
+/**
+ * Cortina d'escena (missions amb llocs): fos a negre a totes les pantalles mentre el DM canvia
+ * de mapa (entrar o sortir d'una casa). `scene` = l'escena que hi haurà en obrir-se: si una
+ * pantalla veu que canvia, oblida la boira explorada de l'escena d'abans. `title` = nom del lloc,
+ * que surt al mig del negre. Viatja dins del STATE i del STRUCT (lleuger, sempre; `null` = cap).
+ */
+export interface SceneCurtain {
+  closed: boolean;
+  scene: string;
+  title: string;
+}
+
+/**
+ * Escenes d'una missió amb llocs (veure `lib/missions.ts`): on és la colla (`current`, `VILLAGE`
+ * = el mapa de la missió) i l'estat desat de cada escena on ja ha estat (sense el fons, que és
+ * el mapa del lloc). Es desa a la partida.
+ */
+export interface MissionScenes {
+  mission: string;
+  current: string;
+  saved: Record<string, Record<string, unknown>>;
+}
+
 export interface FigureGrade {
   sat: number;
   warm: [number, number, number];
@@ -437,6 +460,8 @@ export interface BCStateMessage {
   dialog?: DialogSync | null;
   // Ajust de color de les figuretes del mapa (lleuger, sempre; `null` = cap). Absent → DM antic.
   figureGrade?: FigureGrade | null;
+  // Fos a negre del canvi d'escena (lleuger, sempre; `null` = cap). Absent → DM antic.
+  curtain?: SceneCurtain | null;
 }
 
 export interface BCStructMessage {
@@ -481,6 +506,7 @@ export interface BCStructMessage {
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   dialog?: DialogSync | null;
   figureGrade?: FigureGrade | null;
+  curtain?: SceneCurtain | null;
   /**
    * Dibuix a ploma per a qui es connecta tard o carrega una partida. Els traços més antics
    * surten de `strokeHistory` i viatgen ja rasteritzats a `strokeBaseline` (PNG en dataURL),

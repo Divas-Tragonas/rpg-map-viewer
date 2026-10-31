@@ -177,6 +177,7 @@ src/
 │   │   ├── TokenFields     # Fitxa d'un token dins del menú del clic dret (resolveToken, camps, NameField)
 │   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (PSD + biblioteca) en files primes
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
+│   │   ├── PlacesMenu      # Llocs de la missió (a dalt a l'esquerra del mapa): entrar a un lloc o sortir al poble
 │   │   ├── TopBar          # Barra superior: nom del mapa, Clàssica·Píxel, Preparar·Jugar, Mostrar als jugadors, pantalles, partida, vista, ⋯
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text / Diàleg del panell «Mostrar als jugadors»
@@ -194,6 +195,7 @@ src/
 │       ├── ScrollArea      # Zona amb scroll i barra pròpia, discreta i amagada en repòs
 │       ├── HoverTip        # Finestreta d'un botó (hover): nom, tecla i UNA línia
 │       ├── NoticeStack     # Avisos a dalt de l'escenari (errors de càrrega, desat que falla…)
+│       ├── SceneCurtain    # Fos a negre del canvi d'escena amb el nom del lloc (DM i jugador)
 │       ├── ConditionIcon   # Isotip d'un estat com a <svg> (mateixos paths que el canvas)
 │       ├── ConditionPicker # Estats del menú contextual: 2 files d'isotips (nom i traduccions al hover)
 │       └── EnemyGroups     # Agrupar enemics de la BD: barra «Agrupar per», capçalera i cos de grup plegables
@@ -206,6 +208,7 @@ src/
 │   ├── useTileMap.ts       # App Píxel: crear/editar/cuinar el mapa de caselles i regenerar-ne parets, portes i llums
 │   ├── useSpritePack.ts    # Estat del paquet de sprites per a la UI
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
+│   ├── useMissionScenes.ts # Llocs de les missions: canvi d'escena amb fos a negre, marques de les portes
 │   ├── useDialog.ts        # Diàlegs al DM: llançar, avançar, enrere, opcions, càmera, tecles, desats als tokens
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
@@ -215,7 +218,8 @@ src/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
 │   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
 │   ├── relay.ts            # Pont del canal amb el tauler de missions de la wiki (postMessage, sense API)
-│   ├── missions.ts         # Missions preparades (MISSIONS, missionState): mapa + colla col·locada + ajust de color de les figuretes
+│   ├── missions.ts         # Missions preparades (MISSIONS, missionState): mapa + colla col·locada + ajust de color de les figuretes; llocs (sceneState, placeGeometry)
+│   ├── places/conyberry.ts # GENERAT: els llocs de Cony Cirera (mapa, porta al poble, parets, portes, sales)
 │   ├── token-menu.ts       # tokenMenuFor: estat del menú del clic dret d'un token (mapa i files del lateral)
 │   ├── dm-mode.ts          # Modes Preparar / Jugar del DM i a quin mode pertany cada eina (modeForTool)
 │   ├── undo.ts             # Registre del «Desfer» únic: ordre de les piles de traços, mapa i moviments
@@ -249,6 +253,7 @@ src/
 │   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
 │   │   ├── zonefx.ts       # Zones màgiques a la pantalla del jugador (vora SDF + fotogrames clau fosos + arcs del llamp)
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
+│   │   ├── places.ts       # Marques dels llocs de la missió al mapa del DM (portes i sortida)
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador) + pixelIntros.ts (les 10 de pixel art)
 │   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)
@@ -394,6 +399,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
 | `STATE.appStyle` / `STATE.tileLive` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat. Els sprites NO viatgen: cada pantalla els carrega de `public/sprites/` |
 | `STATE.figureGrade` / `STRUCT.figureGrade` | DM→Jugador | Ajust de color de les figuretes del mapa (`FigureGrade`, lleuger, sempre; `null` = cap). Veure «Missions» |
+| `STATE.curtain` / `STRUCT.curtain` | DM→Jugador | Fos a negre del canvi d'escena (`SceneCurtain`, lleuger, sempre; `null` = cap). Veure «Llocs de les missions» |
 | `STATE.dialog` / `STRUCT.dialog` | DM→Jugador | Diàleg en curs (`DialogSync`, camp lleuger, sempre; `null` = cap). Veure «Diàlegs de personatges» |
 | `RESET_EXPLORED` | DM→Jugador | Reset de la memòria d'explorat d'una sala (torna a ser negra del tot). Porta el polígon `points`; DM i jugador criden `clearExploredAt(points)` a `darkrooms.ts` |
 
@@ -504,6 +510,17 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
   - `off: true` = el mapa en té però està apagat: interruptor «Figuretes a to amb el mapa» del menú **Vista** (només surt si el mapa en porta). Afecta totes les pantalles.
   - **Ombra de les figuretes** (`FigureGrade.shadow`, v4.55; `dropShadow` a `pack.ts`): amb l'ajust, cada figureta fa una ombra de 2 píxels d'art cap a baix a la dreta (la direcció de llum del mapa), de l'opacitat que diu la missió. És el que les fa destacar del fons: amb l'ajust apagat de la v4.53 (saturació 0,6 i sense ombra) es barrejaven amb el camí. ⚠️ **No és cap contorn** (l'usuari no en vol enlloc): només hi ha ombra a la banda de l'ombra. Es fa al full ajustat, dins de cada casella de 48 px; els píxels semitransparents (l'ombra del terra del full) no en fan.
 - **Graella de la missió**: `missionState` posa la mida de la casella del mapa (`m.cell`), visible, amb els tokens ajustats a la casella i **`gridAutoSize`** encès (els enemics que s'afegeixen de la biblioteca surten a la mida de la casella). `gridAutoSize` es desa a la partida des de la v4.55 (abans es perdia en carregar-la).
+
+### Llocs de les missions (entrar a les cases) — `lib/missions.ts` + `useMissionScenes` + `scripts/mission-conyberry-llocs.py`
+- **Què és**: una missió pot tenir `places` (Cony Cirera: Farga vella, Casa del batlle, Graner, Casa de la taula parada, Rectoria, Capella enrunada, Hostal vell; els grups de cases que l'usuari va marcar). Cada lloc és un **mapa propi** (`public/missions/conyberry/<id>.png`, caselles de 48 px com el poble). La Farga és `kind: 'exterior'` (el pati vist de prop); la resta, interiors.
+- **Contingut**: wiki (`packages/model/src/towns.ts`: Farga vella amb l'enclusa a fora, Casa del batlle amb el pati tancat, Capella amb el campanar esfondrat, Hostal amb estables) i Notion (mòduls «Les runes de Cony Cirera» i «L'Àgata»: el bosc s'ha menjat el poble, arrasat a la Gran Guerra; plagues de branquetes que semblen matolls secs → n'hi ha a tots els llocs). Graner, Casa de la taula parada i Rectoria són propostes.
+- **Generació** (`scripts/mission-conyberry-llocs.py`, peces a `scripts/oryx-interiors.py`, `--sheet` per revisar-les): cada lloc és una **graella de caràcters** (llegenda al cap del script) + una llista de mobles. Del mateix dibuix en surten els mapes i `src/lib/places/conyberry.ts` (GENERAT, no editar a mà): porta al poble (`door`, calculada de `HOUSES` de `mission-conyberry.py` o a mà) i on surt la colla (`back`), on entra (`spawn`), la sortida (`exit`), **parets i portes** (mateix criteri que `lib/tilemap/geometry.ts`: aresta entre paret i casella oberta; porta = tram pel mig de la casella) i **sales amb nom** (`rooms`: una casella de dins; a l'app, `placeGeometry` agafa la cara més petita del graf de parets que la conté i descarta les cares sense nom, p. ex. el contorn de fora de la casa). Estil: el del full de poble (rampes apagades, llum de dalt a l'esquerra, sense contorns); les peces del paquet (bóta, cofre, taules, canelobres, teranyines, ossos, làpides, estàtues) passen per un mapa de gradient. ⚠️ Per canviar un lloc: tocar el script i tornar-lo a executar, mai els PNG ni el `.ts`.
+- **Canvi d'escena** (`useMissionScenes.goTo`): cortina tancada (`R.rCurtain` → camp `curtain` del STATE) → es baixa el mapa → l'escena d'ara es desa a `missionScenes.saved[escena]` (el nucli de la partida, sense el fons) → `sceneState` construeix la de destí (la desada o una de nova) i `applySessionState` la carrega → quan el fons és a punt, la cortina s'obre. **És carregar una partida**: sync, desat, sales fosques i boira funcionen sense res de nou. La colla hi va sencera (vida, estats, derrotat, mida, diàlegs: les claus `pl_*`), a les caselles `spawn` (entrar) o `back` (sortir al poble); la resta de l'escena (enemics, dibuix, sales revelades, càmera) és la de quan es va deixar. **El combat s'acaba** i les piles de desfer es buiden.
+- **Estat**: `R.rMissionScenes` (`MissionScenes { mission, current, saved }`) es desa a la partida (`missionScenes`); `applySessionState` el restaura (`onMissionScenesChange`). Obrir un mapa, un PSD, la demo o un mapa de caselles el treu (`scenes.drop`).
+- **Pantalla de jugador**: `SceneCurtain` (opacitat només). En obrir-se espera el seu fons (`bgLoadingRef`, màx. 5 s) i, si l'escena és nova, oblida la boira explorada (`resetExplored` a `darkrooms.ts`) i deixa de lliscar els tokens (`visualPosRef`/`rMovePath` buits): si no, el mapa nou de la mateixa mida mostraria el terreny memoritzat de l'altre lloc.
+- **UI del DM**: `PlacesMenu` (a dalt a l'esquerra de l'escenari: on és la colla, llista de llocs, «Sortir a …») i marques a les portes (`renderPlaceMarks`, espai de pantalla, només DM; hover del menú → `rPlaceHover`). **Doble clic** a una marca = entrar o sortir (`onDoubleClick` → `rPlaceEnter`).
+- ⚠️ La pantalla incrustada a la wiki (`/player?embed=1`) mostra l'escena on és la colla: l'onada del tauler només encaixa amb el mapa del poble.
+- **Un lloc nou**: entrada a `PLACES` + funció de mobles a `FURNITURE` del script i tornar-lo a executar. **Una missió nova amb llocs**: el seu script i `places` a `MISSIONS`.
 
 ### Pantalla de jugador dins de la wiki (`/player?embed=1`)
 - **Per a què**: el tauler de missions de la wiki (`divas-tragonas/wiki`, `src/missions/pixel.js`) té un botó del mode DM, «Mapa en píxel», que transforma el mapa pintat de Cony Cirera en el d'aquesta app amb una onada de caselles i hi posa a sobre aquesta pantalla de jugador en directe (iframe). El DM fa servir el visor en una altra finestra, com sempre, i és qui obre el tauler.
