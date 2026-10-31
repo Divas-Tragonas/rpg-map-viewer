@@ -2,6 +2,7 @@
 import React from 'react';
 import { PenLine, Eraser, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon, SparklesIcon, TilesIcon } from '@/components/icons';
 import { C, PALETTE, FS, RADIUS, tint } from '@/constants';
+import { useCompactLayout } from '@/hooks/useCompact';
 import { GridPanel } from '@/components/dm/GridPanel';
 import { Button } from '@/components/ui/Button';
 import { HoverTip } from '@/components/ui/HoverTip';
@@ -117,8 +118,9 @@ const btnBase: React.CSSProperties = {
  * nou i React desmuntaria i tornaria a muntar tots els botons — el `mouseleave` es perdria
  * i la finestreta quedaria enganxada.
  */
-function ToolButton({ id, hover, setHover, onClick, active, disabled, style, tip, children }: {
+function ToolButton({ id, hover, setHover, onClick, active, disabled, style, tip, noTip, children }: {
   id: string;
+  noTip?: boolean;
   hover: string | null;
   setHover: (fn: (h: string | null) => string | null) => void;
   onClick: () => void;
@@ -144,7 +146,8 @@ function ToolButton({ id, hover, setHover, onClick, active, disabled, style, tip
         }}>
         {children}
       </button>
-      <HoverTip show={hover === id} title={tip.title} hint={tip.hint}>{tip.desc}</HoverTip>
+      {/* Al mòbil no hi ha cursor: un toc dispararia el «hover» i la finestreta s'hi quedaria. */}
+      {!noTip && <HoverTip show={hover === id} title={tip.title} hint={tip.hint}>{tip.desc}</HoverTip>}
     </div>
   );
 }
@@ -158,6 +161,9 @@ export function FloatingToolbar({
   const [gridOpen, setGridOpen] = React.useState(false);
   // Botó sobre el qual hi ha el cursor: en surt la finestreta d'explicació enganxada a la dreta.
   const [hover, setHover] = React.useState<string | null>(null);
+  // Mòbil: barra horitzontal a dalt (sota els controls del mapa), que ocupa menys pantalla i
+  // deixa la de baix per a la barra de torns. Els panells s'obren a sota.
+  const compact = useCompactLayout();
   // Al flyout hi queden només els controls que cal manipular (color/gruix, radi de llum);
   // les explicacions ja no hi viuen, ara surten al passar el cursor pel botó.
   const drawing = drawTool === 'pen' || drawTool === 'eraser';
@@ -183,7 +189,8 @@ export function FloatingToolbar({
     return nt;
   });
 
-  const hoverProps = { hover, setHover };
+  const hoverProps = { hover, setHover, noTip: compact };
+  const sep = compact ? { width: 1, alignSelf: 'stretch' as const, background: C.border, margin: '2px 2px' } : { height: 1, background: C.border, margin: '2px 2px' };
 
   // pointerEvents 'none' al contenidor perquè el seu box (columna + gap + espai buit
   // sobre el flyout) no capturi els clics/traços del canvas de sota; només els dos
@@ -192,12 +199,14 @@ export function FloatingToolbar({
   return (
     // zIndex per sobre de la barra de torns (12): les finestretes i els panells de la barra
     // d'eines s'obren cap a la dreta, a la mateixa alçada, i quedaven tapats per la barra de torns.
-    <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 13, display: 'flex', alignItems: 'flex-end', gap: 8, pointerEvents: 'none' }}>
+    <div style={compact
+      ? { position: 'absolute', top: 56, left: 'max(12px, env(safe-area-inset-left))', zIndex: 13, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, pointerEvents: 'none', maxWidth: 'calc(100% - 24px)' }
+      : { position: 'absolute', bottom: 12, left: 12, zIndex: 13, display: 'flex', alignItems: 'flex-end', gap: 8, pointerEvents: 'none' }}>
       <div
         title={disabled ? 'Carrega un mapa per fer servir les eines' : undefined}
-        style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', pointerEvents: 'auto', opacity: disabled ? 0.35 : 1, filter: disabled ? 'grayscale(1)' : 'none' }}>
+        style={{ display: 'flex', flexDirection: compact ? 'row' : 'column', gap: 3, padding: 4, borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', pointerEvents: 'auto', opacity: disabled ? 0.35 : 1, filter: disabled ? 'grayscale(1)' : 'none' }}>
         {/* Sense mapa: la barra es veu (se sap que existeix) però no reacciona ni mostra ajuda. */}
-        <fieldset disabled={disabled} style={{ border: 'none', margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, pointerEvents: disabled ? 'none' : 'auto' }}>
+        <fieldset disabled={disabled} style={{ border: 'none', margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: compact ? 'row' : 'column', gap: 3, pointerEvents: disabled ? 'none' : 'auto' }}>
         {tools.map(t => (
           <ToolButton key={t.tool} id={`tool_${t.tool}`} {...hoverProps}
             onClick={() => selectTool(t)}
@@ -215,7 +224,7 @@ export function FloatingToolbar({
           </ToolButton>
         )}
 
-        <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />
+        <div style={sep} />
 
         <ToolButton id="mode_area" {...hoverProps}
           onClick={onToggleAreaSelect} active={areaSelectMode}
@@ -224,7 +233,7 @@ export function FloatingToolbar({
           ▣
         </ToolButton>
 
-        {!prep && paintedZones.length > 0 && <div style={{ height: 1, background: C.border, margin: '2px 2px' }} />}
+        {!prep && paintedZones.length > 0 && <div style={sep} />}
 
         {!prep && paintedZones.length > 0 && (
           <ToolButton id="clearzones" {...hoverProps} onClick={onClearPaintedZones}
@@ -237,13 +246,13 @@ export function FloatingToolbar({
       </div>
 
       {!disabled && (showDrawFlyout || showGrid || showTiles) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, ...(compact ? { maxWidth: '100%', maxHeight: 'calc(100dvh - 260px)', overflowY: 'auto', pointerEvents: 'auto' } : {}) }}>
           {showTiles && tilePanel}
           {showGrid && <GridPanel {...grid} />}
           {showDrawFlyout && (
             <div style={{ padding: '8px 10px', borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 150, pointerEvents: 'auto' }}>
               {drawing && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 236 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: compact ? 'min(236px, calc(100vw - 48px))' : 236 }}>
                   <div role="radiogroup" aria-label="Ploma o goma" style={{ display: 'flex', gap: 4 }}>
                     {([['pen', 'Ploma', '1', <PenLine key="p" size={13} />], ['eraser', 'Goma', '2', <Eraser key="e" size={13} />]] as const).map(([t, label, key, icon]) => (
                       <Button key={t} size="sm" role="radio" aria-checked={drawTool === t} active={drawTool === t}

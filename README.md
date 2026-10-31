@@ -70,6 +70,13 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.61 — Més mòbil: combat, eines i figuretes
+- **Barra de combat** a l'amplada de la pantalla del mòbil, amb botons d'icona (Següent, Ronda, acabar). Mantenir premut un xip recupera el seu torn (com el clic dret).
+- **Barra d'eines horitzontal a dalt** al mòbil (ocupa menys i deixa la de baix per al combat); els panells (dibuix, llums…) s'obren a sota i sense finestretes d'ajuda enganxades.
+- Mantenir premut un token ja no selecciona text ni obre el menú del sistema.
+- El **selector de figureta** (i el de retrat) s'obre a la mida de la pantalla i no obre el teclat sol (abans el teclat desplaçava la pàgina i el menú del personatge semblava moure's).
+- Al mòbil, el zoom de la cantonada només mostra el percentatge (la pinça fa el zoom) i «Sortir» del lloc és una icona.
+
 ### v4.60 — El DM al mòbil
 - **La pantalla del DM s'adapta al mòbil** (provat a la mida d'un iPhone, dret i ajagut): la barra de dalt passa a icones i tots els menús hi caben (Pantalles, Partida, Vista, ⋯), oberts a l'amplada de la pantalla. Des del mòbil ja es pot obrir una pantalla de jugador (Pantalles → «Obrir-ne una en aquest dispositiu») i la missió de Cony Cirera.
 - El lateral (jugadors, enemics, biblioteca) és un calaix que s'obre amb el botó de dalt a l'esquerra i es tanca tocant fora.

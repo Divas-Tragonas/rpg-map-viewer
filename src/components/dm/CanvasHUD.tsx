@@ -93,12 +93,13 @@ export function CanvasHUD({ gridCalibrating, hasMap, zoom, onZoomChange, onReset
           </div>
 
           <div style={box}>
-            <button onClick={() => setZoom(zoom - ZOOM_STEP)} aria-label="Allunyar" title="Allunyar" style={zoomBtn}>−</button>
+            {/* Mòbil: la pinça fa el zoom; aquí només el percentatge (tocar-lo restableix la vista). */}
+            {!compact && <button onClick={() => setZoom(zoom - ZOOM_STEP)} aria-label="Allunyar" title="Allunyar" style={zoomBtn}>−</button>}
             <button onClick={onResetView} title="Restablir la vista (zoom i posició)"
               style={{ ...zoomBtn, minWidth: compact ? 44 : 52, fontSize: FS.md, fontWeight: 700, color: C.bright, fontVariantNumeric: 'tabular-nums' }}>
               {Math.round(zoom * 100)}%
             </button>
-            <button onClick={() => setZoom(zoom + ZOOM_STEP)} aria-label="Apropar" title="Apropar" style={zoomBtn}>+</button>
+            {!compact && <button onClick={() => setZoom(zoom + ZOOM_STEP)} aria-label="Apropar" title="Apropar" style={zoomBtn}>+</button>}
           </div>
         </div>
       )}

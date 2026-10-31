@@ -1559,7 +1559,7 @@ export function DMView() {
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
-    <div className="full-stage" style={{ display: 'flex', flexDirection: 'column', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
+    <div className="full-stage dm-root" style={{ display: 'flex', flexDirection: 'column', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
 
       {/* ── Barra superior ───────────────────────────────────────────────── */}
       <TopBar

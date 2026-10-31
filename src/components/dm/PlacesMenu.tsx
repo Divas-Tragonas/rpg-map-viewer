@@ -39,12 +39,12 @@ export function PlacesMenu({ mission, current, busy, onGo, onHover }: Props) {
   const go = (id: string) => { setOpen(false); onHover(null); onGo(id); };
   const rows = [{ id: VILLAGE, name: mission.name, text: 'El mapa del poble.', kind: 'poble' as const }, ...(mission.places ?? [])];
   return (
-    <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap', maxWidth: 'calc(100% - 210px)' }}>
+    <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: compact ? 'nowrap' : 'wrap', maxWidth: compact ? 'calc(100% - 150px)' : 'calc(100% - 210px)' }}>
       <div style={{ position: 'relative' }}>
         <button style={{ ...chip, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={() => setOpen(v => !v)}
           title="On és la colla: entrar a un lloc o tornar al poble">
           {here ? <DoorIcon size={14} /> : <MapIcon size={14} />}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{here ? here.name : mission.name}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: compact ? 104 : 170 }}>{here ? here.name : mission.name}</span>
           <ChevronDown size={12} style={{ color: C.dim }} />
         </button>
         {open && (
@@ -91,9 +91,9 @@ export function PlacesMenu({ mission, current, busy, onGo, onHover }: Props) {
         )}
       </div>
       {here && (
-        <button style={{ ...chip, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={() => go(VILLAGE)}
-          title={`Tornar a ${mission.name}: la colla surt davant de la porta`}>
-          <BackIcon size={14} /> {compact ? 'Sortir' : `Sortir a ${mission.name}`}
+        <button style={{ ...chip, opacity: busy ? 0.6 : 1, ...(compact ? { padding: '0 10px' } : {}) }} disabled={busy} onClick={() => go(VILLAGE)}
+          aria-label={`Sortir a ${mission.name}`} title={`Tornar a ${mission.name}: la colla surt davant de la porta`}>
+          <BackIcon size={14} /> {!compact && `Sortir a ${mission.name}`}
         </button>
       )}
     </div>

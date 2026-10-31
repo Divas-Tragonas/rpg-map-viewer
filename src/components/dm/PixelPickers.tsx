@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { C, FS, RADIUS, SHADOW, FONT_SERIF, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
@@ -20,17 +21,20 @@ function Modal({ title, width, onClose, children }: { title: string; width: numb
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
-  return (
-    <div data-ctxmenu style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+  // Al `body` (portal): dins del menú del clic dret, que fa scroll, Safari d'iOS retallava la
+  // finestra a la mida del menú en lloc de la pantalla.
+  return createPortal(
+    <div data-ctxmenu style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ width, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.menu }}>
+      <div style={{ width, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.menu }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px 8px 14px', borderBottom: `1px solid ${C.border}` }}>
           <span style={{ flex: 1, fontFamily: FONT_SERIF, fontSize: 18, fontWeight: 600, color: C.bright }}>{title}</span>
           <button onClick={onClose} aria-label="Tancar" style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', display: 'flex' }}><X size={14} /></button>
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -47,7 +51,8 @@ export function SpritePicker({ value, onPick, onClose }: { value?: string; onPic
   return (
     <Modal title="Figureta del token" width={520} onClose={onClose}>
       <div style={{ padding: 10, display: 'flex', gap: 8, borderBottom: `1px solid ${C.border}` }}>
-        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca (goblin, wizard, dragon…)"
+        {/* Al mòbil, el focus automàtic obriria el teclat i desplaçaria la pàgina (el menú semblava moure's). */}
+        <input autoFocus={!matchMedia('(pointer: coarse)').matches} value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca (goblin, wizard, dragon…)"
           style={{ flex: 1, height: 28, padding: '0 8px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: C.dark, color: C.bright, fontSize: FS.md, outline: 'none' }} />
         <Button size="sm" variant="ghost" onClick={() => { onPick(undefined); onClose(); }}>Sense figureta</Button>
       </div>

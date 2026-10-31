@@ -8,6 +8,7 @@ import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnSta
 import { movementLimit, type MovementLimit } from '@/lib/rules/conditions';
 import { budgetFor } from '@/lib/turn';
 import { creatureThumb } from '@/lib/sprites/draw';
+import { useCompactLayout } from '@/hooks/useCompact';
 
 interface Props {
   turn: TurnState;
@@ -138,6 +139,11 @@ export function TurnTracker({
   // Barra activa. Un sol globus obert alhora a sobre de la barra: les confirmacions de
   // «Ronda» i de finalitzar, i el «Recuperar el torn» del clic dret.
   const [pop, setPop] = useState<Pop>(null);
+  // Mòbil: la barra ocupa l'amplada de la pantalla, botons d'icona i els xips fan scroll.
+  const compact = useCompactLayout();
+  // Al dit no hi ha clic dret: mantenir premut un xip fa el mateix (recuperar el torn).
+  const pressT = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressCancel = () => { if (pressT.current) { clearTimeout(pressT.current); pressT.current = null; } };
   const [editMode, setEditMode] = useState(false);
   const [drag, setDrag] = useState<DragView | null>(null);
   // Un render sense transicions just quan es fixa l'ordre nou (veure `commitDrag`).
@@ -232,7 +238,10 @@ export function TurnTracker({
     onStart([...ids]);
   };
 
-  const wrap: React.CSSProperties = {
+  const wrap: React.CSSProperties = compact
+    // Mòbil: la barra d'eines és a dalt, o sigui que la de torns pot ocupar tot l'ample de baix.
+    ? { position: 'absolute', bottom: 'max(8px, env(safe-area-inset-bottom))', left: 8, right: 8, zIndex: 12, display: 'flex', justifyContent: 'center' }
+    : {
     position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
     // Sense envair la barra d'eines de l'esquerra (a sota quedaria inaccessible): si hi ha
     // molts tokens a la cua, els xips fan scroll en lloc d'eixamplar la barra.
@@ -245,7 +254,7 @@ export function TurnTracker({
         {selecting && (
           <div style={{
             position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)',
-            width: 360, maxHeight: 380, overflowY: 'auto',
+            width: 'min(360px, calc(100vw - 24px))', maxHeight: compact ? 'min(380px, calc(100dvh - 200px))' : 380, overflowY: 'auto',
             background: 'rgba(13,17,23,0.98)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg,
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)', padding: 14,
           }}>
@@ -492,24 +501,25 @@ export function TurnTracker({
 
       <div ref={barRef} style={{
         position: 'relative', zIndex: 2,
-        display: 'flex', alignItems: 'center', gap: 10, userSelect: 'none',
+        display: 'flex', alignItems: 'center', gap: compact ? 6 : 10, userSelect: 'none', WebkitUserSelect: 'none',
         background: 'rgba(13,17,23,0.97)', border: `1px solid ${editMode ? C.accent : C.border}`, borderRadius: 16,
-        padding: '8px 12px', boxShadow: '0 8px 28px rgba(0,0,0,0.65)',
+        padding: compact ? '6px 8px' : '8px 12px', boxShadow: '0 8px 28px rgba(0,0,0,0.65)',
+        ...(compact ? { minWidth: 0, maxWidth: '100%' } : {}),
       }}>
         <div style={{
-          width: 64, flexShrink: 0,
+          width: compact ? 42 : 64, flexShrink: 0,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           padding: '4px 0', borderRadius: RADIUS.lg, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`,
         }}>
-          <span style={{ color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ronda</span>
-          <span style={{ color: C.bright, fontSize: 24, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{turn.round}</span>
+          <span style={{ color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: compact ? 0 : '0.08em' }}>{compact ? 'Rnd' : 'Ronda'}</span>
+          <span style={{ color: C.bright, fontSize: compact ? 20 : 24, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{turn.round}</span>
         </div>
 
         {/* Botó configuració/edició d'ordre (com el dels jugadors) */}
         <button onClick={() => { setEditMode(v => !v); setPop(null); }}
           title={editMode ? 'Sortir del mode edició' : 'Editar ordre (arrossega els tokens)'}
           style={{
-            flexShrink: 0, width: 38, height: 38, borderRadius: RADIUS.lg, cursor: 'pointer',
+            flexShrink: 0, width: compact ? 32 : 38, height: compact ? 32 : 38, borderRadius: RADIUS.lg, cursor: 'pointer',
             border: `1px solid ${editMode ? C.accent : C.border}`,
             background: editMode ? tint(C.accent, 0.13) : 'transparent',
             color: editMode ? C.accent : C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -532,6 +542,8 @@ export function TurnTracker({
                   onPointerDown={editMode ? (e) => onChipPointerDown(e, i) : undefined}
                   onClick={!editMode && p.active ? onAdvance : undefined}
                   onContextMenu={(e) => { e.preventDefault(); if (!editMode && !p.active) setPop({ recover: id }); }}
+                  onTouchStart={!editMode && !p.active ? () => { pressCancel(); pressT.current = setTimeout(() => { pressT.current = null; setPop({ recover: id }); }, 500); } : undefined}
+                  onTouchEnd={pressCancel} onTouchMove={pressCancel} onTouchCancel={pressCancel}
                   title={editMode ? 'Arrossega per reordenar' : p.defeated ? `${p.info.name} · derrotat, se li salta el torn` : p.active ? 'Clica per passar el torn · clic dret per recuperar un torn anterior' : `${p.info.name} · clic dret per recuperar el seu torn`}
                   style={{
                     flex: `${p.active ? 1 : 0} 0 ${SLOT_W}px`, minWidth: 0, height: p.active ? ACTIVE_H : SLOT_H,
@@ -571,27 +583,27 @@ export function TurnTracker({
         {/* Passar torn és l'acció més freqüent del combat: botó principal i gran, amb
             drecera (Enter). En mode edició el mateix lloc el pren «Fet» (mateixa amplada). */}
         {editMode ? (
-          <Button variant="primary" size="lg" onClick={() => setEditMode(false)} title="Acabar d'editar l'ordre"
-            style={{ flexShrink: 0, width: NEXT_W }}>
-            <CheckIcon size={14} /> Fet
+          <Button variant="primary" size="lg" onClick={() => setEditMode(false)} title="Acabar d'editar l'ordre" aria-label="Fet"
+            style={{ flexShrink: 0, width: compact ? 44 : NEXT_W, ...(compact ? { padding: 0, height: 40 } : {}) }}>
+            <CheckIcon size={14} /> {!compact && 'Fet'}
           </Button>
         ) : (
-          <Button variant="primary" size="lg" onClick={onAdvance} title="Passar el torn al següent (Enter)"
-            style={{ flexShrink: 0, width: NEXT_W, gap: 6 }}>
-            Següent <StepForward size={13} />
+          <Button variant="primary" size="lg" onClick={onAdvance} title="Passar el torn al següent (Enter)" aria-label="Següent"
+            style={{ flexShrink: 0, width: compact ? 44 : NEXT_W, gap: 6, ...(compact ? { padding: 0, height: 40 } : {}) }}>
+            {!compact && 'Següent'} <StepForward size={13} />
           </Button>
         )}
         <Button data-tt-pop variant="secondary" active={pop === 'round'} disabled={editMode}
           onClick={() => setPop(p => (p === 'round' ? null : 'round'))}
           title="Acabar la ronda ara: salta tots els que queden i comença la següent (tots recuperen moviment)"
-          style={{ flexShrink: 0, gap: 6 }}>
-          <FastForwardIcon size={12} /> Ronda
+          aria-label="Ronda" style={{ flexShrink: 0, gap: 6, ...(compact ? { padding: '0 10px', height: 36 } : {}) }}>
+          <FastForwardIcon size={12} /> {!compact && 'Ronda'}
         </Button>
 
         {/* Acabar combat (amb confirmació al globus) */}
         <button data-tt-pop onClick={() => setPop(p => (p === 'end' ? null : 'end'))} title="Acabar combat"
           style={{
-            flexShrink: 0, width: 36, height: 36, borderRadius: RADIUS.lg, cursor: 'pointer',
+            flexShrink: 0, width: compact ? 32 : 36, height: compact ? 32 : 36, borderRadius: RADIUS.lg, cursor: 'pointer',
             border: `1px solid ${pop === 'end' ? C.enemy : C.border}`,
             background: pop === 'end' ? tint(C.enemy, 0.12) : 'transparent',
             color: pop === 'end' ? C.enemy : C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center',

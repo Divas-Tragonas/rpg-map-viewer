@@ -29,3 +29,10 @@ input[type=color] { cursor: pointer; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
 /* Barra de torns en mode edició: el xip que s'agafa per reordenar s'aixeca (`TurnTracker.tsx`). */
 @keyframes tt-lift { from { transform: scale(1) } to { transform: scale(1.1) } }
+
+/* DM amb el dit: mantenir premut (menú del token) no ha de seleccionar text ni obrir el menú
+   del sistema. Els camps de text, sí. */
+@media (pointer: coarse) {
+  .dm-root { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .dm-root input, .dm-root textarea, .dm-root [contenteditable] { -webkit-user-select: text; user-select: text; }
+}
