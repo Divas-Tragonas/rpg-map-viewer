@@ -349,6 +349,7 @@ Afegir la crida a `useRafLoop.ts` entre `ctx.save()` i `ctx.restore()`.
 | `renderEnemyTokens` | render/tokens.ts | Tokens enemics PSD: drag, LERP, condicions, derrota |
 | `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures |
 | `renderPlayerTokens` | render/tokens.ts | Tokens jugador: LERP, condicions |
+| `renderNameTags` | render/tokens.ts | Només jugador: els noms de tots els tokens, junts i sense encavalcar-se (veure «Noms dels tokens a la pantalla de jugador») |
 | `renderRooms` | render/darkrooms.ts | Sales fosques: foscor amb llum dels tokens retallada (LOS) / overlay+contorn+ull (DM) |
 | `renderWalls` | render/darkrooms.ts | Parets dibuixades pel DM (no visibles al jugador) |
 | `renderWallDraft` | render/darkrooms.ts | Paret elàstica en curs (espai pantalla, com la regla) |
@@ -533,6 +534,13 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
   - wiki → pantalla: `{ rpg: 'embed', fit: boolean }`. `fit` = el mapa sencer (zoom 1, sense pan), tal com és la imatge de l'onada; `false` = la càmera del DM. El canvi llisca lent (`embedRef.glide`, LERP 0,04 al tick). `?fit=1` comença amb `fit` encès.
   - pantalla → wiki: `{ rpg: 'player', ready, conn }` cada cop que canvia si ja té mapa (`playerReady`) o l'estat del WebSocket.
 - L'encaix de l'onada depèn que el mapa de la missió i el de la wiki tinguin la mateixa proporció (1728×1200 i 4950×3431). Si es torna a generar el mapa amb una altra mida, cal canviar `pixel` de Cony Cirera a `packages/model/src/towns.ts` de la wiki (mida i caselles). Si el tauler es publica en un altre domini (la wiki també es pot desplegar a Vercel), cal canviar `BOARD_URL`.
+
+### Noms dels tokens a la pantalla de jugador (`renderNameTags` a `render/tokens.ts`, v4.63)
+- **Problema que resolia**: el nom sota cada token anava a 10–11 px de pantalla fixos. A la TV (la pantalla de jugador incrustada al tauler de missions de la wiki, o `/player`), amb el mapa sencer a la pantalla, no es llegia des del sofà.
+- **Mida** (`nameScaleFor`, camp `labelScale` del `FrameContext`): a la pantalla de jugador el nom creix amb l'amplada de la finestra, `amplada / NAME_REF_W` (1100) entre 1 i `NAME_SCALE_MAX` (2,2): igual que abans en una tablet o un mòbil, ×1,75 en una TV de 1920 px. Com que va per px CSS, a la TV ocupa la mateixa part de la pantalla sigui quina sigui l'escala del sistema. **Al DM no canvia res** (`labelScale` absent = 1): les seves barres de vida van just a sota del nom.
+- **Col·locació** (camp `nameTags` del `FrameContext`, una llista nova a cada frame): a la pantalla de jugador els tres tipus de token no pinten el nom, l'apunten (`nameTag`), i `renderNameTags` els pinta tots després de les figuretes i **abans de `renderRooms`** (la foscor amaga els de dins de les sales). Amb noms grossos, la colla junta feia noms encavalcats i la fila de sota els tapava (ja passava a 10 px: «Yunquer», «Esparde»). Cada nom va al lloc que el mogui menys sense tocar cap altre nom: a sota, una o dues línies més avall, sobre el cap si no té estats (els badges hi són), i desplaçat de costat fins a `NAME_SHIFT` de la seva amplada. Tapar una altra figureta costa com moure'l `NAME_COVER` línies, i el tros entre el nom i el seu token també compta: un nom no salta mai per sobre d'una altra figureta (ja no se sabria de qui és). El lloc de l'últim frame té avantatge (`NAME_STICK`) perquè el nom no salti mentre els tokens llisquen.
+- **Ordre**: primer els jugadors (un enemic no els mou mai), després els enemics i, al final, els enemics de dins d'una sala fosca no revelada: no poden empènyer cap nom visible, que delataria on són.
+- Al DM, `nameTag` pinta el nom on sempre (mateixes mides). Un tipus de token nou ha de passar per `nameTag`, no pintar el nom pel seu compte.
 
 ### Finestra lateral esquerra — pestanyes per funció
 - **Escena · Mapa · Biblioteca** (`sidebarTab` a `DMView`). Abans eren «Mapa / Enemics» i els enemics vivien en dues pestanyes segons d'on sortien (els del PSD dins de l'arbre de capes, els de la biblioteca a «Enemics»): per seguir un combat calia saltar entre totes dues.
@@ -1078,4 +1086,5 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | Element de mèdia sense listener d'`error` | «Mapa carregat» amb la pantalla negra i cap pista | Parella obligatòria: `load`/`loadedmetadata` **i** `error`, revertint l'estat a l'error |
 | `createObjectURL` sense el seu `revokeObjectURL` | Cada canvi de mapa o d'imatge deixa el fitxer sencer a memòria | Desar l'URL en un ref i revocar-lo en substituir-lo (`bgUrlRef`, `customUrlRef`) |
 | Memòria cau de figuretes sense `figureGradeKey()` a la clau | En encendre o apagar l'ajust de color d'una missió, unes figuretes canvien i d'altres no | Posar `figureGradeKey()` a la clau (com `_gray`, `_thumbs`, `_strips`) |
+| Nom d'un token pintat amb `fillText` dins de la seva família, en px de pantalla fixos | A la TV no es llegeix, i a la pantalla de jugador s'encavalca amb els altres o la figureta de sota el tapa | `nameTag` (`render/tokens.ts`): al DM el pinta on toca i a la pantalla de jugador el col·loca `renderNameTags` |
 | Estat que viatja a cada `STRUCT` i creix sense límit | Late join, desfer i desat automàtic es degraden a la vegada | Posar-hi sostre i rasteritzar el que en surt (veure «Límit de l'historial de dibuix») |

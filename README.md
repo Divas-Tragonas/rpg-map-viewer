@@ -70,6 +70,10 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.63 — Noms dels tokens que es llegeixen a la TV
+- A la **pantalla de jugador** (també la incrustada al tauler de missions de la wiki), el nom sota cada token creix amb la mida de la pantalla: a una TV de 1920 px és gairebé el doble que abans; a una tablet o un mòbil, igual que sempre. A la pantalla del DM no canvia res.
+- Els noms ja **no s'encavalquen ni queden tapats** per la figureta de sota quan la colla va junta: es pinten després de totes les figuretes i cadascun va al lloc lliure més proper (a sota, una línia més avall, sobre el cap o una mica de costat), sense saltar mai per sobre d'una altra figureta. Els dels jugadors tenen preferència, i els noms amagats a la foscor no mouen els visibles.
+
 ### v4.62 — Cony Cirera calcat del mapa pintat
 - El **mapa en píxel de Cony Cirera** es torna a fer a partir del mapa pintat de la wiki, perquè el «match cut» del tauler de missions (l'onada que passa de l'un a l'altre) encaixi: cada cosa és al mateix lloc a tots dos.
 - **Menys bosc**: abans s'omplien d'arbres a l'atzar totes les caselles de bosc i el bosc tapava el prat, els murs i els camins. Ara cada arbre, mata o grup d'arbres és on és al pintat (tret de les seves taques d'arbres).

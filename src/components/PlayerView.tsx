@@ -11,7 +11,7 @@ import {
 import { renderRooms, clearExploredAt, resetExplored } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells, spellShake, followSpellPreview } from '@/lib/render/spells';
-import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost } from '@/lib/render/tokens';
+import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
@@ -1090,6 +1090,7 @@ export function PlayerView() {
 
       const fc = {
         sc, ox, oy, mw, mh, isDM: false, s, v, pp,
+        labelScale: nameScaleFor(W), nameTags: [],  // noms més grossos a la TV, pintats a `renderNameTags`
         rLayerImages, rHoveredRoom, roomAnimRef,
         rPaintedZones, rContextMenu, zoneAppearRef,
         isShapeDrawingRef, shapePointsRef,
@@ -1142,6 +1143,7 @@ export function PlayerView() {
       renderEnemyTokens(ctx, fc);
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
+      renderNameTags(ctx, fc);       // els noms, després de totes les figuretes i abans de la foscor
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
 
       // La foscor de les sales fosques es pinta DAMUNT de tot: així qualsevol token,

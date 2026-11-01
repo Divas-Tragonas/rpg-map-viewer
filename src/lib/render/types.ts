@@ -39,6 +39,16 @@ export interface FrameContext {
   mw: number;
   mh: number;
   isDM: boolean;
+  /**
+   * Escala del nom sota els tokens (`nameScaleFor` a `render/tokens.ts`). Només la posa la pantalla
+   * de jugador; al DM és 1 (les seves barres de vida van just a sota del nom i el tocarien).
+   */
+  labelScale?: number;
+  /**
+   * Pantalla de jugador: els noms dels tokens s'hi apunten (en lloc de pintar-se) i `renderNameTags`
+   * els pinta tots junts, sense encavalcar-se. Una llista nova a cada frame. Al DM, absent.
+   */
+  nameTags?: import('./tokens').NameTag[];
   s: MapStructure;
   v: VisMap;
   pp: PosMap;

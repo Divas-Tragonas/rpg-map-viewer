@@ -5,6 +5,7 @@ import { packReady } from '@/lib/sprites/pack';
 import { hasCreature, drawCreature, grayCreature } from '@/lib/sprites/draw';
 import { drawFigureState, figureLook, isLying, reducedMotion } from '@/lib/sprites/states';
 import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
+import { pointInPolygon } from '@/lib/geometry';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
@@ -20,6 +21,121 @@ function ringPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
   ctx.beginPath();
   if (foot) ctx.ellipse(cx, cy + R * FOOT_DY, r, r * FOOT_FLAT, 0, 0, Math.PI * 2);
   else ctx.arc(cx, cy, r, 0, Math.PI * 2);
+}
+
+/**
+ * Mida del nom sota els tokens a la pantalla de jugador (`fc.labelScale`). Al DM és la de sempre
+ * (10–11 px de pantalla); a la de jugador creix amb l'amplada de la finestra, des de la mateixa mida
+ * en una tablet fins a gairebé el doble en una TV de 1920 px (la del tauler de missions de la wiki,
+ * on els noms de 10 px no es llegien des del sofà). Com que va per amplada en px CSS, a la TV ocupa
+ * la mateixa part de la pantalla sigui quina sigui l'escala del sistema.
+ */
+const NAME_REF_W = 1100, NAME_SCALE_MAX = 2.2;
+export const nameScaleFor = (screenW: number) => Math.min(NAME_SCALE_MAX, Math.max(1, screenW / NAME_REF_W));
+/** Unitat (en px de mapa) de les mides del nom: 1 px de pantalla al DM, més gran a la pantalla de jugador. */
+const nameUnit = (fc: FrameContext) => (fc.labelScale ?? 1) / fc.sc;
+
+/**
+ * Nom sota un token. `cx, cy, r`: centre i radi del token (px de mapa); `fig`: figureta (estil Píxel);
+ * `badges`: té estats (els seus badges van sobre el cap). Mides en px de pantalla a escala 1 (`size` de
+ * la lletra, `gap` des de la vora de baix del token, `boxH` del fons). `pri`: 0 jugadors, 1 enemics.
+ */
+export interface NameTag {
+  key: string; text: string; cx: number; cy: number; r: number; fig: boolean; badges: boolean;
+  size: number; bold: boolean; gap: number; boxH: number;
+  color: string; bg: string; alpha: number; pri: number;
+}
+
+/** Pinta el nom centrat a `x` amb el fons a partir de `top` (px de mapa). */
+function drawNameTag(ctx: CanvasRenderingContext2D, t: NameTag, u: number, x: number, top: number) {
+  ctx.font = `${t.bold ? 'bold ' : ''}${t.size * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const tw = ctx.measureText(t.text).width;
+  ctx.globalAlpha = t.alpha;
+  ctx.fillStyle = t.bg; ctx.fillRect(x - tw / 2 - 4 * u, top, tw + 8 * u, t.boxH * u);
+  ctx.fillStyle = t.color; ctx.fillText(t.text, x, top + (12 - t.gap) * u);
+}
+
+/** Al DM, el nom es pinta on toca; a la pantalla de jugador (`fc.nameTags`) es pinten tots junts a `renderNameTags`. */
+function nameTag(ctx: CanvasRenderingContext2D, fc: FrameContext, t: NameTag) {
+  if (fc.nameTags) { fc.nameTags.push(t); return; }
+  const u = nameUnit(fc);
+  drawNameTag(ctx, t, u, t.cx, t.cy + t.r + t.gap * u);
+}
+
+type Box = { l: number; r: number; t: number; b: number };
+const overlapArea = (a: Box, b: Box) =>
+  Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
+/** Cos d'un token a la pantalla (la part de la figureta o del disc que un nom no hauria de tapar). */
+const tokenBody = (t: NameTag): Box => t.fig
+  ? { l: t.cx - t.r * 0.75, r: t.cx + t.r * 0.75, t: t.cy - t.r * 1.15, b: t.cy + t.r * 0.9 }
+  : { l: t.cx - t.r, r: t.cx + t.r, t: t.cy - t.r, b: t.cy + t.r };
+
+/**
+ * Noms de la pantalla de jugador, després de totes les figuretes i abans de la foscor de les sales
+ * (`renderRooms`), que amaga els de dins. Amb els noms grossos de la TV i el mapa sencer a la pantalla,
+ * la colla junta feia noms encavalcats i la fila de sota els tapava. Cada nom va al lloc que el mogui
+ * menys sense tocar cap altre nom i tapant tan poc com pugui les altres figuretes: a sota (o una o dues
+ * línies més avall), a sobre del cap si no té estats, i desplaçat de costat fins a `NAME_SHIFT` de la
+ * seva amplada. Tapar una figureta sencera costa com moure'l `NAME_COVER` línies. El lloc de l'últim
+ * frame té avantatge (`_nameSlot`): mentre els tokens llisquen, el nom no salta d'un lloc a l'altre.
+ * Primer els jugadors (no es mouen mai per un enemic) i, al final, els enemics de dins d'una sala fosca
+ * no revelada: no han d'empènyer cap nom visible (delataria on són).
+ */
+const NAME_ROWS = 3, NAME_SHIFT = 0.45, NAME_COVER = 4, NAME_STICK = 0.5;
+let _nameSlot = new Map<string, number>();
+export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+  const tags = fc.nameTags;
+  if (!tags?.length) { _nameSlot.clear(); return; }
+  const u = nameUnit(fc), pad = 2 * u;
+  const dark = (fc.rRooms?.current ?? []).filter(r => r.dark && !r.revealed && r.points.length >= 3);
+  ctx.save();
+  const items = tags.map((t, i) => {
+    ctx.font = `${t.bold ? 'bold ' : ''}${t.size * u}px system-ui`;
+    const pri = t.pri > 0 && dark.some(r => pointInPolygon(t.cx, t.cy, r.points)) ? 2 : t.pri;
+    return { t, i, pri, w: ctx.measureText(t.text).width + 8 * u, h: t.boxH * u, body: tokenBody(t), x: t.cx, top: 0, slot: 0 };
+  });
+  items.sort((a, b) => a.pri - b.pri || a.body.b - b.body.b || a.t.cx - b.t.cx || a.i - b.i);
+  const placed: Box[] = [];
+  const slots = new Map<string, number>();
+  for (const it of items) {
+    const { t, w, h } = it, line = h + pad, l0 = t.cx - w / 2;
+    // Llocs (slot): 0..NAME_ROWS-1 a sota, -1 i -2 a sobre del cap.
+    const cands: { slot: number; top: number; cost: number }[] = [];
+    for (let k = 0; k < NAME_ROWS; k++) cands.push({ slot: k, top: t.cy + t.r + t.gap * u + k * line, cost: k * line });
+    if (!t.badges) for (let k = 0; k < 2; k++) cands.push({ slot: -1 - k, top: it.body.t - t.gap * u - h - k * line, cost: (k + 1) * line });
+    const last = _nameSlot.get(t.key);
+    let best = { x: t.cx, top: cands[0].top, slot: 0, cost: Infinity };
+    for (const c of cands) {
+      const top = c.top, bot = top + h;
+      const vcost = c.cost - (c.slot === last ? NAME_STICK * line : 0);
+      if (vcost >= best.cost) continue;
+      // Per tapar, el nom compta fins al seu token: un nom que salta per sobre d'una altra figureta
+      // (dues línies més avall, per sota de la fila del costat) ja no se sap de qui és.
+      const et = c.slot < 0 ? top : t.cy + t.r, eb = c.slot < 0 ? it.body.t : bot;
+      const nearL = placed.filter(p => p.t < bot + pad && p.b > top - pad);
+      const nearB = items.filter(o => o !== it && o.body.t < eb && o.body.b > et).map(o => o.body);
+      const shifts = [0];
+      for (const p of nearL) shifts.push(p.r + pad - l0, p.l - pad - (l0 + w));
+      for (const p of nearB) shifts.push(p.r - l0, p.l - (l0 + w));
+      for (const dx of shifts) {
+        if (Math.abs(dx) > w * NAME_SHIFT) continue;
+        const box = { l: l0 + dx, r: l0 + dx + w, t: top, b: bot };
+        if (nearL.some(p => box.r + pad > p.l && box.l - pad < p.r)) continue;
+        const reach = { l: box.l, r: box.r, t: et, b: eb };
+        const cover = nearB.reduce((sum, b) => sum + overlapArea(reach, b) / ((b.r - b.l) * (b.b - b.t)), 0);
+        const cost = vcost + Math.abs(dx) + cover * NAME_COVER * line;
+        if (cost < best.cost) best = { x: t.cx + dx, top, slot: c.slot, cost };
+      }
+    }
+    // Sense cap lloc lliure (molts tokens molt junts): a sota, encara que en toqui un altre.
+    it.x = best.x; it.top = best.top; it.slot = best.slot;
+    slots.set(t.key, it.slot);
+    placed.push({ l: it.x - w / 2, r: it.x + w / 2, t: it.top, b: it.top + h });
+  }
+  _nameSlot = slots;
+  // Si s'han de tocar, els jugadors queden a sobre.
+  for (let k = items.length - 1; k >= 0; k--) drawNameTag(ctx, items[k].t, u, items[k].x, items[k].top);
+  ctx.restore();
 }
 
 /** Centre per als badges dels estats: amb la figura estirada, baixen fins a ella (no suren on hi hauria el cap). */
@@ -277,10 +393,8 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 
     const showStates = isDM || !isInvis;
     if (showStates) {
-      ctx.font = `${10 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.globalAlpha = enAlpha;
-      const tw = ctx.measureText(displayName).width;
-      ctx.fillStyle = 'rgba(8,12,18,.85)'; ctx.fillRect(ep.x - tw / 2 - 4 / sc, ep.y + R + 2 / sc, tw + 8 / sc, 13 / sc);
-      ctx.fillStyle = isVis ? '#ffaaaa' : '#888'; ctx.fillText(displayName, ep.x, ep.y + R + 12 / sc);
+      nameTag(ctx, fc, { key: String(en.id), text: displayName, cx: ep.x, cy: ep.y, r: R, fig: !!psdSprite, badges: enCondIds.length > 0, size: 10, bold: false, gap: 2, boxH: 13,
+        color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.85)', alpha: enAlpha, pri: 1 });
     }
     if (isDM && ov?.hpMax && ov.hpMax > 0) {
       const hp = Math.max(0, ov.hp ?? ov.hpMax);
@@ -469,12 +583,8 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     }
     ctx.textBaseline = 'alphabetic';
     if (showStates) {
-      ctx.font = `bold ${11 / sc}px system-ui`; ctx.textAlign = 'center';
-      const tw = ctx.measureText(en.name).width;
-      ctx.fillStyle = 'rgba(8,12,18,.85)';
-      ctx.fillRect(ep.x - tw / 2 - 4 / sc, ep.y + R + 2 / sc, tw + 8 / sc, 13 / sc);
-      ctx.fillStyle = isVis ? '#ffaaaa' : '#888';
-      ctx.fillText(en.name, ep.x, ep.y + R + 12 / sc);
+      nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, badges: enCondIds.length > 0, size: 11, bold: true, gap: 2, boxH: 13,
+        color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.85)', alpha: enAlpha, pri: 1 });
     }
     ctx.globalAlpha = 1;
     const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
@@ -673,10 +783,8 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
     }
     ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
-    ctx.font = `${10 / sc}px system-ui`; ctx.textAlign = 'center';
-    const tw2 = ctx.measureText(pl.name).width;
-    ctx.fillStyle = 'rgba(8,12,18,.8)'; ctx.fillRect(ppos.x + R - tw2 / 2 - 4 / sc, ppos.y + R * 2 + 3 / sc, tw2 + 8 / sc, 12 / sc);
-    ctx.fillStyle = pl.color; ctx.fillText(pl.name, ppos.x + R, ppos.y + R * 2 + 12 / sc);
+    nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, badges: plCondIds.length > 0, size: 10, bold: false, gap: 3, boxH: 12,
+      color: pl.color, bg: 'rgba(8,12,18,.8)', alpha: 1, pri: 0 });
     ctx.textAlign = 'left';
     const badges = (parts?: { ring?: boolean; badges?: boolean }) =>
       drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? { footY: ppos.y + R + R * FOOT_DY, flat: FOOT_FLAT } : undefined, parts);
