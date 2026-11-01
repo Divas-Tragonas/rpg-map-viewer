@@ -38,17 +38,21 @@ const nameUnit = (fc: FrameContext) => (fc.labelScale ?? 1) / fc.sc;
 /**
  * Nom sota un token. `cx, cy, r`: centre i radi del token (px de mapa); `fig`: figureta (estil Píxel);
  * `badges`: té estats (els seus badges van sobre el cap). Mides en px de pantalla a escala 1 (`size` de
- * la lletra, `gap` des de la vora de baix del token, `boxH` del fons). `pri`: 0 jugadors, 1 enemics.
+ * la lletra, sempre en negreta; `gap` des de la vora de baix del token, `boxH` del fons). `pri`: 0 jugadors,
+ * 1 enemics.
  */
 export interface NameTag {
   key: string; text: string; cx: number; cy: number; r: number; fig: boolean; badges: boolean;
-  size: number; bold: boolean; gap: number; boxH: number;
+  size: number; gap: number; boxH: number;
   color: string; bg: string; alpha: number; pri: number;
 }
 
+/** Tots els noms van en negreta (DM i jugador): a la TV, la lletra prima es perdia damunt del mapa. */
+const nameFont = (t: NameTag, u: number) => `bold ${t.size * u}px system-ui`;
+
 /** Pinta el nom centrat a `x` amb el fons a partir de `top` (px de mapa). */
 function drawNameTag(ctx: CanvasRenderingContext2D, t: NameTag, u: number, x: number, top: number) {
-  ctx.font = `${t.bold ? 'bold ' : ''}${t.size * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.font = nameFont(t, u); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   const tw = ctx.measureText(t.text).width;
   ctx.globalAlpha = t.alpha;
   ctx.fillStyle = t.bg; ctx.fillRect(x - tw / 2 - 4 * u, top, tw + 8 * u, t.boxH * u);
@@ -90,7 +94,7 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
   const dark = (fc.rRooms?.current ?? []).filter(r => r.dark && !r.revealed && r.points.length >= 3);
   ctx.save();
   const items = tags.map((t, i) => {
-    ctx.font = `${t.bold ? 'bold ' : ''}${t.size * u}px system-ui`;
+    ctx.font = nameFont(t, u);
     const pri = t.pri > 0 && dark.some(r => pointInPolygon(t.cx, t.cy, r.points)) ? 2 : t.pri;
     return { t, i, pri, w: ctx.measureText(t.text).width + 8 * u, h: t.boxH * u, body: tokenBody(t), x: t.cx, top: 0, slot: 0 };
   });
@@ -393,7 +397,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 
     const showStates = isDM || !isInvis;
     if (showStates) {
-      nameTag(ctx, fc, { key: String(en.id), text: displayName, cx: ep.x, cy: ep.y, r: R, fig: !!psdSprite, badges: enCondIds.length > 0, size: 10, bold: false, gap: 2, boxH: 13,
+      nameTag(ctx, fc, { key: String(en.id), text: displayName, cx: ep.x, cy: ep.y, r: R, fig: !!psdSprite, badges: enCondIds.length > 0, size: 10, gap: 2, boxH: 13,
         color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.85)', alpha: enAlpha, pri: 1 });
     }
     if (isDM && ov?.hpMax && ov.hpMax > 0) {
@@ -583,7 +587,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     }
     ctx.textBaseline = 'alphabetic';
     if (showStates) {
-      nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, badges: enCondIds.length > 0, size: 11, bold: true, gap: 2, boxH: 13,
+      nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, badges: enCondIds.length > 0, size: 11, gap: 2, boxH: 13,
         color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.85)', alpha: enAlpha, pri: 1 });
     }
     ctx.globalAlpha = 1;
@@ -783,7 +787,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
     }
     ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
-    nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, badges: plCondIds.length > 0, size: 10, bold: false, gap: 3, boxH: 12,
+    nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, badges: plCondIds.length > 0, size: 10, gap: 3, boxH: 12,
       color: pl.color, bg: 'rgba(8,12,18,.8)', alpha: 1, pri: 0 });
     ctx.textAlign = 'left';
     const badges = (parts?: { ring?: boolean; badges?: boolean }) =>

@@ -70,6 +70,9 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.64 — Noms en negreta
+- Tots els noms sota els tokens van en negreta, a la pantalla de jugador i a la del DM (abans només els dels enemics de la biblioteca): a la TV, la lletra prima es perdia damunt del mapa.
+
 ### v4.63 — Noms dels tokens que es llegeixen a la TV
 - A la **pantalla de jugador** (també la incrustada al tauler de missions de la wiki), el nom sota cada token creix amb la mida de la pantalla: a una TV de 1920 px és gairebé el doble que abans; a una tablet o un mòbil, igual que sempre. A la pantalla del DM no canvia res.
 - Els noms ja **no s'encavalquen ni queden tapats** per la figureta de sota quan la colla va junta: es pinten després de totes les figuretes i cadascun va al lloc lliure més proper (a sota, una línia més avall, sobre el cap o una mica de costat), sense saltar mai per sobre d'una altra figureta. Els dels jugadors tenen preferència, i els noms amagats a la foscor no mouen els visibles.
