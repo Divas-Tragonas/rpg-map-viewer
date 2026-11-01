@@ -70,6 +70,13 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.62 — Cony Cirera calcat del mapa pintat
+- El **mapa en píxel de Cony Cirera** es torna a fer a partir del mapa pintat de la wiki, perquè el «match cut» del tauler de missions (l'onada que passa de l'un a l'altre) encaixi: cada cosa és al mateix lloc a tots dos.
+- **Menys bosc**: abans s'omplien d'arbres a l'atzar totes les caselles de bosc i el bosc tapava el prat, els murs i els camins. Ara cada arbre, mata o grup d'arbres és on és al pintat (tret de les seves taques d'arbres).
+- **Camins** d'una casella d'ample, pel traçat del pintat; **murs de pedra seca** i **tanques** resseguits casella a casella (el mur llarg de l'oest, el de dalt, el de l'est fins a l'hostal, els tancats de la casa del batlle, del graner, del cementiri i del sud).
+- Pou, barca, moll, roques del cementiri i taulons (passeres, escales i el portal de fusta) al seu lloc; dos coberts nous (el del tancat del graner i el porxo del cementiri).
+- En sortir d'un lloc, la colla surt a les mateixes portes (només canvien algunes de les caselles del costat, que ara són lliures).
+
 ### v4.61 — Més mòbil: combat, eines i figuretes
 - **Barra de combat** a l'amplada de la pantalla del mòbil, amb botons d'icona (Següent, Ronda, acabar). Mantenir premut un xip recupera el seu torn (com el clic dret).
 - **Barra d'eines horitzontal a dalt** al mòbil (ocupa menys i deixa la de baix per al combat); els panells (dibuix, llums…) s'obren a sota i sense finestretes d'ajuda enganxades.
