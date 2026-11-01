@@ -187,6 +187,15 @@ export function glow(ctx: CanvasRenderingContext2D, rgb: RGB3, x: number, y: num
 
 /** Mida d'una casella en coords de mapa (o una mida raonable de pantalla sense graella). */
 export const fxCell = (sc: number, gridSize: number) => (gridSize > 0 ? gridSize : 48 / sc);
+/**
+ * Mida dels efectes de les màgies respecte de la casella (v4.65). Les àrees de reglament (bola de foc,
+ * dormir, greix, llum…) es mesuren amb la casella sencera (`fxCell`); tota la resta (projectils, halos,
+ * esclats, espurnes, segells) amb `fxUnit`, la casella × `FX_SIZE`. Amb la casella sencera, un projectil
+ * màgic feia tres dards tan grossos com les figuretes i un esclat de casella i mitja. Per fer tots els
+ * efectes més grossos o més petits alhora (Clàssica i Píxel), es toca aquest número.
+ */
+export const FX_SIZE = 0.7;
+export const fxUnit = (sc: number, gridSize: number) => fxCell(sc, gridSize) * FX_SIZE;
 
 // ── Llenguatge visual comú ───────────────────────────────────────────────────
 // Cada escola de màgia té UNA paleta (blanc de nucli → clar → mig → profund) i tots

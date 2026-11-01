@@ -20,7 +20,7 @@ import type { Point } from '@/types';
 import { pathAt } from '@/lib/geometry';
 import {
   mulberry32, glowSprite, smokeSprite, scorchSprite, blit, blitStretch, fire, PAL,
-  TAU, clamp01, easeOutCubic, easeOutQuart, smoothstep, dragged, glow, fxCell,
+  TAU, clamp01, easeOutCubic, easeOutQuart, smoothstep, dragged, glow, fxCell, FX_SIZE,
 } from './fxsprites';
 
 const CHARGE = 0.14;               // s d'ignició a la mà abans de disparar
@@ -44,8 +44,9 @@ function dirAt(pts: Point[], t: number): Point {
 }
 
 function sizes(sc: number, gridSize: number) {
-  const cell = fxCell(sc, gridSize);
-  return { cell, R: (BLAST_FT / 5) * cell, headR: cell * 0.42 };
+  // L'explosió és l'àrea de reglament (casella sencera); la resta de l'efecte, a la mida dels efectes.
+  const grid = fxCell(sc, gridSize), cell = grid * FX_SIZE;
+  return { cell, R: (BLAST_FT / 5) * grid, headR: cell * 0.42 };
 }
 
 // ── Passada 'ground': socarrim + brases (sota els tokens) ────────────────────

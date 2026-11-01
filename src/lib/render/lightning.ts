@@ -17,7 +17,7 @@ import type { Point } from '@/types';
 import { pathAt } from '@/lib/geometry';
 import {
   mulberry32, scorchSprite, blit,
-  TAU, smoothstep, dragged, glow, fxCell, type RGB3,
+  TAU, smoothstep, dragged, glow, fxUnit, type RGB3,
 } from './fxsprites';
 
 export const LIGHTNING_DUR = 2.2;
@@ -133,7 +133,7 @@ function strikeState(e: number, seed: number): { idx: number; ts: number; I: num
 
 export function drawLightningGround(ctx: CanvasRenderingContext2D, pts: Point[], e: number, sc: number, gridSize: number, seed: number): void {
   if (e < LEADER || pts.length < 2) return;
-  const end = pts[pts.length - 1], cell = fxCell(sc, gridSize);
+  const end = pts[pts.length - 1], cell = fxUnit(sc, gridSize);
   const fade = 1 - smoothstep(e, LIGHTNING_DUR - 0.5, LIGHTNING_DUR);
   ctx.save();
   ctx.globalAlpha = 0.5 * smoothstep(e, LEADER, LEADER + 0.1) * fade;
@@ -143,7 +143,7 @@ export function drawLightningGround(ctx: CanvasRenderingContext2D, pts: Point[],
 
 export function drawSpellLightning(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number, spellId: string): void {
   if (pts.length < 2) return;
-  const cell = fxCell(sc, gridSize), px = 1 / sc;
+  const cell = fxUnit(sc, gridSize), px = 1 / sc;
   const coreW = Math.max(1.7 * px, cell * 0.05);
   const O = pts[0], end = pts[pts.length - 1];
   ctx.save();

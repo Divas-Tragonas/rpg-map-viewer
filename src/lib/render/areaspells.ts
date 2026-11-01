@@ -10,7 +10,7 @@ import type { Point } from '@/types';
 import { AREA_SPELL_DATA } from '@/constants';
 import {
   mulberry32, mistSprite, greaseSprite, blit,
-  TAU, easeOutCubic, smoothstep, dragged, glow, fxCell, rgb, PAL,
+  TAU, easeOutCubic, smoothstep, dragged, glow, fxCell, fxUnit, rgb, PAL,
 } from './fxsprites';
 
 const ftToWorld = (ft: number, cell: number) => (ft / 5) * cell;
@@ -19,8 +19,8 @@ const ftToWorld = (ft: number, cell: number) => (ft / 5) * cell;
 
 export function drawSpellSleep(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const c = pts[pts.length - 1]; if (!c) return;
-  const P = PAL.dream, cell = fxCell(sc, gridSize), px = 1 / sc;
-  const R = ftToWorld(AREA_SPELL_DATA.sleep.aoeRadiusFt, cell);
+  const P = PAL.dream, cell = fxUnit(sc, gridSize), px = 1 / sc;
+  const R = ftToWorld(AREA_SPELL_DATA.sleep.aoeRadiusFt, fxCell(sc, gridSize));  // àrea de reglament: casella sencera
   const tN = performance.now() / 1000;
   const grow = easeOutCubic(Math.min(1, e / 1.1));   // la boira s'escampa
   const a = smoothstep(e, 0, 0.6);
@@ -82,8 +82,8 @@ export function drawSpellSleep(ctx: CanvasRenderingContext2D, pts: Point[], e: n
 
 export function drawSpellGrease(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const c = pts[pts.length - 1]; if (!c) return;
-  const cell = fxCell(sc, gridSize), px = 1 / sc;
-  const R = ftToWorld(AREA_SPELL_DATA.grease.aoeRadiusFt, cell);
+  const cell = fxUnit(sc, gridSize), px = 1 / sc;
+  const R = ftToWorld(AREA_SPELL_DATA.grease.aoeRadiusFt, fxCell(sc, gridSize));  // àrea de reglament: casella sencera
   const SQ = 0.55; // mateix oval que la previsualització
   const tN = performance.now() / 1000;
   const spread = easeOutCubic(Math.min(1, e / 0.45));

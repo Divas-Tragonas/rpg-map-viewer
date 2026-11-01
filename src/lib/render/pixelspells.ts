@@ -11,7 +11,7 @@
 import type { Point } from '@/types';
 import { blit, tintedRegion } from '@/lib/sprites/draw';
 import { AREA_SPELL_DATA } from '@/constants';
-import { PAL, type Palette } from './fxsprites';
+import { PAL, fxCell, FX_SIZE, type Palette } from './fxsprites';
 
 const FX = 24;
 /** Columna del full per a cada orientació (angle de canvas: 0 = dreta, 90 = avall). */
@@ -112,14 +112,17 @@ const fx = (ctx: CanvasRenderingContext2D, col: number, row: number, cx: number,
 /**
  * Pinta una màgia en píxel. `e` = segons des de l'inici, `dur` = durada total de la màgia
  * (la mateixa que el procedural, així caduca igual a totes les pantalles).
+ * Mides: `grid` és la casella (àrees de reglament i velocitat del viatge) i `cell` la mida dels efectes
+ * (`FX_SIZE` de la casella, com els procedurals): amb la casella sencera, cada dard del projectil màgic
+ * era tan gros com una figureta.
  */
-export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts: Point[], e: number, dur: number, gridSize: number, seed: number) {
+export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts: Point[], e: number, dur: number, sc: number, gridSize: number, seed: number) {
   const def = DEFS[type]; if (!def || pts.length === 0) return;
-  const cell = gridSize > 0 ? gridSize : 48;
+  const grid = fxCell(sc, gridSize), cell = grid * FX_SIZE;
   const from = pts[0], to = pts[pts.length - 1];
   const dist = pts.length > 1 ? Math.hypot(to.x - from.x, to.y - from.y) : 0;
   // El viatge dura segons la distància (ràpid, però que es vegi), mai més d'un terç.
-  const travel = def.proj && dist > 0 ? Math.min(dur * 0.35, 0.18 + dist / (cell * 22)) : 0;
+  const travel = def.proj && dist > 0 ? Math.min(dur * 0.35, 0.18 + dist / (grid * 22)) : 0;
   const fade = Math.max(0, Math.min(1, (dur - e) / 0.35));
   ctx.save();
   ctx.imageSmoothingEnabled = false;
@@ -161,9 +164,9 @@ export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts:
   if (e >= t0) {
     const k = e - t0;
     const at = def.onCaster ? from : to;
-    // Mida de l'esclat: l'àrea de reglament si en té (bola de foc 15 ft), si no una casella i mitja.
+    // Mida de l'esclat: l'àrea de reglament si en té (bola de foc 15 ft, casella sencera); si no, la de l'efecte.
     const areaFt = type === 'fireball' ? 15 : (AREA_SPELL_DATA[type]?.aoeRadiusFt ?? 0);
-    const radius = areaFt >= 5 ? (areaFt / 5) * cell : cell * 0.75;
+    const radius = areaFt >= 5 ? (areaFt / 5) * grid : cell * 0.75;
     if (def.burst) {
       const frame = Math.min(4, Math.floor(k / 0.07));
       if (k < 0.07 * 6) {

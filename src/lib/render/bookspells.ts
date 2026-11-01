@@ -13,7 +13,7 @@ import type { Point } from '@/types';
 import { AREA_SPELL_DATA } from '@/constants';
 import {
   mulberry32, smokeSprite, blit, blitStretch, glowSprite, streak, impactBurst,
-  TAU, clamp01, easeOutCubic, easeOutQuart, smoothstep, dragged, glow, fxCell, rgb, PAL,
+  TAU, clamp01, easeOutCubic, easeOutQuart, smoothstep, dragged, glow, fxCell, fxUnit, rgb, PAL,
   type RGB3,
 } from './fxsprites';
 
@@ -40,7 +40,7 @@ const RF_CHARGE = 0.15, RF_EXTEND = 0.1, RF_HOLD = 0.75;
 
 export function drawSpellRayOfFrost(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   if (pts.length < 2) return;
-  const P = PAL.frost, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.frost, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const [A, B] = pts;
   const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
   const nx = -dy / len, ny = dx / len, ang = Math.atan2(dy, dx);
@@ -102,7 +102,7 @@ export const SHOCKING_GRASP_DUR = 1.1;
 
 export function drawSpellShockingGrasp(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   if (pts.length < 2) return;
-  const P = PAL.storm, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.storm, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const [A, B0] = pts;
   // Un toc: si el destí és a sobre del llançador, l'arc surt cap a la vora del token
   const d0 = Math.hypot(B0.x - A.x, B0.y - A.y);
@@ -168,7 +168,7 @@ function handPath(ctx: CanvasRenderingContext2D, s: number): void {
 
 export function drawSpellMageHand(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.arcane, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.arcane, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const a = fadeIO(e, MAGE_HAND_DUR, 0.35, 0.5);
   const bob = Math.sin(e * 3.2) * cell * 0.08;
   const appear = easeOutCubic(clamp01(e / 0.45));
@@ -199,7 +199,7 @@ const CONFETTI: RGB3[] = [[255, 170, 230], [255, 225, 120], [150, 230, 255], [20
 
 export function drawSpellPrestidigitation(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const cell = fxCell(sc, gridSize), px = 1 / sc;
+  const cell = fxUnit(sc, gridSize), px = 1 / sc;
   begin(ctx);
   impactBurst(ctx, B.x, B.y, cell * 0.3, PAL.charm, e / 0.4, seed, px);
   const rnd = mulberry32(seed ^ 0x7e57);
@@ -220,7 +220,7 @@ export const MAGE_ARMOR_DUR = 2.1;
 
 export function drawSpellMageArmor(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.dream, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.dream, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const close = easeOutQuart(clamp01(e / 0.6));
   const r = cell * (1.1 - 0.5 * close);
   const a = fadeIO(e, MAGE_ARMOR_DUR, 0.15, 0.6);
@@ -260,7 +260,7 @@ function hexPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
 
 export function drawSpellShield(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const A = pts[0]; if (!A) return;
-  const P = PAL.arcane, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.arcane, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const R = cell * 0.62, N = 12;
   const out = 1 - smoothstep(e, SHIELD_DUR - 0.6, SHIELD_DUR);
   begin(ctx);
@@ -289,8 +289,8 @@ export const DETECT_MAGIC_DUR = 2.8;
 
 export function drawSpellDetectMagic(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const A = pts[0]; if (!A) return;
-  const P = PAL.arcane, cell = fxCell(sc, gridSize), px = 1 / sc;
-  const R = ftToWorld(AREA_SPELL_DATA.detect_magic.aoeRadiusFt, cell);
+  const P = PAL.arcane, cell = fxUnit(sc, gridSize), px = 1 / sc;
+  const R = ftToWorld(AREA_SPELL_DATA.detect_magic.aoeRadiusFt, fxCell(sc, gridSize));  // àrea de reglament
   const a = fadeIO(e, DETECT_MAGIC_DUR, 0.2, 0.7);
   begin(ctx);
   glow(ctx, P.deep, A.x, A.y, R, 0.12 * a);
@@ -330,8 +330,8 @@ export const LIGHT_DUR = 3.2;
 
 export function drawSpellLight(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.radiant, cell = fxCell(sc, gridSize);
-  const R = ftToWorld(AREA_SPELL_DATA.light.aoeRadiusFt, cell);
+  const P = PAL.radiant, cell = fxUnit(sc, gridSize);
+  const R = ftToWorld(AREA_SPELL_DATA.light.aoeRadiusFt, fxCell(sc, gridSize));  // àrea de reglament
   const a = fadeIO(e, LIGHT_DUR, 0.5, 0.9);
   const fl = 0.92 + 0.08 * Math.sin(e * 13 + seed) * Math.sin(e * 7.3);
   begin(ctx);
@@ -350,7 +350,7 @@ const SF_FALL = 0.22;
 
 export function drawSpellSacredFlame(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.radiant, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.radiant, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const top = B.y - cell * 5;
   begin(ctx);
   // El raig baixa del cel
@@ -389,8 +389,8 @@ export const THAUMATURGY_DUR = 1.9;
 
 export function drawSpellThaumaturgy(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.radiant, cell = fxCell(sc, gridSize), px = 1 / sc;
-  const R = ftToWorld(AREA_SPELL_DATA.thaumaturgy.aoeRadiusFt, cell);
+  const P = PAL.radiant, cell = fxUnit(sc, gridSize), px = 1 / sc;
+  const R = ftToWorld(AREA_SPELL_DATA.thaumaturgy.aoeRadiusFt, fxCell(sc, gridSize));  // àrea de reglament
   const a = fadeIO(e, THAUMATURGY_DUR, 0.1, 0.6);
   ctx.save();
   // Pols que salta del terra (blend normal)
@@ -424,7 +424,7 @@ export const BLESS_DUR = 2.4;
 
 export function drawSpellBless(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.radiant, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.radiant, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const a = fadeIO(e, BLESS_DUR, 0.25, 0.7);
   begin(ctx);
   // Halo sobre el cap
@@ -453,7 +453,7 @@ export const CURE_WOUNDS_DUR = 2.2;
 
 export function drawSpellCureWounds(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   const B = pts[pts.length - 1]; if (!B) return;
-  const P = PAL.potion, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.potion, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const a = fadeIO(e, CURE_WOUNDS_DUR, 0.15, 0.7);
   begin(ctx);
   impactBurst(ctx, B.x, B.y, cell * 0.4, P, e / 0.5, seed, px);
@@ -509,7 +509,7 @@ function drawHeart(ctx: CanvasRenderingContext2D, P: typeof PAL.charm, x: number
 
 export function drawSpellCharmPerson(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   if (pts.length < 2) return;
-  const P = PAL.charm, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.charm, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const [A, B] = pts;
   const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
   const nx = -dy / len, ny = dx / len;

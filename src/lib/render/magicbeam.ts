@@ -15,7 +15,7 @@ import type { Point } from '@/types';
 import { pathAt, pathLen } from '@/lib/geometry';
 import {
   mulberry32, glowSprite, blitStretch,
-  TAU, clamp01, easeOutCubic, smoothstep, dragged, glow, fxCell, PAL, type RGB3,
+  TAU, clamp01, easeOutCubic, smoothstep, dragged, glow, fxUnit, PAL, type RGB3,
 } from './fxsprites';
 
 export const MAGIC_BEAM_DUR = 3.2;
@@ -44,7 +44,7 @@ function strokePath(ctx: CanvasRenderingContext2D, pts: Point[], rgb: RGB3, widt
 
 export function drawSpellMagicBeam(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   if (pts.length < 2) return;
-  const cell = fxCell(sc, gridSize), px = 1 / sc;
+  const cell = fxUnit(sc, gridSize), px = 1 / sc;
   const O = pts[0];
   const L = pathLen(pts) || 1;
   ctx.save();

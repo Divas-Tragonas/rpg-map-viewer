@@ -220,7 +220,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     const seed = hash32(sp.id);
     // App Píxel: els efectes del paquet Oryx (les àrees persistents es queden com sempre).
     if (pixel && !isArea && hasPixelSpell(sp.type)) {
-      if (layer === 'air') drawPixelSpell(ctx, sp.type, sp.points, elapsed, dur, gridSize, seed);
+      if (layer === 'air') drawPixelSpell(ctx, sp.type, sp.points, elapsed, dur, sc, gridSize, seed);
       continue;
     }
     // La bola de foc deixa un socarrim a terra: aquesta part va a la passada 'ground'

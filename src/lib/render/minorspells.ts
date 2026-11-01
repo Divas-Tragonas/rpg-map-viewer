@@ -7,7 +7,7 @@
 import type { Point } from '@/types';
 import {
   mulberry32, smokeSprite, blit, blitStretch, glowSprite, fire, streak, impactBurst,
-  TAU, clamp01, easeOutCubic, smoothstep, dragged, glow, fxCell, rgb, PAL,
+  TAU, clamp01, easeOutCubic, smoothstep, dragged, glow, fxUnit, rgb, PAL,
 } from './fxsprites';
 
 // ── Projectil màgic — tres dards arcans que busquen l'objectiu ───────────────
@@ -22,7 +22,7 @@ function bez(A: Point, C: Point, B: Point, t: number): Point {
 
 export function drawSpellMagicMissile(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   if (pts.length < 2) return;
-  const P = PAL.arcane, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.arcane, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const [A, B] = pts;
   const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
   const nx = -dy / len, ny = dx / len;
@@ -83,7 +83,7 @@ const GOLD: [number, number, number] = [255, 214, 120];
 
 export function drawSpellHideousLaughter(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   if (pts.length < 2) return;
-  const P = PAL.charm, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.charm, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const [A, B] = pts;
   const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
   const nx = -dy / len, ny = dx / len;
@@ -160,7 +160,7 @@ const BH_IGNITE = 0.1, BH_EMIT_END = 1.7;
 
 export function drawSpellBurningHands(ctx: CanvasRenderingContext2D, pts: Point[], e: number, _dur: number, sc: number, gridSize: number, seed: number): void {
   if (pts.length < 2) return;
-  const P = PAL.fire, cell = fxCell(sc, gridSize), px = 1 / sc;
+  const P = PAL.fire, cell = fxUnit(sc, gridSize), px = 1 / sc;
   const [A, B] = pts;
   const range = Math.hypot(B.x - A.x, B.y - A.y) || cell;
   const ang = Math.atan2(B.y - A.y, B.x - A.x), HALF = Math.PI / 6;

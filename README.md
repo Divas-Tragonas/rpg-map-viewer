@@ -70,6 +70,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.65 — Màgies a la mida de la graella
+- Els efectes de les màgies (projectils, foc, halos, esclats, espurnes i segells) són més petits i es mesuren per la casella de la graella, a l'app Clàssica i a la Píxel: el projectil màgic feia tres dards tan grossos com les figuretes i un esclat de casella i mitja.
+- Les àrees de reglament no canvien: la bola de foc, dormir, greix i la resta continuen marcant exactament on arriben.
+- Una sola mida per a tots els efectes (`FX_SIZE` a `render/fxsprites.ts`).
+
 ### v4.64 — Noms en negreta
 - Tots els noms sota els tokens van en negreta, a la pantalla de jugador i a la del DM (abans només els dels enemics de la biblioteca): a la TV, la lletra prima es perdia damunt del mapa.
 
