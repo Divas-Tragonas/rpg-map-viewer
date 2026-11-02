@@ -17,7 +17,7 @@ les regles de treball (git, versions, API) són a [CLAUDE.md](../CLAUDE.md).
 | `BroadcastChannel`, WebSocket, càmera, pantalla de jugador | [sincronitzacio.md](sincronitzacio.md) | Missatges DM ↔ jugador, dieta del `STATE`, càmera compartida, mòbil, wiki |
 | Barra superior, lateral, eines, menús, dreceres, estil visual | [ui-dm.md](ui-dm.md) | Modes Preparar/Jugar, desfer únic, menú del token, sistema visual |
 | Tokens, estats, torns, moviment, enemics | [tokens-i-combat.md](tokens-i-combat.md) | Condicions, iniciativa, moviment des del jugador, rètol de torn |
-| Mapa, PSD, parets, sales, portes, llums, desat | [mapa-sales-llum.md](mapa-sales-llum.md) | Sales fosques, il·luminació, col·lisions, desat automàtic |
+| Mapa, parets, sales, portes, llums, desat | [mapa-sales-llum.md](mapa-sales-llum.md) | Sales fosques, il·luminació, col·lisions, desat automàtic |
 | App Píxel, missions, llocs | [pixel-i-missions.md](pixel-i-missions.md) | Sprites, mapes de caselles, missions de Cony Cirera |
 | Màgies, zones màgiques, cinemàtiques de boss | [efectes-i-cinematiques.md](efectes-i-cinematiques.md) | Bola de foc, raigs, grimoris, zones, cinemàtiques |
 | Diàlegs, fitxes, Expositor, Revelador de text | [dialegs-i-fitxes.md](dialegs-i-fitxes.md) | Guió, XP, panell «Mostrar als jugadors» |

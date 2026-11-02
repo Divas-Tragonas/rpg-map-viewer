@@ -145,7 +145,7 @@ Una taula més detallada és a [`docs/README.md`](docs/README.md). Resum:
 | BroadcastChannel, WebSocket, càmera, pantalla de jugador | [`docs/sincronitzacio.md`](docs/sincronitzacio.md) |
 | Barra, lateral, modes, eines, menús, dreceres, estil visual | [`docs/ui-dm.md`](docs/ui-dm.md) |
 | Tokens, estats, torns, moviment, enemics | [`docs/tokens-i-combat.md`](docs/tokens-i-combat.md) |
-| Mapa, PSD, parets, sales, portes, llums, desat | [`docs/mapa-sales-llum.md`](docs/mapa-sales-llum.md) |
+| Mapa, parets, sales, portes, llums, desat | [`docs/mapa-sales-llum.md`](docs/mapa-sales-llum.md) |
 | App Píxel, missions, llocs | [`docs/pixel-i-missions.md`](docs/pixel-i-missions.md) |
 | Màgies, zones màgiques, cinemàtiques de boss | [`docs/efectes-i-cinematiques.md`](docs/efectes-i-cinematiques.md) |
 | Diàlegs, fitxes, Expositor, Revelador de text | [`docs/dialegs-i-fitxes.md`](docs/dialegs-i-fitxes.md) |

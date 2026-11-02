@@ -87,8 +87,8 @@ SessionMeta (element de la llista, GET /sessions — SENSE el camp pesat `data`)
 Sobre `data`: és exactament l'objecte que el frontend ja serialitza avui al
 save .json (camps: version, vis, pos, zoom, panOffset, players, conditions,
 defeated, paintedZones, strokeHistory, grid*, tokenSizeOverride, libEnemies,
-walls, rooms, turn, drawCanvas, i els pesats bgData/bgMimeType, psdStruct,
-psdInfo, layerImageUrls). Pot contenir imatges base64 i, al fons, fins i tot un
+walls, rooms, turn, drawCanvas, i els pesats bgData/bgMimeType, mapSize;
+les partides velles poden portar també psdStruct, psdInfo, layerImageUrls). Pot contenir imatges base64 i, al fons, fins i tot un
 vídeo → el payload pot arribar a desenes de MB. La API l'ha de tractar com a
 blob opac (sense validar-ne els camps) perquè el frontend pugui evolucionar
 l'estat sense tocar la API.
@@ -133,7 +133,7 @@ Notes /sessions:
   (ja el llegeix `src/lib/api.ts`). Sense token vàlid → 401. El DM ha d'estar
   loguejat al back office perquè el desar/carregar al servidor funcioni; si no ho
   està, el frontend ho detecta i recorre al save/load a .json (offline).
-- Límit de body: el body JSON pot ser gran (imatges/PSD/vídeo en base64) → cal
+- Límit de body: el body JSON pot ser gran (imatges/vídeo en base64) → cal
   apujar el límit del parser (p. ex. express.json({ limit: '80mb' })). Emmagatzematge
   tolerant a documents grans (GridFS o fitxer + metadades a Mongo si se supera el
   límit BSON de 16MB amb fons de vídeo).

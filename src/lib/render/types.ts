@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react';
 import type {
-  MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, SpellPreview,
+  PosMap, Player, PaintedZone, Spell, SpellPreview,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, Point, DrawTool,
   Wall, Room, Door, TurnState,
 } from '@/types';
@@ -28,10 +28,6 @@ export interface CinematicCamera {
   curPan: { x: number; y: number };
 }
 
-export interface RoomAnimMap {
-  [id: string]: number;
-}
-
 export interface FrameContext {
   sc: number;
   ox: number;
@@ -49,13 +45,8 @@ export interface FrameContext {
    * els pinta tots junts, sense encavalcar-se. Una llista nova a cada frame. Al DM, absent.
    */
   nameTags?: import('./tokens').NameTag[];
-  s: MapStructure;
-  v: VisMap;
   pp: PosMap;
 
-  rLayerImages:     MutableRefObject<Record<number, HTMLCanvasElement>>;
-  rHoveredRoom:     MutableRefObject<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>;
-  roomAnimRef:      MutableRefObject<RoomAnimMap>;
   rPaintedZones:    MutableRefObject<PaintedZone[]>;
   rContextMenu:     MutableRefObject<unknown>;
   zoneAppearRef:    MutableRefObject<Record<string, number>>;
@@ -73,7 +64,6 @@ export interface FrameContext {
 
   rConditions:      MutableRefObject<ConditionsMap>;
   rDefeated:        MutableRefObject<DefeatedMap>;
-  rDeathCanvas:     MutableRefObject<HTMLCanvasElement | null>;
   defeatedAnimRef:  MutableRefObject<Record<string, number>>;
   invisAlphaRef:    MutableRefObject<Record<string, number>>;
 
@@ -114,8 +104,6 @@ export interface FrameContext {
   rTurn?:           MutableRefObject<TurnState>;
 
   rLibEnemies:         MutableRefObject<import('@/types').LibEnemy[]>;
-  rPsdEnemyOverrides:  MutableRefObject<import('@/types').PsdEnemyOverrides>;
-  rPsdEnemyImgCache:   MutableRefObject<Record<number, HTMLCanvasElement>>;
 
   zoneDragRef?: MutableRefObject<{ zoneId: string; startMx: number; startMy: number; origPoints: { x: number; y: number }[]; origBbox: { left: number; top: number; right: number; bottom: number; cx: number; cy: number; w: number; h: number } } | null>;
   rHoveredPaintedZoneId?: MutableRefObject<string | null>;

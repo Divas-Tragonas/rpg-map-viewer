@@ -6,10 +6,10 @@ import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
 import type {
-  MapStructure, VisMap, PosMap, Player, PSDInfo, Spell, PaintedZone,
+  PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, PsdEnemyOverrides, Wall, Room, Door, LightSource, TurnState, Notice, Notify, FigureGrade,
+  LibEnemy, Wall, Room, Door, LightSource, TurnState, Notice, Notify, FigureGrade,
 } from '@/types';
 import { clearExploredAt } from '@/lib/render/darkrooms';
 import { useDMRefs, type DMRefs } from '@/hooks/useDMRefs';
@@ -24,7 +24,6 @@ import { computeReachableCells, segmentBlocked, buildMovePath } from '@/lib/room
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
-import { LayerTree } from '@/components/dm/LayerTree';
 import { RoomsPanel } from '@/components/dm/RoomsPanel';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
 import { FloatingToolbar } from '@/components/dm/FloatingToolbar';
@@ -44,10 +43,9 @@ import { DialogControls } from '@/components/dm/DialogControls';
 import { useDialog } from '@/hooks/useDialog';
 import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
-import { SidebarSection } from '@/components/ui/SidebarSection';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Button } from '@/components/ui/Button';
-import { FolderOpen, ImageIcon, Layers, MapIcon, DieIcon, RotateCcw, CheckIcon, PlayIcon } from '@/components/icons';
+import { FolderOpen, ImageIcon, MapIcon, DieIcon, RotateCcw, CheckIcon, PlayIcon } from '@/components/icons';
 import { isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
@@ -95,14 +93,6 @@ export function DMView() {
   // ── State ────────────────────────────────────────────────────────────────
   const [bgLoaded, setBgLoaded] = useState(false);
   const [bgName, setBgName] = useState('');
-  const [parsing, setParsing] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [struct, setStruct] = useState<MapStructure | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const [warningsDismissed, setWarningsDismissed] = useState(false);
-  const [psdInfo, setPsdInfo] = useState<PSDInfo | null>(null);
-  const [layerImages, setLayerImages] = useState<Record<number, HTMLCanvasElement>>({});
-  const [vis, setVis] = useState<VisMap>({});
   const [pos, setPos] = useState<PosMap>({});
   const [zoom, setZoom] = useState(1);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -127,7 +117,6 @@ export function DMView() {
   // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
   // a baixa freqüència perquè el HUD no re-renderitzi a 60fps mentre el DM fa pan/zoom.
   const [camAr, setCamAr] = useState<number | null>(null);
-  const [, setExpanded] = useState<Record<number, boolean>>({});
   const [, setActiveDrag] = useState<string | number | null>(null);
   const [activeSpells, setActiveSpells] = useState<Spell[]>([]);
   const [tokenSizeOverride, setTokenSizeOverride] = useState<TokenSizeMap>({});
@@ -167,15 +156,13 @@ export function DMView() {
   const [tileMapSize, setTileMapSize] = useState<{ cols: number; rows: number } | null>(null);
   // Ajust de color de les figuretes del mapa (missions). Mirall per a la UI (viu a `lib/sprites/pack`).
   const [figureGrade, setFigureGradeUI] = useState<FigureGrade | null>(null);
-  // Fitxer arrossegant-se damunt del canvas (tota la pantalla accepta el mapa, el PSD o la partida).
+  // Fitxer arrossegant-se damunt del canvas (tota la pantalla accepta el mapa o la partida).
   const [fileOver, setFileOver] = useState(false);
   const fileDragDepth = React.useRef(0);
   const bgInputRef = React.useRef<HTMLInputElement>(null);
-  const psdInputRef = React.useRef<HTMLInputElement>(null);
   const sessionInputRef = React.useRef<HTMLInputElement>(null);
   const tmxInputRef = React.useRef<HTMLInputElement>(null);
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
-  const [psdEnemyOverrides, setPsdEnemyOverrides] = useState<PsdEnemyOverrides>({});
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
   const [areaSelectMode, setAreaSelectMode] = useState(false);
   const [dmPrivateActive, setDmPrivateActive] = useState(false);
@@ -375,23 +362,23 @@ export function DMView() {
     onDialogsChange: () => dialogsChangedRef.current(),
     onMissionScenesChange: (sc: import('@/types').MissionScenes | null) => scenesChangedRef.current(sc),
     onFigureGradeChange: setFigureGradeUI,
-    setBgLoaded, setBgName, setPsdInfo, setStruct, setWarnings, setParseError, setParsing,
-    setLayerImages, setVis, setPos, setZoom, setPlayers, setConditions, setDefeated,
-    setPaintedZones, setExpanded, onUndoChange: refreshUndo, setActiveSpells, setGridSize, setGridSnap,
+    setBgLoaded, setBgName,
+    setPos, setZoom, setPlayers, setConditions, setDefeated,
+    setPaintedZones, onUndoChange: refreshUndo, setActiveSpells, setGridSize, setGridSnap,
     setGridLineWidth, setGridOriginX, setGridOriginY, setGridCalibrating, setTokenSizeOverride,
-    setWarningsDismissed, setGridVisible, setGridAutoSize,
-    setLibEnemies, setPsdEnemyOverrides, setWalls, setRooms, setDoors, setLights, setTurn,
+    setGridVisible, setGridAutoSize,
+    setLibEnemies, setWalls, setRooms, setDoors, setLights, setTurn,
     notify,
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
-    _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
+    _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
-    saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
+    saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
-    addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
+    addLibEnemy, addDbEnemy, adjustLibEnemyHp, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
     redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, cancelWallChain,
     addDoor, removeDoor, toggleDoor, startDoorPlacement,
@@ -878,20 +865,16 @@ export function DMView() {
     return () => { ws.close(); R.wsRef.current = null; };
   }, [_sendFullState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Draw / death canvas init ───────────────────────────────────────────────
+  // ── Draw canvas init ───────────────────────────────────────────────
   useEffect(() => {
     const oc = document.createElement('canvas');
     oc.width = 1920; oc.height = 1080;
     R.drawCanvasRef.current = oc;
-    const dc = document.createElement('canvas');
-    dc.width = 1920; dc.height = 1080;
-    R.rDeathCanvas.current = dc;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync state → refs ─────────────────────────────────────────────────────
   useEffect(() => {
-    R.rStruct.current = struct; R.rStruct2.current = struct;
-    R.rVis.current = vis; R.rPos.current = pos; R.rZoom.current = zoom;
+    R.rPos.current = pos; R.rZoom.current = zoom;
     R.rPlayers.current = players; R.rLibEnemies.current = libEnemies;
     R.rDrawColor.current = drawColor; R.rDrawSize.current = drawSize;
     R.rConditions.current = conditions; R.rPaintedZones.current = paintedZones;
@@ -903,15 +886,14 @@ export function DMView() {
     R.rGridOriginX.current = gridOriginX; R.rGridOriginY.current = gridOriginY;
     R.rGridCalibrating.current = gridCalibrating; R.rEnemyHighlight.current = enemyHighlight;
     R.rHighlightLocked.current = highlightLocked; R.rSelectedToken.current = selectedToken;
-    R.rLayerImages.current = layerImages; R.rContextMenu.current = contextMenu;
+    R.rContextMenu.current = contextMenu;
     R.rActiveSpells.current = activeSpells;
-    R.rPsdEnemyOverrides.current = psdEnemyOverrides;
   }, [
-    struct, vis, pos, zoom, players, libEnemies, drawColor, drawSize, conditions, paintedZones,
+    pos, zoom, players, libEnemies, drawColor, drawSize, conditions, paintedZones,
     walls, rooms, lights,
     defeated, gridVisible, gridSize, gridSnap, gridAutoSize, tokenSizeOverride,
     gridLineWidth, gridOriginX, gridOriginY, gridCalibrating, enemyHighlight, highlightLocked,
-    selectedToken, layerImages, contextMenu, activeSpells, psdEnemyOverrides,
+    selectedToken, contextMenu, activeSpells,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Enemy highlight timer ──────────────────────────────────────────────────
@@ -943,7 +925,7 @@ export function DMView() {
 
   // ── Mouse handlers ────────────────────────────────────────────────────────
   const mouseSetters = useMemo(() => ({
-    setVis, setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
+    setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
     setActiveSpells, setPaintedZones, setContextMenu: setContextMenuFromMap, onUndoChange: refreshUndo,
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
@@ -1110,18 +1092,17 @@ export function DMView() {
   // ── Fitxers deixats a qualsevol lloc del canvas ────────────────────────────
   // Abans només es podien deixar a la caixa petita «Img/Vídeo» del panell lateral, i el text
   // de benvinguda del centre ho demanava, però el centre no acceptava res.
-  // Obrir un mapa nou (o el seu PSD) és començar a preparar-lo: graella, parets, llums.
+  // Obrir un mapa nou és començar a preparar-lo: graella, parets, llums.
   // Obrir una partida desada (fitxer, servidor, desat automàtic o la demo) és per jugar-la.
-  // Un mapa d'imatge o un PSD nou deixa enrere el mapa de caselles que hi hagués.
+  // Un mapa d'imatge nou deixa enrere el mapa de caselles que hi hagués.
   const dropTileMap = useCallback(() => {
     if (!R.rTileMap.current) return;
     R.rTileMap.current = null; R.rTileRestore.current({ rebake: false });
     if (R.rDrawTool.current === 'tiles') setDrawTool('none');
   }, [R, setDrawTool]);
-  // Un mapa o un PSD nous deixen enrere la missió i els seus llocs.
+  // Un mapa nou deixa enrere la missió i els seus llocs.
   const dropScenes = useCallback(() => dropScenesRef.current(), []);
   const openNewMap = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); dropScenes(); return loadBg(f); }, [switchMode, loadBg, dropTileMap, dropScenes]);
-  const openPsd = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); dropScenes(); return loadPSD(f); }, [switchMode, loadPSD, dropTileMap, dropScenes]);
   const openSession = useCallback((f: File) => { switchMode('jugar'); return loadSession(f); }, [switchMode, loadSession]);
   const openServerSession = useCallback((id: string) => { switchMode('jugar'); return serverLoadSession(id); }, [switchMode, serverLoadSession]);
   const openDemo = useCallback(() => { switchMode('jugar'); dropTileMap(); dropScenes(); return loadDemo(); }, [switchMode, loadDemo, dropTileMap, dropScenes]);
@@ -1162,10 +1143,9 @@ export function DMView() {
   const loadAnyFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
     if (name.endsWith('.tmx')) { setPixel(true); void openTmx(f); return; }
-    if (name.endsWith('.psd')) void openPsd(f);
-    else if (name.endsWith('.json')) void openSession(f);
+    if (name.endsWith('.json')) void openSession(f);
     else if (f.type.startsWith('image/') || f.type.startsWith('video/')) void openNewMap(f);
-  }, [openPsd, openSession, openNewMap, openTmx, setPixel]);
+  }, [openSession, openNewMap, openTmx, setPixel]);
   const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files');
   const onStageDragEnter = (e: React.DragEvent) => {
     if (!isFileDrag(e)) return;
@@ -1316,8 +1296,7 @@ export function DMView() {
   const sceneTokenList = useMemo(() => [
     ...players.map(p => ({ key: `pl_${p.id}`, name: p.name })),
     ...libEnemies.map(e => ({ key: `lib_${e.id}`, name: e.name })),
-    ...(struct?.enemyRooms ?? []).flatMap(r => r.enemies).map(e => ({ key: String(e.id), name: psdEnemyOverrides[e.id]?.name || e.name })),
-  ], [players, libEnemies, struct, psdEnemyOverrides]);
+  ], [players, libEnemies]);
   const saveDraft = useCallback((d: DialogDraft) => {
     if (!d.owner) return;
     const id = d.id ?? Math.random().toString(36).slice(2, 10);
@@ -1386,18 +1365,12 @@ export function DMView() {
   const finishCombat = useCallback(() => {
     const t = R.rTurn.current;
     if (t.active && chars.status !== 'loading') {
-      const psdById = new Map((R.rStruct.current?.enemyRooms ?? []).flatMap(r => r.enemies).map(e => [String(e.id), e]));
       const enemies: XpAward['enemies'] = [];
       for (const id of t.order) {
         const key = String(id);
         if (key.startsWith('pl_') || !R.rDefeated.current[key]) continue;
-        if (key.startsWith('lib_')) {
-          const en = R.rLibEnemies.current.find(e => `lib_${e.id}` === key);
-          if (en?.xp) enemies.push({ name: en.name, xp: en.xp });
-        } else {
-          const ov = R.rPsdEnemyOverrides.current[Number(id)];
-          if (ov?.xp) enemies.push({ name: ov.name || psdById.get(key)?.name || 'Enemic', xp: ov.xp });
-        }
+        const en = R.rLibEnemies.current.find(e => `lib_${e.id}` === key);
+        if (en?.xp) enemies.push({ name: en.name, xp: en.xp });
       }
       const players = t.order.filter(id => String(id).startsWith('pl_')).flatMap(id => {
         const pl = R.rPlayers.current.find(p => `pl_${p.id}` === String(id));
@@ -1662,15 +1635,10 @@ export function DMView() {
   }, [textRevealOpen, trNextSentence, trPlay, trPause, trPrevSentence, trReset]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
-  // `struct` també existeix en un mapa fet només amb la imatge de fons (estructura buida
-  // sintètica que desbloqueja el render loop). `psdStruct` és el PSD real: la UI que
-  // només té sentit amb capes de Photoshop es penja d'aquest, no de `struct`.
-  const psdStruct = struct && !struct.synthetic ? struct : null;
-  // Enemics de l'escena que poden entrar en una cinemàtica de grup (PSD i biblioteca).
+  // Enemics de l'escena que poden entrar en una cinemàtica de grup (biblioteca).
   const sceneFoes = useMemo(() => [
-    ...(psdStruct?.enemyRooms.flatMap(r => r.enemies) ?? []).map(en => ({ id: en.id, name: psdEnemyOverrides[en.id]?.name ?? en.name })),
     ...libEnemies.map(en => ({ id: `lib_${en.id}`, name: en.name })),
-  ], [psdStruct, psdEnemyOverrides, libEnemies]);
+  ], [libEnemies]);
   // Etiqueta del «Desfer» de la barra: què desfarà (els moviments de combat són de jugadors).
   const undoLabel = !undoNext ? null
     : undoNext.kind === 'stroke' ? 'traç de dibuix'
@@ -1683,7 +1651,7 @@ export function DMView() {
 
       {/* ── Barra superior ───────────────────────────────────────────────── */}
       <TopBar
-        mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
+        mapName={bgLoaded ? bgName : null}
         sidebarOpen={sideOpen} onToggleSidebar={toggleSide}
         mode={mode} onModeChange={switchMode}
         showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
@@ -1752,11 +1720,8 @@ export function DMView() {
                 pixel={pixel} onSetPortrait={(id, url) => setPlayerLook(id, { portrait: url })}
               />
               <SceneEnemiesPanel
-                struct={psdStruct} vis={vis} psdEnemyOverrides={psdEnemyOverrides}
                 libEnemies={libEnemies} defeated={defeated} selectedToken={selectedToken}
                 onSelect={selectToken} onMenu={openTokenMenu}
-                onTogglePsdVis={toggleVis} onAdjustPsdHp={adjustPsdEnemyHp}
-                onResetPsd={resetToken} onDeletePsd={id => deleteLayer(id, 'enemy')}
                 onToggleLibVis={toggleLibEnemyVisibility} onAdjustLibHp={adjustLibEnemyHp}
                 onRemoveLib={removeLibEnemy}
                 onOpenLibrary={() => setSidebarTab('biblioteca')}
@@ -1771,16 +1736,9 @@ export function DMView() {
                   onEdit={() => setDrawTool('tiles')} />
               )}
               <ImportPanel
-                bgLoaded={bgLoaded} bgName={bgName} parsing={parsing} struct={psdStruct}
-                psdInfo={psdStruct ? psdInfo : null} parseError={parseError} warnings={warnings}
-                warningsDismissed={warningsDismissed} setWarningsDismissed={setWarningsDismissed}
-                onLoadBg={f => void openNewMap(f)} onLoadPSD={f => void openPsd(f)} onLoadDemo={() => void openDemo()}
+                bgLoaded={bgLoaded} bgName={bgName}
+                onLoadBg={f => void openNewMap(f)} onLoadDemo={() => void openDemo()}
               />
-              {psdStruct && (
-                <SidebarSection title="Capes del PSD" icon={<Layers size={13} />} defaultOpen maxBodyHeight={260}>
-                  <LayerTree struct={psdStruct} vis={vis} onToggleVis={toggleVis} onDeleteLayer={deleteLayer} />
-                </SidebarSection>
-              )}
               {bgLoaded && (
                 <RoomsPanel
                   rooms={rooms} lights={lights} wallsCount={walls.length}
@@ -1860,9 +1818,6 @@ export function DMView() {
           turn={turn}
           players={players}
           libEnemies={libEnemies}
-          struct={psdStruct}
-          psdEnemyOverrides={psdEnemyOverrides}
-          vis={vis}
           defeated={defeated}
           conditions={conditions}
           tokenGroupsRef={R.rTokenGroups}
@@ -2156,20 +2111,14 @@ export function DMView() {
               )}
 
               <div style={{ marginTop: 16, fontSize: FS.sm, display: 'flex', gap: '6px 14px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button onClick={() => psdInputRef.current?.click()} style={welcomeLink}>Carregar un PSD</button>
                 <button onClick={() => sessionInputRef.current?.click()} style={welcomeLink}>Carregar una partida (.json)</button>
                 <button onClick={() => setPixel(!pixel)} style={welcomeLink}>{pixel ? 'Passar a l\'app Clàssica' : 'Passar a l\'app Píxel'}</button>
-              </div>
-              <div style={{ fontSize: FS.xs, marginTop: 10, opacity: 0.6, lineHeight: 1.5 }}>
-                El PSD és opcional: amb la imatge ja funcionen la graella, les sales, les parets, els llums i els tokens.
               </div>
 
               <div style={{ fontSize: FS.lg, marginTop: 16, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
             </div>
             <input ref={bgInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; if (f) void openNewMap(f); e.target.value = ''; }} />
-            <input ref={psdInputRef} type="file" accept=".psd" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void openPsd(f); e.target.value = ''; }} />
             <input ref={sessionInputRef} type="file" accept=".json" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; if (f) void openSession(f); e.target.value = ''; }} />
             <input ref={tmxInputRef} type="file" accept=".tmx" style={{ display: 'none' }}
@@ -2183,7 +2132,7 @@ export function DMView() {
             <div style={{ background: C.float, border: `1px solid ${C.accent}`, borderRadius: RADIUS.lg, padding: '12px 18px', color: C.bright, fontSize: FS.lg, fontWeight: 700, textAlign: 'center' }}>
               Deixa anar per carregar-lo
               <div style={{ fontSize: FS.sm, color: C.dim, fontWeight: 500, marginTop: 4 }}>
-                Imatge o vídeo → mapa{bgLoaded ? ' (substitueix l\'actual)' : ''} · .psd → capes · .json → partida · .tmx → caselles
+                Imatge o vídeo → mapa{bgLoaded ? ' (substitueix l\'actual)' : ''} · .json → partida · .tmx → caselles
               </div>
             </div>
           </div>
@@ -2219,11 +2168,10 @@ export function DMView() {
         rDefeated={R.rDefeated} defeatedAnimRef={R.defeatedAnimRef}
         rConditions={R.rConditions}
         edit={{
-          players, libEnemies, struct: psdStruct, psdEnemyOverrides, tokenSizeOverride, gridSize,
+          players, libEnemies, tokenSizeOverride, gridSize,
           onRenamePlayer: renamePlayer, onAdjustPlayerHp: adjustPlayerHp, onSetPlayerHpMax: setPlayerHpMaxAndSheet,
           onSetPlayerSpeed: setPlayerSpeed, onSetPlayerVision: setPlayerVision, onSetPlayerCanMove: setPlayerCanMove,
           onAdjustLibHp: adjustLibEnemyHp, onSetLibProps: setLibEnemyProps,
-          onAdjustPsdHp: adjustPsdEnemyHp, onSetPsdProps: setPsdEnemyProps,
           onSetTokenSize: setTokenSize,
           pixel, onSetPlayerLook: setPlayerLook,
         }}
@@ -2247,13 +2195,11 @@ export function DMView() {
         characters={characterMenu}
       />
       <SceneConfigOverlay key={String(sceneConfigMenu?.id ?? '')}
-        sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}
+        sceneConfigMenu={sceneConfigMenu}
         sceneFoes={sceneFoes}
-        rPsdEnemyImgCache={R.rPsdEnemyImgCache}
-        libEnemies={libEnemies} psdEnemyOverrides={psdEnemyOverrides}
+        libEnemies={libEnemies}
         onClose={() => setSceneConfigMenu(null)}
         onLaunchBossIntro={launchBossIntro}
-        setPsdEnemyProps={setPsdEnemyProps}
         setLibEnemyProps={setLibEnemyProps}
       />
 

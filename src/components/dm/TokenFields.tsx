@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { Switch } from '@/components/ui/Switch';
 import { C, FS, RADIUS, DEFAULT_SPEED_FT, DEFAULT_VISION_FT, feetFromRadius, FONT_SERIF, tint } from '@/constants';
-import type { LibEnemy, MapStructure, Player, PsdEnemyOverride, PsdEnemyOverrides, TokenSizeMap } from '@/types';
+import type { LibEnemy, Player, TokenSizeMap } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { SpritePicker, PortraitBuilder } from '@/components/dm/PixelPickers';
 import { creatureThumb, creatureVariants, parseSprite, spriteName } from '@/lib/sprites/draw';
@@ -12,9 +12,6 @@ import { useSpritePack } from '@/hooks/useSpritePack';
 export interface TokenEditProps {
   players: Player[];
   libEnemies: LibEnemy[];
-  /** PSD real (null si el mapa és només una imatge). */
-  struct: MapStructure | null;
-  psdEnemyOverrides: PsdEnemyOverrides;
   tokenSizeOverride: TokenSizeMap;
   gridSize: number;
   onRenamePlayer: (id: number, name: string) => void;
@@ -25,15 +22,13 @@ export interface TokenEditProps {
   onSetPlayerCanMove: (id: number, canMove: boolean) => void;
   onAdjustLibHp: (id: number, delta: number) => void;
   onSetLibProps: (id: number, props: Partial<LibEnemy>) => void;
-  onAdjustPsdHp: (id: number, delta: number) => void;
-  onSetPsdProps: (id: number, props: PsdEnemyOverride) => void;
   onSetTokenSize: (id: string, feet: number) => void;
   /** App Píxel: figureta de qualsevol token i retrat dels jugadors. */
   pixel?: boolean;
   onSetPlayerLook?: (id: number, look: { sprite?: string; portrait?: string }) => void;
 }
 
-/** Un token resolt, sigui de quina família sigui (jugador, biblioteca o PSD). */
+/** Un token resolt, sigui de quina família sigui (jugador o biblioteca). */
 export interface ResolvedToken {
   key: string;
   name: string;
@@ -54,7 +49,7 @@ export interface ResolvedToken {
   setXp?: (v: number) => void;
 }
 
-/** Troba el token per l'id (`pl_*`, `lib_*` o número del PSD) i en prepara les accions. */
+/** Troba el token per l'id (`pl_*` o `lib_*`) i en prepara les accions. */
 export function resolveToken(id: string | number, p: TokenEditProps): ResolvedToken | null {
   const key = String(id);
   if (key.startsWith('pl_')) {
@@ -80,21 +75,7 @@ export function resolveToken(id: string | number, p: TokenEditProps): ResolvedTo
       xp: en.xp ?? 0, setXp: v => p.onSetLibProps(en.id, { xp: v }),
     };
   }
-  if (typeof id !== 'number') return null;
-  const en = p.struct?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === id);
-  if (!en) return null;
-  const ov = p.psdEnemyOverrides[id] ?? {};
-  const hpMax = ov.hpMax ?? 0;
-  const hp = Math.max(0, ov.hp ?? hpMax);
-  return {
-    key, name: ov.name ?? en.name, hp, hpMax, radius: p.tokenSizeOverride[key] ?? Math.max(Math.min(en.w, en.h) / 2, 22),
-    sprite: ov.sprite, setSprite: s => p.onSetPsdProps(id, { sprite: s }),
-    adjustHp: d => p.onAdjustPsdHp(id, d),
-    // Posar-li vida per primer cop l'omple; canviar-la després no li torna la que ha perdut.
-    setHpMax: v => p.onSetPsdProps(id, { hpMax: v, hp: hpMax > 0 ? Math.min(hp, v) : v }),
-    rename: v => p.onSetPsdProps(id, { name: v }),
-    xp: ov.xp ?? 0, setXp: v => p.onSetPsdProps(id, { xp: v }),
-  };
+  return null;
 }
 
 /** Atura l'Esc d'un camp: cancel·la l'edició però no tanca el menú (que l'escolta a `window`). */

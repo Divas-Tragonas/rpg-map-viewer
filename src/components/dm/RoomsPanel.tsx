@@ -109,10 +109,8 @@ function RoomRow({
 }
 
 /**
- * Arbre de "capes" d'un mapa dibuixat a l'app (sense PSD): les sales detectades a partir
- * de les parets i els punts de llum. Fa per a les sales el que el LayerTree fa per a les
- * capes del PSD — llistar-les, veure'n l'estat i controlar-les sense haver de buscar-les
- * al canvas amb el clic dret.
+ * Les sales detectades a partir de les parets i els punts de llum: llistar-les, veure'n
+ * l'estat i controlar-les sense haver de buscar-les al canvas amb el clic dret.
  *
  * Les sales i les llums van cadascuna dins d'una secció plegable amb el seu comptador:
  * en un mapa amb moltes sales la llista sencera empenyia els jugadors fora de la pantalla.
@@ -140,7 +138,7 @@ export function RoomsPanel({
           <div style={{ padding: '2px 12px 8px', color: C.dim, fontSize: FS.sm, lineHeight: 1.5 }}>
             {wallsCount > 0
               ? 'Hi ha parets dibuixades però cap recinte tancat encara. Tanca el perímetre perquè es detecti una sala.'
-              : 'Dibuixa parets amb l’eina Parets de la barra d’eines (tecla 5) i les sales apareixeran aquí. No cal cap arxiu de Photoshop.'}
+              : 'Dibuixa parets amb l’eina Parets de la barra d’eines (tecla 5) i les sales apareixeran aquí.'}
           </div>
         ) : (
           <>

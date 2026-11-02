@@ -176,7 +176,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       }
       if (e.key === '?') { toggleShortcuts?.(); return; }
       // Sense mapa carregat les eines no fan res: les dreceres tampoc.
-      if (!R.rStruct.current) return;
+      if (!R.rMapSize.current) return;
       if (e.key === 'v' || e.key === 'V') { toSelection(); return; }
       if (e.key === 'a' || e.key === 'A') { toggleAreaSelect(); return; }
       // Tecla L: mode debug de llum (parets efectives + polígon de visió + radi).

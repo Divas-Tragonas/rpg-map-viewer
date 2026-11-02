@@ -74,7 +74,7 @@ function toMapCoords(
 }
 
 // La pantalla de jugador només pot moure tokens de JUGADOR (pl_*):
-// els enemics (PSD i biblioteca) queden fora del hit-test expressament.
+// els enemics (de la biblioteca) queden fora del hit-test expressament.
 function hitTest(
   mx: number,
   my: number,

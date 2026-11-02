@@ -287,197 +287,9 @@ function drawActiveTurnRing(ctx: CanvasRenderingContext2D, cx: number, cy: numbe
   ctx.restore();
 }
 
-// El retrat desaturat d'un enemic derrotat només canvia mentre avança l'animació (~1s);
-// després és estàtic. Cachejar-lo evita crear un <canvas> nou i redibuixar-lo a cada
-// frame per sempre a la vista del jugador.
-const _deathCanvasCache = new Map<number | string, { canvas: HTMLCanvasElement; prog: number; img: HTMLCanvasElement | null; R: number }>();
-
-export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
-  const {
-    sc, pp, isDM, s, v, rLayerImages, rConditions, rDefeated,
-    defeatedAnimRef, invisAlphaRef, rHighlightAlpha,
-    visualPosRef, rTokenSizeOverride, rSelectedToken, rMultiSelected,
-    rPsdEnemyOverrides, rPsdEnemyImgCache, rTurn,
-  } = fc;
-  const _turn = rTurn?.current;
-  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
-
-  s.enemyRooms.forEach(room => room.enemies.forEach(en => {
-    const rawPos = pp[en.id];
-    if (!rawPos) return;
-    const isVis    = !!v[en.id];
-    const enCondIds = rConditions.current[en.id] || [];
-    const isInvis   = enCondIds.includes('invisible');
-    const isDefeated = !!rDefeated.current[en.id];
-    const R = rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
-
-    let ep = rawPos;
-    if (!isDM) {
-      const key = String(en.id);
-      const vp = visualPosRef.current[key];
-      if (!vp) { visualPosRef.current[key] = { ...rawPos }; ep = rawPos; }
-      else {
-        vp.x += (rawPos.x - vp.x) * TOKEN_LERP;
-        vp.y += (rawPos.y - vp.y) * TOKEN_LERP;
-        ep = vp;
-      }
-      const hiddenByRoom = s.roomLayers.some(zl => {
-        if (!v[zl.id]) return false;
-        const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
-        const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
-        return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
-      });
-      if (hiddenByRoom) return;
-    }
-
-    const targetInvisAlpha = isInvis && !isDM ? 0 : 1;
-    const prevInvis = invisAlphaRef.current[en.id] ?? 1;
-    invisAlphaRef.current[en.id] = prevInvis + (targetInvisAlpha - prevInvis) * 0.08;
-    const enAlpha = invisAlphaRef.current[en.id];
-    if (enAlpha < 0.02 && !isDM) return;
-
-    if (isDefeated) {
-      const key = String(en.id);
-      if (defeatedAnimRef.current[key] === undefined) defeatedAnimRef.current[key] = 0;
-      defeatedAnimRef.current[key] = Math.min(1, defeatedAnimRef.current[key] + 0.018);
-    }
-    const crossProg = isDefeated ? (defeatedAnimRef.current[en.id] ?? 0) : 0;
-
-    const layerImg = rLayerImages.current[en.id];
-    const ovImg = rPsdEnemyImgCache.current[en.id];
-    const displayImg = ovImg || layerImg;
-    const ov = rPsdEnemyOverrides.current[en.id];
-    const displayName = ov?.name ?? en.name;
-    const psdSprite = pixelSprite(fc, ov?.sprite);
-    ctx.save();
-    ctx.globalAlpha = enAlpha;
-
-    let fig: (() => void) | null = null;
-    if (psdSprite) {
-      fig = drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: ov?.hpMax ? Math.max(0, ov.hp ?? ov.hpMax) : undefined, hpMax: ov?.hpMax, hpHit: ov?.hpHit });
-    } else if (isDefeated && !isDM) {
-      const desatAlpha = Math.min(1, crossProg * 2);
-      if (desatAlpha > 0) {
-        let entry = _deathCanvasCache.get(en.id);
-        if (!entry || entry.prog !== desatAlpha || entry.img !== (displayImg ?? null) || entry.R !== R) {
-          const deathC = entry?.canvas ?? document.createElement('canvas');
-          deathC.width = R * 2; deathC.height = R * 2;
-          const dc = deathC.getContext('2d')!;
-          dc.save();
-          dc.beginPath(); dc.arc(R, R, R, 0, Math.PI * 2); dc.clip();
-          if (displayImg) { dc.drawImage(displayImg, 0, 0, displayImg.width, displayImg.height, 0, 0, R * 2, R * 2); }
-          else { dc.fillStyle = '#888'; dc.fillRect(0, 0, R * 2, R * 2); }
-          dc.globalCompositeOperation = 'saturation';
-          dc.fillStyle = `rgba(0,0,0,${desatAlpha})`; dc.fillRect(0, 0, R * 2, R * 2);
-          dc.restore();
-          entry = { canvas: deathC, prog: desatAlpha, img: displayImg ?? null, R };
-          _deathCanvasCache.set(en.id, entry);
-        }
-        ctx.drawImage(entry.canvas, ep.x - R, ep.y - R);
-      }
-    } else {
-      ctx.fillStyle = 'rgba(0,0,0,.4)';
-      ctx.beginPath(); ctx.arc(ep.x + 2 / sc, ep.y + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
-      if (displayImg) {
-        ctx.save(); ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.clip();
-        ctx.drawImage(displayImg, ep.x - R, ep.y - R, R * 2, R * 2);
-        ctx.restore();
-      } else {
-        ctx.fillStyle = '#444';
-        ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.fill();
-        ctx.font = `bold ${R * 0.55}px system-ui`; ctx.fillStyle = '#ccc'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(displayName.slice(0, 2).toUpperCase(), ep.x, ep.y); ctx.textBaseline = 'alphabetic';
-      }
-
-      ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.7)';
-      ctx.lineWidth = 2 / sc;
-      if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
-      ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    const showStates = isDM || !isInvis;
-    if (showStates) {
-      nameTag(ctx, fc, { key: String(en.id), text: displayName, cx: ep.x, cy: ep.y, r: R, fig: !!psdSprite, badges: enCondIds.length > 0, size: 10, gap: 2, boxH: 13,
-        color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.85)', alpha: enAlpha, pri: 1 });
-    }
-    if (isDM && ov?.hpMax && ov.hpMax > 0) {
-      const hp = Math.max(0, ov.hp ?? ov.hpMax);
-      const hpRatio = hp / ov.hpMax;
-      const barW = R * 2, barH = Math.max(13 / sc, R * 0.35);
-      const barX = ep.x - R, barY = ep.y + R + 16 / sc;
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
-      ctx.fillRect(barX, barY, barW * hpRatio, barH);
-      const barFontSize = Math.max(9 / sc, barH * 0.62);
-      ctx.font = `bold ${barFontSize}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 2 / sc;
-      ctx.fillText(`${hp}/${ov.hpMax}`, ep.x, barY + barH / 2);
-      ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-    }
-    ctx.globalAlpha = 1;
-    const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
-      if (!isDM && isInvis) return;
-      drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, psdSprite, enCondIds), R, enCondIds, sc, psdSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined, parts);
-    };
-    badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
-
-    const _ha = rHighlightAlpha.current;
-    if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
-      const pT = performance.now() / 1000;
-      const phaseOff = (typeof en.id === 'number' ? en.id : 0) * 0.43;
-      const pulse = 0.5 + 0.5 * Math.sin(pT * 3.2 + phaseOff);
-      ctx.save();
-      ctx.strokeStyle = `rgba(255,210,0,${(0.10 + 0.08 * pulse) * _ha})`; ctx.lineWidth = 10 / sc;
-      ringPath(ctx, ep.x, ep.y, R + (11 + 4 * pulse) / sc, R, !!psdSprite); ctx.stroke();
-      ctx.strokeStyle = `rgba(255,220,50,${(0.60 + 0.35 * pulse) * _ha})`; ctx.lineWidth = 2.5 / sc;
-      ringPath(ctx, ep.x, ep.y, R + (4 + 2 * pulse) / sc, R, !!psdSprite); ctx.stroke();
-      ctx.restore();
-    }
-
-    const drawCross = () => {
-      if (isDefeated && showStates && (isDM || crossProg > 0)) {
-        const cr = R * 0.82;
-        ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
-        if (isDM) {
-          ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke();
-        } else {
-          const lineLen = cr * 2 * 1.42;
-          const p1 = Math.min(1, crossProg * 2);
-          if (p1 > 0) { ctx.setLineDash([p1 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke(); }
-          const p2 = Math.max(0, crossProg * 2 - 1);
-          if (p2 > 0) { ctx.setLineDash([p2 * lineLen, lineLen * 2]); ctx.beginPath(); ctx.moveTo(ep.x + cr, ep.y - cr); ctx.lineTo(ep.x - cr, ep.y + cr); ctx.stroke(); }
-          ctx.setLineDash([]);
-        }
-        ctx.restore();
-      }
-    };
-    if (!fig) drawCross();
-
-    // Aro daurat del torn actiu (també per als enemics: el DM ha de veure d'un cop d'ull
-    // a qui li toca moure, no només a la barra d'iniciativa).
-    if (_activeId != null && _activeId === en.id && !isDefeated && enAlpha > 0.3) {
-      drawActiveTurnRing(ctx, ep.x, ep.y, R, sc, !!psdSprite);
-    }
-
-    if (isDM && (rSelectedToken.current === en.id || rMultiSelected.current.has(en.id))) {
-      const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
-      ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
-      ringPath(ctx, ep.x, ep.y, R + 7 / sc, R, !!psdSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    }
-
-    // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
-    if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
-
-    ctx.restore();
-  }));
-}
-
 export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
-    sc, pp, isDM, s, v, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
+    sc, pp, isDM, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
     visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha, rTurn,
   } = fc;
   const _turn = rTurn?.current;
@@ -500,15 +312,6 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     const isDefeated = !!rDefeated.current[`lib_${en.id}`];
     const isVis = en.visible !== false;
 
-    if (!isDM) {
-      const hiddenByRoom = s.roomLayers.some(zl => {
-        if (!v[zl.id]) return false;
-        const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
-        const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
-        return ep.x >= zx && ep.x <= zx + zl.w && ep.y >= zy && ep.y <= zy + zl.h;
-      });
-      if (hiddenByRoom) return;
-    }
 
     let enAlpha: number;
     if (isDM) {
@@ -697,7 +500,7 @@ export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext)
 
 export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const {
-    sc, pp, isDM, s, v, rPlayers, rConditions, visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride,
+    sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride,
     rDefeated, defeatedAnimRef, rTurn,
   } = fc;
   const _turn = rTurn?.current;
@@ -728,15 +531,6 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
         if (anim) ppos = anim;
         else { vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp; }
       }
-      const cx = ppos.x + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
-      const cy = ppos.y + (rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22);
-      const hiddenByRoom = s.roomLayers.some(zl => {
-        if (!v[zl.id]) return false;
-        const zp = pp[zl.id] || { x: zl.left + zl.w / 2, y: zl.top + zl.h / 2 };
-        const zx = zp.x - zl.w / 2, zy = zp.y - zl.h / 2;
-        return cx >= zx && cx <= zx + zl.w && cy >= zy && cy <= zy + zl.h;
-      });
-      if (hiddenByRoom) return;
     }
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];

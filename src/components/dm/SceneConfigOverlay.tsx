@@ -7,25 +7,21 @@ import { C, FS, RADIUS, tint } from '@/constants';
 import { useStoredString } from '@/hooks/useStoredFlag';
 import { useSpritePack } from '@/hooks/useSpritePack';
 import { PIXEL_INTROS, MAX_FOES, isPixelIntro, type BossIntroStyle } from '@/lib/cinematic';
-import type { SceneConfigMenuState, LibEnemy, PsdEnemyOverrides } from '@/types';
+import type { SceneConfigMenuState, LibEnemy } from '@/types';
 
 interface Props {
   sceneConfigMenu: SceneConfigMenuState | null;
-  rLayerImages: React.MutableRefObject<Record<number, HTMLCanvasElement>>;
-  rPsdEnemyImgCache: React.MutableRefObject<Record<number, HTMLCanvasElement>>;
   libEnemies: LibEnemy[];
-  psdEnemyOverrides: PsdEnemyOverrides;
   onClose: () => void;
   onLaunchBossIntro: (req: import('@/hooks/useCinematic').BossIntroRequest) => Promise<string | null>;
-  setPsdEnemyProps?: (id: number, props: import('@/types').PsdEnemyOverride) => void;
   setLibEnemyProps?: (id: number, props: Partial<LibEnemy>) => void;
   /** Enemics de l'escena que poden entrar amb el boss (cinemàtiques de grup). */
   sceneFoes: { id: number | string; name: string }[];
 }
 
 export function SceneConfigOverlay({
-  sceneConfigMenu, rLayerImages, rPsdEnemyImgCache, libEnemies, psdEnemyOverrides,
-  onClose, onLaunchBossIntro, setPsdEnemyProps, setLibEnemyProps, sceneFoes,
+  sceneConfigMenu, libEnemies,
+  onClose, onLaunchBossIntro, setLibEnemyProps, sceneFoes,
 }: Props) {
   // Es tornen a buidar en obrir-lo per a un altre token (DMView el munta amb `key`).
   const [extras, setExtras] = useState<(number | string)[]>([]);
@@ -48,22 +44,16 @@ export function SceneConfigOverlay({
     { id: 'classic', label: 'La de sempre', hint: 'Retrat, nom i espurnes' }, ...PIXEL_INTROS,
   ];
 
-  const _scIsPsd = typeof sceneConfigMenu.id === 'number';
   const _scIsLib = typeof sceneConfigMenu.id === 'string' && sceneConfigMenu.id.startsWith('lib_');
   const _scLibId = _scIsLib ? parseInt((sceneConfigMenu.id as string).replace('lib_', '')) : null;
   const _scLibEn = _scIsLib ? libEnemies.find(e => e.id === _scLibId) : null;
-  const _scPov = _scIsPsd ? (psdEnemyOverrides[sceneConfigMenu.id as number] || {}) : {};
-  const _scName = _scPov.name || _scLibEn?.name || sceneConfigMenu.name;
+  const _scName = _scLibEn?.name || sceneConfigMenu.name;
 
   // Resolve default canvas/image
   let defaultImg: HTMLCanvasElement | HTMLImageElement | null = null;
-  if (_scIsPsd) {
-    defaultImg = rPsdEnemyImgCache.current[sceneConfigMenu.id as number] || rLayerImages.current[sceneConfigMenu.id as number] || null;
-  } else if (_scIsLib && _scLibEn?.imageData) {
+  if (_scIsLib && _scLibEn?.imageData) {
     const img = new Image(); img.src = _scLibEn.imageData;
     defaultImg = img;
-  } else if (!_scIsLib) {
-    defaultImg = rLayerImages.current[sceneConfigMenu.id as number] || null;
   }
 
   return (
@@ -140,7 +130,6 @@ export function SceneConfigOverlay({
             void onLaunchBossIntro({ tokenId: sceneConfigMenu.id, bossName: _scName, portrait: imgEl, tokenPos: sceneConfigMenu.tokenPos, ...launchOpts }).then(url => {
               // Una imatge triada aquí es queda al token per a la propera vegada.
               if (!isCustom || !url) return;
-              if (_scIsPsd && setPsdEnemyProps) setPsdEnemyProps(sceneConfigMenu.id as number, { imageData: url });
               if (_scIsLib && _scLibId !== null && setLibEnemyProps) setLibEnemyProps(_scLibId, { imageData: url });
             });
           }}

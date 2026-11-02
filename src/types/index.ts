@@ -1,64 +1,7 @@
-export interface PSDLayer {
-  id: number;
-  name: string;
-  top: number;
-  left: number;
-  bottom: number;
-  right: number;
-  w: number;
-  h: number;
-  visible: boolean;
-  opacity: number;
-  secType: number;
-  channelInfo: Array<{ id: number; len: number }>;
-  children?: PSDLayer[];
-  isGroup?: boolean;
-}
-
-export interface Enemy extends PSDLayer {
-  isGroup: false;
-}
-
-export interface EnemySubGroup {
-  id: number;
-  name: string;
-  enemies: PSDLayer[];
-}
-
-export interface EnemyRoom {
-  id: number;
-  name: string;
-  enemies: PSDLayer[];
-  directEnemies: PSDLayer[];
-  subGroups: EnemySubGroup[];
-}
-
-export interface MapStructure {
-  extras: PSDLayer & { children: PSDLayer[]; isGroup: true };
-  roomLayers: PSDLayer[];
-  enemyRooms: EnemyRoom[];
-  /**
-   * true → estructura buida creada per l'app (mapa només amb imatge de fons, sense PSD).
-   * El render loop necessita un `struct` per sortir del `if (!s) return`; amb aquesta
-   * estructura sintètica el grid, les sales, les parets, les llums i els tokens funcionen
-   * només amb la imatge. La UI que és exclusiva del PSD (arbre de capes, "Resaltar
-   * enemics", comptador d'actius) s'amaga quan és sintètica.
-   */
-  synthetic?: boolean;
-}
-
-export interface PSDInfo {
+/** Mida del mapa de fons en píxels. */
+export interface MapSize {
   width: number;
   height: number;
-}
-
-export interface ParsedPSD {
-  width: number;
-  height: number;
-  bitDepth: number;
-  layers: PSDLayer[];
-  channelDataOffset: number;
-  error: string | null;
 }
 
 /**
@@ -282,20 +225,6 @@ export interface LibEnemy {
   sprite?: string;
 }
 
-export interface PsdEnemyOverride {
-  hp?: number;
-  hpHit?: HpHit;
-  /** XP que dona en ser derrotat. */
-  xp?: number;
-  hpMax?: number;
-  name?: string;
-  imageData?: string;
-  /** Estil Píxel: figureta del token (criatura del paquet Oryx). */
-  sprite?: string;
-}
-
-export type PsdEnemyOverrides = Record<number, PsdEnemyOverride>;
-
 export interface ContextMenuState {
   id: number | string;
   name: string;
@@ -374,7 +303,7 @@ export interface Element {
 // sincronitzat per limitar el moviment del token actiu segons el saldo restant.
 export interface TurnState {
   active: boolean;               // combat en curs
-  order: (number | string)[];    // ordre de torn: ids plans de token (pl_*, lib_*, o id PSD)
+  order: (number | string)[];    // ordre de torn: ids plans de token (pl_*, lib_*)
   turnIndex: number;             // índex dins `order` del token que té el torn
   round: number;                 // ronda actual (comença a 1)
   activeRemainingFt: number;     // peus de moviment que li queden al token actiu
@@ -383,7 +312,6 @@ export interface TurnState {
   remaining?: Record<string, number>;
 }
 
-export type VisMap = Record<number | string, boolean>;
 export type PosMap = Record<number | string, Point>;
 export type ConditionsMap = Record<string, string[]>;
 export type DefeatedMap = Record<string, boolean>;
@@ -407,7 +335,7 @@ export interface SavedDialog {
   title: string;
   /** Guió en format teatre (`Nom (opcions): text`), veure `lib/dialog/script.ts`. */
   script: string;
-  /** Nom del guió → token de l'escena (`pl_3`, `lib_7`, id del PSD) o `null` = veu sense token. */
+  /** Nom del guió → token de l'escena (`pl_3`, `lib_7`) o `null` = veu sense token. */
   cast: Record<string, string | null>;
   /** Començar just després de la cinemàtica de boss del token que el té desat. */
   afterBoss?: boolean;
@@ -445,7 +373,6 @@ export interface DialogSync {
 
 export interface BCStateMessage {
   type: 'STATE';
-  vis?: VisMap;
   pos?: PosMap;
   /** @deprecated Càmera en píxels de pantalla del DM: només per a clients antics. Usa `cam`. */
   zoom?: number;
@@ -471,7 +398,6 @@ export interface BCStateMessage {
   dmPreviewZoom?: number;
   dmPreviewPan?: Point;
   libEnemies?: LibEnemy[];
-  psdEnemyOverrides?: PsdEnemyOverrides;
   rooms?: Room[];
   // Parets (camp pesat): el jugador NO les dibuixa, però les necessita per a la línia de
   // visió de la llum dels tokens i per a la col·lisió de moviment (no travessar parets).
@@ -506,13 +432,10 @@ export interface BCStateMessage {
 
 export interface BCStructMessage {
   type: 'STRUCT';
-  struct: MapStructure;
-  vis: VisMap;
   pos: PosMap;
   zoom: number;
   players: Player[];
-  psdInfo: PSDInfo;
-  layerImageUrls: Record<string, string>;
+  mapSize: MapSize | null;
   conditions: ConditionsMap;
   defeated: DefeatedMap;
   paintedZones: PaintedZone[];
@@ -529,7 +452,6 @@ export interface BCStructMessage {
   highlightLocked: boolean;
   tokenSizeOverride: TokenSizeMap;
   libEnemies: LibEnemy[];
-  psdEnemyOverrides?: PsdEnemyOverrides;
   rooms?: Room[];
   walls?: Wall[];
   doors?: Door[];

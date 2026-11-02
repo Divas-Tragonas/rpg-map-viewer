@@ -1,9 +1,9 @@
 'use client';
 import { useEffect } from 'react';
-import { renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
+import { renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells, spellShake } from '@/lib/render/spells';
-import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
+import { renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { renderPlaceMarks } from '@/lib/render/places';
@@ -45,8 +45,8 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       const ctx = R._ctx2dRef.current!;
       ctx.clearRect(0, 0, W, H);
 
-      const s = R.rStruct.current;
-      const v = R.rVis.current, pp = R.rPos.current;
+      const hasMap = !!R.rMapSize.current;
+      const pp = R.rPos.current;
       const media = R.mediaRef.current;
       let mw = 1920, mh = 1080;
       if (media?.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth) { mw = (media as HTMLImageElement).naturalWidth; mh = (media as HTMLImageElement).naturalHeight; }
@@ -148,10 +148,10 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       }
 
       // Diàleg: caixa, text que s'escriu i globus sobre el token (en píxels de l'escenari).
-      // Abans del `if (!s)`: el narrador també funciona sense mapa.
+      // Abans del `if (!hasMap)`: el narrador també funciona sense mapa.
       R.dialogHostRef.current?.tick(performance.now(), p => ({ x: ox + p.x * sc, y: oy + p.y * sc }));
 
-      if (!s) {
+      if (!hasMap) {
         const oc2pre = R.drawCanvasRef.current;
         if (oc2pre && oc2pre.width > 1) {
           ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
@@ -171,13 +171,12 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       }
 
       const fc = {
-        sc, ox, oy, mw, mh, isDM: true, s, v, pp,
-        rLayerImages: R.rLayerImages, rHoveredRoom: R.rHoveredRoom, roomAnimRef: R.roomAnimRef,
+        sc, ox, oy, mw, mh, isDM: true, pp,
         rPaintedZones: R.rPaintedZones, rContextMenu: R.rContextMenu, zoneAppearRef: R.zoneAppearRef,
         isShapeDrawingRef: R.isShapeDrawingRef, shapePointsRef: R.shapePointsRef,
         activeStrokeAnim: R.activeStrokeAnim, strokeQueueRef: R.strokeQueueRef, drawCanvasRef: R.drawCanvasRef,
         rActiveSpells: R.rActiveSpells, setActiveSpells,
-        rConditions: R.rConditions, rDefeated: R.rDefeated, rDeathCanvas: R.rDeathCanvas,
+        rConditions: R.rConditions, rDefeated: R.rDefeated,
         defeatedAnimRef: R.defeatedAnimRef, invisAlphaRef: R.invisAlphaRef,
         rEnemyHighlight: R.rEnemyHighlight, rHighlightAlpha: R.rHighlightAlpha,
         rHighlightLocked: R.rHighlightLocked, highlightStartRef: R.highlightStartRef,
@@ -188,8 +187,6 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         gridCalibRef: R.gridCalibRef, gridCalibCurrRef: R.gridCalibCurrRef, gridCalibHoverRef: R.gridCalibHoverRef,
         rPointerPos: R.rPointerPos, rMeasure: R.rMeasure, rDrawTool: R.rDrawTool, rSelectedToken: R.rSelectedToken, rMultiSelected: R.rMultiSelected, rTurn: R.rTurn,
         rLibEnemies: R.rLibEnemies,
-        rPsdEnemyOverrides: R.rPsdEnemyOverrides,
-        rPsdEnemyImgCache: R.rPsdEnemyImgCache,
         zoneDragRef: R.zoneDragRef,
         rHoveredPaintedZoneId: R.rHoveredPaintedZoneId,
         rSelectedPaintedZoneId: R.rSelectedPaintedZoneId,
@@ -218,11 +215,9 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         const doors = R.rDoors.current;
         drawTileLive(ctx, R.rTileLive.current, id => doors.find(d => d.id === id)?.open !== false, performance.now());
       }
-      renderRoomOverlays(ctx, fc);
       renderRooms(ctx, fc);
       renderWalls(ctx, fc);
       renderLightSources(ctx, fc);
-      renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
       advanceStrokeAnim(fc);
@@ -248,7 +243,6 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         }
       }
 
-      renderEnemyTokens(ctx, fc);
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens

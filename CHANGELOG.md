@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.71 — Fora el PSD
+- L'app ja no importa PSD: el mapa és una imatge o un vídeo i tot el que hi va a sobre (graella, parets, sales, portes, llums, tokens, dibuix, màgies, torns) es fa dins l'app
+- Eliminats el parser i l'extractor de PSD, l'arbre de capes, el panell «Capes del PSD», els enemics i les zones/extres que venien del PSD, l'ull de visibilitat de capes (`vis`) i `demo.psd`
+- La demo carrega només el mapa de fons (sense els enemics del PSD)
+- El `STRUCT` ja no porta `struct`, `vis`, `psdInfo` ni `layerImageUrls`: porta `mapSize`. Les partides desades amb PSD es carreguen igualment (aquests camps s'ignoren i es conserva la mida del mapa)
+- Documentació actualitzada
+
 ### v4.70 — Una barra més senzilla
 - L'interruptor Clàssica · Píxel surt de la barra superior i passa al menú ⋯ (a la mateixa mida que al mòbil); queda un sol interruptor gran, Preparar · Jugar
 - La pantalla de benvinguda explica el recorregut en 3 passos i ofereix el canvi d'app com a enllaç

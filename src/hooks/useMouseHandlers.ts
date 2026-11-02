@@ -14,7 +14,7 @@ const AREA_SETTLED = (sp: import('@/types').Spell) => {
   const DUR: Record<string, number> = { sleep: 3.0, grease: 3.5 };
   return (performance.now() - sp.startTime) / 1000 > (DUR[sp.type] ?? 2.5);
 };
-import type { PosMap, VisMap, Wall } from '@/types';
+import type { PosMap, Wall } from '@/types';
 import type { DMRefs } from './useDMRefs';
 
 /** Treu la màgia que esperava el clic de destí (i la seva previsualització). */
@@ -23,7 +23,6 @@ function cancelPendingSpell(R: DMRefs): void {
 }
 
 interface MouseHandlerSetters {
-  setVis: (v: VisMap | ((p: VisMap) => VisMap)) => void;
   setPos: (v: PosMap | ((p: PosMap) => PosMap)) => void;
   setActiveDrag: (v: string | number | null) => void;
   setSelectedToken: (v: string | number | null) => void;
@@ -342,21 +341,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
             e.preventDefault(); return;
           }
         }
-        const sShape = R.rStruct.current;
-        if (sShape) {
-          for (const zone of sShape.enemyRooms) {
-            for (let i = zone.enemies.length - 1; i >= 0; i--) {
-              const en = zone.enemies[i];
-              const ep = R.rPos.current[en.id]; if (!ep) continue;
-              const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
-              if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
-                R.dragRef.current = { id: en.id, ox: mx - ep.x, oy: my - ep.y };
-                S.setActiveDrag(en.id); S.setSelectedToken(en.id); R.rSelectedToken.current = en.id; S.setCanvasCursor('grabbing');
-                e.preventDefault(); return;
-              }
-            }
-          }
-        }
         // Painted zones
         for (let i = R.rPaintedZones.current.length - 1; i >= 0; i--) {
           const zone = R.rPaintedZones.current[i];
@@ -446,20 +430,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       }
     }
 
-    const s = R.rStruct.current;
-    if (s) {
-      for (const room of s.enemyRooms) {
-        for (let i = room.enemies.length - 1; i >= 0; i--) {
-          const en = room.enemies[i];
-          const ep = R.rPos.current[en.id]; if (!ep) continue;
-          const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
-          if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
-            selectAndArmDrag(en.id, ep);
-            e.preventDefault(); return;
-          }
-        }
-      }
-    }
 
     // Clic sobre una porta (cursor normal, mode selecció) = obrir/tancar-la.
     if (R.rDrawTool.current === 'none') {
@@ -475,13 +445,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // clicar s'ARROSSEGA, el que es fa és moure el mapa (i no es revela res ni es perd la
     // selecció). Per això l'acció del clic es desa i s'executa en deixar anar sense moure's.
     const hovR = R.rHoveredRoomId.current;
-    const hovZ = R.rHoveredRoom.current;
     const clickAction = () => {
       S.setSelectedToken(null); R.rSelectedToken.current = null;
       R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
 
       // Clic sobre una sala fosca = revelar-la. Per tornar-la a amagar cal tenir el mode
-      // MAJ actiu (evita re-enfosquir-la sense voler), igual que les zones del PSD.
+      // MAJ actiu (evita re-enfosquir-la sense voler).
       if (hovR) {
         const rm = R.rRooms.current.find(r => r.id === hovR);
         if (rm && rm.dark) {
@@ -490,23 +459,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
             R.rRooms.current = nr; S.setRooms(nr); _broadcastState({});
           }
           return;
-        }
-      }
-
-      // Zones del PSD: `vis[id]` vol dir que la COBERTA es veu (zona amagada als jugadors).
-      if (hovZ) {
-        const { id, lx, ly, lw, lh } = hovZ;
-        if (mx >= lx && mx <= lx + lw && my >= ly && my <= ly + lh) {
-          const covered = !!R.rVis.current[id];
-          if (covered) {
-            // Revelar la zona (treure'n la coberta) és lliure.
-            const nv = { ...R.rVis.current, [id]: false };
-            R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-          } else if (R.rShiftPanToggle.current) {
-            // Tornar-la a tapar només amb el mode MAJ actiu.
-            const nv = { ...R.rVis.current, [id]: true };
-            R.rVis.current = nv; S.setVis(nv); _broadcastState({});
-          }
         }
       }
     };
@@ -639,30 +591,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     const tool = R.rDrawTool.current;
 
     if (tool === 'none' && !R.dragRef.current && !R.isDrawingRef.current) {
-      const s2 = R.rStruct.current;
-      if (s2) {
-        let overEnemy = false;
-        for (const room of (s2.enemyRooms || [])) {
-          for (const en of room.enemies) {
-            const ep = R.rPos.current[en.id]; if (!ep) continue;
-            const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
-            if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) { overEnemy = true; break; }
-          }
-          if (overEnemy) break;
-        }
-        let found = null;
-        if (!overEnemy) {
-          for (const l of (s2.roomLayers || [])) {
-            const lp = R.rPos.current[l.id] || { x: l.left + l.w / 2, y: l.top + l.h / 2 };
-            const lx = lp.x - l.w / 2, ly = lp.y - l.h / 2;
-            if (mx >= lx && mx <= lx + l.w && my >= ly && my <= ly + l.h) {
-              if (!R.rShiftPanToggle.current && !R.rVis.current[l.id]) continue;
-              found = { id: l.id, lx, ly, lw: l.w, lh: l.h }; break;
-            }
-          }
-        }
-        R.rHoveredRoom.current = found;
-      }
       // Sala fosca sota el cursor (per a l'ull de revelar)
       let hovRoom: string | null = null;
       for (let i = R.rRooms.current.length - 1; i >= 0; i--) {
@@ -865,11 +793,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
           const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
           if (inside(ppos.x + pR, ppos.y + pR)) sel.add(`pl_${pl.id}`);
         }
-        const st = R.rStruct.current;
-        if (st) for (const room of st.enemyRooms) for (const en of room.enemies) {
-          const ep = R.rPos.current[en.id]; if (!ep) continue;
-          if (inside(ep.x, ep.y)) sel.add(en.id);
-        }
       }
       R.rMultiSelected.current = sel;
       const last = sel.size > 0 ? [...sel][sel.size - 1] : null;
@@ -1003,7 +926,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
     if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
     R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null; R.pendingDeselectRef.current = null;
-    R.rHoveredRoom.current = null;
     R.rHoveredRoomId.current = null;
     R.rWallCursor.current = null;
     R.rDoorPreview.current = null;
@@ -1109,20 +1031,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         S.setContextMenu(tokenMenuFor(R, `pl_${pl.id}`, e.clientX, e.clientY)); return;
       }
     }
-    // Enemics del PSD (si n'hi ha): sense estructura es continua avall — les sales
-    // detectades han de tenir menú contextual també en un mapa només amb imatge.
-    const s2 = R.rStruct.current;
-    if (s2) for (const room of s2.enemyRooms) {
-      for (let i = room.enemies.length - 1; i >= 0; i--) {
-        const en = room.enemies[i];
-        const ep = R.rPos.current[en.id]; if (!ep) continue;
-        const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
-        if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) {
-          if (maybeMultiMenu(en.id)) return;
-          S.setContextMenu(tokenMenuFor(R, en.id, e.clientX, e.clientY)); return;
-        }
-      }
-    }
     // Sala detectada (eina Parets) — prioritat més baixa (àrea gran sota els tokens)
     for (let i = R.rRooms.current.length - 1; i >= 0; i--) {
       const rm = R.rRooms.current[i];
@@ -1170,17 +1078,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
       const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
       if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) { selectGroupOrSolo(`pl_${pl.id}`); return; }
-    }
-    const s3 = R.rStruct.current;
-    if (s3) {
-      for (const room of s3.enemyRooms) {
-        for (let i = room.enemies.length - 1; i >= 0; i--) {
-          const en = room.enemies[i];
-          const ep = R.rPos.current[en.id]; if (!ep) continue;
-          const Rv = R.rTokenSizeOverride.current[en.id] ?? Math.max(Math.min(en.w, en.h) / 2, 22);
-          if (Math.hypot(mx - ep.x, my - ep.y) <= Rv) { selectGroupOrSolo(en.id); return; }
-        }
-      }
     }
   }, [mc]);
 

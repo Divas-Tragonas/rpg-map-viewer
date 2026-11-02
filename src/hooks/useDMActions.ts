@@ -1,9 +1,6 @@
 'use client';
 import { useCallback, useRef } from 'react';
 import { logUndo } from '@/lib/undo';
-import { parsePSDStructure } from '@/lib/psd/parser';
-import { extractLayerImages } from '@/lib/psd/extractor';
-import { buildTree, validateStructure, emptyStructure } from '@/lib/psd/tree';
 import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
@@ -13,7 +10,7 @@ import { removeFromTurn } from '@/lib/turn';
 import { nextHpHit } from '@/lib/sprites/hitfx';
 import { bgFingerprint } from '@/lib/autosave';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
-import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect, Notify } from '@/types';
+import type { PosMap, LibEnemy, Wall, Room, Door, Point, CamRect, Notify } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
@@ -24,20 +21,12 @@ import { getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
 interface Setters {
   setBgLoaded: (v: boolean) => void;
   setBgName: (v: string) => void;
-  setPsdInfo: (v: PSDInfo | null) => void;
-  setStruct: (v: MapStructure | null | ((s: MapStructure | null) => MapStructure | null)) => void;
-  setWarnings: (v: string[]) => void;
-  setParseError: (v: string | null) => void;
-  setParsing: (v: boolean) => void;
-  setLayerImages: (v: Record<number, HTMLCanvasElement> | ((prev: Record<number, HTMLCanvasElement>) => Record<number, HTMLCanvasElement>)) => void;
-  setVis: (v: VisMap | ((prev: VisMap) => VisMap)) => void;
   setPos: (v: PosMap | ((prev: PosMap) => PosMap)) => void;
   setZoom: (v: number | ((prev: number) => number)) => void;
   setPlayers: (v: import('@/types').Player[] | ((prev: import('@/types').Player[]) => import('@/types').Player[])) => void;
   setConditions: (v: import('@/types').ConditionsMap) => void;
   setDefeated: (v: import('@/types').DefeatedMap) => void;
   setPaintedZones: (v: import('@/types').PaintedZone[]) => void;
-  setExpanded: (v: Record<number, boolean> | ((prev: Record<number, boolean>) => Record<number, boolean>)) => void;
   /** Les piles de desfer han canviat: el «Desfer» de la barra ha de tornar a mirar què desfaria. */
   onUndoChange: () => void;
   /** Els diàlegs preparats han canviat (s'ha carregat una partida). */
@@ -54,11 +43,9 @@ interface Setters {
   setGridOriginY: (v: number) => void;
   setGridCalibrating: (v: boolean) => void;
   setTokenSizeOverride: (v: import('@/types').TokenSizeMap) => void;
-  setWarningsDismissed: (v: boolean) => void;
   setGridVisible: (v: boolean) => void;
   setGridAutoSize: (v: boolean) => void;
   setLibEnemies: (v: LibEnemy[] | ((prev: LibEnemy[]) => LibEnemy[])) => void;
-  setPsdEnemyOverrides: (v: PsdEnemyOverrides) => void;
   setWalls: (v: Wall[]) => void;
   setRooms: (v: Room[]) => void;
   setDoors: (v: Door[]) => void;
@@ -92,15 +79,15 @@ const mb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
 
 export function useDMActions(R: DMRefs, S: Setters) {
   const {
-    bcRef, wsRef, rVis, rPos, rZoom, rPanOffset, rPlayers, rLibEnemies, rConditions, rDefeated,
+    bcRef, wsRef, rPos, rZoom, rPanOffset, rPlayers, rLibEnemies, rConditions, rDefeated,
     rPaintedZones, rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride,
     rGridLineWidth, rGridOriginX, rGridOriginY, rEnemyHighlight, rHighlightLocked, rHighlightAlpha,
-    rActiveSpells, rStruct, rStruct2, dmLocalPan, dmLocalZoom, dmPreviewBcastRef, rDmCam,
-    rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan, rLayerImages, rLayerUrls,
+    rActiveSpells, dmLocalPan, dmLocalZoom, dmPreviewBcastRef, rDmCam,
+    rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
-    stageRef, canvasRef, mediaRef, bgBufferRef, rPsdInfo, drawCanvasRef, strokeHistoryRef,
-    gridCalibRef, gridCalibCurrRef, roomAnimRef, visualPosRef, strokeQueueRef, strokeBaseRef, strokeBaseVerRef,
-    activeStrokeAnim, defeatedAnimRef, rPsdEnemyOverrides, rPsdEnemyImgCache,
+    stageRef, canvasRef, mediaRef, bgBufferRef, rMapSize, drawCanvasRef, strokeHistoryRef,
+    gridCalibRef, gridCalibCurrRef, visualPosRef, strokeQueueRef, strokeBaseRef, strokeBaseVerRef,
+    activeStrokeAnim, defeatedAnimRef,
     rMeasure, rPointerPos, rWalls, rRooms, rDoors, rLights, rDoorPlacement, rDoorPreview,
     rWallPenLast, rWallChain, rWallCursor, rTurn, rSpellPreview,
   } = R;
@@ -178,7 +165,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     lastSentHeavyRef.current = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
-      libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
+      libEnemies: rLibEnemies.current,
       rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
       activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
       sheet: R.rSheetShow.current,
@@ -215,7 +202,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const _isDMPrev = dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1;
     const msg: Record<string, unknown> = {
       type: 'STATE',
-      vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
+      pos: rPos.current, zoom: rZoom.current,
       panOffset: rPanOffset.current,
       // Enquadrament en coords de mapa: és el que mana al jugador. `zoom`/`panOffset`
       // (píxels de la pantalla del DM) es mantenen només per compatibilitat.
@@ -251,7 +238,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
-      libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
+      libEnemies: rLibEnemies.current,
       rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
       activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
       sheet: R.rSheetShow.current,
@@ -267,10 +254,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
   const _sendStructState = useCallback(() => {
     const structMsg = {
       type: 'STRUCT',
-      struct: rStruct2.current,
-      vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
-      players: rPlayers.current, psdInfo: rPsdInfo.current,
-      layerImageUrls: rLayerUrls.current,
+      pos: rPos.current, zoom: rZoom.current,
+      players: rPlayers.current, mapSize: rMapSize.current,
       conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, panOffset: rPanOffset.current,
       cam: _currentCam(),
@@ -281,7 +266,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
       highlightLocked: rHighlightLocked.current,
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
-      psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current,
       walls: rWalls.current,
       doors: rDoors.current,
@@ -319,24 +303,18 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _sendStructState();
   }, [_sendStructState]);
 
-  // ── Mapa només amb imatge (sense PSD) ───────────────────────────────────────
-  // El render loop (DM i jugador) surt aviat amb `if (!s) return` quan no hi ha
-  // estructura, i sense ell no es veu ni el grid ni les sales ni els tokens. Amb un fons
-  // carregat i cap PSD es crea una estructura BUIDA sintètica: totes les render phases
-  // hi passen (no hi ha capes de PSD a pintar) i grid, parets/sales, portes, llums,
-  // tokens de jugador i de biblioteca, dibuix i màgies funcionen només amb la imatge.
-  const _applyImageOnlyStruct = useCallback(() => {
+  // ── Mida del mapa ───────────────────────────────────────────────────────────
+  // El render loop (DM i jugador) no pinta res fins que sap la mida del mapa de fons.
+  // S'aplica quan el mèdia és llest (`load`/`loadedmetadata` de `loadBg`) i s'envia al
+  // jugador al STRUCT perquè surti també del seu «encara no hi ha mapa».
+  const _applyMapSize = useCallback(() => {
     const m = mediaRef.current; if (!m) return;
     const w = m.tagName === 'VIDEO' ? (m as HTMLVideoElement).videoWidth : (m as HTMLImageElement).naturalWidth;
     const h = m.tagName === 'VIDEO' ? (m as HTMLVideoElement).videoHeight : (m as HTMLImageElement).naturalHeight;
     if (w > 1 && h > 1) {
       const info = { width: w, height: h };
-      rPsdInfo.current = info; S.setPsdInfo(info);
+      rMapSize.current = info;
     }
-    // Es reutilitza la sintètica existent si ja n'hi havia (mateixa referència → cap
-    // re-render ni STRUCT innecessari a cada canvi de fons).
-    const empty = rStruct.current?.synthetic ? rStruct.current : emptyStructure();
-    rStruct.current = empty; rStruct2.current = empty; S.setStruct(empty);
     _sendStructState();
   }, [_sendStructState]);
 
@@ -376,7 +354,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     (el as HTMLImageElement).src = url;
     stage.appendChild(el);
     (mediaRef as React.MutableRefObject<HTMLImageElement | HTMLVideoElement | null>).current = el;
-    // Resize draw canvas to match BG dimensions + estructura sintètica si no hi ha PSD
+    // Resize draw canvas to match BG dimensions i anota la mida del mapa
     const onMediaReady = () => {
       const oc = drawCanvasRef.current;
       const w = isVid ? (el as HTMLVideoElement).videoWidth : (el as HTMLImageElement).naturalWidth;
@@ -384,9 +362,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (oc && w > 1 && h > 1 && (oc.width !== w || oc.height !== h)) { oc.width = w; oc.height = h; }
       // Un fons més nou ja l'ha substituït: aquest `load` és obsolet.
       if (mediaRef.current !== el) return;
-      // Amb un PSD real carregat manen les seves dimensions i la seva estructura.
-      if (rStruct.current && !rStruct.current.synthetic) return;
-      _applyImageOnlyStruct();
+      _applyMapSize();
     };
     // Fitxer corrupte o còdec no suportat: sense això, l'event `load` no arriba mai, però
     // `setBgLoaded(true)` ja s'ha executat — l'app deia que hi havia mapa, la pantalla es
@@ -410,7 +386,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: mime, withFade: true });
     wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: mime, withFade: true }));
     wsRef.current?.sendBinary(buf);
-  }, [_broadcastState, _applyImageOnlyStruct]);
+  }, [_broadcastState, _applyMapSize]);
 
   // Canvia la imatge del fons sense refer res més (mapa de caselles mentre s'edita): mateix
   // element <img>, sense fosa a les pantalles de jugador i sense tocar l'estructura.
@@ -429,71 +405,24 @@ export function useDMActions(R: DMRefs, S: Setters) {
     return true;
   }, []);
 
-  const loadPSD = useCallback(async (file: File) => {
-    S.setParsing(true); S.setParseError(null); S.setStruct(null); S.setWarnings([]); S.setLayerImages({}); S.setWarningsDismissed(false);
-    try {
-      const buf = await file.arrayBuffer();
-      const parsed = parsePSDStructure(buf);
-      const { error, width, height, layers } = parsed;
-      // PSD il·legible: es torna al mapa només amb imatge en lloc de deixar el mapa
-      // bloquejat (sense estructura no es renderitza res).
-      if (error && layers.length === 0) { S.setParseError(error); S.setParsing(false); _applyImageOnlyStruct(); return; }
-      if (error) S.setParseError(`Aviso: ${error}`);
-      const tree = buildTree(layers);
-      const { warnings: w, structure: s } = validateStructure(tree);
-      S.setWarnings(w); S.setPsdInfo({ width, height }); S.setStruct(s);
-      rPsdInfo.current = { width, height };
-      const initVis: VisMap = {}, initPos: Record<number | string, { x: number; y: number }> = {};
-      [...s.extras.children, ...s.roomLayers, ...s.enemyRooms.flatMap(z => z.enemies)].forEach(l => {
-        initVis[l.id] = l.visible;
-        initPos[l.id] = { x: l.left + l.w / 2, y: l.top + l.h / 2 };
-      });
-      rVis.current = initVis; rPos.current = initPos;
-      S.setVis(initVis); S.setPos(initPos);
-      const ez: Record<number, boolean> = {};
-      s.enemyRooms.forEach(z => { ez[z.id] = true; (z.subGroups || []).forEach(sg => { ez[sg.id] = true; }); });
-      S.setExpanded(ez);
-      const targetIds = [
-        ...s.extras.children.map(l => l.id),
-        ...s.roomLayers.map(l => l.id),
-        ...s.enemyRooms.flatMap(z => z.enemies.map(e => e.id)),
-      ];
-      if (targetIds.length > 0 && parsed.channelDataOffset > 0) {
-        const imgs = await extractLayerImages(buf, parsed, targetIds);
-        rLayerImages.current = imgs;
-        S.setLayerImages(imgs);
-        const cachedUrls: Record<string, string> = {};
-        for (const id of Object.keys(imgs)) { try { cachedUrls[id] = imgs[+id].toDataURL('image/png'); } catch { /* empty */ } }
-        rLayerUrls.current = cachedUrls;
-      }
-      rStruct.current = s; rStruct2.current = s;
-      setTimeout(() => _sendFullState(), 100);
-    } catch (err) { S.setParseError((err as Error).message); _applyImageOnlyStruct(); }
-    S.setParsing(false);
-  }, [_sendFullState, _applyImageOnlyStruct]);
-
   const loadDemo = useCallback(async () => {
     try {
-      const [bgRes, psdRes] = await Promise.all([fetch('/demo_bg.png'), fetch('/demo.psd')]);
+      const bgRes = await fetch('/demo_bg.png');
       const bgBlob = await bgRes.blob();
-      const psdBlob = await psdRes.blob();
       await loadBg(new File([bgBlob], 'demo_bg.png', { type: 'image/png' }));
-      await loadPSD(new File([psdBlob], 'demo.psd', { type: 'application/octet-stream' }));
     } catch (err) {
       console.error('Error carregant la demo:', err);
       S.notify("No s'ha pogut carregar el mapa de demostració. Comprova la connexió i torna-ho a provar.");
     }
-  }, [loadBg, loadPSD]);
+  }, [loadBg]);
 
   const snapAllTokens = useCallback(() => {
     const gs = rGridSize.current; if (gs <= 0) return;
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
     const snapCC = (v: number, origin: number) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
-    const zoneIds = new Set((rStruct.current?.roomLayers || []).map(l => String(l.id)));
     const newPos = { ...rPos.current };
     for (const [id, p] of Object.entries(newPos)) {
-      if (zoneIds.has(id)) continue;
       if (String(id).startsWith('pl_')) {
         const Rv = rTokenSizeOverride.current[id] ?? 22;
         newPos[id] = { x: snapCC(p.x + Rv, gox) - Rv, y: snapCC(p.y + Rv, goy) - Rv };
@@ -508,7 +437,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const gs = rGridSize.current; if (gs <= 0) return;
     const Rv = Math.round(gs * 0.45);
     const overrides: Record<string, number> = {};
-    if (rStruct.current) rStruct.current.enemyRooms.forEach(room => room.enemies.forEach(en => { overrides[en.id] = Rv; }));
     rPlayers.current.forEach(pl => { overrides[`pl_${pl.id}`] = Rv; });
     rLibEnemies.current.forEach(en => {
       const tmpl = ENEMY_TEMPLATES.find(t => t.id === en.templateId);
@@ -755,7 +683,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state: Record<string, any> = {
       version: '2.2',
-      vis: rVis.current, pos: rPos.current, zoom: rZoom.current,
+      pos: rPos.current, zoom: rZoom.current,
       panOffset: rPanOffset.current, players: rPlayers.current,
       conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, strokeHistory: strokeHistoryRef.current,
@@ -785,11 +713,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // Escenes d'una missió amb llocs: on és la colla i com es van deixar els altres llocs.
       missionScenes: R.rMissionScenes.current,
     };
-    if (rStruct2.current) {
-      state.psdStruct = rStruct2.current;
-      state.psdInfo = rPsdInfo.current;
-      state.layerImageUrls = rLayerUrls.current;
-    }
+    state.mapSize = rMapSize.current;
     return state;
   }, [_strokeBaseline]);
 
@@ -844,37 +768,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
         for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
         await loadBg(new File([arr], state.bgName || (state.tileMap ? 'mapa de caselles.png' : 'background.png'), { type: state.bgMimeType || 'image/png' }));
       }
-      // Restore PSD struct and layer images
-      if (state.psdStruct) {
-        // Migrate sessions saved before the zone→room rename (zonasLayers/enemyZones → roomLayers/enemyRooms)
-        const rawStruct = state.psdStruct;
-        const psdStruct: MapStructure = {
-          extras: rawStruct.extras,
-          roomLayers: rawStruct.roomLayers ?? rawStruct.zonasLayers ?? [],
-          enemyRooms: rawStruct.enemyRooms ?? rawStruct.enemyZones ?? [],
-          // Partida guardada sense PSD (només imatge): es conserva la marca perquè la UI
-          // exclusiva del PSD segueixi amagada en tornar a carregar-la.
-          synthetic: rawStruct.synthetic,
-        };
-        rStruct.current = psdStruct; rStruct2.current = psdStruct;
-        S.setStruct(psdStruct);
-        if (state.psdInfo) { rPsdInfo.current = state.psdInfo; S.setPsdInfo(state.psdInfo); }
-        const urls: Record<string, string> = state.layerImageUrls || {};
-        const imgs: Record<number, HTMLCanvasElement> = {};
-        await Promise.all(Object.keys(urls).map(id => new Promise<void>(res => {
-          const img = new Image();
-          img.onload = () => {
-            const oc2 = document.createElement('canvas');
-            oc2.width = img.naturalWidth; oc2.height = img.naturalHeight;
-            oc2.getContext('2d')!.drawImage(img, 0, 0);
-            imgs[Number(id)] = oc2; res();
-          };
-          img.onerror = () => res(); img.src = urls[id];
-        })));
-        rLayerImages.current = imgs; S.setLayerImages(imgs); rLayerUrls.current = urls;
-      }
+      // Mida del mapa (les partides antigues la porten com a `psdInfo`). Si no hi és, la
+      // dedueix `loadBg` del fons.
+      const savedSize = state.mapSize ?? state.psdInfo;
+      if (savedSize?.width > 1 && savedSize?.height > 1) { rMapSize.current = savedSize; }
       const normPlayers = (state.players || []).map((pl: import('@/types').Player) => ({ ...pl, hpMax: pl.hpMax || 0, hp: pl.hp ?? (pl.hpMax || 0) }));
-      if (state.vis)           { rVis.current = state.vis;       S.setVis(state.vis); }
       if (state.pos)           { rPos.current = state.pos;       S.setPos(state.pos); }
       if (state.zoom)          { rZoom.current = state.zoom;     S.setZoom(state.zoom); }
       if (state.panOffset)     { rPanOffset.current = state.panOffset; }
@@ -930,13 +828,13 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if ((state.strokeHistory && state.strokeHistory.length > 0) || strokeBaseRef.current) {
         const oc = drawCanvasRef.current;
         if (oc) {
-          const w = state.psdInfo?.width || oc.width, h = state.psdInfo?.height || oc.height;
+          const w = savedSize?.width || oc.width, h = savedSize?.height || oc.height;
           if (oc.width !== w || oc.height !== h) { oc.width = w; oc.height = h; }
           _repaintDrawCanvas();
         }
       }
       _broadcastState({});
-      if (state.psdStruct && bcRef.current) setTimeout(() => _sendFullState(), 150);
+      if (bcRef.current) setTimeout(() => _sendFullState(), 150);
     } catch (err) {
       console.error('Error carregant la partida:', err);
       S.notify(`No s'ha pogut carregar la partida: ${err instanceof Error ? err.message : 'fitxer no vàlid'}`);
@@ -979,35 +877,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     wsRef.current?.send(JSON.stringify({ type: 'SPELL', spell: { ...sp, startTime: 0 } }));
     setSpellMenu(null);
   }, []);
-
-  const deleteLayer = useCallback((id: number, kind: string) => {
-    const s = rStruct.current; if (!s) return;
-    let ns: MapStructure;
-    if (kind === 'room')  ns = { ...s, roomLayers: s.roomLayers.filter(l => l.id !== id) };
-    else if (kind === 'enemy') ns = { ...s, enemyRooms: s.enemyRooms.map(z => ({ ...z, enemies: z.enemies.filter(e => e.id !== id) })) };
-    else if (kind === 'extra') ns = { ...s, extras: { ...s.extras, children: s.extras.children.filter(l => l.id !== id) } };
-    else return;
-    rStruct.current = ns; rStruct2.current = ns; S.setStruct(ns);
-    const nv = { ...rVis.current }; delete nv[id]; rVis.current = nv; S.setVis(nv);
-    const np = { ...rPos.current }; delete np[id]; rPos.current = np; S.setPos(np);
-    const nli = { ...rLayerImages.current }; delete nli[id]; rLayerImages.current = nli; S.setLayerImages(nli);
-    if (rLayerUrls.current[id]) { const nu = { ...rLayerUrls.current }; delete nu[id]; rLayerUrls.current = nu; }
-    // El struct viatja al missatge STRUCT, no al STATE: cal reenviar-lo perquè el jugador
-    // deixi de veure la capa eliminada.
-    _sendStructState();
-  }, [_sendStructState]);
-
-  const toggleVis = useCallback((id: number) => {
-    const nv = { ...rVis.current, [id]: !rVis.current[id] };
-    rVis.current = nv; S.setVis(nv); _broadcastState({});
-  }, [_broadcastState]);
-
-  const resetToken = useCallback((en: PSDLayer) => {
-    const np = { x: en.left + en.w / 2, y: en.top + en.h / 2 };
-    rPos.current = { ...rPos.current, [en.id]: np };
-    S.setPos(p => ({ ...p, [en.id]: np }));
-    _broadcastState({});
-  }, [_broadcastState]);
 
   const addPaintedZone = useCallback((element: string, shapeMenu: { points: { x: number; y: number }[]; bbox: import('@/types').BBox } | null, setShapeMenu: (v: null) => void) => {
     if (!shapeMenu) return;
@@ -1059,7 +928,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     let cx = 480, cy = 360;
     if (canvas) {
       const W = canvas.clientWidth, H = canvas.clientHeight;
-      const mw = rPsdInfo.current?.width || 960; const mh = rPsdInfo.current?.height || 720;
+      const mw = rMapSize.current?.width || 960; const mh = rMapSize.current?.height || 720;
       const sc2 = Math.min(W / mw, H / mh) * rZoom.current;
       const pan = rPanOffset.current;
       const ox2 = (W - mw * sc2) / 2 + pan.x; const oy2 = (H - mh * sc2) / 2 + pan.y;
@@ -1084,7 +953,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     let cx = 480, cy = 360;
     if (canvas) {
       const W = canvas.clientWidth, H = canvas.clientHeight;
-      const mw = rPsdInfo.current?.width || 960; const mh = rPsdInfo.current?.height || 720;
+      const mw = rMapSize.current?.width || 960; const mh = rMapSize.current?.height || 720;
       const sc2 = Math.min(W / mw, H / mh) * rZoom.current;
       const pan = rPanOffset.current;
       const ox2 = (W - mw * sc2) / 2 + pan.x; const oy2 = (H - mh * sc2) / 2 + pan.y;
@@ -1119,45 +988,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState]);
 
-  const adjustPsdEnemyHp = useCallback((id: number, delta: number) => {
-    const ov = rPsdEnemyOverrides.current;
-    const cur = ov[id] || {};
-    const hpMax = cur.hpMax || 0;
-    if (hpMax <= 0) return;
-    const newHp = Math.max(0, Math.min(hpMax, (cur.hp ?? hpMax) + delta));
-    const nOv = { ...ov, [id]: { ...cur, hp: newHp, hpHit: nextHpHit(cur.hpHit, delta) } };
-    rPsdEnemyOverrides.current = nOv; S.setPsdEnemyOverrides(nOv);
-    const isNowDefeated = newHp <= 0;
-    const wasDefeated = !!rDefeated.current[id];
-    if (isNowDefeated !== wasDefeated) {
-      const nd = { ...rDefeated.current };
-      if (isNowDefeated) nd[id] = true; else delete nd[id];
-      rDefeated.current = nd; S.setDefeated({ ...nd });
-    }
-    _broadcastState({});
-  }, [_broadcastState]);
-
-  const setPsdEnemyProps = useCallback((id: number, props: PsdEnemyOverride) => {
-    const ov = rPsdEnemyOverrides.current;
-    const cur = ov[id] || {};
-    const nOv = { ...ov, [id]: { ...cur, ...props } };
-    rPsdEnemyOverrides.current = nOv; S.setPsdEnemyOverrides(nOv);
-    if (props.imageData) {
-      const img = new Image();
-      img.onload = () => {
-        const oc = document.createElement('canvas');
-        oc.width = img.naturalWidth; oc.height = img.naturalHeight;
-        oc.getContext('2d')!.drawImage(img, 0, 0);
-        rPsdEnemyImgCache.current[id] = oc;
-      };
-      img.src = props.imageData;
-    }
-    _broadcastState({});
-  }, [_broadcastState]);
-
   // Sets a token's diameter in feet (converted to the pixel radius used for rendering/hit-testing).
   // Player tokens are stored as a top-left corner + radius, so their position is compensated to
-  // keep the visual center fixed when the radius changes; PSD/lib enemies are stored center-based.
+  // keep the visual center fixed when the radius changes; lib enemies are stored center-based.
   const setTokenSize = useCallback((id: string, feet: number) => {
     const newR = radiusFromFeet(feet, rGridSize.current);
     const oldR = rTokenSizeOverride.current[id] ?? 22;
@@ -1310,12 +1143,12 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   return {
-    _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
+    _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
     addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
-    saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
+    saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
-    addLibEnemy, addDbEnemy, adjustLibEnemyHp, adjustPsdEnemyHp, setPsdEnemyProps, setLibEnemyProps,
+    addLibEnemy, addDbEnemy, adjustLibEnemyHp, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
     redetectRooms, setRoomDark, toggleRoomReveal, renameRoom, deleteRoom, clearWalls, cancelWallChain,
     addDoor, removeDoor, toggleDoor, startDoorPlacement,

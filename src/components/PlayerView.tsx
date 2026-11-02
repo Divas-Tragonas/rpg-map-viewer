@@ -5,14 +5,14 @@ import { TurnBanner } from '@/components/player/TurnBanner';
 import { SheetCard } from '@/components/player/SheetCard';
 import { SceneCurtain } from '@/components/ui/SceneCurtain';
 import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
-import { BC_CHANNEL, TOKEN_LERP, APP_VERSION, FONT_SERIF } from '@/constants';
+import { BC_CHANNEL, APP_VERSION, FONT_SERIF } from '@/constants';
 import {
-  renderRoomOverlays, renderExtras, renderPaintedZones, renderShapePreview,
+  renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
 import { renderRooms, clearExploredAt, resetExplored } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells, spellShake, followSpellPreview } from '@/lib/render/spells';
-import { renderEnemyTokens, renderPlayerTokens, renderLibEnemyTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
+import { renderPlayerTokens, renderLibEnemyTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
 import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
@@ -22,7 +22,7 @@ import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mediaSize, viewRect } from '@/lib/camera';
-import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview, SceneCurtain as SceneCurtainState } from '@/types';
+import type { MapSize, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview, SceneCurtain as SceneCurtainState } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, setFigureGrade } from '@/lib/sprites/pack';
@@ -127,13 +127,12 @@ export function PlayerView() {
   const lastSceneRef = useRef<string | undefined>(undefined);
   const curtainWasClosedRef = useRef(false);
 
-  const rStruct      = useRef<MapStructure | null>(null);
-  const rVis         = useRef<VisMap>({});
+  // Mida del mapa que ha comunicat el DM; `null` = encara no hi ha mapa (no es pinta res).
+  const rMapSize     = useRef<MapSize | null>(null);
   const rPos         = useRef<PosMap>({});
   const rZoom        = useRef(1);
   const rPlayers     = useRef<Player[]>([]);
   const rLibEnemies  = useRef<LibEnemy[]>([]);
-  const rLayerImages = useRef<Record<number, HTMLCanvasElement>>({});
   const rConditions  = useRef<ConditionsMap>({});
   const rDefeated    = useRef<DefeatedMap>({});
   const rPaintedZones = useRef<PaintedZone[]>([]);
@@ -160,7 +159,6 @@ export function PlayerView() {
   // Màgia que el DM està apuntant: l'última rebuda i la que es pinta (s'hi acosta amb LERP).
   const rSpellPreviewTarget = useRef<SpellPreview | null>(null);
   const rSpellPreview       = useRef<SpellPreview | null>(null);
-  const rHoveredRoom  = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const rSelectedToken = useRef<number | string | null>(null);
   const rMultiSelected = useRef<Set<number | string>>(new Set());
   // Previsualització del destí durant el drag d'un token de jugador (ghost).
@@ -187,14 +185,12 @@ export function PlayerView() {
   // mapa sencer (com la imatge de l'onada) en lloc de la càmera del DM; `glide` = anar d'un a
   // l'altre lent. Veure l'efecte de sota i el tick.
   const embedRef      = useRef({ on: false, fit: false, glide: false });
-  const roomAnimRef   = useRef<Record<string, number>>({});
   const zoneAppearRef = useRef<Record<string, number>>({});
 
   const drawCanvasRef    = useRef<HTMLCanvasElement | null>(null);
   const strokeQueueRef   = useRef<import('@/types').StrokeAnimState[]>([]);
   const activeStrokeAnim = useRef<import('@/types').StrokeAnimState | null>(null);
 
-  const rDeathCanvas     = useRef<HTMLCanvasElement | null>(null);
   const defeatedAnimRef  = useRef<Record<string, number>>({});
   const invisAlphaRef    = useRef<Record<string, number>>({});
   const rHighlightAlpha  = useRef(0);
@@ -206,12 +202,6 @@ export function PlayerView() {
   const gridCalibCurrRef  = useRef(null);
   const gridCalibHoverRef = useRef(null);
   const rContextMenu      = useRef(null);
-  const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
-  const rPsdEnemyImgCache  = useRef<Record<number, HTMLCanvasElement>>({});
-  // Src (base64) ja descodificat per id: evita re-descodificar totes les imatges d'override
-  // cada vegada que arriba un STATE/STRUCT amb psdEnemyOverrides sense canvis reals.
-  const rPsdEnemyImgSrc    = useRef<Record<number, string>>({});
-
   const rDMPreviewActive = useRef(false);
   const rDMPreviewZoom   = useRef(1);
   const rDMPreviewPan    = useRef({ x: 0, y: 0 });
@@ -270,7 +260,6 @@ export function PlayerView() {
   const refreshTurnBanner = useCallback(() => {
     const next = buildTurnBanner({
       turn: rTurn.current, players: rPlayers.current, libEnemies: rLibEnemies.current,
-      struct: rStruct.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
       conditions: rConditions.current,
     });
     setTurnBanner(prev => sameBanner(prev, next) ? prev : next);
@@ -298,8 +287,6 @@ export function PlayerView() {
   // aquestes guardes dos STRUCT concurrents (o un de reenviat idèntic) reconstruïen
   // les imatges i reiniciaven el suavitzat a TOTES les pantalles alhora → tot
   // desapareixia i els tokens saltaven. Veure el handler de STRUCT.
-  const structSeqRef = useRef(0);
-  const structMapSigRef = useRef('');
 
   // ── Dibuix a ploma: base + historial ───────────────────────────────────────
   // El DM només conserva com a objectes els últims traços; els més antics li arriben ja
@@ -493,7 +480,7 @@ export function PlayerView() {
     // Paquet de sprites: els fulls de `public/sprites/`, del mateix lloc que l'app.
     void ensurePack().then(() => refreshTurnBanner());
     const host = new DialogHost(() => stageRef.current, {
-      rPos, rPlayers, rLibEnemies, rStruct, rPsdEnemyOverrides, rTokenSizeOverride, rDefeated, rConditions, rVis, rRooms, rLayerImages, visualPosRef,
+      rPos, rPlayers, rLibEnemies, rTokenSizeOverride, rDefeated, rConditions, rRooms, visualPosRef,
     }, () => rAppStyle.current === 'pixel');
     dialogHostRef.current = host;
     return () => { host.dispose(); dialogHostRef.current = null; };
@@ -528,19 +515,7 @@ export function PlayerView() {
         const url  = URL.createObjectURL(blob);
         _loadBgFromUrl(url, msg.mimeType, !!msg.withFade);
       } else if (msg.type === 'STRUCT') {
-        // Seqüència d'aquesta invocació: si n'arriba una de posterior mentre esperem
-        // la càrrega d'imatges, aquesta s'avorta abans d'escriure res destructiu
-        // (evita que un STRUCT antic i lent trepitgi l'estat d'un de nou).
-        const mySeq = ++structSeqRef.current;
-        // El mapa és "el mateix" si les URLs de les capes no han canviat: llavors el
-        // STRUCT és un simple reenviament (una pantalla nova s'ha connectat) i NO cal
-        // reconstruir imatges ni reiniciar el suavitzat de les pantalles ja hidratades.
-        const urls = msg.layerImageUrls || {};
-        const mapSig = Object.keys(urls).sort().join('|');
-        const sameMap = mapSig === structMapSigRef.current && Object.keys(rLayerImages.current).length > 0;
-
-        rStruct.current = msg.struct;
-        rVis.current    = msg.vis   || {};
+        rMapSize.current = msg.mapSize ?? null;
         rPos.current    = msg.pos   || {};
         rZoom.current   = msg.zoom  ?? 1;
         rPlayers.current = msg.players || [];
@@ -587,66 +562,21 @@ export function PlayerView() {
         if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
         if (msg.turn) rTurn.current = msg.turn;
         refreshTurnBanner();
-        if (msg.psdEnemyOverrides) {
-          rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
-          await Promise.all((Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).map(([id, ov]) => new Promise<void>(res => {
-            if (!ov.imageData) { res(); return; }
-            if (rPsdEnemyImgSrc.current[Number(id)] === ov.imageData) { res(); return; }
-            rPsdEnemyImgSrc.current[Number(id)] = ov.imageData;
-            const img = new Image();
-            img.onload = () => {
-              const oc = document.createElement('canvas');
-              oc.width = img.naturalWidth; oc.height = img.naturalHeight;
-              oc.getContext('2d')!.drawImage(img, 0, 0);
-              rPsdEnemyImgCache.current[Number(id)] = oc;
-              res();
-            };
-            img.onerror = () => res();
-            img.src = ov.imageData!;
-          })));
-        }
-
         if (msg.activeSpells) _reconcileSpells(msg.activeSpells);
 
-        // Imatges de les capes i reinici del suavitzat: NOMÉS quan el mapa ha canviat.
-        // Si és un reenviament del mateix mapa (una pantalla nova s'ha connectat i el DM
-        // reemet l'estat a totes), es conserven les imatges ja carregades i el suavitzat
-        // dels tokens: així les pantalles ja hidratades no parpellegen ni salten.
-        if (!sameMap) {
-          const imgs: Record<number, HTMLCanvasElement> = {};
-          await Promise.all(Object.keys(urls).map(id => new Promise<void>(res => {
-            const img = new Image();
-            img.onload = () => {
-              const oc = document.createElement('canvas');
-              oc.width = img.naturalWidth; oc.height = img.naturalHeight;
-              oc.getContext('2d')!.drawImage(img, 0, 0);
-              imgs[Number(id)] = oc;
-              res();
-            };
-            img.onerror = () => res();
-            img.src = urls[id];
-          })));
-          // Ha arribat un STRUCT posterior mentre carregàvem: avortar sense escriure res.
-          if (structSeqRef.current !== mySeq) return;
-          rLayerImages.current = imgs;
-          structMapSigRef.current = mapSig;
+        // Cada STRUCT reinicia el suavitzat dels tokens: les posicions visuals partirien
+        // de les d'abans i, en canviar de mapa o d'escena, els tokens hi lliscarien.
+        visualPosRef.current = {};
+        strokeQueueRef.current  = [];
+        activeStrokeAnim.current = null;
+        Object.entries(msg.pos || {}).forEach(([id, p]) => {
+          visualPosRef.current[id] = { ...(p as { x: number; y: number }) };
+        });
 
-          roomAnimRef.current  = {};
-          visualPosRef.current = {};
-          strokeQueueRef.current  = [];
-          activeStrokeAnim.current = null;
-          Object.entries(msg.vis || {}).forEach(([id, active]) => {
-            roomAnimRef.current[id] = active ? 1 : 0;
-          });
-          Object.entries(msg.pos || {}).forEach(([id, p]) => {
-            visualPosRef.current[id] = { ...(p as { x: number; y: number }) };
-          });
-        }
-
-        if (msg.psdInfo) {
+        if (msg.mapSize) {
           const oc = drawCanvasRef.current;
-          if (oc && (oc.width !== msg.psdInfo.width || oc.height !== msg.psdInfo.height)) {
-            oc.width = msg.psdInfo.width; oc.height = msg.psdInfo.height;
+          if (oc && (oc.width !== msg.mapSize.width || oc.height !== msg.mapSize.height)) {
+            oc.width = msg.mapSize.width; oc.height = msg.mapSize.height;
           }
         }
         // Reconstruir el dibuix a ploma des de l'historial (late join / càrrega de partida):
@@ -662,7 +592,6 @@ export function PlayerView() {
         setPlayerReady(true);
         setBgLoaded(true);
       } else if (msg.type === 'STATE') {
-        if (msg.vis)   rVis.current = msg.vis;
         if (msg.pos) {
           // Si el jugador està arrossegant un token, no deixar que un STATE del DM
           // el faci saltar enrere a mig drag: conservar la posició local d'aquest token.
@@ -724,22 +653,6 @@ export function PlayerView() {
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
           if (msg.dmPreviewPan  != null) rDMPreviewPan.current  = msg.dmPreviewPan;
         }
-        if (msg.psdEnemyOverrides) {
-          rPsdEnemyOverrides.current = msg.psdEnemyOverrides;
-          (Object.entries(msg.psdEnemyOverrides) as [string, PsdEnemyOverride][]).forEach(([id, ov]) => {
-            if (!ov.imageData) return;
-            if (rPsdEnemyImgSrc.current[Number(id)] === ov.imageData) return;
-            rPsdEnemyImgSrc.current[Number(id)] = ov.imageData;
-            const img = new Image();
-            img.onload = () => {
-              const oc = document.createElement('canvas');
-              oc.width = img.naturalWidth; oc.height = img.naturalHeight;
-              oc.getContext('2d')!.drawImage(img, 0, 0);
-              rPsdEnemyImgCache.current[Number(id)] = oc;
-            };
-            img.src = ov.imageData!;
-          });
-        }
       } else if (msg.type === 'TOKEN_RELAY') {
         // Relay del DM d'un token mogut des d'una altra pantalla de jugador (p. ex.
         // una tablet). Es FUSIONA només aquest token dins rPos: no reemplaça tot
@@ -799,7 +712,7 @@ export function PlayerView() {
           offsetMs: Math.min(600, performance.now() - receivedAt),
           style: msg.style, sprite: msg.sprite, party: msg.party, extras: msg.extras, message: msg.message,
         });
-        const fallback = () => _run(rLayerImages.current[msg.tokenId as number] || null);
+        const fallback = () => _run(null);
         if (msg.portraitDataUrl) {
           const img = new Image();
           img.onload  = () => _run(img);
@@ -998,8 +911,8 @@ export function PlayerView() {
       if (!_ctx2dRef.current) _ctx2dRef.current = canvas.getContext('2d');
       const ctx = _ctx2dRef.current!;
       ctx.clearRect(0, 0, W, H);
-      const s = rStruct.current;
-      const v = rVis.current, pp = rPos.current;
+      const hasMap = !!rMapSize.current;
+      const pp = rPos.current;
       const media = mediaRef.current as HTMLImageElement & HTMLVideoElement | null;
 
       let mw = 1920, mh = 1080;
@@ -1088,22 +1001,21 @@ export function PlayerView() {
         }
       }
 
-      // Diàleg: abans del `if (!s)` (el narrador també funciona sense mapa).
+      // Diàleg: abans del `if (!hasMap)` (el narrador també funciona sense mapa).
       dialogHostRef.current?.tick(performance.now(), p => ({ x: ox + p.x * sc, y: oy + p.y * sc }));
 
-      if (!s) return;
+      if (!hasMap) return;
 
       rSpellPreview.current = followSpellPreview(rSpellPreview.current, rSpellPreviewTarget.current, 0.35);
 
       const fc = {
-        sc, ox, oy, mw, mh, isDM: false, s, v, pp,
+        sc, ox, oy, mw, mh, isDM: false, pp,
         labelScale: nameScaleFor(W), nameTags: [],  // noms més grossos a la TV, pintats a `renderNameTags`
-        rLayerImages, rHoveredRoom, roomAnimRef,
         rPaintedZones, rContextMenu, zoneAppearRef,
         isShapeDrawingRef, shapePointsRef,
         activeStrokeAnim, strokeQueueRef, drawCanvasRef,
         rActiveSpells, setActiveSpells,
-        rConditions, rDefeated, rDeathCanvas,
+        rConditions, rDefeated,
         defeatedAnimRef, invisAlphaRef,
         rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
         visualPosRef, rPlayers, rTokenSizeOverride, rDragPreview, rMovePath,
@@ -1111,7 +1023,7 @@ export function PlayerView() {
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,
         rPointerPos, rMeasure, rSelectedToken, rMultiSelected, rTurn,
-        rLibEnemies, rPsdEnemyOverrides, rPsdEnemyImgCache,
+        rLibEnemies,
         rRooms, rWalls, rDoors, rLights, roomRevealAnimRef,
         rSpellPreview,
         mediaEl: media,
@@ -1125,8 +1037,6 @@ export function PlayerView() {
         const doors = rDoors.current;
         drawTileLive(ctx, rTileLive.current, id => doors.find(d => d.id === id)?.open !== false, performance.now());
       }
-      renderRoomOverlays(ctx, fc);
-      renderExtras(ctx, fc);
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
       _advStroke(fc);
@@ -1147,7 +1057,6 @@ export function PlayerView() {
         }
       }
 
-      renderEnemyTokens(ctx, fc);
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
       renderNameTags(ctx, fc);       // els noms, després de totes les figuretes i abans de la foscor

@@ -392,7 +392,7 @@ export function ContextMenuOverlay({
     );
   }
 
-  // ── Token (jugador, enemic del PSD o de la biblioteca) ────────────────────
+  // ── Token (jugador o enemic de la biblioteca) ────────────────────
   const isDefeated = !!defeated[id];
   const toggleDefeated = () => {
     const nd = { ...rDefeated.current };

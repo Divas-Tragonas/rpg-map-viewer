@@ -1,7 +1,6 @@
 /**
  * Cops i curacions a les figuretes (app Píxel), deduïts de la vida dels tokens: no hi ha cap
- * missatge propi. La vida ja arriba a totes les pantalles (`players`, `libEnemies`,
- * `psdEnemyOverrides`) i cada una veu el mateix canvi, o sigui que tothom veu el mateix cop.
+ * missatge propi. La vida ja arriba a totes les pantalles (`players`, `libEnemies`) i cada una veu el mateix canvi, o sigui que tothom veu el mateix cop.
  *
  *  - **Cop rebut** (la vida baixa): flaixos blancs, una empenta enrere, l'impacte del full
  *    `uf_FX_impact.png` damunt de la figura i el número del dany que puja. La **força** depèn de

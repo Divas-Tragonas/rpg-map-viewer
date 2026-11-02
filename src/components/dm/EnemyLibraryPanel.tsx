@@ -48,7 +48,7 @@ const DB_GRID: React.CSSProperties = { ...GRID, gridTemplateColumns: '1fr' };
 
 /**
  * Pestanya Biblioteca: plantilles per AFEGIR enemics. Els que ja són a l'escena es gestionen
- * (vida, visibilitat, eliminar) a la pestanya Escena, junt amb els del PSD i els jugadors.
+ * (vida, visibilitat, eliminar) a la pestanya Escena, junt amb els jugadors.
  * Els de la BD es poden agrupar per projecte o per categoria (grups plegables).
  */
 export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel, onAddCreature }: Props) {

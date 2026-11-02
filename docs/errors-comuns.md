@@ -9,7 +9,7 @@
 | `setState` sense ref mirall | UI actualitzada, render no | Actualitzar sempre `setState` + `rX.current` |
 | Nou estat no afegit a STRUCT | Jugador no rep l'estat en connectar | Afegir a `BCStructMessage`, `_sendFullState` i al seu handler |
 | `'use client'` oblidat | Error de hidratació | Tots els components amb hooks o events necessiten `'use client'` |
-| Codi nou penjat de `struct` | Apareix UI de PSD en un mapa només amb imatge (o a l'inrevés) | Usar `psdStruct` (o `!struct.synthetic`) per al que és exclusiu del PSD; `struct` només vol dir "hi ha mapa" |
+| Codi nou que depèn de la mida del mapa | El render o el jugador no pinten res mentre no hi ha mapa | La porta és `R.rMapSize` (DM) / `rMapSize` (jugador): `null` = encara no hi ha mapa |
 | Sincronitzar càmera en píxels de pantalla | Els jugadors veuen un tros de mapa diferent del DM segons la mida/format de finestra | Enviar `cam` (coords de mapa) i traduir-lo a cada pantalla amb `camToView` |
 | Llegir `rDmCam` dins del missatge en lloc de `_currentCam()` | El jugador es queda un pas de zoom/pan enrere | El ref l'escriu el tick un cop per frame; els handlers d'interacció envien abans del frame següent |
 | Processar dos cops un missatge jugador→DM | Efectes que es "desfan" sols i **només amb la API engegada** (p. ex. l'animació de moviment que es talla) | Tot missatge del jugador viatja per BC **i** WS: al mateix ordinador arriba duplicat. Fer els handlers idempotents (descartar l'eco: l'estat ja hi és) |
@@ -24,7 +24,7 @@
 | Gestor nou al canvas del DM amb `onMouse*` o un gest que només sap fer el ratolí | Al mòbil no fa res (el dit no té clic dret ni roda) | El canvas va amb pointer events via `useCanvasPointer`; el que necessiti clic dret o roda ha de tenir també el seu gest (mantenir premut, pinça) |
 | Commutar un mode en el keydown d'un modificador (Ctrl, Maj…) | Ctrl+Z o Maj+clic encenen el mode sense voler | Només amb un toc net (keydown+keyup sense res pel mig), com fa `useKeyboardHandlers` |
 | ✕ per a una acció que no és tancar/eliminar | L'usuari el prem per tancar i fa una altra cosa (p. ex. marcar derrotat) | ✕ només tanca o elimina; la resta, botó amb nom (`💀 Derrotar`) |
-| Ull amb un significat diferent segons la llista | Es revela o s'amaga el contrari del que es volia | L'ull sempre vol dir «ho veuen els jugadors?» (vigilar `vis` de les zones del PSD, que és invers) |
+| Ull amb un significat diferent segons la llista | Es revela o s'amaga el contrari del que es volia | L'ull sempre vol dir «ho veuen els jugadors?» |
 | Contingut variable dins d'una barra flotant (nom del token, confirmació que substitueix un botó) | La barra canvia de mida i es mou a cada interacció | Mides fixes per al que depèn de l'estat i confirmacions en un globus a sobre (veure `TurnTracker`) |
 | Emoji com a icona d'un botó o d'una capçalera (🖼 sense el selector `U+FE0F`) | A Windows surt com un glif monocrom negre i no es veu sobre el fons fosc | Icona vectorial d'`icons.tsx` amb color de la paleta (veure «Sistema visual») |
 | Daurat (`C.accent`) per a una dada, una etiqueta o un avís | El daurat deixa de dir «això és el principal / està actiu» i tot competeix | Daurat només per a `primary` i actiu; dades en `C.bright`/`C.text`, avisos amb un punt |
@@ -47,7 +47,7 @@
 | Pintar sprites amb el suavitzat encès | Pixel art borrós | `blit()` (apaga `imageSmoothingEnabled`) i `image-rendering: pixelated` al DOM |
 | Rebre un `SPELL` dues vegades (BC i WS) | La màgia es pinta doble a la pantalla de jugador (només amb la API engegada) | El handler del jugador descarta un `SPELL` amb un `id` que ja té |
 | Animar al `tileLive` una casella amb coses a sobre | L'aigua animada tapa la vora, la paret o l'objecte | `tileLiveOf` només anima les caselles d'aigua lliures |
-| Llegir refs dins del render d'un menú | Valors que no es refresquen i error de lint `react-hooks/refs` | Passar l'estat per props (com `ContextMenuOverlay`: `libEnemies`, `players`, `psdEnemyOverrides`) |
+| Llegir refs dins del render d'un menú | Valors que no es refresquen i error de lint `react-hooks/refs` | Passar l'estat per props (com `ContextMenuOverlay`: `libEnemies`, `players`) |
 | Camí que pot fallar resolt amb `console.error` tot sol | L'usuari veu «no passa res» i torna a clicar | Passar per `notify` (veure «Avisos a la pantalla») |
 | Element de mèdia sense listener d'`error` | «Mapa carregat» amb la pantalla negra i cap pista | Parella obligatòria: `load`/`loadedmetadata` **i** `error`, revertint l'estat a l'error |
 | `createObjectURL` sense el seu `revokeObjectURL` | Cada canvi de mapa o d'imatge deixa el fitxer sencer a memòria | Desar l'URL en un ref i revocar-lo en substituir-lo (`bgUrlRef`, `customUrlRef`) |

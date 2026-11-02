@@ -39,7 +39,7 @@ function tokenSprite(R: DMRefs, id: number | string): string | null {
   const k = String(id);
   const sprite = k.startsWith('pl_') ? R.rPlayers.current.find(p => `pl_${p.id}` === k)?.sprite
     : k.startsWith('lib_') ? R.rLibEnemies.current.find(e => `lib_${e.id}` === k)?.sprite
-    : R.rPsdEnemyOverrides.current[Number(id)]?.sprite;
+    : undefined;
   return hasCreature(sprite) ? sprite : null;
 }
 
@@ -65,11 +65,6 @@ function foeOf(R: DMRefs, id: number | string): { wire: WireFoe; foe: PixelFoe }
     if (en.imageData) { const im = new Image(); im.src = en.imageData; img = im; }
   } else if (k.startsWith('pl_')) {
     name = R.rPlayers.current.find(p => `pl_${p.id}` === k)?.name;
-  } else {
-    const n = Number(id);
-    const en = R.rStruct.current?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === n);
-    name = R.rPsdEnemyOverrides.current[n]?.name ?? en?.name;
-    img = R.rPsdEnemyImgCache.current[n] || R.rLayerImages.current[n] || null;
   }
   if (!name) return null;
   const sprite = tokenSprite(R, id);

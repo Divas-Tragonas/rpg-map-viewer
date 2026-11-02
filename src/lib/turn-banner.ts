@@ -7,7 +7,7 @@
  * pla, només amb el que es veu al rètol, i es compara amb `sameBanner`: mentre el que es
  * veu no canviï, React no re-renderitza res.
  */
-import type { ConditionsMap, LibEnemy, MapStructure, Player, PsdEnemyOverrides, TurnState } from '@/types';
+import type { ConditionsMap, LibEnemy, Player, TurnState } from '@/types';
 import { budgetFor, NO_MOVE_LIMIT_FT } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
 
@@ -43,13 +43,11 @@ interface Sources {
   turn: TurnState;
   players: Player[];
   libEnemies: LibEnemy[];
-  struct: MapStructure | null;
-  psdEnemyOverrides: PsdEnemyOverrides;
   conditions: ConditionsMap;
 }
 
 /** Projecta l'estat de combat al que s'ha de veure al rètol. */
-export function buildTurnBanner({ turn, players, libEnemies, struct, psdEnemyOverrides, conditions }: Sources): TurnBanner {
+export function buildTurnBanner({ turn, players, libEnemies, conditions }: Sources): TurnBanner {
   if (!turn.active || turn.order.length === 0) return EMPTY_BANNER;
   const id = turn.order[turn.turnIndex];
   if (id === undefined) return EMPTY_BANNER;
@@ -68,12 +66,6 @@ export function buildTurnBanner({ turn, players, libEnemies, struct, psdEnemyOve
     color = e?.color ?? '#b0424a';
     img = e?.imageData ?? null;
     sprite = e?.sprite ?? null;
-  } else {
-    const en = struct?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === Number(id));
-    const ov = psdEnemyOverrides[Number(id)];
-    name = ov?.name ?? en?.name ?? 'Enemic';
-    img = ov?.imageData ?? null;
-    sprite = ov?.sprite ?? null;
   }
 
   // Els enemics no tenen límit de moviment des de /player (sentinella): res de peus.

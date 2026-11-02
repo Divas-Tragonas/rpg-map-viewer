@@ -4,7 +4,7 @@ import type { MutableRefObject } from 'react';
 import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import { StepForward, SwordsIcon, RotateCcw, GearIcon, CheckIcon, FastForwardIcon, X, BanIcon } from '@/components/icons';
-import type { Player, LibEnemy, MapStructure, PsdEnemyOverrides, VisMap, TurnState, DefeatedMap, ConditionsMap } from '@/types';
+import type { Player, LibEnemy, TurnState, DefeatedMap, ConditionsMap } from '@/types';
 import { movementLimit, type MovementLimit } from '@/lib/rules/conditions';
 import { budgetFor } from '@/lib/turn';
 import { creatureThumb } from '@/lib/sprites/draw';
@@ -14,9 +14,6 @@ interface Props {
   turn: TurnState;
   players: Player[];
   libEnemies: LibEnemy[];
-  struct: MapStructure | null;
-  psdEnemyOverrides: PsdEnemyOverrides;
-  vis: VisMap;
   /** Tokens derrotats: el seu xip surt atenuat i amb la ✕ (ja no agafen torn). */
   defeated: DefeatedMap;
   /** Estats dels tokens: limiten el moviment (Agafat → 0 peus, Tombat → la meitat). */
@@ -130,7 +127,7 @@ interface DragSession {
 }
 
 export function TurnTracker({
-  turn, players, libEnemies, struct, psdEnemyOverrides, vis, defeated, conditions, tokenGroupsRef,
+  turn, players, libEnemies, defeated, conditions, tokenGroupsRef,
   onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder, pixel,
 }: Props) {
   const [selecting, setSelecting] = useState(false);
@@ -200,15 +197,12 @@ export function TurnTracker({
       const e = libEnemies.find(en => `lib_${en.id}` === s);
       return { name: e?.name ?? '?', color: e?.color ?? '#b0424a', img: (pixel && e?.sprite ? creatureThumb(e.sprite) : null) ?? e?.imageData ?? null };
     }
-    const en = struct?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === Number(id));
-    const ov = psdEnemyOverrides[Number(id)];
-    return { name: ov?.name ?? en?.name ?? '?', color: '#b0424a', img: (pixel && ov?.sprite ? creatureThumb(ov.sprite) : null) ?? ov?.imageData ?? null };
+    return { name: '?', color: '#b0424a', img: null };
   };
 
   // ── Popover de selecció (combat inactiu) ───────────────────────────────────
   const openSelect = () => { setSelEnemies(new Set()); setSelGroups(new Set()); setSelecting(true); };
 
-  const psdEnemies = (struct?.enemyRooms.flatMap(r => r.enemies) ?? []).filter(en => vis[en.id]);
   const libVisible = libEnemies.filter(en => en.visible !== false);
 
   const groupMap = new Map<string, (number | string)[]>();
@@ -226,7 +220,7 @@ export function TurnTracker({
   };
 
   // «Tots / Cap»: selecciona (o treu) d'un cop tots els enemics visibles de la llista.
-  const allEnemyKeys = [...psdEnemies.map(en => String(en.id)), ...libVisible.map(en => `lib_${en.id}`)];
+  const allEnemyKeys = [...libVisible.map(en => `lib_${en.id}`)];
   const allEnemiesSelected = allEnemyKeys.length > 0 && allEnemyKeys.every(k => selEnemies.has(k));
   const toggleAllEnemies = () => setSelEnemies(allEnemiesSelected ? new Set() : new Set(allEnemyKeys));
 
@@ -281,7 +275,7 @@ export function TurnTracker({
               </div>
             )}
 
-            {(psdEnemies.length > 0 || libVisible.length > 0) && (
+            {libVisible.length > 0 && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: 5 }}>
                   <span style={{ flex: 1, color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enemics</span>
@@ -289,16 +283,6 @@ export function TurnTracker({
                     {allEnemiesSelected ? 'Cap' : 'Tots'}
                   </Button>
                 </div>
-                {psdEnemies.map(en => {
-                  const key = String(en.id);
-                  return (
-                    <label key={key} style={rowStyle(selEnemies.has(key))} onClick={() => toggle(selEnemies, setSelEnemies, key)}>
-                      <span style={{ marginRight: 8 }}><Avatar info={resolve(en.id)} size={24} /></span>
-                      <span style={{ flex: 1, color: C.text, fontSize: FS.lg }}>{psdEnemyOverrides[en.id]?.name ?? en.name}</span>
-                      {check(selEnemies.has(key))}
-                    </label>
-                  );
-                })}
                 {libVisible.map(en => {
                   const key = `lib_${en.id}`;
                   return (
@@ -312,7 +296,7 @@ export function TurnTracker({
               </div>
             )}
 
-            {groups.length === 0 && psdEnemies.length === 0 && libVisible.length === 0 && (
+            {groups.length === 0 && libVisible.length === 0 && (
               <div style={{ color: C.dim, fontSize: FS.sm, padding: '6px 0' }}>Cap enemic visible. Es començarà només amb els jugadors.</div>
             )}
 

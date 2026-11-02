@@ -11,7 +11,6 @@
 | Render | Canvas 2D API (`useRafLoop` → `tick()`) |
 | Fons | Element DOM `<img>` o `<video>` posicionat absolutament darrere del canvas |
 | Sync | `BroadcastChannel` (`BC_CHANNEL = 'rpg_map_sync_v18'`) — DM envia, Jugador rep |
-| PSD | Parser binari propi a `src/lib/psd/` (sense dependències) |
 | Dev server | `npm run dev` → `http://localhost:3001` |
 
 ## Rutes de l'app
@@ -40,9 +39,9 @@ src/
 │   ├── player/TurnBanner.tsx  # Rètol de torn de la pantalla de jugador (TV i tablet)
 │   ├── player/SheetCard.tsx   # Fitxa d'un personatge a la pantalla de jugador (targeta a la dreta)
 │   ├── dm/                 # Panells i overlays del DM
-│   │   ├── ImportPanel, LayerTree (capes de mapa del PSD), PlayersPanel (files primes de jugadors)
+│   │   ├── ImportPanel (fons + demo), PlayersPanel (files primes de jugadors)
 │   │   ├── TokenFields     # Fitxa d'un token dins del menú del clic dret (resolveToken, camps, NameField)
-│   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (PSD + biblioteca) en files primes
+│   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (biblioteca) en files primes
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
 │   │   ├── PlacesMenu      # Llocs de la missió (a dalt a l'esquerra del mapa): entrar a un lloc o sortir al poble
 │   │   ├── TopBar          # Barra superior: nom del mapa, Preparar·Jugar, Mostrar als jugadors, pantalles, partida, vista, ⋯
@@ -71,7 +70,7 @@ src/
 │       └── EnemyGroups     # Agrupar enemics de la BD: barra «Agrupar per», capçalera i cos de grup plegables
 ├── hooks/
 │   ├── useDMRefs.ts        # Tots els refs del DM (state mirrors + interaction)
-│   ├── useDMActions.ts     # Callbacks d'acció (PSD import, BC, drag...)
+│   ├── useDMActions.ts     # Callbacks d'acció (càrrega del fons, BC, drag...)
 │   ├── useAutosave.ts      # Desat automàtic periòdic de la partida (IndexedDB)
 │   ├── useEnemyGrouping.ts # Agrupació dels enemics de la BD i grups plegats (recordat a localStorage)
 │   ├── useStoredFlag.ts    # Sí/no de la UI recordat a localStorage sense error d'hidratació (lateral plegat)
@@ -112,13 +111,9 @@ src/
 │   │   ├── doors.ts        # Portes: effectiveWalls, pruneDoors, doorAt
 │   │   ├── walls.ts        # Edició de parets: vertexAt, moveVertex, wallAt
 │   │   └── pathing.ts      # Camins i caselles abastables (Dijkstra amb parets)
-│   ├── psd/
-│   │   ├── parser.ts       # parsePSDStructure(buffer) → ParsedPSD
-│   │   ├── extractor.ts    # extractLayerImages → Record<number, HTMLCanvasElement>
-│   │   └── tree.ts         # buildTree, validateStructure → MapStructure
 │   ├── render/
 │   │   ├── types.ts        # FrameContext interface
-│   │   ├── zones.ts        # renderZoneOverlays, renderExtras, renderPaintedZones, renderShapePreview
+│   │   ├── zones.ts        # renderPaintedZones, renderShapePreview
 │   │   ├── drawing.ts      # advanceStrokeAnim, replayStroke
 │   │   ├── spells.ts       # renderSpells (dispatcher de tots els spells + preview)
 │   │   ├── fireball.ts     # Bola de foc (ignició/vol/impacte/socarrim) + fireballShake
@@ -151,9 +146,9 @@ src/
 ```
 DMView (component React)
 │
-├── useState (UI state)             →  vis, pos, zoom, players, libEnemies...
+├── useState (UI state)             →  pos, zoom, players, libEnemies...
 ├── useDMRefs() → R                 →  tots els refs (mirrors + interaction)
-├── useDMActions(R, setters) → A    →  callbacks (importPSD, broadcastState...)
+├── useDMActions(R, setters) → A    →  callbacks (loadBg, broadcastState...)
 ├── useRafLoop(R, opts)             →  tick() + render phases (60fps)
 ├── useMouseHandlers(R, A, ...)     →  drag, pan, draw, calibre grid
 ├── useWheelZoom(R, A, ...)         →  zoom roda del ratolí
@@ -172,7 +167,7 @@ DMView (component React)
 5. Càlcul de `z, pan` (cinematica cam o local+shared)
 6. Càlcul de `sc, ox, oy` (scale i offset)
 7. Sync posició DOM del fons (evita thrashing amb `prevBgStyle`)
-8. `if (!s) return` — res a renderitzar sense PSD
+8. `if (!hasMap)` — res a renderitzar fins que hi ha mapa (`rMapSize`)
 9. **Construcció de `fc`** (`FrameContext`) — passat a totes les render phases
 10. `ctx.save() / translate(ox,oy) / scale(sc,sc)`
 11. Render phases (en ordre)
@@ -184,13 +179,10 @@ DMView (component React)
 
 | Funció | Fitxer | Descripció |
 |---|---|---|
-| `renderZoneOverlays` | render/zones.ts | Zones: visibilitat, fade, eye-icon, etiquetes |
-| `renderExtras` | render/zones.ts | Capa "extras" sempre visible |
 | `renderPaintedZones` | render/zones.ts | Zones màgiques: animades amb `drawZoneFx` de `zonefx.ts` (jugador, fotogrames clau fosos) / color pla (DM) |
 | `renderShapePreview` | render/zones.ts | Preview del shape tool al DM |
 | `advanceStrokeAnim` | render/drawing.ts | Reprodueix traços de dibuix frame a frame |
 | `renderSpells` | render/spells.ts | Animacions dels spells (inclosos els dels grimoris, `bookspells.ts`). Dues passades: `'ground'` (sota tokens) i `'air'` (sobre) |
-| `renderEnemyTokens` | render/tokens.ts | Tokens enemics PSD: drag, LERP, condicions, derrota |
 | `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures |
 | `renderPlayerTokens` | render/tokens.ts | Tokens jugador: LERP, condicions |
 | `renderNameTags` | render/tokens.ts | Només jugador: els noms de tots els tokens, junts i sense encavalcar-se (veure «Noms dels tokens a la pantalla de jugador») |
@@ -230,9 +222,9 @@ Cada valor d'estat té **dos** contenidors (definits a `useDMRefs.ts`):
 
 ```ts
 // DMView.tsx
-const [vis, setVis] = useState<VisMap>({});   // React (triggers re-render, UI)
+const [pos, setPos] = useState<PosMap>({});   // React (triggers re-render, UI)
 // useDMRefs.ts
-const rVis = useRef<VisMap>({});              // ref mirall (lectura O(1) dins tick)
+const rPos = useRef<PosMap>({});              // ref mirall (lectura O(1) dins tick)
 ```
 
 **Regla:** Quan modifiques un estat, actualitza sempre `setState` i el `ref` corresponent. `tick()` llegeix refs, mai state.

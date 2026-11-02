@@ -1,9 +1,9 @@
 'use client';
 import { useRef } from 'react';
 import type {
-  MapStructure, VisMap, PosMap, Player, Spell, PaintedZone,
+  PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
-  Point, DrawTool, PSDInfo, BBox, LibEnemy, PsdEnemyOverrides, SpellPreview, AreaSpellPending,
+  Point, DrawTool, MapSize, BBox, LibEnemy, SpellPreview, AreaSpellPending,
   Wall, Room, Door, TurnState, CamRect, AppStyle, DialogSync, SavedDialog,
 } from '@/types';
 import type { TileMap } from '@/lib/tilemap/model';
@@ -22,9 +22,6 @@ export function useDMRefs() {
   const mediaRef  = useRef<HTMLImageElement | HTMLVideoElement | null>(null);
 
   // State mirror refs
-  const rStruct       = useRef<MapStructure | null>(null);
-  const rStruct2      = useRef<MapStructure | null>(null);
-  const rVis          = useRef<VisMap>({});
   const rPos          = useRef<PosMap>({});
   const rZoom         = useRef(1);
   const rPlayers      = useRef<Player[]>([]);
@@ -32,8 +29,6 @@ export function useDMRefs() {
   const rDrawTool     = useRef<DrawTool>('none');
   const rDrawColor    = useRef('#f85149');
   const rDrawSize     = useRef(6);
-  const rLayerImages  = useRef<Record<number, HTMLCanvasElement>>({});
-  const rLayerUrls    = useRef<Record<string, string>>({});
   const rConditions   = useRef<ConditionsMap>({});
   const rPaintedZones = useRef<PaintedZone[]>([]);
   // Parets + sales fosques (eina "Parets"). rWalls és la font de veritat del DM (no es
@@ -65,8 +60,6 @@ export function useDMRefs() {
   const rWallVertexDrag  = useRef<{ orig: Point; base: Wall[] } | null>(null);
   const rHoveredRoomId  = useRef<string | null>(null);  // sala sota el cursor (ull, mode selecció)
   const roomRevealAnimRef = useRef<Record<string, number>>({}); // 1 = fosca opaca, 0 = revelada
-  const rPsdEnemyOverrides = useRef<PsdEnemyOverrides>({});
-  const rPsdEnemyImgCache  = useRef<Record<number, HTMLCanvasElement>>({});
   const rContextMenu  = useRef<unknown>(null);
   const rDefeated     = useRef<DefeatedMap>({});
   const rGridVisible  = useRef(false);
@@ -109,7 +102,9 @@ export function useDMRefs() {
   // sales/tokens/màgies; no afecta el que veuen els jugadors). 1 = opac.
   const rBgDmOpacity     = useRef(1);
   const rActiveSpells    = useRef<Spell[]>([]);
-  const rPsdInfo         = useRef<PSDInfo | null>(null);
+  // Mida del mapa de fons; `null` = encara no hi ha mapa llest (el render loop no pinta res).
+  // Mida del mapa de fons; `null` = encara no hi ha mapa llest (el render loop no pinta res).
+  const rMapSize         = useRef<MapSize | null>(null);
   const rDMPreviewActive = useRef(false);
   const rDMPreviewZoom   = useRef(1);
   const rDMPreviewPan    = useRef<Point>({ x: 0, y: 0 });
@@ -120,7 +115,6 @@ export function useDMRefs() {
   const drawCanvasRef   = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef    = useRef(false);
   const lastDrawRef     = useRef<{ mx: number; my: number } | null>(null);
-  const rHoveredRoom    = useRef<{ id: number; lx: number; ly: number; lw: number; lh: number } | null>(null);
   const bcRef           = useRef<BroadcastChannel | null>(null);
   const wsRef           = useRef<SyncSocket | null>(null);
   // Pan en curs (botó central, Espai+arrossegar o arrossegar en buit amb l'eina de selecció).
@@ -130,7 +124,6 @@ export function useDMRefs() {
   // Espai premut: qualsevol eina passa a arrossegar el mapa (convenció de Photoshop/Figma).
   const rSpaceHeld      = useRef(false);
   const rPanOffset      = useRef<Point>({ x: 0, y: 0 });
-  const roomAnimRef     = useRef<Record<string, number>>({});
   const visualPosRef    = useRef<PosMap>({});
   // Camí pendent d'animar per token (tokenId → polilínia + distància recorreguda). Al DM
   // només s'omple amb els moviments que arriben d'una pantalla de jugador, perquè el vegi
@@ -139,7 +132,6 @@ export function useDMRefs() {
   const currentStrokeRef  = useRef<Point[]>([]);
   const strokeQueueRef    = useRef<StrokeAnimState[]>([]);
   const activeStrokeAnim  = useRef<StrokeAnimState | null>(null);
-  const rDeathCanvas      = useRef<HTMLCanvasElement | null>(null);
   const shapePointsRef    = useRef<Point[]>([]);
   const isShapeDrawingRef = useRef(false);
   const bgBufferRef       = useRef<{ buffer: ArrayBuffer; mimeType: string } | null>(null);
@@ -217,7 +209,7 @@ export function useDMRefs() {
   // (`performance.now()`, per enviar l'`age` real a qui es connecta a mitja línia).
   const rDialog              = useRef<DialogSync | null>(null);
   const rDialogT0            = useRef(0);
-  // Diàlegs preparats, per token (`pl_3`, `lib_7`, id del PSD). Es desen a la partida.
+  // Diàlegs preparats, per token (`pl_3`, `lib_7`, ). Es desen a la partida.
   const rDialogs             = useRef<Record<string, SavedDialog[]>>({});
   // Pantalla del DM: vista del diàleg i objectiu de la càmera (veure `lib/dialog/host.ts`).
   const dialogHostRef        = useRef<DialogHost | null>(null);
@@ -236,17 +228,16 @@ export function useDMRefs() {
 
   return {
     stageRef, canvasRef, mediaRef,
-    rStruct, rStruct2, rVis, rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
-    rLayerImages, rLayerUrls, rConditions, rPaintedZones, rContextMenu, rDefeated,
+    rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
+    rConditions, rPaintedZones, rContextMenu, rDefeated,
     rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rMapHistory, rUndoLog, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rPsdInfo,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rMapHistory, rUndoLog, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
-    rPsdEnemyOverrides, rPsdEnemyImgCache,
-    dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, rHoveredRoom, bcRef, wsRef,
-    panDragRef, rPanOffset, roomAnimRef, visualPosRef, rMovePath, currentStrokeRef, strokeQueueRef,
-    activeStrokeAnim, rDeathCanvas, shapePointsRef, isShapeDrawingRef, bgBufferRef,
+    dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, bcRef, wsRef,
+    panDragRef, rPanOffset, visualPosRef, rMovePath, currentStrokeRef, strokeQueueRef,
+    activeStrokeAnim, shapePointsRef, isShapeDrawingRef, bgBufferRef,
     drawChangedRef, dmLocalPan, dmLocalZoom, dmPrivateReturnAnim, dmShiftReturnAnim,
     visualZoomRef, visualPanRef,
     zoneDragRef, areaSpellDragRef, defeatedAnimRef, _ctx2dRef, invisAlphaRef, strokeHistoryRef, strokeBaseRef, strokeBaseVerRef,

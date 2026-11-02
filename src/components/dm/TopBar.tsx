@@ -24,7 +24,6 @@ type MenuId = 'screens' | 'game' | 'view' | 'more';
 interface Props {
   /** Nom del fitxer del mapa; null = encara no n'hi ha cap de carregat. */
   mapName: string | null;
-  hasPsd: boolean;
   /** Lateral desplegat o plegat (el botó viu al bloc del nom, alineat amb el lateral). */
   sidebarOpen: boolean; onToggleSidebar: () => void;
   /** Preparar (construir el mapa) o Jugar (a la taula). */
@@ -387,8 +386,7 @@ function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridV
               Només a la teva pantalla: els jugadors veuen el mapa sempre opac.
             </span>
           </div>
-          {/* Amb qualsevol mapa: els enemics de la biblioteca (i els dels mapes de caselles,
-              que no tenen PSD) també es ressalten. Abans només sortia amb un PSD. */}
+          {/* Amb qualsevol mapa: es ressalten els enemics de la biblioteca. */}
           {(
             <>
               <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
@@ -549,7 +547,7 @@ export function TopBar(p: Props) {
             {p.mapName ? prettyName(p.mapName) : p.pixel ? 'RPG Map Viewer · Píxel' : 'RPG Map Viewer'}
           </span>
           <span style={{ fontSize: FS.xs, color: C.dim }}>
-            {!p.mapName ? 'Cap mapa obert' : p.hasPsd ? 'Mapa amb capes del PSD' : p.mapName === TILEMAP_NAME ? 'Mapa de caselles' : isVideoName(p.mapName) ? 'Mapa de vídeo' : 'Mapa d\'imatge'}
+            {!p.mapName ? 'Cap mapa obert' : p.mapName === TILEMAP_NAME ? 'Mapa de caselles' : isVideoName(p.mapName) ? 'Mapa de vídeo' : 'Mapa d\'imatge'}
           </span>
         </div>
         <IconButton variant="ghost" size={28} onClick={p.onToggleSidebar} aria-pressed={p.sidebarOpen}

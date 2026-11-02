@@ -106,7 +106,7 @@ export function useMissionScenes(R: DMRefs, o: {
 
   useEffect(() => { refs.current.rPlaceEnter.current = id => { void goTo(id); }; }, [goTo]);
 
-  /** Un mapa que no és de la missió (mapa nou, PSD, demo, caselles): fora llocs i marques. */
+  /** Un mapa que no és de la missió (mapa nou, demo, caselles): fora llocs i marques. */
   const drop = useCallback(() => {
     if (!refs.current.rMissionScenes.current) return;
     refs.current.rMissionScenes.current = null; setScenes(null);

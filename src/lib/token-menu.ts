@@ -2,8 +2,7 @@ import type { DMRefs } from '@/hooks/useDMRefs';
 import type { ContextMenuState } from '@/types';
 
 /**
- * Estat del menú del clic dret d'un token (jugador `pl_*`, biblioteca `lib_*` o enemic del
- * PSD, numèric). Un sol lloc per construir-lo: el fan servir el clic dret al mapa i el clic
+ * Estat del menú del clic dret d'un token (jugador `pl_*` o biblioteca `lib_*`). Un sol lloc per construir-lo: el fan servir el clic dret al mapa i el clic
  * dret a una fila del lateral, i tots dos han d'obrir exactament el mateix menú.
  */
 export function tokenMenuFor(R: DMRefs, id: string | number, x: number, y: number): ContextMenuState | null {
@@ -22,8 +21,5 @@ export function tokenMenuFor(R: DMRefs, id: string | number, x: number, y: numbe
     const r = R.rTokenSizeOverride.current[key] ?? 22;
     return { id: key, name: pl.name, x, y, existingGroupId, casterPos: { x: pos.x + r, y: pos.y + r } };
   }
-  if (typeof id !== 'number') return null;
-  const en = R.rStruct.current?.enemyRooms.flatMap(r => r.enemies).find(e => e.id === id);
-  if (!en) return null;
-  return { id, name: en.name, x, y, existingGroupId };
+  return null;
 }
