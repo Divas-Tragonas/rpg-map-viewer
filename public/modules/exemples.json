@@ -1,0 +1,153 @@
+{
+  "modules": [
+    {
+      "format": "rpg-module",
+      "version": 1,
+      "id": "les-runes-de-cony-cirera",
+      "title": "Les runes de Cony Cirera",
+      "notionUrl": "https://app.notion.com/p/3f8dcaf8e68281bdbb4fdfafd41dda9c",
+      "kind": "Encontre",
+      "level": 3,
+      "duration": "Llarga",
+      "status": "preparat",
+      "quests": [
+        "Una pinta per a l'Àgata"
+      ],
+      "trigger": "En arribar a les runes de Cony Cirera, al capvespre. Si vols combat abans de l'Àgata; si no, descripció i directe a la cabanya.",
+      "scene": [
+        "El bosc s'ha menjat el poble.",
+        "Entre les pedres s'alcen unes plagues de ramitas. Són fàcils: uns 20 minuts de combat.",
+        "L'Àgata els mira des de l'ombra i apareix quan cau l'última."
+      ],
+      "readAloud": [
+        {
+          "id": "arribada",
+          "label": "Arribada al poble",
+          "text": "El bosc s'ha menjat el poble. Entre les pedres s'alcen unes plagues de ramitas, tan seques que semblen matolls oblidats."
+        }
+      ],
+      "foes": [
+        {
+          "creature": "Plaga de ramitas",
+          "count": 6,
+          "hp": 4,
+          "xp": 25,
+          "sprite": "pixie_a",
+          "note": "CA 13 · PG 4 · Vel 6 m · Urpes +3, 1d4+1 perforant · Vulnerable al foc · Aparença falsa: immòbil, sembla un arbust sec · Visió cega 18 m. Ajusta el nombre (+2 si van sobrats)."
+        }
+      ],
+      "npcs": [
+        {
+          "name": "L'Àgata",
+          "note": "Observa des de l'ombra; apareix quan cau l'última plaga."
+        }
+      ],
+      "dialogs": [],
+      "exits": [
+        {
+          "id": "cau-l-ultima",
+          "label": "Cau l'última plaga",
+          "text": "Passa a l'Àgata.",
+          "to": "l-agata"
+        }
+      ],
+      "dmNotes": "Proposta no confirmada: el poble va quedar arrasat a la Gran Guerra fa cent anys, i així lliga amb la sessió 11.\nSis plagues són un encontre fàcil per a cinc PJs de nivell 3. Si van sobrats, en surten dues més.",
+      "map": {
+        "mission": "conyberry"
+      }
+    },
+    {
+      "format": "rpg-module",
+      "version": 1,
+      "id": "l-agata",
+      "title": "L'Àgata (exemple)",
+      "kind": "Social / hub",
+      "level": 3,
+      "duration": "Mitjana",
+      "status": "preparat",
+      "quests": [
+        "Una pinta per a l'Àgata"
+      ],
+      "trigger": "Quan cau l'última plaga de les runes, o en seguir el camí del bosc fins a la cabanya d'entrellaçat de branques.",
+      "scene": [
+        "El bosc es torna més fosc i silenciós; l'aire és més fred que al poble.",
+        "Una cabanya voltada de branques recargolades, amb una porta baixa.",
+        "Dins, mobles vells de manufactura élfica i una figura fantasmal: l'Àgata, que ofereix respondre preguntes.",
+        "Si es porten bé, respon; si no, se'n va."
+      ],
+      "readAloud": [
+        {
+          "id": "cami",
+          "label": "El camí del bosc",
+          "text": "El bosc es torna més fosc i silenciós a mesura que el sender s'endinsa entre els arbres. Les enfiladisses i la molsa cobreixen les branques, i l'aire és més fred del que era al poble en ruïnes."
+        },
+        {
+          "id": "cabanya",
+          "label": "La cabanya",
+          "text": "Al doblegar una corba del camí, veieu una barrera feta amb les branques recargolades d'uns arbres molt junts, entrellaçades com un refugi voltat entre les ombres. Una porta baixa condueix a l'interior."
+        },
+        {
+          "id": "dins",
+          "label": "Dins la cabanya",
+          "text": "Dins la cúpula de branques hi ha una cosa semblant a un habitatge, escassament moblada amb baguls, prestatges, una taula i un llarg sofà, tots vells i de manufactura élfica."
+        }
+      ],
+      "foes": [
+        {
+          "creature": "L'Àgata",
+          "count": 1,
+          "hp": 58,
+          "xp": 1100,
+          "sprite": "wraith_a",
+          "note": "Només si la ataquen. Es juga com una banshee (CR 4): incorpòria, gemec que pot matar. Normalment no és un combat."
+        },
+        {
+          "creature": "skeleton",
+          "count": 2,
+          "name": "Esquelet de la cabanya",
+          "note": "Exemple d'una plantilla de la biblioteca (per id): per provar «Col·locar»."
+        }
+      ],
+      "npcs": [
+        {
+          "name": "L'Àgata",
+          "note": "Esperit que respon preguntes si els PJ es porten bé."
+        },
+        {
+          "name": "Llibre de Kumonmi",
+          "note": "Si l'agafen, flashback de Kumonmi manipulat per la pantera negra."
+        }
+      ],
+      "dialogs": [
+        {
+          "id": "preguntes",
+          "title": "Les preguntes de l'Àgata",
+          "script": "Narrador: La figura fantasmal somriu amb una fredor alegre.\nÀgata: Molt bé. Sé que busqueu moltes coses. Feu-me una pregunta i us en donaré una resposta.\n> Qui és la Pantera i el Llop? -> pantera\n> On és el castell? -> castell\n> Res més, gràcies. -> fi\n\n# pantera\nÀgata (xiuxiueig): (Escriu aquí la resposta preparada sobre la Pantera i el Llop.)\n-> fi\n\n# castell\nÀgata: (Escriu aquí la resposta preparada sobre el castell.)\n-> fi"
+        }
+      ],
+      "exits": [
+        {
+          "id": "torna-poble",
+          "label": "Tornen al poble",
+          "text": "Surten del bosc i tornen al mapa del poble.",
+          "map": {
+            "mission": "conyberry"
+          }
+        },
+        {
+          "id": "capella",
+          "label": "Van a la Capella enrunada",
+          "text": "Obre el mapa del lloc amb cortina.",
+          "map": {
+            "mission": "conyberry",
+            "scene": "capella"
+          }
+        }
+      ],
+      "dmNotes": "EXEMPLE: contingut de demostració per provar tots els botons del panell. Els textos de les respostes de l'Àgata són marcadors: escriu-hi els teus. Quan importis el mòdul real de Notion amb l'id «l-agata», aquest se substitueix (l'estat de joc es conserva).",
+      "map": {
+        "mission": "conyberry"
+      }
+    }
+  ]
+}

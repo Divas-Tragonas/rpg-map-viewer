@@ -10,6 +10,9 @@ import {
   type ModuleStatus, type ModulesData,
 } from '@/lib/modules';
 
+/** Mòduls d'exemple (dos encadenats: les runes → l'Àgata). Amb la base de l'app, com els fulls de sprites. */
+const EXAMPLES_URL = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/modules/exemples.json`;
+
 const field: React.CSSProperties = {
   background: C.dark, color: C.bright, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm,
   fontSize: FS.sm, padding: '5px 7px', minWidth: 0,
@@ -35,6 +38,15 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
     setMsg({ ok: !r.errors.length || r.added.length + r.updated.length > 0, text: parts.join(' ') });
     return r.added.length + r.updated.length > 0;
   };
+  const loadExamples = async () => {
+    try {
+      const res = await fetch(EXAMPLES_URL);
+      if (!res.ok) throw new Error(String(res.status));
+      run(await res.text());
+    } catch {
+      setMsg({ ok: false, text: 'No s\'han pogut carregar els mòduls d\'exemple. Comprova la connexió.' });
+    }
+  };
   const onFiles = async (files: FileList | null) => {
     if (!files?.length) return;
     for (const f of Array.from(files)) run(await f.text());
@@ -48,6 +60,7 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
         <div style={{ display: 'flex', gap: 6 }}>
           <Button size="md" onClick={() => fileRef.current?.click()}><Upload size={12} /> Importar fitxer…</Button>
           <Button size="md" active={paste} onClick={() => setPaste(v => !v)}>Enganxar JSON</Button>
+          <Button size="md" variant="ghost" onClick={() => void loadExamples()} title="Importa dos mòduls de prova encadenats, per provar tots els botons">Exemples</Button>
           <input ref={fileRef} type="file" accept=".json,application/json" multiple hidden onChange={e => void onFiles(e.target.files)} />
         </div>
         {paste && (

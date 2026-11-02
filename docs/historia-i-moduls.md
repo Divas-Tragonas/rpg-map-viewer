@@ -35,7 +35,7 @@ tot funciona en memòria mentre la pàgina és oberta.
 
 ### Format del paquet (`ModulePack`, `lib/modules.ts`)
 Un fitxer `.json` pot contenir un mòdul, una llista o `{ "modules": [...] }`. Exemple complet a
-[`docs/exemples/modul-les-runes-de-cony-cirera.json`](exemples/modul-les-runes-de-cony-cirera.json).
+[`public/modules/exemples.json`](../public/modules/exemples.json): dos mòduls encadenats (*Les runes de Cony Cirera* → *L'Àgata (exemple)*) que fan servir tots els camps. El botó **Exemples** de la pestanya Mòduls els importa (`fetch` amb `NEXT_PUBLIC_BASE_PATH`); l'`id` `l-agata` es substitueix en importar el real.
 
 | Camp | Tipus | De Notion (base MÒDULS) | Notes |
 |---|---|---|---|

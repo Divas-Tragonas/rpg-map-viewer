@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.76 — Mòduls d'exemple
+- Botó **Exemples** a Història → Mòduls: importa dos mòduls de prova encadenats (*Les runes de Cony Cirera* → *L'Àgata (exemple)*) que fan servir tots els camps: textos per llegir, enemics (per plantilla, per figureta Oryx i genèric), PNJ, un diàleg amb opcions, sortides amb enllaç a un altre mòdul i al mapa de Cony Cirera (poble i Capella enrunada)
+- El paquet és a `public/modules/exemples.json` (abans, `docs/exemples/`)
+
 ### v4.75 — Història: mòduls i diari de la sessió
 - Nou botó **Història** a la barra superior i panell a la dreta del mapa (DM-only, no es sincronitza): pestanyes **Mòdul**, **Mòduls** i **Diari**
 - **Mòduls**: paquets JSON que reflecteixen les pàgines de la base MÒDULS de Notion (disparador, escena, textos per llegir, enemics, PNJ, diàlegs, sortides, notes del DM). Es generen des de Notion (a mà o amb Claude) i s'importen per fitxer o enganxant el JSON. Des del mòdul actiu: **Llegir** (deixa el text al Revelador), **Col·locar** enemics (a la biblioteca de l'escena, amb la seva figureta), **Parlar** (diàleg amb el repartiment automàtic), **Obrir** el mapa, **Anar-hi** (sortida: acaba el mòdul i obre el següent) i **Marcar com a jugat**
