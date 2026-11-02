@@ -411,12 +411,6 @@ export function DMView() {
     R.rPos.current = np; setPos(np);
     _broadcastState({});
   }, [R, _broadcastState]);
-  // Bestiari Oryx (Biblioteca, app Píxel): una criatura com si fos una plantilla més.
-  const addOryxCreature = useCallback((name: string) => {
-    const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
-    const st = creatureStats(name);
-    addLibEnemy({ id: `oryx_${name}`, name: nice, color: C.enemy, hpMax: st?.hp ?? 10, R: 22, sm: 0.9, sprite: name, xp: st?.xp ?? 0 } as unknown as Parameters<typeof addLibEnemy>[0]);
-  }, [addLibEnemy]);
   const syncTileSize = useCallback((has: boolean) => {
     const m = R.rTileMap.current;
     setTileMapSize(has && m ? { cols: m.cols, rows: m.rows } : null);
@@ -1749,7 +1743,6 @@ export function DMView() {
               onAddEnemy={addLibEnemy}
               onAddDbEnemy={addDbEnemy}
               pixel={pixel && pack.status === 'ready'}
-              onAddCreature={addOryxCreature}
             />
           )}
         </ScrollArea>

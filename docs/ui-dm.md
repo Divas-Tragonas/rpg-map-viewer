@@ -7,7 +7,7 @@
 - **Escena · Mapa · Biblioteca** (`sidebarTab` a `DMView`). Abans eren «Mapa / Enemics» i els enemics vivien en una pestanya a part: per seguir un combat calia saltar-hi.
   - **Escena** (per defecte): `PlayersPanel` (jugadors en files primes, veure «Panell de jugadors») + `SceneEnemiesPanel` — **tots** els enemics a l'escena (els de la biblioteca), en **files primes** (~28 px) amb ull, nom i `HpControl` `sm`. Clic a una fila = seleccionar el token al canvas; **clic dret = el mateix menú que al mapa** (`openTokenMenu`). Treure'l de l'escena surt en passar-hi el cursor.
   - **Mapa**: `ImportPanel` (el fons i la demo) i `RoomsPanel` (sales i llums).
-  - **Biblioteca**: `EnemyLibraryPanel`, només plantilles per **afegir** (i la BD si hi ha API, agrupada per projecte o categoria — veure «Enemics de la BD agrupats»). Cada plantilla diu quants n'hi ha a l'escena (`×N`, per `templateId`).
+  - **Biblioteca**: `EnemyLibraryPanel`, secció «Bestiari» única (plantilles + Oryx amb cerca i grups) per **afegir** (i la BD si hi ha API, agrupada per projecte o categoria — veure «Enemics de la BD agrupats»). Cada plantilla diu quants n'hi ha a l'escena (`×N`, per `templateId`).
 - **Regla**: el que és *a l'escena* va a Escena, el que és *del mapa* va a Mapa. Un panell nou s'ha de posar on toca per funció, no per origen de les dades.
 
 ## Finestra lateral esquerra — seccions plegables (`src/components/ui/SidebarSection.tsx`)

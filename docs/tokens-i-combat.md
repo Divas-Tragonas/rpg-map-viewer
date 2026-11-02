@@ -16,6 +16,7 @@
 
 ## Tokens enemics
 - **Lib enemies**: `LibEnemy[]` afegits manualment des del panell, amb imatge custom opcional
+- **Catàleg únic** (`lib/bestiary.ts`): `ENEMY_TEMPLATES` (genèriques, **Castell de la Fumarola**, **Aliats** amb XP 0) + `creatureTemplate(nom)` per a les criatures Oryx (`oryx_<nom>`) són `EnemyTemplate` i entren per `addLibEnemy`; `findTemplate(id)` resol qualsevol `templateId`. Un enemic de campanya nou = una línia a `CASTLE`/`ALLIES` (figureta, vida, XP, text); res d'API.
 - **Numeració automàtica** (`addEnemyNumbered` a `src/lib/enemy-naming.ts`, usada per `addLibEnemy` i `addDbEnemy`): el primer Goblin es diu "Goblin"; en afegir-ne un segon, el primer passa a "Goblin 1" i el nou a "Goblin 2", i la sèrie va ascendint. El **nom base** és el nom sense el número final (`/\s+\d+$/`), així que un nom propi escrit pel DM ("Goblin Cap") té un base diferent i queda fora de la sèrie. Retorna sempre un **array nou** (els `libEnemies` són camp pesat del `STATE`: mutar-los in place no els sincronitzaria).
 
 ## Grups de tokens

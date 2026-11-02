@@ -102,7 +102,7 @@ src/
 │   ├── characters.ts       # Fitxes: format de `sheet`, taula d'XP de 5e, characterFor, buildSheetShow
 │   ├── characters-seed.ts  # Les 5 fitxes de Notion (importar-les al back office i primera còpia local)
 │   ├── characters-store.ts # Còpia local de les fitxes i cua de canvis fets sense connexió (localStorage)
-│   ├── bestiary.ts         # Monstre de D&D 5e, VD, XP i vida de cada criatura del Bestiari Oryx
+│   ├── bestiary.ts         # Catàleg únic d'enemics (`ENEMY_TEMPLATES`, Castell de la Fumarola, aliats) + monstre 5e, VD, XP i vida de cada criatura Oryx
 │   ├── sprites/            # App Píxel: paquet Oryx (pack.ts: carrega els fulls de public/sprites/; draw.ts; manifest.ts GENERAT; portrait.ts; font.ts lletra de píxel; window.ts finestres 9-slice; variants.ts GENERAT: variants de color de les figuretes; states.ts: estats a la figureta; hitfx.ts: cops, envestides i curacions)
 │   ├── dialog/             # Diàlegs: script.ts (guió), reveal.ts (lletra a lletra), camera.ts, tokens.ts, scene.ts (motor), host.ts (DM i jugador)
 │   ├── tilemap/            # App Píxel: mapa de caselles (model, palette, editor, render/cuinat, geometry → parets, tmx)

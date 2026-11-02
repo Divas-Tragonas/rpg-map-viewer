@@ -1,8 +1,8 @@
 'use client';
-import { creatureStats } from '@/lib/bestiary';
-import React, { useEffect, useState } from 'react';
+import { ENEMY_TEMPLATES, creatureTemplate, extraCreatures, type EnemyTemplate } from '@/lib/bestiary';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BookIcon, Cloud } from '@/components/icons';
-import { ENEMY_TEMPLATES, C, FS, RADIUS } from '@/constants';
+import { C, FS, RADIUS } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { EnemyGroupToolbar, GroupBody, GroupHeader } from '@/components/ui/EnemyGroups';
 import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
@@ -16,11 +16,10 @@ import type { LibEnemy } from '@/types';
 interface Props {
   /** Enemics ja afegits a l'escena: només per mostrar quants n'hi ha de cada plantilla. */
   libEnemies: LibEnemy[];
-  onAddEnemy: (tmpl: typeof ENEMY_TEMPLATES[number]) => void;
+  onAddEnemy: (tmpl: EnemyTemplate) => void;
   onAddDbEnemy: (enemy: ApiEnemy) => void;
   /** App Píxel: figureta a les plantilles i el bestiari sencer del paquet Oryx. */
   pixel?: boolean;
-  onAddCreature?: (name: string) => void;
 }
 
 function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void; thumb?: string | null; detail?: string }) {
@@ -42,6 +41,11 @@ function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail }:
   );
 }
 
+const GROUPS: { key: NonNullable<EnemyTemplate['group']>; label: string }[] = [
+  { key: 'Castell de la Fumarola', label: 'Castell de la Fumarola' },
+  { key: 'Aliats', label: 'Aliats' },
+  { key: 'Plantilles', label: 'Plantilles' },
+];
 const GRID: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 };
 // Una sola columna: els noms de la BD són llargs ("Guàrdia de la Meridiana") i a dues quedaven tallats.
 const DB_GRID: React.CSSProperties = { ...GRID, gridTemplateColumns: '1fr' };
@@ -51,7 +55,7 @@ const DB_GRID: React.CSSProperties = { ...GRID, gridTemplateColumns: '1fr' };
  * (vida, visibilitat, eliminar) a la pestanya Escena, junt amb els jugadors.
  * Els de la BD es poden agrupar per projecte o per categoria (grups plegables).
  */
-export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel, onAddCreature }: Props) {
+export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel }: Props) {
   useSpritePack();
   const [beastQ, setBeastQ] = useState('');
   const [dbEnemies, setDbEnemies] = useState<ApiEnemy[]>([]);
@@ -68,6 +72,23 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel,
   }, []);
 
   const countOf = (templateId: string) => libEnemies.filter(e => e.templateId === templateId).length;
+  const entries = useMemo<EnemyTemplate[]>(
+    () => [...ENEMY_TEMPLATES, ...(pixel ? extraCreatures(creatureNames()).map(creatureTemplate) : [])],
+    [pixel]);
+  const q = beastQ.trim().toLowerCase().replace(/_/g, ' ');
+  const shown = entries.filter(t => !q || `${t.name} ${t.detail ?? ''} ${t.sprite ?? ''}`.toLowerCase().replace(/_/g, ' ').includes(q));
+  const templateGroup = (label: string, items: EnemyTemplate[]) => (
+    <div key={label} style={{ marginTop: 6 }}>
+      <div style={{ fontSize: FS.xs, color: C.dim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .5, margin: '2px 0 4px' }}>{label} · {items.length}</div>
+      <div style={GRID}>
+        {items.map(t => (
+          <TemplateButton key={t.id} name={t.name} color={t.color} hpMax={t.hpMax} detail={t.detail}
+            inScene={countOf(t.id)} onClick={() => onAddEnemy(t)}
+            thumb={pixel && t.sprite ? creatureThumb(t.sprite) : null} />
+        ))}
+      </div>
+    </div>
+  );
   const groups = grouping.by === 'none' ? [] : groupEnemies(dbEnemies, grouping.by);
   const dbButton = (en: ApiEnemy) => (
     <TemplateButton key={en.id} name={en.name} color={en.color} hpMax={en.hpMax}
@@ -79,33 +100,20 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel,
       <div style={{ padding: '8px 12px 2px', fontSize: FS.sm, color: C.dim, lineHeight: 1.45 }}>
         Clica una plantilla per afegir-la al centre de la vista. Després la trobaràs a <b style={{ color: C.text }}>Escena</b>.
       </div>
-      <SidebarSection title="Plantilles" icon={<BookIcon size={13} />} defaultOpen bodyPadding="0 8px 8px">
-        <div style={GRID}>
-          {ENEMY_TEMPLATES.map(tmpl => (
-            <TemplateButton key={tmpl.id} name={tmpl.name} color={tmpl.color} hpMax={tmpl.hpMax}
-              inScene={countOf(tmpl.id)} onClick={() => onAddEnemy(tmpl)}
-              thumb={pixel && tmpl.sprite ? creatureThumb(tmpl.sprite) : null} />
-          ))}
-        </div>
+      {/* Catàleg únic: plantilles (genèriques, Castell de la Fumarola, aliats) + bestiari Oryx (app Píxel). */}
+      <SidebarSection title="Bestiari" icon={<BookIcon size={13} />} count={entries.length} defaultOpen maxBodyHeight={420} bodyPadding="0 8px 8px">
+        <input value={beastQ} onChange={e => setBeastQ(e.target.value)} placeholder="Cerca (goblin, Sildar, dragon…)"
+          style={{ width: '100%', boxSizing: 'border-box', height: 26, margin: '2px 0 6px', padding: '0 8px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: C.dark, color: C.bright, fontSize: FS.sm, outline: 'none' }} />
+        {shown.length === 0 && <div style={{ fontSize: FS.xs, color: C.dim }}>Cap resultat</div>}
+        {GROUPS.map(g => {
+          const items = shown.filter(t => (t.group ?? 'Plantilles') === g.key && (g.key !== 'Plantilles' || !t.id.startsWith('oryx_')));
+          if (!items.length) return null;
+          return templateGroup(g.label, items);
+        })}
+        {shown.some(t => t.id.startsWith('oryx_')) && (
+          templateGroup('Bestiari Oryx', shown.filter(t => t.id.startsWith('oryx_')))
+        )}
       </SidebarSection>
-
-      {/* App Píxel: tot el bestiari del paquet Oryx, amb la seva figureta. */}
-      {pixel && onAddCreature && (
-        <SidebarSection title="Bestiari Oryx" icon={<BookIcon size={13} />} count={creatureNames().length} defaultOpen={false} maxBodyHeight={320} bodyPadding="0 8px 8px">
-          <input value={beastQ} onChange={e => setBeastQ(e.target.value)} placeholder="Cerca (goblin, skeleton, dragon…)"
-            style={{ width: '100%', boxSizing: 'border-box', height: 26, margin: '2px 0 6px', padding: '0 8px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: C.dark, color: C.bright, fontSize: FS.sm, outline: 'none' }} />
-          <div style={GRID}>
-            {creatureNames().filter(n => n.replace(/_/g, ' ').includes(beastQ.trim().toLowerCase())).map(n => {
-              const st = creatureStats(n);
-              return (
-                <TemplateButton key={n} name={n.replace(/_/g, ' ')} color={C.enemy} hpMax={st?.hp ?? 10}
-                  detail={st ? `${st.as} · VD ${st.cr} · ${st.xp} XP` : undefined}
-                  inScene={countOf(`oryx_${n}`)} onClick={() => onAddCreature(n)} thumb={creatureThumb(n)} />
-              );
-            })}
-          </div>
-        </SidebarSection>
-      )}
 
       {isApiConfigured() && (
         <SidebarSection title="Base de dades" icon={<Cloud size={13} />} count={dbEnemies.length} defaultOpen bodyPadding="0 8px 8px">

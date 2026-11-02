@@ -167,3 +167,87 @@ export function creatureStats(name: string): CreatureStats | null {
   if (!s) return null;
   return { as: s[0], cr: s[1], xp: XP_BY_CR[s[1]] ?? 0, hp: s[2] };
 }
+
+// ─── Catàleg unificat: plantilles + Bestiari Oryx ───────────────────────────────────────────
+
+/** Una entrada de la Biblioteca d'enemics (plantilla pròpia o criatura del paquet Oryx). */
+export interface EnemyTemplate {
+  id: string;
+  name: string;
+  color: string;
+  hpMax: number;
+  /** Radi (px) sense graella automàtica i factor de mida respecte a la casella (amb ella). */
+  R: number;
+  sm: number;
+  sprite?: string;
+  xp: number;
+  /** Grup de la Biblioteca. */
+  group: 'Castell de la Fumarola' | 'Aliats' | 'Plantilles';
+  /** Text curt per al títol del botó (monstre 5e amb què es juga, notes). */
+  detail?: string;
+}
+
+const T = (id: string, name: string, color: string, hpMax: number, R: number, sm: number, sprite: string, xp: number,
+  group: EnemyTemplate['group'] = 'Plantilles', detail?: string): EnemyTemplate =>
+  ({ id, name, color, hpMax, R, sm, sprite, xp, group, detail });
+
+/** Plantilles genèriques (les de sempre). */
+const GENERIC: EnemyTemplate[] = [
+  T('goblin',   'Goblin',   '#3a8a3a', 7,   25, 0.70, 'goblin', 50),
+  T('wolf',     'Llop',     '#8a7060', 11,  28, 0.80, 'wolf_black', 50),
+  T('bear',     'Ós',       '#8B5E3C', 34,  39, 1.10, 'minotaur', 200),
+  T('zombie',   'Zombi',    '#4a7a4a', 22,  33, 0.95, 'zombie_a', 50),
+  T('skeleton', 'Esquelet', '#c8b87a', 13,  26, 0.75, 'skeleton', 50),
+  T('orc',      'Orc',      '#5a7a2a', 15,  35, 1.00, 'goblin_warrior', 100),
+  T('troll',    'Trol',     '#3a6030', 84,  53, 1.50, 'troll', 1800),
+  T('rat',      'Rata',     '#7a6060', 2,   14, 0.40, 'rat_giant', 25),
+  T('bandit',   'Bandit',   '#6a5a4a', 11,  35, 1.00, 'thief', 25),
+  T('spider',   'Aranya',   '#3a3a5a', 4,   16, 0.45, 'spider_black_giant', 10),
+  T('dragon',   'Drac',     '#c0392b', 178, 70, 2.00, 'dragon_red', 5900),
+];
+
+/** Castell de la Fumarola (Cragmaw Castle): habitants per zones i jefes (Notion: base de dades de campanya). */
+const CASTLE: EnemyTemplate[] = [
+  T('fum_goblin',   'Goblin Bocapeñasco', '#3a8a3a', 7,  25, 0.70, 'goblin', 50, 'Castell de la Fumarola', 'Centinelles, arquers i barracons (zones 1, 3, 4, 7, 9) · VD 1/4'),
+  T('fum_hobgoblin','Hobgoblin',          '#8a3a2a', 11, 33, 0.95, 'goblin_warrior', 100, 'Castell de la Fumarola', 'Quarter hobgoblin (zona 6) · VD 1/2'),
+  T('fum_yegg',     'Yegg',               '#5a8a3a', 12, 30, 0.85, 'goblin_warrior', 50, 'Castell de la Fumarola', 'Cuiner gras i cascarrabias, saló de banquets (zona 7) · VD 1/4'),
+  T('fum_lhupo',    'Lhupo',              '#6a9a3a', 12, 26, 0.75, 'goblin_shaman', 100, 'Castell de la Fumarola', 'Xaman de Maglubiyet, santuari (zona 9) · VD 1/2'),
+  T('fum_grick',    'Grick',              '#7a6a8a', 27, 33, 0.95, 'worm', 450, 'Castell de la Fumarola', 'Mascota de Lhupo, vestíbul fosc (zona 8) · VD 2'),
+  T('fum_owlbear',  'Os mussol captiu',   '#8B5E3C', 59, 45, 1.30, 'minotaur', 700, 'Castell de la Fumarola', 'Torre (zona 13) · VD 3'),
+  T('fum_snarl',    'Snarl',              '#8a7060', 18, 28, 0.80, 'wolf_red', 50, 'Castell de la Fumarola', 'Llop del rei Jalil (zona 14) · VD 1/4'),
+  T('fum_jalil',    'Rei Jalil',          '#7a4a2a', 65, 48, 1.35, 'ogre', 700, 'Castell de la Fumarola', 'Osgo vell, cap dels Bocapeñasco (King Grol, zona 14) · jefe'),
+  T('fum_vyerith',  'Vyerith',            '#8a4aa0', 52, 35, 1.00, 'drow_wizard', 700, 'Castell de la Fumarola', 'Doppelganger disfressat de drow, emissari dels Germans (zona 14) · VD 3 · jefe'),
+];
+
+/** Aliats i NPCs de la campanya (XP 0). */
+const ALLIES: EnemyTemplate[] = [
+  T('npc_sildar', 'Sildar Flocdeneu',  '#5a8ac0', 52, 35, 1.00, 'knight', 0, 'Aliats', 'Sildar Hallwinter, guerrer de l\'Aliança dels Lords · es juga com a Cavaller (VD 3)'),
+  T('npc_gota',   'Gota',              '#7ab07a', 7,  22, 0.65, 'goblin', 0, 'Aliats', 'Droop, goblin petit i espantadís · stats de goblin'),
+  T('npc_roc',    'Roc Cercarocs',     '#b0905a', 11, 28, 0.80, 'dwarf', 0, 'Aliats', 'Gundren Buscarrocas, nan presoner · es juga com a Guàrdia'),
+];
+
+/** Totes les plantilles amb nom propi (la Biblioteca i la mida automàtica les fan servir). */
+export const ENEMY_TEMPLATES: readonly EnemyTemplate[] = [...GENERIC, ...CASTLE, ...ALLIES];
+
+/** Criatura del paquet Oryx com a plantilla (id `oryx_<nom>`, igual que els tokens d'un `.tmx`). */
+export function creatureTemplate(name: string): EnemyTemplate {
+  const st = creatureStats(name);
+  const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
+  return {
+    id: `oryx_${name}`, name: nice, color: '#f85149', hpMax: st?.hp ?? 10, R: 22, sm: 0.9, sprite: name, xp: st?.xp ?? 0,
+    group: 'Plantilles', detail: st ? `${st.as} · VD ${st.cr} · ${st.xp} XP` : undefined,
+  };
+}
+
+/** Plantilla pel seu `templateId` (pròpia o d'Oryx). */
+export function findTemplate(id: string): EnemyTemplate | undefined {
+  return ENEMY_TEMPLATES.find(t => t.id === id) ?? (id.startsWith('oryx_') ? creatureTemplate(id.slice(5)) : undefined);
+}
+
+/**
+ * Criatures Oryx que NO duplicaran una plantilla (mateixa figureta i mateixa vida): la Biblioteca
+ * les mostra darrere de les plantilles, sense repetir el goblin, el llop o el trol.
+ */
+export function extraCreatures(all: string[]): string[] {
+  return all.filter(n => !ENEMY_TEMPLATES.some(t => t.sprite === n && t.hpMax === (creatureStats(n)?.hp ?? 10)));
+}

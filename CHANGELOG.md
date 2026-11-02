@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.73 — Bestiari i plantilles unificats + Castell de la Fumarola
+- Un sol catàleg a `lib/bestiary.ts` (`EnemyTemplate`): les plantilles de `ENEMY_TEMPLATES` i el Bestiari Oryx surten a la mateixa secció «Bestiari» de la Biblioteca, amb una sola cerca i grups (Castell de la Fumarola, Aliats, Plantilles, Bestiari Oryx). Les criatures Oryx que repetirien una plantilla (mateixa figureta i vida) no es dupliquen
+- Un sol camí d'alta: `addLibEnemy` accepta qualsevol entrada; fora `addOryxCreature`. `sizeAllTokens` troba la mida també de les criatures `oryx_*` (`findTemplate`)
+- Tokens nous (Notion, base de dades de campanya): Goblin Bocapeñasco, Hobgoblin, Yegg, Lhupo, Grick, Os mussol captiu, Snarl, Rei Jalil i Vyerith; aliats Sildar Flocdeneu, Gota i Roc Cercarocs (XP 0)
+- Sense canvis a la API
+
 ### v4.72 — DMView més petit
 - La pantalla de benvinguda surt de `DMView` a un component propi (`WelcomeScreen`), amb els seus camps de fitxer
 - Netejats imports i referències sense ús a `DMView` i `useDMActions`

@@ -9,7 +9,8 @@ import { addEnemyNumbered } from '@/lib/enemy-naming';
 import { removeFromTurn } from '@/lib/turn';
 import { nextHpHit } from '@/lib/sprites/hitfx';
 import { bgFingerprint } from '@/lib/autosave';
-import { DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
+import { DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
+import { findTemplate, type EnemyTemplate } from '@/lib/bestiary';
 import type { PosMap, LibEnemy, Wall, Room, Door, Point, CamRect, Notify } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
@@ -435,7 +436,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const overrides: Record<string, number> = {};
     rPlayers.current.forEach(pl => { overrides[`pl_${pl.id}`] = Rv; });
     rLibEnemies.current.forEach(en => {
-      const tmpl = ENEMY_TEMPLATES.find(t => t.id === en.templateId);
+      const tmpl = findTemplate(en.templateId);
       const sm = tmpl?.sm ?? 0.90;
       overrides[`lib_${en.id}`] = Math.max(8, Math.round(gs * sm / 2));
     });
@@ -919,7 +920,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     window.open('/player', '_blank', 'width=1280,height=720');
   }, []);
 
-  const addLibEnemy = useCallback((tmpl: typeof ENEMY_TEMPLATES[number]) => {
+  const addLibEnemy = useCallback((tmpl: EnemyTemplate) => {
     const canvas = R.canvasRef.current;
     let cx = 480, cy = 360;
     if (canvas) {
