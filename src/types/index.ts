@@ -89,6 +89,29 @@ export interface Player {
   sprite?: string;
   /** Estil Píxel: retrat (dataURL PNG de 48 px fet amb el generador de retrats). */
   portrait?: string;
+  /** Fitxa de la API (`/characters`) triada a mà. Absent → la del mateix primer nom (`characterFor`). */
+  characterId?: string;
+}
+
+/**
+ * Fitxa d'un personatge a les pantalles de jugador (camp `sheet` del STATE i del STRUCT; pesat:
+ * només s'envia quan canvia; `null` = amagada). És una foto amb només les parts que ha triat
+ * el DM (`buildSheetShow` a `lib/characters.ts`): la pantalla no necessita la API.
+ */
+export interface SheetShow {
+  id: string;
+  name: string;
+  subtitle: string;
+  level: number;
+  xp: number;
+  xpFrom: number;
+  xpNext: number | null;
+  stats: { label: string; value: string }[];
+  abilities: { label: string; score: number; save: boolean }[];
+  sections: { title: string; text: string }[];
+  color: string;
+  sprite?: string;
+  portrait?: string;
 }
 
 /** Estil de l'app: el clàssic de sempre o el Píxel (sprites, mapes de caselles). */
@@ -250,6 +273,8 @@ export interface LibEnemy {
   hpMax: number;
   hp: number;
   hpHit?: HpHit;
+  /** XP que dona en ser derrotat (de la plantilla o de la BD). Absent/0 = cap. */
+  xp?: number;
   R: number;
   visible: boolean;
   imageData: string | null;
@@ -260,6 +285,8 @@ export interface LibEnemy {
 export interface PsdEnemyOverride {
   hp?: number;
   hpHit?: HpHit;
+  /** XP que dona en ser derrotat. */
+  xp?: number;
   hpMax?: number;
   name?: string;
   imageData?: string;
@@ -473,6 +500,8 @@ export interface BCStateMessage {
   figureGrade?: FigureGrade | null;
   // Fos a negre del canvi d'escena (lleuger, sempre; `null` = cap). Absent → DM antic.
   curtain?: SceneCurtain | null;
+  // Fitxa d'un personatge a les pantalles (pesat: només quan canvia; `null` = amagada).
+  sheet?: SheetShow | null;
 }
 
 export interface BCStructMessage {
@@ -518,6 +547,7 @@ export interface BCStructMessage {
   dialog?: DialogSync | null;
   figureGrade?: FigureGrade | null;
   curtain?: SceneCurtain | null;
+  sheet?: SheetShow | null;
   /**
    * Dibuix a ploma per a qui es connecta tard o carrega una partida. Els traços més antics
    * surten de `strokeHistory` i viatgen ja rasteritzats a `strokeBaseline` (PNG en dataURL),

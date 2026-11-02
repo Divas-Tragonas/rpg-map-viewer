@@ -7,7 +7,7 @@ import type {
   Wall, Room, Door, TurnState, CamRect, AppStyle, DialogSync, SavedDialog,
 } from '@/types';
 import type { TileMap } from '@/lib/tilemap/model';
-import type { MissionScenes, SceneCurtain } from '@/types';
+import type { MissionScenes, SceneCurtain, SheetShow } from '@/types';
 import type { PlaceMark } from '@/lib/render/places';
 import type { TileLive } from '@/lib/tilemap/render';
 import type { TileBrush } from '@/lib/tilemap/editor';
@@ -227,6 +227,8 @@ export function useDMRefs() {
   // les marques de les portes al mapa del DM i el lloc que el menú ressalta.
   const rMissionScenes       = useRef<MissionScenes | null>(null);
   const rCurtain             = useRef<SceneCurtain | null>(null);
+  // Fitxa d'un personatge a les pantalles de jugador (camp pesat `sheet` del STATE; null = cap).
+  const rSheetShow           = useRef<SheetShow | null>(null);
   const rPlaceMarks          = useRef<PlaceMark[]>([]);
   const rPlaceHover          = useRef<string | null>(null);
   // Doble clic a una marca de porta: entrar-hi (l'assigna `useMissionScenes`).
@@ -255,7 +257,7 @@ export function useDMRefs() {
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
     rAppStyle, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileRestore,
     rDialog, rDialogT0, rDialogs, dialogHostRef,
-    rMissionScenes, rCurtain, rPlaceMarks, rPlaceHover, rPlaceEnter,
+    rMissionScenes, rCurtain, rSheetShow, rPlaceMarks, rPlaceHover, rPlaceEnter,
   };
 }
 

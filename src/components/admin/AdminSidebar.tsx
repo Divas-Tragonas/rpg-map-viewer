@@ -6,6 +6,7 @@ import { C } from '@/constants';
 
 const NAV_ITEMS = [
   { href: '/admin/enemics', label: 'Enemics', icon: '⚔️' },
+  { href: '/admin/personatges', label: 'Personatges', icon: '📜' },
   { href: '/admin/mapes',   label: 'Mapes',   icon: '🗺️', soon: true },
   { href: '/admin/zones',   label: 'Zones',   icon: '🔮', soon: true },
 ];

@@ -49,6 +49,9 @@ export interface ResolvedToken {
   adjustHp: (d: number) => void;
   setHpMax: (v: number) => void;
   rename: (v: string) => void;
+  /** Enemics: XP que donen en ser derrotats (es reparteix en acabar el combat). */
+  xp?: number;
+  setXp?: (v: number) => void;
 }
 
 /** Troba el token per l'id (`pl_*`, `lib_*` o número del PSD) i en prepara les accions. */
@@ -74,6 +77,7 @@ export function resolveToken(id: string | number, p: TokenEditProps): ResolvedTo
       adjustHp: d => p.onAdjustLibHp(en.id, d),
       setHpMax: v => p.onSetLibProps(en.id, { hpMax: v, hp: Math.min(en.hp ?? v, v) }),
       rename: v => p.onSetLibProps(en.id, { name: v }),
+      xp: en.xp ?? 0, setXp: v => p.onSetLibProps(en.id, { xp: v }),
     };
   }
   if (typeof id !== 'number') return null;
@@ -89,6 +93,7 @@ export function resolveToken(id: string | number, p: TokenEditProps): ResolvedTo
     // Posar-li vida per primer cop l'omple; canviar-la després no li torna la que ha perdut.
     setHpMax: v => p.onSetPsdProps(id, { hpMax: v, hp: hpMax > 0 ? Math.min(hp, v) : v }),
     rename: v => p.onSetPsdProps(id, { name: v }),
+    xp: ov.xp ?? 0, setXp: v => p.onSetPsdProps(id, { xp: v }),
   };
 }
 
@@ -174,7 +179,7 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
   const canMove = pl?.canMove !== false;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${pl ? 4 : 2}, minmax(0, 1fr))`, gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${pl || t.setXp ? 4 : 2}, minmax(0, 1fr))`, gap: 6 }}>
         <NumField label="Vida màx." value={t.hpMax} min={pl ? 1 : 0} max={9999} color={C.hpHigh}
           title={pl ? 'Vida màxima' : 'Vida màxima (0 = sense vida)'} onCommit={t.setHpMax} />
         <NumField label="Mida · ft" value={sizeFt} min={1} max={100} step={0.5}
@@ -187,6 +192,10 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
               title="Visió a les fosques: radi de llum que emet dins de sales fosques (0 = sense llum)"
               onCommit={v => p.onSetPlayerVision(pl.id, v)} />
           </>
+        )}
+        {!pl && t.setXp && (
+          <NumField label="XP" value={t.xp ?? 0} min={0} max={155000} step={5}
+            title="Experiència que dona en ser derrotat: es reparteix entre la colla en acabar el combat" onCommit={t.setXp} />
         )}
       </div>
       {p.pixel && <PixelLook t={t} p={p} />}

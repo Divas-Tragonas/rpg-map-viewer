@@ -18,6 +18,7 @@ const EMPTY_FORM: Omit<ApiEnemy, 'id'> = {
   imageData: '',
   project: '',
   category: '',
+  xp: 0,
 };
 
 const FIELD_LABEL: Record<EnemyGroupField, string> = { project: 'Projecte', category: 'Categoria' };
@@ -27,7 +28,7 @@ const FIELD_HINT: Record<EnemyGroupField, string> = { project: 'p.ex. La cripta'
 const COLUMNS: { key: string; label: string; field?: EnemyGroupField }[] = [
   { key: 'sel', label: '' }, { key: 'img', label: '' }, { key: 'color', label: 'Color' }, { key: 'name', label: 'Nom' },
   { key: 'project', label: 'Projecte', field: 'project' }, { key: 'category', label: 'Categoria', field: 'category' },
-  { key: 'hp', label: 'HP màx' }, { key: 'R', label: 'Radi (R)' }, { key: 'sm', label: 'Escala (sm)' }, { key: 'actions', label: 'Accions' },
+  { key: 'hp', label: 'HP màx' }, { key: 'xp', label: 'XP' }, { key: 'R', label: 'Radi (R)' }, { key: 'sm', label: 'Escala (sm)' }, { key: 'actions', label: 'Accions' },
 ];
 
 // Edició en bloc: quants PUT van alhora (la API no té cap endpoint de lots).
@@ -192,6 +193,7 @@ export default function EnemicsPage() {
         {grouping.by !== 'project' && <td style={{ padding: '10px 14px' }}><GroupTag value={enemy.project} /></td>}
         {grouping.by !== 'category' && <td style={{ padding: '10px 14px' }}><GroupTag value={enemy.category} /></td>}
         <td style={{ padding: '10px 14px', color: C.hpHigh }}>{enemy.hpMax}</td>
+        <td style={{ padding: '10px 14px', color: C.text }}>{enemy.xp ?? 0}</td>
         <td style={{ padding: '10px 14px', color: C.text }}>{enemy.R}px</td>
         <td style={{ padding: '10px 14px', color: C.text }}>{enemy.sm}×</td>
         <td style={{ padding: '10px 14px' }}>
@@ -491,6 +493,16 @@ export default function EnemicsPage() {
                     value={modal.data.hpMax}
                     min={1}
                     onChange={e => updateField('hpMax', parseInt(e.target.value) || 1)}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="XP" style={{ width: 100 }}>
+                  <input
+                    type="number"
+                    value={modal.data.xp ?? 0}
+                    min={0}
+                    title="Experiència que dona en ser derrotat (es reparteix en acabar el combat)"
+                    onChange={e => updateField('xp', Math.max(0, parseInt(e.target.value) || 0))}
                     style={inputStyle}
                   />
                 </Field>

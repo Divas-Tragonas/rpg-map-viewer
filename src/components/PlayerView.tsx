@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layers } from '@/components/icons';
 import { TurnBanner } from '@/components/player/TurnBanner';
+import { SheetCard } from '@/components/player/SheetCard';
 import { SceneCurtain } from '@/components/ui/SceneCurtain';
 import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
 import { BC_CHANNEL, TOKEN_LERP, APP_VERSION, FONT_SERIF } from '@/constants';
@@ -23,7 +24,7 @@ import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mediaSize, viewRect } from '@/lib/camera';
 import type { MapStructure, VisMap, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, PsdEnemyOverride, PsdEnemyOverrides, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview, SceneCurtain as SceneCurtainState } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
-import type { AppStyle } from '@/types';
+import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, setFigureGrade } from '@/lib/sprites/pack';
 import { DialogHost } from '@/lib/dialog/host';
 import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
@@ -118,6 +119,8 @@ export function PlayerView() {
   const bgTransitionRef = useRef<HTMLDivElement>(null);
   // Cortina del canvi d'escena (missions amb llocs). S'obre quan el fons nou és a punt.
   const [curtainUi, setCurtainUi] = useState<{ closed: boolean; title: string } | null>(null);
+  // Fitxa d'un personatge que ensenya el DM (pestanya «Fitxa» de Mostrar als jugadors).
+  const [sheet, setSheet] = useState<SheetShow | null>(null);
   const bgLoadingRef = useRef(false);
   const curtainKeyRef = useRef('');
   const curtainSeqRef = useRef(0);
@@ -577,6 +580,8 @@ export function PlayerView() {
         // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
         if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
         if (msg.curtain !== undefined) _applyCurtain(msg.curtain);
+        // Fitxa d'un personatge (pesat: només arriba quan canvia; null = amagada).
+        if (msg.sheet !== undefined) setSheet(msg.sheet);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
         if (msg.pointerPos !== undefined) rPointerPos.current = msg.pointerPos;
         if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
@@ -712,6 +717,8 @@ export function PlayerView() {
         // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
         if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
         if (msg.curtain !== undefined) _applyCurtain(msg.curtain);
+        // Fitxa d'un personatge (pesat: només arriba quan canvia; null = amagada).
+        if (msg.sheet !== undefined) setSheet(msg.sheet);
         if (msg.dmPreviewActive !== undefined) {
           rDMPreviewActive.current = msg.dmPreviewActive;
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
@@ -1241,6 +1248,7 @@ export function PlayerView() {
         style={{ position: 'absolute', inset: 0, background: '#000', zIndex: 8, opacity: 0, transition: 'opacity 0.5s ease', pointerEvents: 'none' }}
       />
       <TurnBanner data={turnBanner} pixel={pixel} />
+      <SheetCard sheet={sheet} />
       <SceneCurtain closed={!!curtainUi?.closed} title={curtainUi?.title ?? ''} pixel={pixel} zIndex={49} />
       {!playerReady && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16, padding: 24, fontFamily: 'system-ui,sans-serif', textAlign: 'center' }}>

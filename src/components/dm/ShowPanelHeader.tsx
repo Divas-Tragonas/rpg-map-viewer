@@ -2,9 +2,9 @@
 import React from 'react';
 import { C, FS } from '@/constants';
 
-export type ShowTab = 'imatge' | 'text' | 'dialeg';
+export type ShowTab = 'imatge' | 'text' | 'dialeg' | 'fitxa';
 
-const TABS: [ShowTab, string][] = [['imatge', 'Imatge o vídeo'], ['text', 'Text'], ['dialeg', 'Diàleg']];
+const TABS: [ShowTab, string][] = [['imatge', 'Imatge o vídeo'], ['text', 'Text'], ['dialeg', 'Diàleg'], ['fitxa', 'Fitxa']];
 
 /**
  * Capçalera del panell «Mostrar als jugadors». L'Expositor i el Revelador de text eren dos
@@ -13,17 +13,18 @@ const TABS: [ShowTab, string][] = [['imatge', 'Imatge o vídeo'], ['text', 'Text
  * començar-ne un, amaga els altres dos). Un punt verd a la pestanya diu què
  * s'està mostrant ara mateix, així es veu també des de l'altra.
  */
-export function ShowPanelHeader({ tab, onTab, imageActive, textActive, dialogActive = false, hint, onClose }: {
+export function ShowPanelHeader({ tab, onTab, imageActive, textActive, dialogActive = false, sheetActive = false, hint, onClose }: {
   tab: ShowTab;
   onTab: (t: ShowTab) => void;
   imageActive: boolean;
   textActive: boolean;
   dialogActive?: boolean;
+  sheetActive?: boolean;
   /** Dreceres de teclat de la pestanya oberta. */
   hint: string;
   onClose: () => void;
 }) {
-  const active: Record<ShowTab, boolean> = { imatge: imageActive, text: textActive, dialeg: dialogActive };
+  const active: Record<ShowTab, boolean> = { imatge: imageActive, text: textActive, dialeg: dialogActive, fitxa: sheetActive };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '0 6px 0 12px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
       <span style={{ color: C.bright, fontWeight: 700, fontSize: FS.md, marginRight: 10, whiteSpace: 'nowrap' }}>Mostrar als jugadors</span>

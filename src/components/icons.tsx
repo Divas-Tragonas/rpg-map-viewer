@@ -88,3 +88,5 @@ export const PixelSwordIcon = mkIcon(<path d="M20 4h-4v2h-2v2h-2v2h-2v2H8v2H6l-2
 export const FastForwardIcon = mkIcon(<><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></>);
 export const ChevronLeft  = mkIcon(<polyline points="15 18 9 12 15 6"/>);
 export const SpeechIcon   = mkIcon(<><path d="M21 12a8 8 0 0 1-11.6 7.14L4 21l1.5-4.6A8 8 0 1 1 21 12Z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></>);
+/** Experiència (fitxes de personatge). */
+export const StarIcon     = mkIcon(<polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/>);

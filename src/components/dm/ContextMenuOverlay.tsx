@@ -5,6 +5,7 @@ import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
 import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/components/dm/TokenFields';
+import { CharacterSection, type CharacterMenuProps } from '@/components/dm/CharacterSection';
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog } from '@/types';
 
@@ -55,6 +56,8 @@ interface Props {
   onPlayDialog: (tokenKey: string, id: string) => void;
   /** Obre la pestanya «Diàleg» per preparar-ne un per a aquest token. */
   onEditDialogs: (tokenKey: string) => void;
+  /** Fitxes de la API i experiència (secció «Fitxa» dels jugadors). */
+  characters: CharacterMenuProps;
 }
 
 /**
@@ -219,7 +222,7 @@ export function ContextMenuOverlay({
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
   onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell,
-  dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat,
+  dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat, characters,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
   // així que el botó demana confirmació en dos passos (com el ✕ del TurnTracker). Es desa
@@ -423,6 +426,8 @@ export function ContextMenuOverlay({
         {t.hpMax > 0 && <div style={{ display: 'flex' }}><HpControl hp={t.hp} hpMax={t.hpMax} onAdjust={t.adjustHp} size="md" /></div>}
         <TokenFields t={t} p={edit} />
       </div>
+
+      {pl && <CharacterSection player={pl} p={{ ...characters, onShowSheet: (cid, key) => { characters.onShowSheet(cid, key); onClose(); } }} />}
 
       <ConditionPicker
         active={conditions[id] || []}

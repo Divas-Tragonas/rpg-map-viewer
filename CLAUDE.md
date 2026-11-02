@@ -172,6 +172,7 @@ src/
 │   ├── PlayerView.tsx      # Component jugador
 │   ├── icons.tsx           # Icones SVG inline
 │   ├── player/TurnBanner.tsx  # Rètol de torn de la pantalla de jugador (TV i tablet)
+│   ├── player/SheetCard.tsx   # Fitxa d'un personatge a la pantalla de jugador (targeta a la dreta)
 │   ├── dm/                 # Panells i overlays del DM
 │   │   ├── ImportPanel, LayerTree (capes de mapa del PSD), PlayersPanel (files primes de jugadors)
 │   │   ├── TokenFields     # Fitxa d'un token dins del menú del clic dret (resolveToken, camps, NameField)
@@ -182,6 +183,9 @@ src/
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text / Diàleg del panell «Mostrar als jugadors»
 │   │   ├── DialogPanel, DialogControls  # Diàlegs: pestanya per escriure el guió i barra del DM mentre corre
+│   │   ├── CharacterSection # Fitxa i experiència d'un jugador dins del menú del clic dret (+ XpBar)
+│   │   ├── XpAwardDialog   # «Experiència del combat»: repartiment en acabar el combat
+│   │   ├── SheetPanel      # Pestanya «Fitxa» de Mostrar als jugadors
 │   │   ├── CanvasHUD (selector de càmera + zoom a la cantonada + rètol de calibratge), ShortcutsHelp (finestra de dreceres, tecla ?)
 │   │   └── ContextMenuOverlay, SceneConfigOverlay,
 │   │       SpellMenuOverlay, ShapeMenuOverlay
@@ -212,6 +216,7 @@ src/
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
 │   ├── useMissionScenes.ts # Llocs de les missions: canvi d'escena amb fos a negre, marques de les portes
 │   ├── useDialog.ts        # Diàlegs al DM: llançar, avançar, enrere, opcions, càmera, tecles, desats als tokens
+│   ├── useCharacters.ts    # Fitxes de la API al DM: llista, donar XP (una o en lot), desar
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
 │   ├── useKeyboardHandlers.ts
@@ -229,6 +234,8 @@ src/
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
 │   ├── enemy-groups.ts     # groupEnemies / distinctValues / apiSupportsGroups (projecte i categoria)
+│   ├── characters.ts       # Fitxes: format de `sheet`, taula d'XP de 5e, characterFor, buildSheetShow
+│   ├── characters-seed.ts  # Les 5 fitxes de Notion (només per importar-les des del back office)
 │   ├── sprites/            # App Píxel: paquet Oryx (pack.ts: carrega els fulls de public/sprites/; draw.ts; manifest.ts GENERAT; portrait.ts; font.ts lletra de píxel; window.ts finestres 9-slice; variants.ts GENERAT: variants de color de les figuretes; states.ts: estats a la figureta; hitfx.ts: cops, envestides i curacions)
 │   ├── dialog/             # Diàlegs: script.ts (guió), reveal.ts (lletra a lletra), camera.ts, tokens.ts, scene.ts (motor), host.ts (DM i jugador)
 │   ├── tilemap/            # App Píxel: mapa de caselles (model, palette, editor, render/cuinat, geometry → parets, tmx)
@@ -404,6 +411,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `STATE.figureGrade` / `STRUCT.figureGrade` | DM→Jugador | Ajust de color de les figuretes del mapa (`FigureGrade`, lleuger, sempre; `null` = cap). Veure «Missions» |
 | `STATE.curtain` / `STRUCT.curtain` | DM→Jugador | Fos a negre del canvi d'escena (`SceneCurtain`, lleuger, sempre; `null` = cap). Veure «Llocs de les missions» |
 | `STATE.dialog` / `STRUCT.dialog` | DM→Jugador | Diàleg en curs (`DialogSync`, camp lleuger, sempre; `null` = cap). Veure «Diàlegs de personatges» |
+| `STATE.sheet` / `STRUCT.sheet` | DM→Jugador | Fitxa d'un personatge a les pantalles (`SheetShow`, camp **pesat**: només quan canvia; `null` = amagada). Veure «Fitxes de personatge i experiència» |
 | `RESET_EXPLORED` | DM→Jugador | Reset de la memòria d'explorat d'una sala (torna a ser negra del tot). Porta el polígon `points`; DM i jugador criden `clearExploredAt(points)` a `darkrooms.ts` |
 
 Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
@@ -465,6 +473,17 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - **Desats al token** (`R.rDialogs`: token → `SavedDialog[]`, dins de `_buildSessionCore` → partida i desat automàtic; `onDialogsChange` refresca la UI en carregar). Menú del clic dret → **Parlar**: frase al moment (Enter = globus, Maj+Enter = escena), els diàlegs desats i «Preparar…». `afterBoss`: llança la cinemàtica de boss del token i comença quan `cinematicActiveRef` torna a ser fals.
 - `prefers-reduced-motion`: sense tremolors ni sacsejada, barres amb fos, i la càmera salta (220 ms després) sota un vel negre.
 - ⚠️ `useDialog` no escriu `R.x.current`: llegeix els refs per `refs.current` (un `useRef(R)` propi). Amb `R.x.current = …` dins dels callbacks, el lint dona `react-hooks/immutability`; i un efecte amb `[R]` com a dependència es tornaria a executar a cada render (`useDMRefs` retorna un objecte nou cada vegada) — el host es destruïa i el DM no veia res.
+
+### Fitxes de personatge i experiència (v4.67) — `lib/characters.ts` + `useCharacters` + `/admin/personatges`
+- **On viuen**: a la API (`/characters`, veure `api-spec.txt`), **no** a la partida: la fitxa és del personatge i dura entre partides i mapes. Totes les rutes demanen el JWT del back office, també les de llegir: sense, `useCharacters` dona `status: 'off'` i l'app amaga les fitxes (el menú del token ho diu en una línia).
+- **Format**: les columnes de la API són el que fa servir l'app (nivell, XP, CA, PV, velocitat, percepció passiva…); la resta va a `sheet` (opac per a la API, `CharacterSheet`: trasfons, alineament, iniciativa, característiques, salvacions i **seccions de text** amb «- » per a llistes i `**negreta**`). Un camp nou de la fitxa va a `sheet` (cap canvi a la API).
+- **Jugador del mapa ↔ fitxa** (`characterFor`): `Player.characterId` si el DM l'ha triat al menú; si no, el mateix **primer nom** sense accents (com el grimori). No es desa res fins que el DM en tria una a mà.
+- **Experiència**: només la mouen els endpoints d'XP (atòmics, amb `awardId` d'idempotència: `combat-…`, `dm-…`, `bo-…`). Taula de 5e a `XP_TABLE`; el **nivell no puja sol**: quan `levelForXp(xp) > level` surt un avís i el botó «Pujar a nivell N» (menú del token i back office), que fa un `PUT level`. `xpProgress` mesura des del nivell DESAT.
+- **XP dels enemics**: `LibEnemy.xp` (de `ENEMY_TEMPLATES[].xp`, la de 5e pel desafiament, o de `ApiEnemy.xp`) i `PsdEnemyOverride.xp`; es canvia al menú del clic dret (camp «XP», `ResolvedToken.setXp`). Les criatures del Bestiari Oryx surten a 0.
+- **Fi del combat** (`finishCombat` a `DMView`, el `onEnd` del `TurnTracker`): si hi ha enemics de la cua **derrotats** amb XP i algun jugador de la cua té fitxa, obre `XpAwardDialog` (total editable, parts iguals amb `splitXp`, per defecte tots els jugadors amb fitxa, també els que han caigut) i tanca el combat igualment. «Repartir» → `awardXpBatch`; si falla, la finestra es queda oberta i reintentar no compta doble.
+- **Fitxa a les pantalles**: pestanya «Fitxa» de Mostrar als jugadors (`SheetPanel`; també des del menú del token, «Mostrar la fitxa als jugadors…»). `buildSheetShow` en fa una foto amb les parts triades (`STATS_PART` + títols de les seccions) i el color/figureta/retrat del token → `R.rSheetShow` → camp pesat `sheet`. Mentre es mostra, un efecte de `DMView` la refà si canvien les parts, l'XP o el token. Al jugador, `SheetCard`: targeta a la dreta (no tapa el mapa sencer, conviu amb el combat), mides amb `s()` com el rètol de torn, només `opacity`/`transform`. No es desa a la partida.
+- **Back office** (`/admin/personatges`): fitxes en targetes, editor complet, «Experiència» amb motiu, historial (`GET /characters/:id`), eliminar en dos passos i «Importar les fitxes de Notion» (`CHARACTER_SEED`, només les que no hi són pel nom). La XP no s'edita al formulari.
+- ⚠️ La propietat «Nivell» de la base de Notion no lliga amb les fitxes (diu p. ex. «7/trickery cleric» on la fitxa diu Mag 1): la llavor fa servir la fitxa.
 
 ### Mapa només amb imatge (el PSD és OPCIONAL)
 - **Problema que resol**: `tick()` (DM i jugador) surt aviat amb `if (!s) return` quan no hi ha `MapStructure`. Sense PSD no es dibuixava **res**: ni grid, ni sales, ni tokens.
@@ -634,7 +653,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 - Els moviments de combat que es desfan són els que fan **els jugadors** des de `/player` (el DM pot desfer-ne un de mal fet); els que fa el DM arrossegant no s'apilen.
 
 ### Panell «Mostrar als jugadors» (`ShowPanelHeader` + `DMView`)
-- L'Expositor, el Revelador de text i el Diàleg són **les pestanyes d'un sol panell** (Imatge o vídeo · Text · Diàleg), que obre el botó «Mostrar als jugadors» de la barra. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
+- L'Expositor, el Revelador de text, el Diàleg i la Fitxa són **les pestanyes d'un sol panell** (Imatge o vídeo · Text · Diàleg · Fitxa), que obre el botó «Mostrar als jugadors» de la barra. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
 - Cada pestanya continua obrint el seu estat de sempre (`expositorOpen` / `textRevealOpen`, un sol obert alhora) i la pestanya recordada és `showTab`: els bucles RAF i les dreceres de teclat de cada un no han canviat. En obrir el panell, si s'està mostrant alguna cosa, s'obre per aquella pestanya.
 - Un punt verd a la pestanya (i al botó de la barra) diu què s'està mostrant als jugadors.
 - Amplada fixa `SHOW_PANEL_W` (560) per a les dues pestanyes: canviar de pestanya no fa saltar el panell. Va a `top: 12` de l'escenari.
@@ -1089,4 +1108,5 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
 | `createObjectURL` sense el seu `revokeObjectURL` | Cada canvi de mapa o d'imatge deixa el fitxer sencer a memòria | Desar l'URL en un ref i revocar-lo en substituir-lo (`bgUrlRef`, `customUrlRef`) |
 | Memòria cau de figuretes sense `figureGradeKey()` a la clau | En encendre o apagar l'ajust de color d'una missió, unes figuretes canvien i d'altres no | Posar `figureGradeKey()` a la clau (com `_gray`, `_thumbs`, `_strips`) |
 | Nom d'un token pintat amb `fillText` dins de la seva família, en px de pantalla fixos | A la TV no es llegeix, i a la pantalla de jugador s'encavalca amb els altres o la figureta de sota el tapa | `nameTag` (`render/tokens.ts`): al DM el pinta on toca i a la pantalla de jugador el col·loca `renderNameTags` |
+| Experiència sumada a la fitxa sense `awardId` | Un reintent (xarxa lenta, doble clic) la compta dues vegades | Passar sempre un `awardId` a `award`/`awardBatch` (veure «Fitxes de personatge i experiència») |
 | Estat que viatja a cada `STRUCT` i creix sense límit | Late join, desfer i desat automàtic es degraden a la vegada | Posar-hi sostre i rasteritzar el que en surt (veure «Límit de l'historial de dibuix») |

@@ -69,6 +69,10 @@ import { relayBoards, openBoard } from '@/lib/relay';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import type { TileBrush } from '@/lib/tilemap/editor';
 import { PixelSwordIcon, TilesIcon } from '@/components/icons';
+import { useCharacters } from '@/hooks/useCharacters';
+import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
+import { SheetPanel } from '@/components/dm/SheetPanel';
+import { buildSheetShow, characterFor, STATS_PART } from '@/lib/characters';
 
 /** Amplada del panell «Mostrar als jugadors» (la mateixa per a les dues pestanyes: canviar
  *  de pestanya no ha de fer saltar el panell). */
@@ -224,6 +228,14 @@ export function DMView() {
   // ── Revelador de text ──────────────────────────────────────────────────────
   const [textRevealOpen, setTextRevealOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Pestanya «Fitxa» del panell Mostrar als jugadors: personatge triat, parts i quin es veu ara.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetSel, setSheetSel] = useState<string | null>(null);
+  const [sheetParts, setSheetParts] = useState<string[]>([STATS_PART]);
+  const [sheetShowId, setSheetShowId] = useState<string | null>(null);
+  // Repartiment d'experiència pendent en acabar un combat.
+  const [xpAward, setXpAward] = useState<XpAward | null>(null);
+  const [xpBusy, setXpBusy] = useState(false);
   // Acaba el diàleg en curs (l'Expositor i el Revelador el criden en mostrar-se).
   const dialogEndRef = React.useRef<() => void>(() => {});
   // «Mostrar als jugadors»: Expositor i Revelador són les dues pestanyes d'un sol panell.
@@ -354,6 +366,9 @@ export function DMView() {
     });
   }, []);
 
+  // Fitxes de la colla a la API (experiència, fitxa a les pantalles). Sense back office, 'off'.
+  const chars = useCharacters(notify);
+
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
     onDialogsChange: () => dialogsChangedRef.current(),
@@ -371,7 +386,7 @@ export function DMView() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
@@ -1261,9 +1276,10 @@ export function DMView() {
     setExpositorOpen(t === 'imatge');
     setTextRevealOpen(t === 'text');
     setDialogOpen(t === 'dialeg');
+    setSheetOpen(t === 'fitxa');
   }, []);
-  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); setDialogOpen(false); }, []);
-  const showPanelOpen = expositorOpen || textRevealOpen || dialogOpen;
+  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); setDialogOpen(false); setSheetOpen(false); }, []);
+  const showPanelOpen = expositorOpen || textRevealOpen || dialogOpen || sheetOpen;
 
   // ── Diàlegs de personatges (pestanya «Diàleg», veure `useDialog`) ─────────
   const dlg = useDialog(R, {
@@ -1313,8 +1329,91 @@ export function DMView() {
   const toggleShowPanel = useCallback(() => {
     if (showPanelOpen) closeShowPanel();
     // Si ara mateix s'està mostrant alguna cosa, s'obre per aquella pestanya.
-    else openShowTab(dlg.ui ? 'dialeg' : textRevealActive ? 'text' : expositorActive ? 'imatge' : showTab);
-  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, expositorActive, showTab, dlg.ui]);
+    else openShowTab(dlg.ui ? 'dialeg' : textRevealActive ? 'text' : expositorActive ? 'imatge' : sheetShowId ? 'fitxa' : showTab);
+  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, expositorActive, showTab, dlg.ui, sheetShowId]);
+
+  // ── Fitxa a les pantalles de jugador (camp pesat `sheet` del STATE) ────────
+  /** Foto de la fitxa amb les parts triades; el retrat i el color, del jugador que la porta. */
+  const sheetFor = useCallback((id: string, parts: string[]) => {
+    const c = chars.characters.find(ch => ch.id === id);
+    if (!c) return null;
+    const pl = players.find(p => characterFor(p, chars.characters)?.id === id);
+    return buildSheetShow(c, parts, { color: pl?.color, sprite: pixel ? pl?.sprite : undefined, portrait: pl?.portrait });
+  }, [chars.characters, players, pixel]);
+  const showSheet = useCallback(() => {
+    if (!sheetSel) return;
+    const sh = sheetFor(sheetSel, sheetParts);
+    if (!sh) return;
+    R.rSheetShow.current = sh; setSheetShowId(sh.id); _broadcastState({});
+  }, [R, sheetSel, sheetParts, sheetFor, _broadcastState]);
+  const hideSheet = useCallback(() => {
+    R.rSheetShow.current = null; setSheetShowId(null); _broadcastState({});
+  }, [R, _broadcastState]);
+  // Mentre es mostra: si canvien les parts, l'experiència o el retrat, les pantalles es refresquen.
+  useEffect(() => {
+    const cur = R.rSheetShow.current;
+    if (!cur || sheetSel !== cur.id) return;
+    const sh = sheetFor(cur.id, sheetParts);
+    if (sh && JSON.stringify(sh) !== JSON.stringify(cur)) { R.rSheetShow.current = sh; _broadcastState({}); }
+  }, [R, sheetSel, sheetParts, sheetFor, _broadcastState]);
+
+  // ── Experiència ────────────────────────────────────────────────────────────
+  /**
+   * Acabar el combat: si hi ha enemics derrotats amb XP i jugadors amb fitxa, prepara el
+   * repartiment (finestra «Experiència del combat») abans de tancar-lo.
+   */
+  const finishCombat = useCallback(() => {
+    const t = R.rTurn.current;
+    if (t.active && chars.status === 'ready') {
+      const psdById = new Map((R.rStruct.current?.enemyRooms ?? []).flatMap(r => r.enemies).map(e => [String(e.id), e]));
+      const enemies: XpAward['enemies'] = [];
+      for (const id of t.order) {
+        const key = String(id);
+        if (key.startsWith('pl_') || !R.rDefeated.current[key]) continue;
+        if (key.startsWith('lib_')) {
+          const en = R.rLibEnemies.current.find(e => `lib_${e.id}` === key);
+          if (en?.xp) enemies.push({ name: en.name, xp: en.xp });
+        } else {
+          const ov = R.rPsdEnemyOverrides.current[Number(id)];
+          if (ov?.xp) enemies.push({ name: ov.name || psdById.get(key)?.name || 'Enemic', xp: ov.xp });
+        }
+      }
+      const players = t.order.filter(id => String(id).startsWith('pl_')).flatMap(id => {
+        const pl = R.rPlayers.current.find(p => `pl_${p.id}` === String(id));
+        if (!pl) return [];
+        const c = characterFor(pl, chars.characters);
+        return [{ key: String(id), name: pl.name, characterId: c?.id ?? null, characterName: c?.name ?? null, defeated: !!R.rDefeated.current[String(id)] }];
+      });
+      if (enemies.length && players.some(p => p.characterId)) {
+        setXpAward({ awardId: `combat-${Date.now().toString(36)}`, enemies, players });
+      }
+    }
+    endTurnCombat();
+  }, [R, chars.status, chars.characters, endTurnCombat]);
+  const confirmXpAward = useCallback(async (awards: { id: string; amount: number }[], total: number) => {
+    if (!xpAward) return;
+    setXpBusy(true);
+    const names = xpAward.enemies.map(e => e.name).join(', ');
+    const res = await chars.awardBatch(awards, { reason: `Combat: ${names}`.slice(0, 120), source: 'combat', awardId: xpAward.awardId });
+    setXpBusy(false);
+    if (res) {
+      notify(`Repartides ${total} XP entre ${awards.length} ${awards.length === 1 ? 'personatge' : 'personatges'}.`, 'info');
+      setXpAward(null);
+    }
+  }, [xpAward, chars, notify]);
+  const characterMenu = useMemo(() => ({
+    characters: chars.characters, status: chars.status,
+    onLink: (playerId: number, characterId: string | undefined) => setPlayerCharacter(playerId, characterId),
+    onAward: (id: string, amount: number, reason: string) => {
+      void chars.award(id, amount, { reason, source: 'dm', awardId: `dm-${Date.now().toString(36)}` }).then(c => {
+        if (c) notify(`${amount > 0 ? '+' : ''}${amount} XP a ${c.name} (${c.xp} XP).`, 'info');
+      });
+    },
+    onLevelUp: (id: string, level: number) => {
+      void chars.update(id, { level }).then(c => { if (c) notify(`${c.name} puja a nivell ${level}.`, 'info'); });
+    },
+    onShowSheet: (id: string) => { setSheetSel(id); openShowTab('fitxa'); },
+  }), [chars, notify, setPlayerCharacter, openShowTab]);
 
   // ── Expositor RAF loop: KB animation + EXPOSITOR_SYNC broadcast ───────────
   useEffect(() => {
@@ -1566,7 +1665,7 @@ export function DMView() {
         mapName={bgLoaded ? bgName : null} hasPsd={!!psdStruct}
         sidebarOpen={sideOpen} onToggleSidebar={toggleSide}
         mode={mode} onModeChange={switchMode}
-        showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui} onToggleShow={toggleShowPanel}
+        showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
         undoLabel={undoLabel} onUndo={undoLast}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         onOpenBoard={() => { if (!openBoard()) notify("El navegador no ha deixat obrir el tauler de missions: permet les finestres emergents d'aquesta pàgina."); }}
@@ -1747,7 +1846,7 @@ export function DMView() {
           conditions={conditions}
           tokenGroupsRef={R.rTokenGroups}
           onStart={startTurnCombat}
-          onEnd={endTurnCombat}
+          onEnd={finishCombat}
           onAdvance={advanceTurn}
           onAdvanceRound={advanceRound}
           onRecoverTurn={recoverTurn}
@@ -1757,7 +1856,7 @@ export function DMView() {
         {/* Expositor floating panel */}
         {expositorOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', overflowY: 'auto', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui}
+            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Espai: reinicia / pausa el moviment" onClose={closeShowPanel} />
             {/* Preview area with KB animation and pan/zoom */}
             <div
@@ -1840,7 +1939,7 @@ export function DMView() {
         {/* Revelador de text floating panel */}
         {textRevealOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui}
+            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Espai: revela / pausa · ←→ navega · R reinicia" onClose={closeShowPanel} />
 
             <div style={{ overflowY: 'auto', minHeight: 0 }}>
@@ -1944,11 +2043,25 @@ export function DMView() {
         {/* Diàleg: pestanya del panell «Mostrar als jugadors» */}
         {dialogOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="dialeg" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui}
+            <ShowPanelHeader tab="dialeg" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Espai/→ avança · ← enrere · Esc acaba" onClose={closeShowPanel} />
             <DialogPanel draft={dialogDraft} onDraft={setDialogDraft} tokens={sceneTokenList} saved={dlg.dialogs}
               running={!!dlg.ui} onStart={startDraft} onEnd={dlg.end} onSave={saveDraft} onDelete={dlg.deleteDialog} />
           </div>
+        )}
+        {/* Fitxa: pestanya del panell «Mostrar als jugadors» */}
+        {sheetOpen && (
+          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+            <ShowPanelHeader tab="fitxa" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+              hint="Una targeta al costat del mapa" onClose={closeShowPanel} />
+            <SheetPanel characters={chars.characters} status={chars.status}
+              selected={sheetSel} onSelect={setSheetSel} parts={sheetParts} onParts={setSheetParts}
+              showingId={sheetShowId} onShow={showSheet} onHide={hideSheet} />
+          </div>
+        )}
+        {xpAward && (
+          <XpAwardDialog key={xpAward.awardId} award={xpAward} busy={xpBusy}
+            onConfirm={(a, total) => void confirmXpAward(a, total)} onClose={() => setXpAward(null)} />
         )}
         {/* Barra de control del DM mentre corre un diàleg */}
         {dlg.ui && (
@@ -2103,6 +2216,7 @@ export function DMView() {
         onSpeak={dlg.speak}
         onPlayDialog={dlg.playSaved}
         onEditDialogs={(key: string) => { setDialogDraft(d => ({ ...EMPTY_DRAFT, cps: d.cps, owner: key })); openShowTab('dialeg'); }}
+        characters={characterMenu}
       />
       <SceneConfigOverlay key={String(sceneConfigMenu?.id ?? '')}
         sceneConfigMenu={sceneConfigMenu} rLayerImages={R.rLayerImages}

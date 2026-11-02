@@ -70,6 +70,12 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.67 — Fitxes de personatge i experiència
+- Les fitxes de la colla viuen a la base de dades (API `/characters`). Al back office hi ha una pàgina nova, **Personatges**: crear i editar fitxes (dades, característiques, salvacions i seccions de text), donar o treure experiència amb el motiu, veure'n l'historial, pujar de nivell i importar d'un clic les cinc fitxes de Notion.
+- **Experiència automàtica**: cada enemic té la seva XP (les plantilles, la de D&D 5e; els de la BD, el camp nou del back office; qualsevol, al menú del clic dret). En acabar un combat surt «Experiència del combat» amb la XP dels enemics derrotats repartida entre els jugadors: es pot retocar i, en confirmar-la, s'actualitzen les fitxes. La mateixa entrega no es compta mai dues vegades.
+- Al menú del clic dret de cada jugador: la seva fitxa, nivell i experiència, «Donar» experiència a mà i «Pujar a nivell N» quan en té prou (taula de D&D 5e).
+- Pestanya nova **Fitxa** a «Mostrar als jugadors»: una targeta al costat del mapa, a les pantalles de jugador, amb el nivell, l'experiència, les estadístiques i les parts de la fitxa que triï el DM (característiques, atacs, màgia, equip…).
+
 ### v4.66 — El número del cop no delata la vida
 - El número que surt damunt de la figureta en rebre un cop és el dany que ha posat el DM, encara que el token en tingués menys: un atac de 6 a un goblin amb 2 de vida surt «-6», no «-2». Abans els jugadors podien deduir quanta vida li quedava.
 - El mateix amb les curacions: curar 5 a un token que ja era ple surt «+5» (abans no sortia res, i es veia que estava al màxim).

@@ -181,6 +181,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
       activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
+      sheet: R.rSheetShow.current,
     };
   }, []);
 
@@ -253,6 +254,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       libEnemies: rLibEnemies.current, psdEnemyOverrides: rPsdEnemyOverrides.current,
       rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
       activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
+      sheet: R.rSheetShow.current,
     };
     for (const k of Object.keys(heavy)) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
@@ -294,6 +296,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       tileLive: R.rTileLive.current,
       dialog: _dialogNow(),
       curtain: R.rCurtain.current,
+      sheet: R.rSheetShow.current,
       // Dibuix a ploma: perquè el jugador reconstrueixi el drawCanvas en connectar-se (late
       // join) o en carregar una partida (els STROKE són incrementals i un jugador que no hi
       // era quan es van dibuixar no els tenia). Els traços vells van rasteritzats a la base.
@@ -591,6 +594,17 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const updated = rPlayers.current.map(pl =>
       pl.id === id ? { ...pl, hpMax: max, hp: Math.min(pl.hp ?? max, max) } : pl
     );
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
+  /** Fitxa de la API lligada a un jugador (undefined = la del mateix primer nom). */
+  const setPlayerCharacter = useCallback((id: number, characterId: string | undefined) => {
+    const updated = rPlayers.current.map(pl => {
+      if (pl.id !== id) return pl;
+      const { characterId: _old, ...rest } = pl;
+      void _old;
+      return characterId ? { ...rest, characterId } : rest;
+    });
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
@@ -1038,7 +1052,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const imageData = _imgs.length > 0 ? _imgs[Math.floor(Math.random() * _imgs.length)] : null;
     const _sm = tmpl.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : tmpl.R;
-    const newEn: LibEnemy = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData, sprite: tmpl.sprite };
+    const newEn: LibEnemy = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData, sprite: tmpl.sprite, xp: tmpl.xp };
     // Numeració automàtica: el primer Goblin és "Goblin"; en crear el segon, el primer
     // passa a "Goblin 1" i el nou a "Goblin 2" (i així ascendint).
     const ns = addEnemyNumbered(rLibEnemies.current, newEn);
@@ -1061,7 +1075,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     }
     const _sm = enemy.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : enemy.R;
-    const newEn: LibEnemy = { id: Date.now(), templateId: enemy.id, name: enemy.name, color: enemy.color, hpMax: enemy.hpMax, hp: enemy.hpMax, R: _libR, visible: true, imageData: enemy.imageData ?? null };
+    const newEn: LibEnemy = { id: Date.now(), templateId: enemy.id, name: enemy.name, color: enemy.color, hpMax: enemy.hpMax, hp: enemy.hpMax, R: _libR, visible: true, imageData: enemy.imageData ?? null, xp: enemy.xp ?? 0 };
     const ns = addEnemyNumbered(rLibEnemies.current, newEn);
     rLibEnemies.current = ns; S.setLibEnemies(ns);
     const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };
@@ -1280,7 +1294,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,

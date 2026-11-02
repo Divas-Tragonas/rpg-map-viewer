@@ -17,6 +17,7 @@ WS BASE : substituir http per ws → ws://[host]:3000
   imageData?: string  // opcional, base64 "data:image/png;base64,..."
   project: string     // text lliure (trim, màx. 60); '' = sense projecte
   category: string    // text lliure (trim, màx. 60); '' = sense categoria
+  xp: number          // enter >= 0: XP que dona en ser derrotat (0 als documents antics)
 }
 
 `project` i `category` serveixen per agrupar els enemics al back office i a la
@@ -26,6 +27,36 @@ als documents antics, amb ''). POST els accepta opcionals ('' per defecte); PUT
 només els toca si venen al body (`category: ''` la buida). Més de 60 caràcters →
 400. Una API anterior no els retorna: el back office ho detecta
 (`apiSupportsGroups`) i ho avisa en lloc de perdre'ls en silenci.
+
+
+`xp` (v4.67): GET el retorna sempre; POST l'accepta opcional (0); PUT només el toca si ve
+al body. El visor el copia al token en afegir l'enemic i el reparteix en acabar el combat.
+
+
+## TIPUS Character (fitxa de personatge, v4.67)
+
+{
+  id: string
+  name: string               // trim, 1–80
+  player: string             // màx. 60 ('' per defecte)
+  race: string               // màx. 60
+  className: string          // màx. 60 (p. ex. "Mag 1")
+  level: number              // enter 1–20 (la API NO el calcula: el DM confirma les pujades)
+  xp: number                 // enter >= 0. Només el mouen els endpoints d'XP
+  hpMax: number              // enter >= 1
+  ac: number                 // enter >= 0
+  speed: number              // enter >= 0 (peus)
+  passivePerception: number  // enter >= 0
+  portrait: string           // dataURL o '' (màx. 1 MB)
+  notionUrl: string          // màx. 500
+  sheet: object              // OPAC (màx. 512 KB): la resta de la fitxa. Format al frontend:
+                             // `CharacterSheet` a src/lib/characters.ts (background, alignment,
+                             // initiative, profBonus, hitDie, abilities, saves, sections[])
+  createdAt: string; updatedAt: string
+  xpLog?: [{ amount, reason, source, awardId, at }]   // només a GET /characters/:id; 200 últims
+}
+
+POST/PUT rebutgen `xp` i `xpLog` amb 400 (només es mouen per POST .../xp).
 
 
 ## TIPUS Session (Partida)
@@ -75,6 +106,26 @@ GET    /sessions/:id     -> Session        (200)   // partida completa, AMB `dat
 POST   /sessions         -> Session        (201)   body: { name, data }
 PUT    /sessions/:id     -> Session        (200)   body: { name?, data? } (sobreescriu)
 DELETE /sessions/:id     -> 204
+
+GET    /characters           -> Character[] SENSE xpLog (200)        JWT admin
+GET    /characters/:id       -> Character AMB xpLog (200)            JWT admin
+POST   /characters           -> Character (201)                      JWT admin
+PUT    /characters/:id       -> Character (200)                      JWT admin  (parcial)
+DELETE /characters/:id       -> 204                                  JWT admin
+POST   /characters/:id/xp    -> Character (200)                      JWT admin
+       body { amount: int ≠ 0 (±100000), reason?: ≤120, source?: ≤60, awardId?: ≤64 }
+POST   /characters/xp        -> Character[] (200)                    JWT admin
+       body { awards: [{ id, amount }] (1–20, ids únics), reason?, source?, awardId? }
+
+Notes /characters:
+- Totes les rutes demanen el JWT del back office, també les de llegir: el DM ha d'estar
+  connectat al back office (com per a /sessions). Sense, el visor amaga les fitxes.
+- XP atòmica ($inc) i mai per sota de 0. `awardId` = idempotència: si ja és a l'xpLog, no
+  es torna a sumar (el visor envia `combat-<temps>` al repartiment del combat, `dm-<temps>`
+  i `bo-<temps>` a les entregues a mà). Al lot, un id que no existeix → 404 i no s'aplica cap.
+- `source` que fa servir el visor: 'combat', 'dm', 'backoffice'.
+- La fitxa que es mostra a les pantalles de jugador NO passa per la API: viatja dins del
+  STATE (camp `sheet`, veure sota).
 
 Notes /sessions:
 - Auth: PROTEGIT amb el JWT admin (Authorization: Bearer <token>), igual que les
@@ -182,6 +233,10 @@ STRUCT, que el servidor ja reenvia opacs. Porta: id, line, kind ('scene' | 'bubb
 tokenId, name, voice, text, style, cps, age (ms que feia que la línia havia començat
 quan s'ha enviat), done, bars, cam (CamRect | null) i options. Pocs centenars de bytes;
 el retrat no hi va (cada pantalla el treu del token). `null` = no hi ha cap diàleg.
+
+Tampoc no ha calgut cap canvi del WebSocket per a les fitxes (v4.67): el camp `sheet`
+(SheetShow | null: foto de la fitxa amb les parts que tria el DM) viatja dins del STATE i del
+STRUCT, només quan canvia.
 
 Tampoc no ha calgut cap canvi per als llocs de les missions (v4.59): el camp `curtain`
 (SceneCurtain | null: { closed, scene, title }) viatja dins del STATE i del STRUCT. És el fos a
