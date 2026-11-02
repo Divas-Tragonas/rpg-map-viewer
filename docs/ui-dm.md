@@ -1,0 +1,170 @@
+# Interfície del DM
+
+> Barra superior, lateral, modes, eines, menús, sistema visual, dreceres i panells.
+> Part de la documentació tècnica: vegeu [docs/README.md](README.md) per a l'índex.
+
+## Finestra lateral esquerra — pestanyes per funció
+- **Escena · Mapa · Biblioteca** (`sidebarTab` a `DMView`). Abans eren «Mapa / Enemics» i els enemics vivien en dues pestanyes segons d'on sortien (els del PSD dins de l'arbre de capes, els de la biblioteca a «Enemics»): per seguir un combat calia saltar entre totes dues.
+  - **Escena** (per defecte): `PlayersPanel` (jugadors en files primes, veure «Panell de jugadors») + `SceneEnemiesPanel` — **tots** els enemics a l'escena, del PSD (agrupats per carpeta) i de la biblioteca (grup «Afegits»), en **files primes** (~28 px) amb ull, nom i `HpControl` `sm`. Clic a una fila = seleccionar el token al canvas; **clic dret = el mateix menú que al mapa** (`openTokenMenu`). Reposicionar/eliminar surten en passar-hi el cursor.
+  - **Mapa**: `ImportPanel` (fons i PSD), capes de **mapa** del PSD (`LayerTree`: només extres i zones) i `RoomsPanel` (sales i llums).
+  - **Biblioteca**: `EnemyLibraryPanel`, només plantilles per **afegir** (i la BD si hi ha API, agrupada per projecte o categoria — veure «Enemics de la BD agrupats»). Cada plantilla diu quants n'hi ha a l'escena (`×N`, per `templateId`).
+- **Regla**: el que és *a l'escena* va a Escena, el que és *del mapa* va a Mapa. Un panell nou s'ha de posar on toca per funció, no per origen de les dades.
+
+## Finestra lateral esquerra — seccions plegables (`src/components/ui/SidebarSection.tsx`)
+- Totes les seccions del sidebar del DM comparteixen `SidebarSection`: capçalera amb **fletxa, icona, títol, comptador i botons d'acció** (fletxa i icona vectorials d'`icons.tsx`, mai emojis; el comptador sempre neutre, `C.dim`) (`SectionButton`, amb `stopPropagation` perquè no pleguin la secció) i cos que s'anima amb el truc `grid-template-rows: 0fr → 1fr` (sense mesurar alçades, igual que el desplegable de configuració del jugador).
+- `maxBodyHeight` dóna **scroll propi** a una secció (amb `ScrollArea`): les llistes llargues (capes del PSD, sales, llums) no empenyen la resta del panell fora de la pantalla.
+- L'usen `ImportPanel`, `LayerTree` (embolcallat des de `DMView`), `RoomsPanel`, `PlayersPanel` i `EnemyLibraryPanel`.
+- **`defaultOpen` només s'aplica en muntar.** Per fer que una secció es plegui sola quan canvia una condició, cal remuntar-la amb un `key` (ho fa `ImportPanel`: `key={bgLoaded ? 'loaded' : 'empty'}`).
+
+## El DM al mòbil (`useCompact` + `useCanvasPointer`, v4.60)
+- **Pantalla compacta** = `(max-width: 760px), (max-height: 500px)` (`COMPACT_QUERY`): un telèfon dret o ajagut. `useCompactLayout()` la llegeix amb `useSyncExternalStore` (al servidor, `false`: res d'error d'hidratació). Dins de la barra, els components la llegeixen del context (`CompactContext`/`useCompact`), sense props.
+- **Barra superior compacta** (`TopBar`): sense el bloc del nom (només el botó del lateral), botons d'una icona (el text va dins de `Label`, que no pinta res en compacte; el nom passa a l'`aria-label`) i el canvi d'app (Clàssica · Píxel) al menú **⋯**. Els menús (`Popover`) s'obren a l'amplada de la pantalla, sota la barra, amb scroll. ⚠️ Un botó nou de la barra ha de posar el text dins de `Label`: si no, en un iPhone dret la barra no hi cap i els menús de la dreta (Pantalles, Partida) queden fora de la pantalla — que és el que passava.
+- **Lateral = calaix** (`drawerOpen` a `DMView`, no es recorda): per sobre del mapa, amb un vel que el tanca en tocar-lo; el mapa ocupa tota l'amplada. A l'escriptori, el lateral plegable de sempre.
+- **Barra d'eines horitzontal a dalt** (`FloatingToolbar`, `top: 56`, sota el menú de llocs i la càmera) i panells a sota; sense `HoverTip` (al dit, un toc dispara el «hover» i la finestreta s'hi quedaria). **Barra de torns** (`TurnTracker`) d'esquerra a dreta de la pantalla, botons d'icona, i **mantenir premut un xip** = clic dret (recuperar el torn).
+- **Res de selecció de text** amb el dit: classe `dm-root` a l'arrel del DM + regla `@media (pointer: coarse)` a `globals.css` (`user-select: none`, `-webkit-touch-callout: none`; els camps de text sí que es poden seleccionar).
+- **Finestres modals dins del menú del clic dret** (`Modal` de `PixelPickers`: figureta i retrat) van per **`createPortal` al `body`**: dins del menú, que fa scroll, Safari d'iOS les retallava a la mida del menú. I sense `autoFocus` amb el dit: el teclat desplaçava la pàgina i el menú semblava moure's.
+- **Benvinguda, `CanvasHUD`, `PlacesMenu` i panells** s'encongeixen (botons a l'amplada que hi ha, càmera només amb icones, «Sortir» curt, panells amb `maxHeight` i scroll). L'arrel del DM fa servir `.full-stage` (`100dvh`).
+- **Dit al canvas** (`useCanvasPointer`): el canvas fa servir **pointer events** (`touch-action: none`) i passa els esdeveniments als gestors de sempre de `useMouseHandlers` (un `PointerEvent` és un `MouseEvent`): amb el ratolí no canvia res. Amb el dit: un dit = botó esquerre; **dos dits** = pinça (zoom ancorat al mig dels dits) + desplaçar, a la vista compartida o, en Privada, a la local (mateixes fórmules que `useWheelZoom`); **mantenir premut** 0,5 s quiet = clic dret (`onContextMenu` amb un esdeveniment sintètic); **doble toc** = doble clic. En començar la pinça o el menú, el gest d'un dit s'atura **sense comptar com a clic** (`abortSingle` treu l'`onClick` del `panDragRef`: si no, revelaria la sala fosca de sota) i els dits queden «muts» fins que s'aixequen.
+
+## Lateral plegable (`sidebarOpen` a `DMView` + botó a `TopBar`)
+- Botó de panell (`PanelLeftIcon`) a la dreta del bloc del nom del mapa de la barra superior: plega o desplega tot el lateral per donar més espai al mapa. Es recorda entre sessions (`useStoredFlag('rpg_sidebar_open')`, localStorage amb `useSyncExternalStore`: llegir-lo al primer render donaria error d'hidratació).
+- S'anima l'**amplada del contenidor** (`SIDEBAR_W` = 270 → 0) i el contingut manté els seus 270 px a dins (no es reorganitza a mig plegar). El contingut plegat porta `inert` (el Tab no hi entra).
+- El canvas s'adapta sol (el tick mira la mida cada frame). Com en redimensionar la finestra, el DM veu més mapa i les pantalles de jugador s'hi reenquadren (veure «Càmera compartida»).
+
+## Modes Preparar · Jugar (`src/lib/dm-mode.ts`)
+- **Problema que resolia**: les eines de construir el mapa (parets, llums, graella, capes) i les de jugar (regla, dibuix, màgies, torns) sortien totes alhora: 13 botons a la barra i 3 pestanyes al lateral, la majoria sense res a veure amb el que s'estava fent.
+- Interruptor **Preparar · Jugar** a la barra superior (`ModeSwitch` a `TopBar`). Estat `mode` + `modeRef` a `DMView`. És **només UI del DM**: no es sincronitza ni canvia res del que veuen els jugadors.
+  | | Preparar | Jugar |
+  |---|---|---|
+  | Barra d'eines | Selecció · Parets i portes · Llums · Graella · ▣ | Selecció · Senyal i regla · Dibuix · Màgies · ▣ · (✨ esborrar zones) |
+  | Lateral | **Mapa** · Escena · Biblioteca (s'obre a Mapa) | Escena · Biblioteca |
+  | Barra de torns | no | sí |
+  | «Mostrar als jugadors» | només si s'hi mostra alguna cosa (per poder-la amagar) | sí |
+- Escena i Biblioteca són als dos modes: col·locar enemics és preparar, però afegir-ne un a mitja partida també passa.
+- **Font única de quina eina és de quin mode**: `modeForTool()`. ⚠️ El wrapper `setDrawTool` de `DMView` hi crida `applyMode`: triar una eina de l'altre mode (tecla 5 jugant, «Afegir porta» del menú d'una sala, tecla 1 preparant…) **canvia de mode sol**. Així les dreceres funcionen sempre i el mode no queda mai amb una eina que no hi és. Una eina nova s'ha d'afegir a `modeForTool`.
+- `switchMode` (interruptor): si l'eina activa no és del mode nou, torna a la selecció (i, si era la de senyal, esborra el punter i la regla de les pantalles de jugador).
+- **Mode en obrir fitxers**: un mapa nou o un PSD → Preparar (`openNewMap`, `openPsd`); una partida (fitxer, servidor, desat automàtic) o la demo → Jugar (`openSession`, `openServerSession`, `openDemo`). Per defecte, Jugar.
+- A Preparar la barra de torns no es veu i **Enter no passa el torn** (`advanceTurnIfPlaying`): el combat continua igual i en tornar a Jugar hi és.
+
+## Eines de dibuix (barra flotant)
+- `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral). Les eines depenen del mode (`PLAY_TOOLS` / `PREP_TOOLS`, veure «Modes Preparar · Jugar»).
+- **Dibuix** és un sol botó per a la ploma i la goma (`ToolDef.also`): s'encén amb qualsevol de les dues i, en clicar-lo, posa la ploma. Al seu panell: Ploma · Goma (tecles 1 i 2), paleta (només ploma), gruix i **Esborrar tot el dibuix**. El desfer del traç és el «Desfer» únic de la barra superior. Abans eren dues eines i dos botons d'acció a la barra.
+- **Graella** (només Preparar) obre `GridPanel`. Per ensenyar-la o amagar-la mentre es juga, interruptor al menú **Vista** (`toggleGridVisible`, sense obrir el calibratge). ⚠️ Al DM la graella només es dibuixa mentre arrossega tokens, calibra o mesura (`rGridDmAlpha`); l'interruptor és sobretot per als jugadors.
+- **Barra apagada sense mapa** (`disabled` → `<fieldset disabled>`): es veu, però no reacciona ni mostra ajuda.
+- **Modes de ratolí**: a la barra només hi queda la **selecció múltiple** (▣, `areaSelectMode`); els de càmera (vista privada i compartida temporal) són al selector de càmera del mapa (veure «Selector de càmera»). Les funcions (`toggleAreaSelect`, `setPrivateView`/`toggleShiftPan`, `toggleCtrlPan`) viuen a `DMView` i les comparteixen **el control i la tecla** — `useKeyboardHandlers` les rep per `opts` i no duplica la lògica. Si s'hi afegeix un mode nou, ha de seguir el mateix camí (una sola funció, dos disparadors).
+- **Explicacions al hover, d'UNA línia**: cada botó va dins d'un embolcall `position: relative` que ancora un `HoverTip` amb el nom de l'eina, la drecera i **una sola línia** del que fa (`ToolDef.desc`, text de ≤ ~48 caràcters). Abans eren paràgrafs que tapaven mig mapa; el detall (els gestos de l'eina Màgies, les tecles de les parets) és ara a la finestra de dreceres (`ShortcutsHelp`, tecla ?). Totes les eines actives es marquen igual, en daurat (abans cada eina tenia el seu color). ⚠️ El component del botó (`ToolButton`) està definit **a nivell de mòdul**: si es declarés dins de `FloatingToolbar`, cada canvi de `hover` en crearia un tipus nou, React desmuntaria tots els botons i el `mouseleave` es perdria (finestreta enganxada).
+- El `HoverTip` de la barra vertical s'alinea **per baix** (`bottom: 0`), no centrat: la barra viu a la cantonada inferior i una finestreta centrada sobre l'últim botó sortiria de la pantalla. ⚠️ Per això la barra d'eines va a `zIndex` 13, **per sobre de la barra de torns** (12): les finestretes i els panells (Dibuix, Graella) s'obren cap a la dreta a la mateixa alçada i quedaven tapats.
+- Al flyout hi queden **només els controls manipulables**: el panell de Dibuix i el slider de radi (Llums). Parets i Senyal no en tenen.
+- Eina **Llums** (drecera `6`): col·locació de punts de llum (torxes) — veure feature "Punts de llum".
+
+## Barra superior (`src/components/dm/TopBar.tsx`)
+- **Problema que resolia**: els controls que no són ni el mapa ni el lateral estaven repartits en tres llocs (barreta d'Expositor/Text a dalt a l'esquerra, xips a dalt al centre, peu del lateral) i moltes coses es podien fer des de dos llocs («Modo Jugador» i el xip 🖥; Guardar/Cargar, ☁ i el xip ⟳; el zoom al lateral i el reset a dalt).
+- **Una sola barra** de `TOP_BAR_H` (48 px) per sobre del lateral i de l'escenari. D'esquerra a dreta: nom del mapa (bloc de 250 px perquè la resta s'alineï amb l'escenari; el nom va en EB Garamond i a la dreta hi ha el botó de plegar el lateral), l'interruptor **Preparar · Jugar**, **«Mostrar als jugadors»** i, a la dreta, el **Desfer** únic (veure «Desfer únic») i quatre menús: **Pantalles de jugador**, **Partida**, **Vista** (només amb mapa) i **⋯**.
+  - **Pantalles** (`ScreensMenu`): veure «Menú de pantalles» a la secció de la càmera compartida. Mentre no n'hi ha cap, un **punt** d'avís (el botó no canvia de color).
+  - **Partida** (`GameMenu`): l'etiqueta del botó és l'estat del desat («Desat fa 2 min», es refresca cada 15 s). Dins: interruptor del desat automàtic, desar ara, exportar a `.json`, obrir un `.json` i partides al servidor (si hi ha API).
+  - **Vista** (`ViewMenu`): graella visible, opacitat del mapa i Ressaltar enemics (+ cadenat). Ressaltar surt amb qualsevol mapa (abans només amb PSD, i als mapes de caselles havia desaparegut).
+  - **⋯** (`MoreMenu`): dreceres de teclat, back office i versió.
+- ⚠️ Els botons de la barra (`BarButton`) són **sempre neutres**: un estat (cap pantalla, desat automàtic apagat, desat fa poc) el diu un punt (`Dot`) o la icona, no el color de tot el botó. `C.warn` (#d29922) és pràcticament el mateix daurat que l'acció principal i, amb el botó sencer de color avís, «Cap pantalla de jugador» semblava el botó principal de la barra.
+- Els menús són `Popover` (nivell de mòdul): clic fora o **Esc** els tanquen. ⚠️ L'Esc es captura en fase de captura amb `stopImmediatePropagation`, si no `useKeyboardHandlers` també tornaria a l'eina de selecció (mateix criteri que `RadialMenu`).
+- ⚠️ El cos (lateral + escenari) és un **context d'apilament propi** (`position: relative; zIndex: 0`) i la barra té `zIndex: 1`: així els menús de la barra queden sempre per sobre de tot el que hi ha a l'escenari (panells a `zIndex` 20, el rètol de deixar fitxers a 40…) sense haver de pujar números.
+- El **zoom** és a la cantonada superior dreta del mapa (`CanvasHUD`): − / percentatge / +, i un clic al percentatge restableix la vista (zoom i posició). Al seu costat hi ha el selector de càmera.
+
+## Selector de càmera (`CanvasHUD`)
+- **Problema que resolia**: la càmera eren dos botons «CTRL» i «MAJ» a la barra d'eines, amb el nom de la tecla en lloc del que fan, i un avís a dalt quan estaven encesos.
+- A la cantonada superior dreta del mapa, al costat del zoom: **«Què veuen els jugadors: Compartida · Privada»** (`role="radiogroup"`).
+  - **Compartida** (per defecte): els jugadors et segueixen quan mous el mapa o fas zoom.
+  - **Privada** (`setPrivateView`, mateix estat que el toc de Maj: `rShiftPanToggle`): et mous amb `dmLocalPan`/`dmLocalZoom` i els jugadors es queden on eren. En tornar a Compartida, la teva vista hi torna sola (`dmPrivateReturnAnim`). També cal per amagar una sala ja revelada (veure «Sales fosques»).
+  - **«Enviar aquesta vista»** (només en Privada, `sendPrivateView`): la vista compartida pren el teu enquadrament (`rZoom × dmLocalZoom`, `rPanOffset + dmLocalPan`, zoom retallat a [0,2, 10]) i el privat torna a zero, o sigui que a la teva pantalla no es mou res i continues en Privada.
+  - **Vista temporal** (toc de Ctrl, `toggleCtrlPan`): sense botó propi, però quan és activa surt un xip «Temporal · tornarà on era» amb ✕ per sortir-ne (tothom torna a l'enquadrament d'abans).
+- `toggleShiftPan` (tecla) conserva la guarda de l'eina Màgies (Maj hi traça la línia del conjur); `setPrivateView` (selector) no la té.
+- El zoom de la cantonada mou sempre la vista **compartida**, també en Privada (com feia el lliscador d'abans); la roda i la pinça, en Privada, fan zoom privat.
+
+## Desfer únic (`src/lib/undo.ts` + botó a `TopBar`)
+- **Problema que resolia**: tres desfers (traç al panell de Dibuix, mapa a la barra de Preparar, moviments només amb Ctrl+Z) i un Ctrl+Z que en triava un segons l'eina activa sense dir quin.
+- **Un sol «Desfer»** a la barra superior, que diu què desfarà («Desfer · afegir paret», «· traç de dibuix», «· moviment de Liriandor»). **Ctrl+Z fa exactament el mateix** (`undoLast` a `DMView`, passat a `useKeyboardHandlers` com a `undo`).
+- **Model**: les tres piles de sempre no canvien (`strokeHistoryRef`, `rMapHistory`, `rMoveHistory`). `rUndoLog` només en guarda l'**ordre**: cada entrada apunta a l'objecte apilat (`logUndo`, just després de cada `push`). `peekUndo` retorna l'última entrada **que encara és a la seva pila**; les altres han caducat (s'han desfet, s'ha esborrat el dibuix, ha canviat el torn, s'ha eliminat el token) i se salten. Per això cap camí que buidi una pila pel seu compte pot desordenar el desfer, i no cal netejar el registre enlloc.
+- ⚠️ Una **pila de desfer nova** ha de: apuntar cada `push` amb `logUndo`, sortir a `peekDmUndo` i a `undoLast`, i avisar `onUndoChange` (o `refreshUndo`) quan canviï, perquè l'etiqueta del botó es refresqui. L'etiqueta es calcula a `refreshUndo` (estat `undoNext`), no al render: llegir refs al render és l'error de lint `react-hooks/refs`.
+- Els moviments de combat que es desfan són els que fan **els jugadors** des de `/player` (el DM pot desfer-ne un de mal fet); els que fa el DM arrossegant no s'apilen.
+
+## Panell «Mostrar als jugadors» (`ShowPanelHeader` + `DMView`)
+- L'Expositor, el Revelador de text, el Diàleg i la Fitxa són **les pestanyes d'un sol panell** (Imatge o vídeo · Text · Diàleg · Fitxa), que obre el botó «Mostrar als jugadors» de la barra. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
+- Cada pestanya continua obrint el seu estat de sempre (`expositorOpen` / `textRevealOpen`, un sol obert alhora) i la pestanya recordada és `showTab`: els bucles RAF i les dreceres de teclat de cada un no han canviat. En obrir el panell, si s'està mostrant alguna cosa, s'obre per aquella pestanya.
+- Un punt verd a la pestanya (i al botó de la barra) diu què s'està mostrant als jugadors.
+- Amplada fixa `SHOW_PANEL_W` (560) per a les dues pestanyes: canviar de pestanya no fa saltar el panell. Va a `top: 12` de l'escenari.
+
+## Barra de desplaçament integrada (`src/components/ui/ScrollArea.tsx`)
+- La barra nativa ocupava una franja fixa, sempre visible i que no lligava amb el lateral. `ScrollArea` amaga la nativa (`.sa-viewport`) i en dibuixa una **per sobre del contingut** (no li treu amplada): invisible en repòs, molt suau en passar el cursor per la zona, visible mentre es fa scroll (`data-scrolling`, s'apaga als 900 ms) i més ampla en apropar-s'hi o arrossegar-la. Es pot arrossegar el polze i clicar el carril per saltar-hi.
+- La posició del polze s'escriu **directament al DOM** (no és estat de React): fer scroll no re-renderitza res. Mides amb `ResizeObserver` del viewport i del contingut. Estils de hover a `globals.css` (`.sa-*`).
+- L'usen el contingut de les pestanyes del lateral i el cos de les `SidebarSection` amb `maxBodyHeight`. Una llista nova amb scroll al lateral ha de fer-la servir.
+- El carril fa 8 px i va enganxat a la vora dreta: el contingut del lateral ja té ≥10 px de marge, o sigui que no tapa cap botó.
+
+## Menú contextual d'un token (`ContextMenuOverlay`) — amb la fitxa a dins
+- **Tot el que és d'un token en un sol lloc**: clic dret al token al mapa, o a la seva fila del lateral (jugadors i enemics de l'Escena). A la v4.30 la fitxa era un panell a baix del lateral i el menú hi enviava amb «Editar la fitxa»; ara la fitxa és **dins del menú**.
+- **Ordre**: capçalera (**nom editable**, «💀 Derrotar» / «💀 Derrotat» i ✕) → vida (`HpControl` `md`, si en té) → camps de la fitxa (`TokenFields`: vida màx., mida, i als jugadors velocitat, visió i l'interruptor «Es mou des de la seva pantalla») → estats (compactes) → ✨ conjurs (jugadors amb grimori) → una fila d'accions petites: sortir del grup, cinemàtica, treure de l'escena (biblioteca) o eliminar jugador (amb confirmació en dos passos, desada per id com la de les sales).
+- L'estat derrotat és un botó amb nom: abans era un ✕ solt just on s'espera el de tancar.
+- **Un sol constructor de l'estat del menú**: `tokenMenuFor(R, id, x, y)` (`lib/token-menu.ts`). El fan servir el clic dret al mapa (`useMouseHandlers`) i a les files (`openTokenMenu` a `DMView`); si se'n fes un segon, els dos menús acabarien sent diferents.
+- Llegeix el token de l'**estat** (`resolveToken(id, edit)`, amb `players`, `libEnemies`, `psdEnemyOverrides`… per la prop `edit`), no de refs ni del `contextMenu` (que és una foto del moment d'obrir-lo): així el nom, la vida i els camps es refresquen mentre s'editen.
+- ⚠️ **Els camps s'apliquen en confirmar** (`NumField` / `NameField`: Enter o perdre el focus), no a cada tecla: esborrar el número per escriure'n un altre deixaria el token a 0 a mig camí i enviaria un `STATE` per tecla. **Esc dins d'un camp cancel·la l'edició i no tanca el menú** (`stopPropagation`; el menú escolta l'Esc a `window`). L'Esc fa `blur()` abans que React apliqui el `setDraft(null)`, per això hi ha la marca `cancelled` (sense ella, el `onBlur` aplicava l'esborrany igualment).
+- ⚠️ **Tancar el menú = primer `blurActive()`**, després desmuntar (`onClose` envolta el de `DMView`). Un camp que es desmunta amb el focus no rep el `blur`, o sigui que un valor escrit i deixat en clicar fora del menú (o en una acció del menú) es perdia. Per això `renameRoom` ara no fa res si el nom no canvia (el camp de nom de la sala també s'aplica en perdre el focus).
+- **Menú flotant** (`floatPos`/`onFloat`, estat `menuFloat` a `DMView`): tots els menús del clic dret s'arrosseguen per la capçalera (`MenuHeader`: mànec `GripIcon` o qualsevol tros buit; mai des dels camps ni els botons). Un cop moguts, són flotants: un clic fora no els tanca, el clic dret en buit del mapa tampoc (`setContextMenuFromMap` ignora el `null` mentre `menuFloatRef` hi és), i un clic dret a un altre token el canvia al mateix lloc. **✕ i Esc** (`onDismiss`) tanquen i treuen el flotant. Les accions del menú que el tanquen (parlar, conjur, treure de l'escena…) fan servir `onClose` i conserven el lloc per al pròxim. `floatBox` el retalla perquè la capçalera es vegi sempre i el cos faci scroll.
+- **Regla**: un camp nou d'un token va a `TokenFields` (dins d'aquest menú), no a un panell ni a una targeta.
+
+## Sistema visual del DM (`FS`, `RADIUS`, `SHADOW`, `tint` a `constants` + `ui/Button.tsx`)
+- **Escala tipogràfica** `FS = { xs: 10, sm: 11, md: 12, lg: 14, xl: 18 }`: tota mida de lletra de la UI del DM surt d'aquí (el mínim és `FS.xs`). Abans n'hi havia 22 de diferents, de 7,5 a 32 px, i els noms dels estats no es llegien. Les xifres grans (vida, peus, ronda) i les icones/emojis són mides de *display* i poden anar a part.
+- **Radis** `RADIUS = { sm: 4, md: 6, lg: 10, pill }`, **ombres** `SHADOW.float` / `SHADOW.menu`, i colors **sempre de la paleta** `C` (afegits `C.onAccent` —text damunt d'accent— i `C.float` —fons de panells flotants—). Transparències amb `tint(C.enemy, 0.12)`, no amb `rgba(...)` escrit a mà.
+- **Botons**: `Button` (variants `primary` / `secondary` / `ghost` / `danger` / `tint`, mides `sm` / `md` / `lg`, `active` per a commutadors) i `IconButton` (quadrat d'una icona). `buttonStyle()` per donar aspecte de botó a un `<label>` o `<Link>`. Una sola acció `primary` per bloc.
+- ⚠️ No afegir estils de botó, mides de lletra ni colors escrits a mà en components nous: si falta una variant, s'afegeix a `Button`.
+- **El daurat (`C.accent`) només vol dir dues coses: l'acció principal d'un bloc (`primary`) i el que està actiu o seleccionat** (eina, pestanya, mode, xip del torn, interruptor encès). No per a dades (ronda, peus, comptadors, valors de camps), etiquetes, insígnies ni avisos. Un avís va amb un punt o un text en `C.warn`, no amb tot un botó del color avís (veure `BarButton`).
+- **Tipografia de títols** `FONT_SERIF` (EB Garamond, servida des de l'app amb `next/font/local`, sense internet): nom del mapa a la barra superior, títol de la benvinguda, nom del token a la capçalera del menú del clic dret, títols dels diàlegs (dreceres, partides al servidor) i el text que es llegeix als jugadors (revelador). La resta de la UI, en sans. ⚠️ Mai `'EB Garamond'` escrit a mà: `next/font` canvia el nom de la família i no la trobaria (cauria a Georgia, com passava abans: la font no s'havia carregat mai).
+- **Icones, mai emojis, a la interfície** (botons, capçaleres de secció, menús): vectorials d'`icons.tsx`, que agafen el color del text. Les emojis surten diferent a cada sistema (a Windows, glifs negres sobre el fons fosc). L'excepció són les màgies i els elements (`SPELL_TYPES.emoji`, `ELEMENTS.emoji`): són el «retrat» de cada màgia a la roda i al grimori, contingut i no controls.
+
+## Avisos a la pantalla (`src/components/ui/NoticeStack.tsx`)
+- **Problema que resolia**: tot el que fallava en carregar (fons il·legible, `.json` de partida corrupte, demo inabastable, desat automàtic sense espai) només deixava rastre a `console.error`. Des de fora es veia exactament igual que «no passa res»: l'usuari tornava a clicar sense cap pista.
+- **Model**: `Notice {id, kind: 'error'|'warn'|'info', text}` a `types/index.ts`. `DMView` en té la pila (`notices`) i passa `notify(text, kind?)` dins de l'objecte `Setters` de `useDMActions` — o sigui que **qualsevol acció del DM pot avisar sense arrossegar props**. `useAutosave` el rep per l'opció `onError`.
+- **Comportament**: es pinten a dalt al centre del `stageRef`, amb icona vectorial i colors de la paleta. Un **error no marxa sol** (si s'esvaís, es perdria justament el missatge que explica per què no hi ha mapa); els avisos i les informacions sí. Un text repetit no s'apila (es dedupliquen) i se'n mostren com a molt 3.
+- **Regla**: si afegeixes un camí que pot fallar de cara a l'usuari, ha de passar per `notify`, no per `console.error` tot sol.
+
+## Dreceres de teclat i modificadors (`useKeyboardHandlers`)
+- ⚠️ **Ctrl i Maj commuten els modes de vista NOMÉS amb un toc net**: prémer i deixar anar la tecla sola, sense cap altra tecla, clic ni roda pel mig i en menys de `TAP_MS`. Abans commutaven en *prémer-la* (keydown), o sigui que tot **Ctrl+Z** encenia el mode CTRL (i el segon el tornava a apagar restaurant la càmera de tothom) i el **Maj+clic** de portes/màgies encenia la vista privada. `rShiftHeld` continua sent la tecla física premuda (la fan servir les màgies i les portes). La pinça del trackpad envia `ctrlKey` sense cap keydown: no toca res.
+- **Espai mantingut** (`rSpaceHeld`) = arrossegar el mapa amb qualsevol eina (cursor `grab`/`grabbing` via els estats `spaceHeld`/`panning` de `DMView`).
+- **Enter** passa el torn; **V** o **Esc** (quan no hi ha res més a cancel·lar) tornen a l'eina de selecció; **?** obre `ShortcutsHelp` (també des del menú ⋯ de la barra superior). Ctrl+Z accepta també Cmd+Z. Sense mapa, les dreceres de les eines no fan res.
+- Si s'afegeix una drecera, afegir-la també a la llista de `ShortcutsHelp.tsx`. Aquesta finestra també explica els **gestos de l'eina Màgies** (de `SPELL_MODES`) i les tecles de les **parets**: és on va el detall que no cap a la finestreta d'una línia de la barra d'eines.
+
+## Moure el mapa (pan) — `useMouseHandlers` + `useWheelZoom`
+- Formes de fer-ho: **botó central**, **Espai + arrossegar** (qualsevol eina), **arrossegar en buit amb l'eina de selecció**, i al trackpad **dos dits** (la **pinça** fa zoom continu). Sense botó central abans no es podia moure el mapa des d'un portàtil.
+- **Clic o pan** (`panDragRef.onClick`): un mousedown en buit amb l'eina de selecció arma un pan i DESA l'acció del clic (deseleccionar, revelar la sala fosca o treure la coberta d'una zona del PSD). Si en deixar anar no s'ha mogut més de 4 px, s'executa el clic; si s'ha arrossegat, només s'ha mogut el mapa. Així començar un pan damunt d'una sala fosca **no la revela**.
+- **Roda**: el primer esdeveniment de cada ràfega (220 ms sense rodes la tanquen) decideix si és zoom o pan i es manté: `ctrlKey` o `deltaMode ≠ 0` → zoom; `deltaX ≠ 0` o `|deltaY| < 50` → pan (trackpad); la resta (osques de 100/120 px) → zoom. Amb la vista privada activa, el pan va a `dmLocalPan`.
+
+## Vista privada DM
+- Selector de càmera «Privada» o toc de Maj (`rShiftPanToggle`): zoom i pan locals, **no** sincronitzats al jugador (no entren a `cam`). «Enviar aquesta vista» els passa a la vista compartida (veure «Selector de càmera»).
+- Refs: `dmLocalPan`, `dmLocalZoom` — animació de retorn suau (`dmPrivateReturnAnim`)
+
+## Pantalla de benvinguda i fitxers deixats al canvas (`DMView`)
+- Sense mapa: «**Obrir mapa**» (primari), «**Provar la demo**», «**Recuperar l'última partida**» (si hi ha desat automàtic) i enllaços per carregar un PSD o una partida `.json`. Abans el text del centre enviava a una caixa petita del panell lateral, i el centre no acceptava fitxers.
+- **Tot l'escenari accepta fitxers** (`onStageDrop` → `loadAnyFile`): imatge/vídeo → mapa, `.psd` → capes, `.json` → partida, amb un marc «Deixa anar per carregar-lo». Només reacciona a arrossegaments de fitxers (`dataTransfer.types` inclou `Files`). ⚠️ Qualsevol zona de drop interna (p. ex. la previsualització de l'Expositor) ha de fer `stopPropagation`, si no el fitxer també es carregaria com a mapa.
+- Sense mapa, la barra d'eines queda apagada, la barra de torns no surt, el zoom i el menú Vista no apareixen i «Exportar a un fitxer» (menú Partida) queda desactivat.
+
+## Ull de visibilitat — un sol significat
+- A tota l'app l'ull respon **«ho veuen els jugadors?»**: obert = sí, tancat = no (enemics, sales dibuixades i zones del PSD, a les llistes i al canvas).
+- ⚠️ A les zones del PSD, `vis[id]` vol dir que la **coberta** es veu, o sigui que la zona està **amagada**: `LayerTree` passa `visible={!vis[id]}` i `renderRoomOverlays` pinta l'ull obert quan `!isVis`. Abans l'ull hi tenia el significat invers.
+
+## Opacitat del fons (només DM)
+- Control lliscant al menú **Vista** de la barra superior que abaixa l'**opacitat del mapa de fons NOMÉS a la pantalla del DM** (ajuda per veure clar sales/tokens/màgies quan hi ha molta informació). `rBgDmOpacity` (default 1) → el tick de `useRafLoop` fa `media.style.opacity`. Com que el fons és un element DOM darrere del canvas, abaixar-lo dim només la imatge del mapa; els overlays del canvas (sales, tokens, spells, dibuix) es mantenen nítids. **No es sincronitza**: els jugadors veuen sempre el fons opac.
+
+## Panell de jugadors (`src/components/dm/PlayersPanel.tsx`)
+- Va dins d'una `SidebarSection` ("Jugadors · N") amb els botons ＋ (desplega el formulari d'alta, que si no no ocupa espai) i Party.
+- **Una fila prima per jugador** (`PlayerRow`, ~32 px, el mateix format que les files d'enemics de l'Escena): avatar amb inicials del seu color, nom, cadenat si `canMove === false` i `HpControl` `sm`. Clic a la fila = seleccionar el token (la fila seleccionada s'encén); **clic dret = el menú del token**, amb la fitxa (també per a un token que ara no es veu a la pantalla).
+- Abans eren targetes de 68 px amb un engranatge que desplegava la configuració (vida màxima, velocitat, visió, moviment): amb cinc jugadors el panell ocupava mig lateral. Tot això és ara al **menú del clic dret** del token; el panell només és per veure i tocar la vida durant el joc.
+
+## Control de vida únic (`src/components/ui/HpControl.tsx`)
+- **Un sol component** per a la vida de qualsevol token: files de jugadors i d'enemics de l'Escena (`sm`, prim perquè se n'hi apilin molts), menú contextual (`md`). La mida `lg` era la de les antigues targetes de jugador i ara no la fa servir ningú. Abans n'hi havia quatre de diferents (−/+ gros, −1/barra/+1, −10/−1/barra/+1/+10 i una barra fina sense número), cadascun amb la seva gramàtica.
+- Gramàtica: **clic ±1, clic dret ±10**; **clic al número** → camp on «-7» aplica dany, «+5» cura i «12» fixa la vida (Enter aplica, Esc o clicar fora cancel·la). El color surt de `hpColor()` (verd > 50%, groc > 25%, vermell).
+- Sempre crida la funció `adjust*Hp(id, delta)` corresponent (que ja retalla a [0, hpMax] i marca/desmarca derrotat). Per fixar un valor absolut es passa `valor − hp`.
+
+## Roda de màgies i zones (`src/components/ui/RadialMenu.tsx`)
+- **Una sola roda** per a tot el que obre l'eina Màgies: `SpellMenuOverlay` (màgies de trajectòria, direccionals i d'àrea) i `ShapeMenuOverlay` (elements de zona màgica) només li passen les opcions. Abans eren dos menús amb dissenys diferents.
+- **Quina roda surt depèn del gest** (`useMouseHandlers`): traç obert → trajectòria; tancar el traç → zona màgica; Maj+arrossegar → direccional; Alt+clic o traç que es creua → àrea. Els noms i subtítols dels quatre gestos viuen a **`SPELL_MODES`** (`constants`) i els fan servir la roda i l'ajuda de la barra: si en canvia un, canvia als dos llocs.
+- Sectors opacs amb icona + nom; el primer centrat a dalt i la resta en sentit horari. Centre: títol i subtítol del mode o, en hover, nom i detall de l'opció (el detall es parteix per « · » en línies; si no en té, diu la tecla).
+- ⚠️ **Teclat en fase de captura** (`stopImmediatePropagation`): 1…N trien i Esc tanca. Si no, les xifres canviarien d'eina (1–6) i l'Esc tornaria a l'eina de selecció.
+- La roda es recol·loca perquè no surti de la finestra. Clic al centre o fora = tancar.
+- Noms de màgies (`SPELL_TYPES.title`, amb `SPELL_BY_TYPE`) i d'elements (`ELEMENTS.label`) en català: són els mateixos que surten al menú contextual («💤 Dormir», «🔥 Zona de foc»).
