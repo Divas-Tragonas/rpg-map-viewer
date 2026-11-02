@@ -181,17 +181,19 @@ export interface EnemyTemplate {
   sm: number;
   sprite?: string;
   xp: number;
-  /** Grup de la Biblioteca. */
-  group: 'Castell de la Fumarola' | 'Aliats' | 'Plantilles';
+  /** Grup de la Biblioteca (els aliats no tenen grup propi: són `ally`). */
+  group: 'Castell de la Fumarola' | 'Bestiari';
+  /** Aliat/NPC: surt a «Aliats» (Biblioteca i Escena), no el ressalta «ressaltar enemics» i no dona XP. */
+  ally?: boolean;
   /** Text curt per al títol del botó (monstre 5e amb què es juga, notes). */
   detail?: string;
 }
 
 const T = (id: string, name: string, color: string, hpMax: number, R: number, sm: number, sprite: string, xp: number,
-  group: EnemyTemplate['group'] = 'Plantilles', detail?: string): EnemyTemplate =>
-  ({ id, name, color, hpMax, R, sm, sprite, xp, group, detail });
+  group: EnemyTemplate['group'] = 'Bestiari', detail?: string, ally?: boolean): EnemyTemplate =>
+  ({ id, name, color, hpMax, R, sm, sprite, xp, group, detail, ...(ally ? { ally: true } : {}) });
 
-/** Plantilles genèriques (les de sempre). */
+/** Plantilles genèriques (les de sempre): en un sol bloc amb el Bestiari Oryx, que no repeteix la seva figureta. */
 const GENERIC: EnemyTemplate[] = [
   T('goblin',   'Goblin',   '#3a8a3a', 7,   25, 0.70, 'goblin', 50),
   T('wolf',     'Llop',     '#8a7060', 11,  28, 0.80, 'wolf_black', 50),
@@ -221,9 +223,9 @@ const CASTLE: EnemyTemplate[] = [
 
 /** Aliats i NPCs de la campanya (XP 0). */
 const ALLIES: EnemyTemplate[] = [
-  T('npc_sildar', 'Sildar Flocdeneu',  '#5a8ac0', 52, 35, 1.00, 'knight', 0, 'Aliats', 'Sildar Hallwinter, guerrer de l\'Aliança dels Lords · es juga com a Cavaller (VD 3)'),
-  T('npc_gota',   'Gota',              '#7ab07a', 7,  22, 0.65, 'goblin', 0, 'Aliats', 'Droop, goblin petit i espantadís · stats de goblin'),
-  T('npc_roc',    'Roc Cercarocs',     '#b0905a', 11, 28, 0.80, 'dwarf', 0, 'Aliats', 'Gundren Buscarrocas, nan presoner · es juga com a Guàrdia'),
+  T('npc_sildar', 'Sildar Flocdeneu',  '#5a8ac0', 52, 35, 1.00, 'knight', 0, 'Bestiari', 'Sildar Hallwinter, guerrer de l\'Aliança dels Lords · es juga com a Cavaller (VD 3)', true),
+  T('npc_gota',   'Gota',              '#7ab07a', 7,  22, 0.65, 'goblin', 0, 'Bestiari', 'Droop, goblin petit i espantadís · stats de goblin', true),
+  T('npc_roc',    'Roc Cercarocs',     '#b0905a', 11, 28, 0.80, 'dwarf', 0, 'Bestiari', 'Gundren Buscarrocas, nan presoner · es juga com a Guàrdia', true),
 ];
 
 /** Totes les plantilles amb nom propi (la Biblioteca i la mida automàtica les fan servir). */
@@ -235,7 +237,7 @@ export function creatureTemplate(name: string): EnemyTemplate {
   const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
   return {
     id: `oryx_${name}`, name: nice, color: '#f85149', hpMax: st?.hp ?? 10, R: 22, sm: 0.9, sprite: name, xp: st?.xp ?? 0,
-    group: 'Plantilles', detail: st ? `${st.as} · VD ${st.cr} · ${st.xp} XP` : undefined,
+    group: 'Bestiari', detail: st ? `${st.as} · VD ${st.cr} · ${st.xp} XP` : undefined,
   };
 }
 
@@ -245,9 +247,11 @@ export function findTemplate(id: string): EnemyTemplate | undefined {
 }
 
 /**
- * Criatures Oryx que NO duplicaran una plantilla (mateixa figureta i mateixa vida): la Biblioteca
- * les mostra darrere de les plantilles, sense repetir el goblin, el llop o el trol.
+ * Criatures Oryx que NO repeteixen una plantilla genèrica (mateixa figureta: el Drac és el
+ * `dragon_red`, la Rata el `rat_giant`…). Així la Biblioteca té un sol bloc sense duplicats.
+ * L'Ós fa servir el minotaure només de figureta, per això no l'amaga.
  */
 export function extraCreatures(all: string[]): string[] {
-  return all.filter(n => !ENEMY_TEMPLATES.some(t => t.sprite === n && t.hpMax === (creatureStats(n)?.hp ?? 10)));
+  const used = new Set(GENERIC.filter(t => t.id !== 'bear').map(t => t.sprite));
+  return all.filter(n => !used.has(n));
 }

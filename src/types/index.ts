@@ -223,6 +223,8 @@ export interface LibEnemy {
   imageData: string | null;
   /** Estil Píxel: figureta del token (criatura del paquet Oryx). */
   sprite?: string;
+  /** Aliat/NPC: surt a «Aliats» de l'escena i el «ressaltar enemics» no el marca. */
+  ally?: boolean;
 }
 
 export interface ContextMenuState {

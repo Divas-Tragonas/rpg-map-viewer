@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.74 — Un sol bloc d'enemics i aliats a part
+- La Biblioteca té un sol bloc «Bestiari» (plantilles + Oryx, per ordre alfabètic): les criatures Oryx que ja són una plantilla (Drac = `dragon_red`, Rata = `rat_giant`, Goblin, Llop, Trol…) deixen de sortir repetides. Els enemics del Castell de la Fumarola, a dalt
+- Nou `ally` (plantilla i `LibEnemy`): Sildar, Gota i Roc surten a una secció «Aliats» a la Biblioteca i a l'Escena, a part d'«Enemics». El «ressaltar enemics» no els marca i no donen XP
+
 ### v4.73 — Bestiari i plantilles unificats + Castell de la Fumarola
 - Un sol catàleg a `lib/bestiary.ts` (`EnemyTemplate`): les plantilles de `ENEMY_TEMPLATES` i el Bestiari Oryx surten a la mateixa secció «Bestiari» de la Biblioteca, amb una sola cerca i grups (Castell de la Fumarola, Aliats, Plantilles, Bestiari Oryx). Les criatures Oryx que repetirien una plantilla (mateixa figureta i vida) no es dupliquen
 - Un sol camí d'alta: `addLibEnemy` accepta qualsevol entrada; fora `addOryxCreature`. `sizeAllTokens` troba la mida també de les criatures `oryx_*` (`findTemplate`)

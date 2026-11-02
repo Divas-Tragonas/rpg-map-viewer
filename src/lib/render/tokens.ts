@@ -401,7 +401,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
 
     const _ha = rHighlightAlpha.current;
-    if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3) {
+    if (_ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3 && !en.ally) {
       const pT = performance.now() / 1000;
       const pulse = 0.5 + 0.5 * Math.sin(pT * 3.2 + en.id * 0.43);
       ctx.save();

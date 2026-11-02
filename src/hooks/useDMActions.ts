@@ -935,7 +935,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const imageData = _imgs.length > 0 ? _imgs[Math.floor(Math.random() * _imgs.length)] : null;
     const _sm = tmpl.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : tmpl.R;
-    const newEn: LibEnemy = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData, sprite: tmpl.sprite, xp: tmpl.xp };
+    const newEn: LibEnemy = { id: Date.now(), templateId: tmpl.id, name: tmpl.name, color: tmpl.color, hpMax: tmpl.hpMax, hp: tmpl.hpMax, R: _libR, visible: true, imageData, sprite: tmpl.sprite, xp: tmpl.ally ? 0 : tmpl.xp, ...(tmpl.ally ? { ally: true } : {}) };
     // Numeració automàtica: el primer Goblin és "Goblin"; en crear el segon, el primer
     // passa a "Goblin 1" i el nou a "Goblin 2" (i així ascendint).
     const ns = addEnemyNumbered(rLibEnemies.current, newEn);

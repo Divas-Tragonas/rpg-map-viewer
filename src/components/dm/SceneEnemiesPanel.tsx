@@ -74,26 +74,35 @@ export function SceneEnemiesPanel({
   libEnemies, defeated, selectedToken, onSelect, onMenu,
   onToggleLibVis, onAdjustLibHp, onRemoveLib, onOpenLibrary,
 }: Props) {
-  const total = libEnemies.length;
+  const enemies = libEnemies.filter(e => !e.ally);
+  const allies = libEnemies.filter(e => e.ally);
+  const total = enemies.length;
+  const rows = (list: LibEnemy[]) => list.map(en => (
+    <EnemyRow key={en.id}
+      name={en.name} color={en.color}
+      visible={en.visible !== false} defeated={!!defeated[`lib_${en.id}`]} selected={selectedToken === `lib_${en.id}`}
+      hp={en.hp ?? en.hpMax} hpMax={en.hpMax}
+      onSelect={() => onSelect(`lib_${en.id}`)} onMenu={(x, y) => onMenu(`lib_${en.id}`, x, y)} onToggleVis={() => onToggleLibVis(en.id)}
+      onAdjustHp={d => onAdjustLibHp(en.id, d)}
+      onRemove={() => onRemoveLib(en.id)} removeTitle="Treure de l'escena" />
+  ));
 
   return (
-    <SidebarSection title="Enemics" icon={<SwordsIcon size={13} />} count={total} bodyPadding="0 4px 8px"
-      actions={<SectionButton onClick={onOpenLibrary} title="Afegir enemics des de la Biblioteca">＋</SectionButton>}>
-      {total === 0 && (
-        <div style={{ padding: '2px 8px 4px', fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
-          Cap enemic a l&apos;escena. Afegeix-ne des de la <b style={{ color: C.text, cursor: 'pointer' }} onClick={onOpenLibrary}>Biblioteca</b>.
-        </div>
+    <>
+      <SidebarSection title="Enemics" icon={<SwordsIcon size={13} />} count={total} bodyPadding="0 4px 8px"
+        actions={<SectionButton onClick={onOpenLibrary} title="Afegir enemics des de la Biblioteca">＋</SectionButton>}>
+        {total === 0 && (
+          <div style={{ padding: '2px 8px 4px', fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
+            Cap enemic a l&apos;escena. Afegeix-ne des de la <b style={{ color: C.text, cursor: 'pointer' }} onClick={onOpenLibrary}>Biblioteca</b>.
+          </div>
+        )}
+        {rows(enemies)}
+      </SidebarSection>
+      {allies.length > 0 && (
+        <SidebarSection title="Aliats" icon={<SwordsIcon size={13} />} count={allies.length} bodyPadding="0 4px 8px">
+          {rows(allies)}
+        </SidebarSection>
       )}
-
-      {libEnemies.map(en => (
-        <EnemyRow key={en.id}
-          name={en.name} color={en.color}
-          visible={en.visible !== false} defeated={!!defeated[`lib_${en.id}`]} selected={selectedToken === `lib_${en.id}`}
-          hp={en.hp ?? en.hpMax} hpMax={en.hpMax}
-          onSelect={() => onSelect(`lib_${en.id}`)} onMenu={(x, y) => onMenu(`lib_${en.id}`, x, y)} onToggleVis={() => onToggleLibVis(en.id)}
-          onAdjustHp={d => onAdjustLibHp(en.id, d)}
-          onRemove={() => onRemoveLib(en.id)} removeTitle="Treure de l'escena" />
-      ))}
-    </SidebarSection>
+    </>
   );
 }
