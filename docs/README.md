@@ -21,6 +21,7 @@ les regles de treball (git, versions, API) són a [CLAUDE.md](../CLAUDE.md).
 | App Píxel, missions, llocs | [pixel-i-missions.md](pixel-i-missions.md) | Sprites, mapes de caselles, missions de Cony Cirera |
 | Màgies, zones màgiques, cinemàtiques de boss | [efectes-i-cinematiques.md](efectes-i-cinematiques.md) | Bola de foc, raigs, grimoris, zones, cinemàtiques |
 | Diàlegs, fitxes, Expositor, Revelador de text | [dialegs-i-fitxes.md](dialegs-i-fitxes.md) | Guió, XP, panell «Mostrar als jugadors» |
+| Mòduls de la història, diari de la sessió, panell Història | [historia-i-moduls.md](historia-i-moduls.md) | Format del paquet, de Notion a l'app i del diari a Notion |
 | Qualsevol cosa, abans de donar-la per acabada | [errors-comuns.md](errors-comuns.md) | Trampes ja trobades i com evitar-les |
 
 Fora de `docs/`: [api-spec.txt](../api-spec.txt) (contracte amb la API, font de veritat compartida) i

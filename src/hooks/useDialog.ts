@@ -10,6 +10,7 @@ import { dialogCamRect, nearEnough, sameCam, type Speaker } from '@/lib/dialog/c
 import { dialogToken, type DialogToken } from '@/lib/dialog/tokens';
 import { DialogHost } from '@/lib/dialog/host';
 import { bubbleLifetime } from '@/lib/dialog/scene';
+import { logJournal } from '@/lib/journal';
 
 /** Velocitat per defecte (lletres per segon). */
 export const DIALOG_CPS = 32;
@@ -187,6 +188,8 @@ export function useDialog(R: DMRefs, o: {
       total: parsed.steps.filter(st => st.kind === 'say').length,
     };
     run.current = r;
+    // Les frases soltes (Parlar) i els globus no s'anoten: només els diàlegs de debò.
+    if (r.kind === 'scene' && s.title !== 'Frase') logJournal('dialog', `Diàleg: ${s.title}`);
     const go = () => { if (run.current === r) showLine(first); };
     const boss = s.afterBossOf ? dialogToken(R, s.afterBossOf) : null;
     if (boss && r.kind === 'scene') {

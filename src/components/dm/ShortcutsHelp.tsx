@@ -46,6 +46,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Supr', 'Treure de l\'escena els enemics seleccionats'],
       ['Clic dret', 'Menú del token (vida, fitxa, estats, conjurs), la sala o la zona'],
       ['Doble clic', 'Seleccionar tot el grup d\'un token'],
+      ['N', 'Nota ràpida al diari de la sessió'],
       ['?', 'Aquesta finestra'],
     ],
   },

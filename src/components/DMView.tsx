@@ -71,6 +71,10 @@ import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
 import { buildSheetShow, characterFor, STATS_PART } from '@/lib/characters';
 import { creatureStats } from '@/lib/bestiary';
+import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
+import { useStory } from '@/hooks/useStory';
+import { useJournalWatchers } from '@/hooks/useJournalWatchers';
+import { logJournal } from '@/lib/journal';
 
 /** Amplada del panell «Mostrar als jugadors» (la mateixa per a les dues pestanyes: canviar
  *  de pestanya no ha de fer saltar el panell). */
@@ -248,6 +252,13 @@ export function DMView() {
   // els TEXTREVEAL_SYNC (que ignora perquè no té el text). S'assigna més avall,
   // quan trBroadcastShow ja existeix.
   const trResendShowRef = React.useRef<() => void>(() => {});
+  // ── Història: mòduls i diari (panell a la dreta del mapa, veure `StoryPanel`) ──
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [storyTab, setStoryTab] = useState<StoryTab>('modul');
+  const [noteFocus, setNoteFocus] = useState(0);
+  // Text que un mòdul vol deixar al Revelador (s'hi escriu quan la pestanya és oberta).
+  const trPrefillRef = React.useRef<string | null>(null);
+  const [trPrefillNonce, setTrPrefillNonce] = useState(0);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const R = useDMRefs();
@@ -493,6 +504,8 @@ export function DMView() {
     if (order.length === 0) return;
     const first = firstActive(order, R.rDefeated.current);
     _applyTurn({ active: true, order, turnIndex: first, round: 1, activeRemainingFt: _budgetFor(order[first]) });
+    const nPl = order.filter(id => String(id).startsWith('pl_')).length;
+    logJournal('combat', `Comença el combat: ${nPl} jugadors i ${order.length - nPl} enemics`, { data: { started: true, players: nPl, foes: order.length - nPl } });
   }, [R, _applyTurn, _budgetFor]);
 
   const endTurnCombat = useCallback(() => {
@@ -1065,8 +1078,10 @@ export function DMView() {
   // Enter passa el torn només a Jugar: a Preparar la barra de torns no es veu i un Enter
   // perdut passaria el torn sense que el DM ho veiés.
   const advanceTurnIfPlaying = useCallback(() => { if (mode === 'jugar') advanceTurn(); }, [mode, advanceTurn]);
+  // Tecla N: nota ràpida al diari (obre el panell Història pel diari i enfoca el camp).
+  const openQuickNote = useCallback(() => { setStoryTab('diari'); setStoryOpen(true); setNoteFocus(n => n + 1); }, []);
   useKeyboardHandlers(R, {
-    setDrawTool, undo: undoLast, skipBossIntro,
+    setDrawTool, undo: undoLast, skipBossIntro, onQuickNote: openQuickNote,
     toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
     onDeleteSelection,
     removeLastWall,
@@ -1106,6 +1121,7 @@ export function DMView() {
     }
     switchMode('jugar'); dropTileMap(); setPixel(true);
     await applySessionState(missionState(m, blob));
+    logJournal('map', `Missió: ${m.name}`);
   }, [switchMode, dropTileMap, setPixel, applySessionState, notify]);
   // Encendre o apagar l'ajust de color del mapa (a totes les pantalles: va dins del STATE).
   const toggleFigureGrade = useCallback(() => {
@@ -1367,6 +1383,17 @@ export function DMView() {
         setXpAward({ awardId: `combat-${Date.now().toString(36)}`, enemies, players });
       }
     }
+    if (t.active) {
+      const nameOf = (key: string) => key.startsWith('pl_')
+        ? R.rPlayers.current.find(p => `pl_${p.id}` === key)?.name
+        : R.rLibEnemies.current.find(e => `lib_${e.id}` === key)?.name;
+      const keys = t.order.map(String).filter(k => R.rDefeated.current[k]);
+      const foes = keys.filter(k => !k.startsWith('pl_')).flatMap(k => nameOf(k) ?? []);
+      const fallen = keys.filter(k => k.startsWith('pl_')).flatMap(k => nameOf(k) ?? []);
+      logJournal('combat',
+        `Combat acabat · ${t.round} ${t.round === 1 ? 'ronda' : 'rondes'}${foes.length ? ` · derrotats: ${foes.join(', ')}` : ''}${fallen.length ? ` · a terra: ${fallen.join(', ')}` : ''}`,
+        { data: { ended: true, rounds: t.round, defeated: foes, fallen } });
+    }
     endTurnCombat();
   }, [R, chars.status, chars.characters, endTurnCombat]);
   const confirmXpAward = useCallback(async (awards: { id: string; amount: number }[], total: number) => {
@@ -1376,6 +1403,8 @@ export function DMView() {
     const res = await chars.awardBatch(awards, { reason: `Combat: ${names}`.slice(0, 120), source: 'combat', awardId: xpAward.awardId });
     setXpBusy(false);
     if (res) {
+      const who = awards.flatMap(a => chars.characters.find(c => c.id === a.id)?.name ?? []);
+      logJournal('xp', `XP repartida: ${total} entre ${who.length ? who.join(', ') : `${awards.length} personatges`}`, { data: { total, to: who } });
       notify(`Repartides ${total} XP entre ${awards.length} ${awards.length === 1 ? 'personatge' : 'personatges'}.`, 'info');
       setXpAward(null);
     }
@@ -1527,6 +1556,8 @@ export function DMView() {
     trBroadcastShow();
     trActiveRef.current = true;
     setTextRevealActive(true);
+    const shown = (trSrcRef.current?.value ?? '').replace(/\s+/g, ' ').trim();
+    logJournal('text', `Text als jugadors: «${shown.length > 70 ? `${shown.slice(0, 70).trimEnd()}…` : shown}»`);
   }, [trBuild, trBroadcastShow, hideExpositorOnPlayer]);
 
   const trPlay = useCallback(() => {
@@ -1565,6 +1596,33 @@ export function DMView() {
     if (trStageRef.current) trStageRef.current.scrollTop = 0;
     trUpdateStatus();
   }, [trUpdateStatus]);
+
+  // ── Revelador de text: text que deixa un mòdul de la Història ───────────────
+  // Obre la pestanya Text i hi escriu el text; el DM el mostra als jugadors quan vulgui.
+  const showTextInReveal = useCallback((text: string) => {
+    trPrefillRef.current = text;
+    openShowTab('text');
+    setTrPrefillNonce(n => n + 1);
+  }, [openShowTab]);
+  useEffect(() => {
+    const txt = trPrefillRef.current;
+    const ta = trSrcRef.current;
+    if (txt === null || !textRevealOpen || !ta) return;
+    trPrefillRef.current = null;
+    ta.value = txt;
+    trBuild();
+    trEngineRef.current?.reset();
+    trRunningRef.current = false; trPausedRef.current = true;
+    trUpdateStatus();
+  }, [textRevealOpen, trPrefillNonce, trBuild, trUpdateStatus]);
+
+  // ── Història: el que un mòdul pot fer sobre l'escena, i el diari ───────────
+  const story = useStory(R, {
+    setLibEnemies, setPos, broadcast: () => _broadcastState({}), notify,
+    showText: showTextInReveal, startDialog: dlg.start, sceneTokens: sceneTokenList,
+    goTo: scenes.goTo, openMission,
+  });
+  useJournalWatchers(R, { rooms, defeated, players, bgLoaded, bgName });
 
   // ── Revelador de text: RAF loop (preview + streaming TEXTREVEAL_SYNC) ───────
   useEffect(() => {
@@ -1641,6 +1699,7 @@ export function DMView() {
         mode={mode} onModeChange={switchMode}
         showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
         undoLabel={undoLabel} onUndo={undoLast}
+        storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => !v)}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         onOpenBoard={() => { if (!openBoard()) notify("El navegador no ha deixat obrir el tauler de missions: permet les finestres emergents d'aquesta pàgina."); }}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt} autosaveFailing={autosaveFailing}
@@ -2022,6 +2081,11 @@ export function DMView() {
         {xpAward && (
           <XpAwardDialog key={xpAward.awardId} award={xpAward} busy={xpBusy}
             onConfirm={(a, total) => void confirmXpAward(a, total)} onClose={() => setXpAward(null)} />
+        )}
+        {/* Història: mòdul actiu, biblioteca de mòduls i diari de la sessió (només DM) */}
+        {storyOpen && (
+          <StoryPanel tab={storyTab} onTab={setStoryTab} onClose={() => setStoryOpen(false)} story={story} notify={notify}
+            noteFocus={noteFocus} onGoLibrary={() => setStoryTab('moduls')} avoidTurnBar={turn.active && mode === 'jugar'} />
         )}
         {/* Barra de control del DM mentre corre un diàleg */}
         {dlg.ui && (

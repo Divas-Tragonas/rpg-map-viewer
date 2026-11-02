@@ -48,6 +48,7 @@ src/
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text / Diàleg del panell «Mostrar als jugadors»
 │   │   ├── DialogPanel, DialogControls  # Diàlegs: pestanya per escriure el guió i barra del DM mentre corre
+│   │   ├── StoryPanel, ModuleView, ModuleLibrary, JournalView  # Història: mòdul actiu, biblioteca de mòduls i diari (veure historia-i-moduls.md)
 │   │   ├── CharacterSection # Fitxa i experiència d'un jugador dins del menú del clic dret (+ XpBar)
 │   │   ├── XpAwardDialog   # «Experiència del combat»: repartiment en acabar el combat
 │   │   ├── SheetPanel      # Pestanya «Fitxa» de Mostrar als jugadors
@@ -81,6 +82,8 @@ src/
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
 │   ├── useMissionScenes.ts # Llocs de les missions: canvi d'escena amb fos a negre, marques de les portes
 │   ├── useDialog.ts        # Diàlegs al DM: llançar, avançar, enrere, opcions, càmera, tecles, desats als tokens
+│   ├── useStory.ts         # Història: el que un mòdul fa sobre l'escena (llegir, col·locar enemics, diàlegs, sortides)
+│   ├── useJournalWatchers.ts # Anota al diari sales revelades, jugadors caiguts i mapes oberts
 │   ├── useCharacters.ts    # Fitxes al DM (API + còpia local): llista, donar XP (una o en lot), desar, sync de la cua
 │   ├── useRafLoop.ts       # RAF loop (tick) + totes les render phases
 │   ├── useMouseHandlers.ts # Gestors de ratolí
@@ -99,6 +102,9 @@ src/
 │   ├── rules/conditions.ts # Efecte mecànic dels estats sobre el moviment (movementLimit)
 │   ├── autosave.ts         # Magatzem IndexedDB del desat automàtic (+ agoLabel)
 │   ├── enemy-groups.ts     # groupEnemies / distinctValues / apiSupportsGroups (projecte i categoria)
+│   ├── localStore.ts       # Magatzem JSON a localStorage fora de la partida (createJsonStore / useJsonStore)
+│   ├── modules.ts          # Mòduls de la història: format del paquet, importació, biblioteca (localStorage)
+│   ├── journal.ts          # Diari de la sessió: logJournal, resum en markdown, recap (localStorage)
 │   ├── characters.ts       # Fitxes: format de `sheet`, taula d'XP de 5e, characterFor, buildSheetShow
 │   ├── characters-seed.ts  # Les 5 fitxes de Notion (importar-les al back office i primera còpia local)
 │   ├── characters-store.ts # Còpia local de les fitxes i cua de canvis fets sense connexió (localStorage)

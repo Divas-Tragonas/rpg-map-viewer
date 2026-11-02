@@ -56,3 +56,8 @@
 | Escriure a la fitxa amb `api.characters.*` des del DM en lloc de `useCharacters` | Sense connexió el canvi es perd (no va a la cua ni a la còpia local) | Passar sempre per `award`/`awardBatch`/`update` del hook |
 | Experiència sumada a la fitxa sense `awardId` | Un reintent (xarxa lenta, doble clic) la compta dues vegades | Passar sempre un `awardId` a `award`/`awardBatch` (veure «Fitxes de personatge i experiència») |
 | Estat que viatja a cada `STRUCT` i creix sense límit | Late join, desfer i desat automàtic es degraden a la vegada | Posar-hi sostre i rasteritzar el que en surt (veure «Límit de l'historial de dibuix») |
+| Dades de la història (mòduls, diari) dins de la partida (`_buildSessionCore`) | Es perden en carregar una partida o obrir una missió, i viatgen a cada desat/STRUCT | Magatzem a part (`createJsonStore`, localStorage), DM-only: veure `historia-i-moduls.md` |
+| Llegir `localStorage` d'un magatzem a l'inicialitzador d'un `useState` o al render | Error d'hidratació | `useJsonStore` (`useSyncExternalStore` amb el valor inicial al servidor) |
+| Anotar al diari des d'un handler amb codi propi en lloc de `logJournal` | Entrades duplicades o que fallen amb el magatzem; el diari trenca el joc si llança | `logJournal(kind, text)` (no llança i desduplica); els esdeveniments sense punt únic, a `useJournalWatchers` |
+| Panell flotant nou a la dreta amb `zIndex` ≥ 12 | Tapa la barra de torns i els seus globus («Finalitzar el combat?»); el combat no es pot acabar | `zIndex` 11 i deixar l'espai de la barra amb combat (veure `StoryPanel`) |
+| Tecla global que escriu al camp que acaba d'enfocar | La «n» de la drecera apareix dins el camp de nota | `preventDefault` al keydown i enfocar amb un petit retard (`JournalView`) |

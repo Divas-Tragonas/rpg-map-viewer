@@ -298,3 +298,13 @@ no està definida (o apunta a localhost i la pàgina s'ha carregat des d'un altr
 host), es connecta al host de window.location amb port 3000. Per tant, per a l'ús
 en LAN (tablet → http://[laptop-LAN-IP]:3001/player) no cal configurar res: la API
 només ha d'escoltar a 0.0.0.0:3000.
+
+
+## PROPOSTA PENDENT (NO IMPLEMENTADA) — mòduls i diari de la sessió (v4.75)
+
+El frontend (panell «Història») desa de moment els mòduls i el diari a localStorage, sense API.
+Per compartir-los entre dispositius caldria: model Module (slug únic, title, status, playedAt,
+pack OPAC), GET/PUT(upsert)/DELETE /modules[/:slug] i model JournalSession (name, startedAt,
+endedAt, markdown, entries opac) amb GET/POST/DELETE /journal-sessions, tot amb JWT admin.
+El prompt complet per a la sessió de la API és a docs/historia-i-moduls.md («Pendent»).
+Fins que no es desplegui, el frontend NO en depèn.

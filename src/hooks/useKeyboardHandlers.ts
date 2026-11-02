@@ -35,13 +35,15 @@ interface KBOpts {
   toggleShortcuts?: () => void;
   /** Espai premut/deixat anar (el DM hi posa el cursor de mà). */
   setSpaceHeld?: (held: boolean) => void;
+  /** Tecla N: nota ràpida al diari de la sessió. */
+  onQuickNote?: () => void;
 }
 
 /** Temps màxim entre prémer i deixar anar Ctrl/Maj perquè compti com a toc (i no com a combinació). */
 const TAP_MS = 450;
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undo, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld } = opts;
+  const { setDrawTool, undo, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld, onQuickNote } = opts;
 
   // CTRL i MAJ commuten els modes de vista (CTRL: vista compartida; MAJ: vista privada del DM)
   // només amb un TOC NET: prémer i deixar anar la tecla sola, sense cap altra tecla ni clic
@@ -175,6 +177,8 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         e.preventDefault(); advanceTurn?.(); return;
       }
       if (e.key === '?') { toggleShortcuts?.(); return; }
+      // El diari no depèn del mapa: també es pot anotar abans d'obrir-ne cap.
+      if ((e.key === 'n' || e.key === 'N') && !e.altKey) { e.preventDefault(); onQuickNote?.(); return; }
       // Sense mapa carregat les eines no fan res: les dreceres tampoc.
       if (!R.rMapSize.current) return;
       if (e.key === 'v' || e.key === 'V') { toSelection(); return; }
@@ -196,5 +200,5 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undo, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [undo, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, onQuickNote]); // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -6,6 +6,7 @@ import type { CamRect, Point } from '@/types';
 import type { DMRefs } from './useDMRefs';
 import { packReady } from '@/lib/sprites/pack';
 import { drawCreature, hasCreature } from '@/lib/sprites/draw';
+import { logJournal } from '@/lib/journal';
 
 export interface BossIntroRequest {
   tokenId: number | string;
@@ -124,6 +125,7 @@ export function useCinematic(R: DMRefs) {
       try { await portrait.decode(); } catch { /* sense retrat */ }
     }
     if (cinematicActiveRef.current) return null;
+    if (!req.preview) logJournal('cinematic', `Cinemàtica: ${req.bossName}`);
 
     // Les de pixel art tapen tot l'escenari: no cal acostar la càmera al boss.
     let cam: CamRect | null = null;

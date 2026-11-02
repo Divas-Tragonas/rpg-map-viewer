@@ -17,6 +17,7 @@ import { VILLAGE, missionById, placeOf, sceneState, sceneTitle, sceneUrl } from 
 import type { PlaceMark } from '@/lib/render/places';
 import { resetExplored } from '@/lib/render/darkrooms';
 import { CURTAIN_CLOSE_MS } from '@/components/ui/SceneCurtain';
+import { logJournal } from '@/lib/journal';
 
 const wait = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -101,6 +102,7 @@ export function useMissionScenes(R: DMRefs, o: {
       return;
     }
     setCurtain({ closed: false, scene: target, title });
+    logJournal('scene', target === VILLAGE ? `Surten a ${m.name}` : `Entren a «${title}»`);
     busyRef.current = false; setBusy(false);
   }, [setCurtain]);
 

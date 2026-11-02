@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
   ExternalLink, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
-  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon, MapIcon,
+  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon, MapIcon, BookIcon,
 } from '@/components/icons';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
@@ -30,6 +30,8 @@ interface Props {
   mode: DMMode; onModeChange: (m: DMMode) => void;
   /** «Mostrar als jugadors» (expositor + revelador): panell obert i si ara mateix s'hi mostra res. */
   showOpen: boolean; showActive: boolean; onToggleShow: () => void;
+  /** Panell «Història» (mòdul actiu, biblioteca i diari de la sessió). */
+  storyOpen: boolean; onToggleStory: () => void;
   /** Què desfaria el «Desfer» (null = res) i l'acció; la mateixa que Ctrl+Z. */
   undoLabel: string | null; onUndo: () => void;
   /** Pantalles de jugador connectades (id → mida en píxels CSS del seu canvas). */
@@ -570,6 +572,11 @@ export function TopBar(p: Props) {
           {p.showActive && <Dot color={C.ok} />}
         </BarButton>
       )}
+
+      <BarButton active={p.storyOpen} onClick={p.onToggleStory}
+        title="Mòdul que es juga, biblioteca de mòduls i diari de la sessió (N: nota ràpida)">
+        <BookIcon size={14} /> <Label>Història</Label>
+      </BarButton>
 
       <div style={{ flex: 1, minWidth: 0 }} />
 

@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.75 — Història: mòduls i diari de la sessió
+- Nou botó **Història** a la barra superior i panell a la dreta del mapa (DM-only, no es sincronitza): pestanyes **Mòdul**, **Mòduls** i **Diari**
+- **Mòduls**: paquets JSON que reflecteixen les pàgines de la base MÒDULS de Notion (disparador, escena, textos per llegir, enemics, PNJ, diàlegs, sortides, notes del DM). Es generen des de Notion (a mà o amb Claude) i s'importen per fitxer o enganxant el JSON. Des del mòdul actiu: **Llegir** (deixa el text al Revelador), **Col·locar** enemics (a la biblioteca de l'escena, amb la seva figureta), **Parlar** (diàleg amb el repartiment automàtic), **Obrir** el mapa, **Anar-hi** (sortida: acaba el mòdul i obre el següent) i **Marcar com a jugat**
+- **Diari de la sessió**: anota sol, amb l'hora, les escenes, els combats (inici, rondes i derrotats), l'XP repartida, els diàlegs, les cinemàtiques, els textos als jugadors, les sales revelades, els jugadors que cauen, els mapes i els mòduls. **Tecla N** = nota ràpida. Resum en markdown (cronologia, mòduls, combats, XP, notes) amb un bloc JSON per a Claude: copiar o descarregar, i **Tancar la sessió** l'arxiva
+- **Anteriorment…**: marca amb ★ el que vols recordar i deixa el recap al Revelador de text
+- Els mòduls i el diari viuen a `localStorage` **fora de la partida** (una nit passa per diversos mapes): `lib/localStore.ts`, `lib/modules.ts`, `lib/journal.ts`. Paquet d'exemple a `docs/exemples/` i guia completa a `docs/historia-i-moduls.md`
+- Sense canvis a la API (la sincronització entre dispositius queda com a proposta documentada)
+
 ### v4.74 — Un sol bloc d'enemics i aliats a part
 - La Biblioteca té un sol bloc «Bestiari» (plantilles + Oryx, per ordre alfabètic): les criatures Oryx que ja són una plantilla (Drac = `dragon_red`, Rata = `rat_giant`, Goblin, Llop, Trol…) deixen de sortir repetides. Els enemics del Castell de la Fumarola, a dalt
 - Nou `ally` (plantilla i `LibEnemy`): Sildar, Gota i Roc surten a una secció «Aliats» a la Biblioteca i a l'Escena, a part d'«Enemics». El «ressaltar enemics» no els marca i no donen XP
