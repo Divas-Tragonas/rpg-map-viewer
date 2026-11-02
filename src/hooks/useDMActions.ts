@@ -9,7 +9,7 @@ import { addEnemyNumbered } from '@/lib/enemy-naming';
 import { removeFromTurn } from '@/lib/turn';
 import { nextHpHit } from '@/lib/sprites/hitfx';
 import { bgFingerprint } from '@/lib/autosave';
-import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
+import { DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { PosMap, LibEnemy, Wall, Room, Door, Point, CamRect, Notify } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
@@ -81,13 +81,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
   const {
     bcRef, wsRef, rPos, rZoom, rPanOffset, rPlayers, rLibEnemies, rConditions, rDefeated,
     rPaintedZones, rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride,
-    rGridLineWidth, rGridOriginX, rGridOriginY, rEnemyHighlight, rHighlightLocked, rHighlightAlpha,
-    rActiveSpells, dmLocalPan, dmLocalZoom, dmPreviewBcastRef, rDmCam,
-    rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
-    rContextMenu, rDefeated: rDef, rGridCalibrating, rSelectedToken,
+    rGridLineWidth, rGridOriginX, rGridOriginY, rEnemyHighlight, rHighlightLocked, rActiveSpells, dmLocalPan, dmLocalZoom, rDmCam,
     stageRef, canvasRef, mediaRef, bgBufferRef, rMapSize, drawCanvasRef, strokeHistoryRef,
-    gridCalibRef, gridCalibCurrRef, visualPosRef, strokeQueueRef, strokeBaseRef, strokeBaseVerRef,
-    activeStrokeAnim, defeatedAnimRef,
+    strokeBaseRef, strokeBaseVerRef,
     rMeasure, rPointerPos, rWalls, rRooms, rDoors, rLights, rDoorPlacement, rDoorPreview,
     rWallPenLast, rWallChain, rWallCursor, rTurn, rSpellPreview,
   } = R;

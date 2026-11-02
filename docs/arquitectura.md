@@ -39,7 +39,7 @@ src/
 │   ├── player/TurnBanner.tsx  # Rètol de torn de la pantalla de jugador (TV i tablet)
 │   ├── player/SheetCard.tsx   # Fitxa d'un personatge a la pantalla de jugador (targeta a la dreta)
 │   ├── dm/                 # Panells i overlays del DM
-│   │   ├── ImportPanel (fons + demo), PlayersPanel (files primes de jugadors)
+│   │   ├── ImportPanel (fons + demo), WelcomeScreen (benvinguda), PlayersPanel (files primes de jugadors)
 │   │   ├── TokenFields     # Fitxa d'un token dins del menú del clic dret (resolveToken, camps, NameField)
 │   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (biblioteca) en files primes
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)

@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.72 — DMView més petit
+- La pantalla de benvinguda surt de `DMView` a un component propi (`WelcomeScreen`), amb els seus camps de fitxer
+- Netejats imports i referències sense ús a `DMView` i `useDMActions`
+
 ### v4.71 — Fora el PSD
 - L'app ja no importa PSD: el mapa és una imatge o un vídeo i tot el que hi va a sobre (graella, parets, sales, portes, llums, tokens, dibuix, màgies, torns) es fa dins l'app
 - Eliminats el parser i l'extractor de PSD, l'arbre de capes, el panell «Capes del PSD», els enemics i les zones/extres que venien del PSD, l'ull de visibilitat de capes (`vis`) i `demo.psd`

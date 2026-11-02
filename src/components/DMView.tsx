@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, APP_VERSION, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
+import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
@@ -44,14 +44,13 @@ import { useDialog } from '@/hooks/useDialog';
 import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { ScrollArea } from '@/components/ui/ScrollArea';
-import { Button } from '@/components/ui/Button';
-import { FolderOpen, ImageIcon, MapIcon, DieIcon, RotateCcw, CheckIcon, PlayIcon } from '@/components/icons';
+import { ImageIcon, CheckIcon, PlayIcon } from '@/components/icons';
 import { isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
 import { useAutosave } from '@/hooks/useAutosave';
 import { useStoredFlag } from '@/hooks/useStoredFlag';
-import { agoLabel, clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
+import { clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
 import { useTileMap } from '@/hooks/useTileMap';
 import { TilePalette } from '@/components/dm/TilePalette';
 import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
@@ -66,7 +65,7 @@ import { SceneCurtain } from '@/components/ui/SceneCurtain';
 import { relayBoards, openBoard } from '@/lib/relay';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import type { TileBrush } from '@/lib/tilemap/editor';
-import { PixelSwordIcon, TilesIcon } from '@/components/icons';
+import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
@@ -83,11 +82,6 @@ const SIDEBAR_W = 270;
 const peekDmUndo = (R: DMRefs) => peekUndo(R.rUndoLog.current, {
   stroke: R.strokeHistoryRef.current, map: R.rMapHistory.current, move: R.rMoveHistory.current,
 });
-
-const welcomeLink: React.CSSProperties = {
-  background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: FS.sm,
-  textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer',
-};
 
 export function DMView() {
   // ── State ────────────────────────────────────────────────────────────────
@@ -159,9 +153,6 @@ export function DMView() {
   // Fitxer arrossegant-se damunt del canvas (tota la pantalla accepta el mapa o la partida).
   const [fileOver, setFileOver] = useState(false);
   const fileDragDepth = React.useRef(0);
-  const bgInputRef = React.useRef<HTMLInputElement>(null);
-  const sessionInputRef = React.useRef<HTMLInputElement>(null);
-  const tmxInputRef = React.useRef<HTMLInputElement>(null);
   const [libEnemies, setLibEnemies] = useState<LibEnemy[]>([]);
   const [selectedToken, setSelectedToken] = useState<string | number | null>(null);
   const [areaSelectMode, setAreaSelectMode] = useState(false);
@@ -2045,85 +2036,15 @@ export function DMView() {
         )}
 
         {!bgLoaded && (
-          // Pantalla de benvinguda. Tres accions grans en lloc d'un text que enviava a una
-          // caixa petita del panell lateral; i tot el canvas accepta fitxers (veure onStageDrop).
-          // `margin: auto` centra quan hi cap i fa scroll quan no (mòbil ajagut).
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 3, overflowY: 'auto', padding: compact ? '16px 14px' : 24 }}>
-            <div style={{ textAlign: 'center', color: C.dim, maxWidth: 440, width: '100%', margin: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: pixel ? C.accent : C.dim, opacity: pixel ? 0.9 : 0.5 }}>{pixel ? <PixelSwordIcon size={34} /> : <MapIcon size={34} />}</div>
-              <div style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1, color: C.bright }}>{pixel ? 'Comença una partida en píxel' : 'Comença una partida'}</div>
-              <div style={{ fontSize: FS.md, marginTop: 6, lineHeight: 1.5 }}>
-                Obre el mapa (una imatge o un vídeo) o arrossega&apos;l a qualsevol lloc d&apos;aquesta pantalla.
-              </div>
-              {/* Guia per a qui arriba de nou: el mateix recorregut que explica el README. */}
-              <ol style={{ margin: '14px auto 0', padding: 0, listStyle: 'none', textAlign: 'left', maxWidth: 348, fontSize: FS.sm, lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <li><b style={{ color: C.bright }}>1 · Obre un mapa</b> (o prova la demo o una missió)</li>
-                <li><b style={{ color: C.bright }}>2 · Prepara</b>: parets, sales, enemics i jugadors</li>
-                <li><b style={{ color: C.bright }}>3 · Juga</b>: obre una pantalla de jugador (menú Pantalles) i passa a Jugar</li>
-              </ol>
-
-              {/* App Píxel: el mapa es pinta a casella (o s'importa de Tiled). */}
-              {pixel && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 18 }}>
-                  <Button variant="primary" size="lg" disabled={pack.status !== 'ready'} onClick={() => void openTileMap(32, 22)} style={{ gap: 8, width: '100%', maxWidth: 348 }}>
-                    <TilesIcon size={15} /> {pack.status === 'ready' ? 'Crear un mapa de caselles' : pack.status === 'error' ? 'No s\'han pogut carregar els sprites' : 'Carregant els sprites…'}
-                  </Button>
-                  <button onClick={() => tmxInputRef.current?.click()} disabled={pack.status !== 'ready'} style={welcomeLink}>Importar un mapa de Tiled (.tmx)</button>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: pixel ? 12 : 18, flexWrap: 'wrap' }}>
-                <Button variant={pixel ? 'secondary' : 'primary'} size="lg" onClick={() => bgInputRef.current?.click()} style={{ gap: 8, flex: '1 1 150px', maxWidth: 170 }}>
-                  <FolderOpen size={15} /> Obrir mapa
-                </Button>
-                <Button variant="secondary" size="lg" onClick={() => void openDemo()} style={{ gap: 8, flex: '1 1 150px', maxWidth: 170 }}>
-                  <DieIcon size={15} /> Provar la demo
-                </Button>
-              </div>
-
-              {/* Missions preparades: el mapa amb la colla ja col·locada (veure `lib/missions.ts`). */}
-              {MISSIONS.map(m => (
-                <div key={m.id} style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-                  <Button variant="secondary" size="lg" onClick={() => void openMission(m.id)} title={m.subtitle} style={{ gap: 8, width: '100%', maxWidth: 348 }}>
-                    <MapIcon size={15} /> Missió · {m.name}
-                  </Button>
-                </div>
-              ))}
-
-              {/* Recuperació del desat automàtic: l'única sortida després d'un F5 accidental. */}
-              {autosaveMeta && (
-                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <Button variant="secondary" size="lg" onClick={() => void recoverAutosave()} disabled={recovering}
-                    title={`Desada automàticament el ${new Date(autosaveMeta.savedAt).toLocaleString('ca-ES')}`}
-                    style={{ gap: 8, width: '100%', maxWidth: 348 }}>
-                    {!recovering && <RotateCcw size={14} />}
-                    {recovering ? 'Recuperant…' : `Recuperar l'última partida · ${agoLabel(autosaveMeta.savedAt)}`}
-                  </Button>
-                  <div style={{ fontSize: FS.xs, opacity: 0.8 }}>
-                    {autosaveMeta.mapName || 'Sense nom'}
-                    {' · '}
-                    <button onClick={() => void discardAutosave()}
-                      style={{ background: 'none', border: 'none', padding: 0, color: C.dim, fontSize: FS.xs, textDecoration: 'underline', cursor: 'pointer' }}>
-                      descartar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ marginTop: 16, fontSize: FS.sm, display: 'flex', gap: '6px 14px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button onClick={() => sessionInputRef.current?.click()} style={welcomeLink}>Carregar una partida (.json)</button>
-                <button onClick={() => setPixel(!pixel)} style={welcomeLink}>{pixel ? 'Passar a l\'app Clàssica' : 'Passar a l\'app Píxel'}</button>
-              </div>
-
-              <div style={{ fontSize: FS.lg, marginTop: 16, color: '#fff', fontWeight: 700, letterSpacing: '0.06em' }}>{APP_VERSION}</div>
-            </div>
-            <input ref={bgInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void openNewMap(f); e.target.value = ''; }} />
-            <input ref={sessionInputRef} type="file" accept=".json" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void openSession(f); e.target.value = ''; }} />
-            <input ref={tmxInputRef} type="file" accept=".tmx" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void openTmx(f); e.target.value = ''; }} />
-          </div>
+          <WelcomeScreen
+            pixel={pixel} compact={compact} spritesStatus={pack.status}
+            autosaveMeta={autosaveMeta} recovering={recovering}
+            onOpenMap={f => void openNewMap(f)} onOpenSession={f => void openSession(f)} onOpenTmx={f => void openTmx(f)}
+            onOpenDemo={() => void openDemo()} onOpenMission={id => void openMission(id)}
+            onCreateTileMap={() => void openTileMap(32, 22)}
+            onRecover={() => void recoverAutosave()} onDiscardAutosave={() => void discardAutosave()}
+            onTogglePixel={() => setPixel(!pixel)}
+          />
         )}
 
         {/* Fitxer arrossegant-se per sobre: tot el canvas és zona de deixar-lo anar. */}
