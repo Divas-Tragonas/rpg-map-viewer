@@ -1,4 +1,5 @@
 'use client';
+import { creatureStats } from '@/lib/bestiary';
 import React, { useEffect, useState } from 'react';
 import { BookIcon, Cloud } from '@/components/icons';
 import { ENEMY_TEMPLATES, C, FS, RADIUS } from '@/constants';
@@ -22,9 +23,9 @@ interface Props {
   onAddCreature?: (name: string) => void;
 }
 
-function TemplateButton({ name, color, hpMax, inScene, onClick, thumb }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void; thumb?: string | null }) {
+function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void; thumb?: string | null; detail?: string }) {
   return (
-    <button onClick={onClick} title={`Afegir ${name} a l'escena (${hpMax} de vida)`}
+    <button onClick={onClick} title={`Afegir ${name} a l'escena (${hpMax} de vida${detail ? ` · ${detail}` : ''})`}
       style={{
         display: 'flex', alignItems: 'center', gap: 5, padding: '5px 7px',
         background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
@@ -94,10 +95,14 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel,
           <input value={beastQ} onChange={e => setBeastQ(e.target.value)} placeholder="Cerca (goblin, skeleton, dragon…)"
             style={{ width: '100%', boxSizing: 'border-box', height: 26, margin: '2px 0 6px', padding: '0 8px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: C.dark, color: C.bright, fontSize: FS.sm, outline: 'none' }} />
           <div style={GRID}>
-            {creatureNames().filter(n => n.replace(/_/g, ' ').includes(beastQ.trim().toLowerCase())).map(n => (
-              <TemplateButton key={n} name={n.replace(/_/g, ' ')} color={C.enemy} hpMax={10}
-                inScene={countOf(`oryx_${n}`)} onClick={() => onAddCreature(n)} thumb={creatureThumb(n)} />
-            ))}
+            {creatureNames().filter(n => n.replace(/_/g, ' ').includes(beastQ.trim().toLowerCase())).map(n => {
+              const st = creatureStats(n);
+              return (
+                <TemplateButton key={n} name={n.replace(/_/g, ' ')} color={C.enemy} hpMax={st?.hp ?? 10}
+                  detail={st ? `${st.as} · VD ${st.cr} · ${st.xp} XP` : undefined}
+                  inScene={countOf(`oryx_${n}`)} onClick={() => onAddCreature(n)} thumb={creatureThumb(n)} />
+              );
+            })}
           </div>
         </SidebarSection>
       )}

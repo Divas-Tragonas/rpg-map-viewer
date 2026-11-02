@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.67';
+export const APP_VERSION = 'v4.68';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -60,11 +60,13 @@ export const DEFAULT_VISION_FT = 30;
 // PlayersPanel quan es confirmin a la propera sessió.
 export const DEFAULT_PARTY = [
   // `sprite`: figureta de l'estil Píxel (criatura del paquet Oryx, veure `lib/sprites`).
-  { name: 'Jaume III',  color: '#e05555', hpMax: 45, speed: 30, sprite: 'knight' },         // Vermell
-  { name: 'Liriandor',  color: '#4f8fd6', hpMax: 45, speed: 30, sprite: 'elf_wizard' },     // Blau
-  { name: 'Yunquerin',  color: '#d4ae38', hpMax: 45, speed: 30, sprite: 'dwarf_cleric' },   // Groc
-  { name: 'Espardeny',  color: '#52b86e', hpMax: 45, speed: 30, sprite: 'halfling_thief' }, // Verd
-  { name: 'Cigarramic', color: '#a366c4', hpMax: 45, speed: 30, sprite: 'barbarian_m' },    // Lila
+  // `hpMax` i `speed`: els de la fitxa de cada personatge (Notion, nivell 1). Amb la fitxa de la
+  // API carregada, la vida màxima se sincronitza sola amb la seva (veure `syncPlayersHpMax`).
+  { name: 'Jaume III',  color: '#e05555', hpMax: 12, speed: 30, sprite: 'knight' },         // Vermell
+  { name: 'Liriandor',  color: '#4f8fd6', hpMax: 8,  speed: 30, sprite: 'elf_wizard' },     // Blau
+  { name: 'Yunquerin',  color: '#d4ae38', hpMax: 11, speed: 25, sprite: 'dwarf_cleric' },   // Groc
+  { name: 'Espardeny',  color: '#52b86e', hpMax: 12, speed: 30, sprite: 'halfling_thief' }, // Verd
+  { name: 'Cigarramic', color: '#a366c4', hpMax: 9,  speed: 25, sprite: 'barbarian_m' },    // Lila
 ];
 /** Figureta per defecte d'un jugador nou a l'estil Píxel. */
 export const DEFAULT_PLAYER_SPRITE = 'warrior_m';

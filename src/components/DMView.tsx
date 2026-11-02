@@ -73,6 +73,7 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
 import { buildSheetShow, characterFor, STATS_PART } from '@/lib/characters';
+import { creatureStats } from '@/lib/bestiary';
 
 /** Amplada del panell «Mostrar als jugadors» (la mateixa per a les dues pestanyes: canviar
  *  de pestanya no ha de fer saltar el panell). */
@@ -386,7 +387,7 @@ export function DMView() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
@@ -422,7 +423,10 @@ export function DMView() {
     list.forEach((cr, i) => {
       const id = Date.now() + i;
       const name = cr.name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
-      ens = addEnemyNumbered(ens, { id, templateId: `oryx_${cr.name}`, name, color: C.enemy, hpMax: 10, hp: 10, R: 22, visible: true, imageData: null, sprite: cr.name });
+      // Vida i XP del monstre de D&D amb què es juga aquesta figureta (`lib/bestiary.ts`).
+      const st = creatureStats(cr.name);
+      const hp = st?.hp ?? 10;
+      ens = addEnemyNumbered(ens, { id, templateId: `oryx_${cr.name}`, name, color: C.enemy, hpMax: hp, hp, xp: st?.xp ?? 0, R: 22, visible: true, imageData: null, sprite: cr.name });
       np[`lib_${id}`] = { x: cr.x, y: cr.y };
     });
     R.rLibEnemies.current = ens; setLibEnemies(ens);
@@ -432,7 +436,8 @@ export function DMView() {
   // Bestiari Oryx (Biblioteca, app Píxel): una criatura com si fos una plantilla més.
   const addOryxCreature = useCallback((name: string) => {
     const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
-    addLibEnemy({ id: `oryx_${name}`, name: nice, color: C.enemy, hpMax: 10, R: 22, sm: 0.9, sprite: name } as unknown as Parameters<typeof addLibEnemy>[0]);
+    const st = creatureStats(name);
+    addLibEnemy({ id: `oryx_${name}`, name: nice, color: C.enemy, hpMax: st?.hp ?? 10, R: 22, sm: 0.9, sprite: name, xp: st?.xp ?? 0 } as unknown as Parameters<typeof addLibEnemy>[0]);
   }, [addLibEnemy]);
   const syncTileSize = useCallback((has: boolean) => {
     const m = R.rTileMap.current;
@@ -1357,6 +1362,22 @@ export function DMView() {
     if (sh && JSON.stringify(sh) !== JSON.stringify(cur)) { R.rSheetShow.current = sh; _broadcastState({}); }
   }, [R, sheetSel, sheetParts, sheetFor, _broadcastState]);
 
+  // Vida màxima de cada jugador = la de la seva fitxa (font de veritat, també sense connexió).
+  useEffect(() => {
+    const pairs = players.flatMap(p => {
+      const c = characterFor(p, chars.characters);
+      return c && c.hpMax !== p.hpMax ? [{ id: p.id, hpMax: c.hpMax }] : [];
+    });
+    if (pairs.length) syncPlayersHpMax(pairs);
+  }, [players, chars.characters, syncPlayersHpMax]);
+  /** Canviar la vida màxima d'un jugador amb fitxa la canvia també a la fitxa (si no, es desfaria). */
+  const setPlayerHpMaxAndSheet = useCallback((id: number, hpMax: number) => {
+    setPlayerHpMax(id, hpMax);
+    const pl = players.find(p => p.id === id);
+    const c = pl ? characterFor(pl, chars.characters) : null;
+    if (c && c.hpMax !== hpMax) void chars.update(c.id, { hpMax: Math.max(1, Math.round(hpMax)) });
+  }, [setPlayerHpMax, players, chars]);
+
   // ── Experiència ────────────────────────────────────────────────────────────
   /**
    * Acabar el combat: si hi ha enemics derrotats amb XP i jugadors amb fitxa, prepara el
@@ -1364,7 +1385,7 @@ export function DMView() {
    */
   const finishCombat = useCallback(() => {
     const t = R.rTurn.current;
-    if (t.active && chars.status === 'ready') {
+    if (t.active && chars.status !== 'loading') {
       const psdById = new Map((R.rStruct.current?.enemyRooms ?? []).flatMap(r => r.enemies).map(e => [String(e.id), e]));
       const enemies: XpAward['enemies'] = [];
       for (const id of t.order) {
@@ -1402,7 +1423,7 @@ export function DMView() {
     }
   }, [xpAward, chars, notify]);
   const characterMenu = useMemo(() => ({
-    characters: chars.characters, status: chars.status,
+    characters: chars.characters, status: chars.status, pending: chars.pending,
     onLink: (playerId: number, characterId: string | undefined) => setPlayerCharacter(playerId, characterId),
     onAward: (id: string, amount: number, reason: string) => {
       void chars.award(id, amount, { reason, source: 'dm', awardId: `dm-${Date.now().toString(36)}` }).then(c => {
@@ -2054,7 +2075,7 @@ export function DMView() {
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
             <ShowPanelHeader tab="fitxa" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Una targeta al costat del mapa" onClose={closeShowPanel} />
-            <SheetPanel characters={chars.characters} status={chars.status}
+            <SheetPanel characters={chars.characters} status={chars.status} pending={chars.pending}
               selected={sheetSel} onSelect={setSheetSel} parts={sheetParts} onParts={setSheetParts}
               showingId={sheetShowId} onShow={showSheet} onHide={hideSheet} />
           </div>
@@ -2192,7 +2213,7 @@ export function DMView() {
         rConditions={R.rConditions}
         edit={{
           players, libEnemies, struct: psdStruct, psdEnemyOverrides, tokenSizeOverride, gridSize,
-          onRenamePlayer: renamePlayer, onAdjustPlayerHp: adjustPlayerHp, onSetPlayerHpMax: setPlayerHpMax,
+          onRenamePlayer: renamePlayer, onAdjustPlayerHp: adjustPlayerHp, onSetPlayerHpMax: setPlayerHpMaxAndSheet,
           onSetPlayerSpeed: setPlayerSpeed, onSetPlayerVision: setPlayerVision, onSetPlayerCanMove: setPlayerCanMove,
           onAdjustLibHp: adjustLibEnemyHp, onSetLibProps: setLibEnemyProps,
           onAdjustPsdHp: adjustPsdEnemyHp, onSetPsdProps: setPsdEnemyProps,

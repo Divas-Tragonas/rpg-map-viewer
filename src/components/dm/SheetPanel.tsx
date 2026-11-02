@@ -1,12 +1,11 @@
 'use client';
 import React from 'react';
-import Link from 'next/link';
 import { C, FS, RADIUS, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import type { ApiCharacter } from '@/lib/api';
 import type { CharactersStatus } from '@/hooks/useCharacters';
 import { STATS_PART, sheetOf } from '@/lib/characters';
-import { XpBar } from '@/components/dm/CharacterSection';
+import { XpBar, OfflineNote } from '@/components/dm/CharacterSection';
 
 /**
  * Pestanya «Fitxa» del panell «Mostrar als jugadors»: tria un personatge i quines parts de la
@@ -14,9 +13,10 @@ import { XpBar } from '@/components/dm/CharacterSection';
  * el mapa i el combat continuen). Mentre es mostra, canviar les parts o el personatge les
  * refresca a les pantalles a l'instant.
  */
-export function SheetPanel({ characters, status, selected, onSelect, parts, onParts, showingId, onShow, onHide }: {
+export function SheetPanel({ characters, status, pending, selected, onSelect, parts, onParts, showingId, onShow, onHide }: {
   characters: ApiCharacter[];
   status: CharactersStatus;
+  pending: number;
   selected: string | null;
   onSelect: (id: string) => void;
   parts: string[];
@@ -26,21 +26,13 @@ export function SheetPanel({ characters, status, selected, onSelect, parts, onPa
   onShow: () => void;
   onHide: () => void;
 }) {
-  if (status === 'off' || status === 'error') {
-    return (
-      <div style={{ padding: 16, color: C.dim, fontSize: FS.sm, lineHeight: 1.5 }}>
-        {status === 'off'
-          ? <>Les fitxes són a la base de dades: entra al <Link href="/admin/login" style={{ color: C.text }}>back office</Link> per poder-les ensenyar.</>
-          : 'No s\'han pogut carregar les fitxes de la API.'}
-      </div>
-    );
-  }
   const c = characters.find(ch => ch.id === selected) ?? null;
   const all = c ? [STATS_PART, ...(sheetOf(c).sections ?? []).filter(s => s.text.trim()).map(s => s.title)] : [];
   const toggle = (part: string) => onParts(parts.includes(part) ? parts.filter(p => p !== part) : [...parts, part]);
   const showing = !!showingId;
   return (
     <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
+      {status === 'offline' && <OfflineNote pending={pending} />}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {characters.length === 0 && <span style={{ color: C.dim, fontSize: FS.sm }}>{status === 'loading' ? 'Carregant…' : 'Encara no hi ha cap fitxa: crea-les al back office.'}</span>}
         {characters.map(ch => {

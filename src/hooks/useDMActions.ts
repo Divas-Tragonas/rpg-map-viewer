@@ -597,6 +597,23 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
+  /**
+   * Vida màxima dels jugadors presa de la seva fitxa (v4.68). Qui era ple es queda ple amb la
+   * vida nova; qui estava ferit conserva la que tenia (retallada a la màxima nova).
+   */
+  const syncPlayersHpMax = useCallback((pairs: { id: number; hpMax: number }[]) => {
+    let changed = false;
+    const updated = rPlayers.current.map(pl => {
+      const want = pairs.find(x => x.id === pl.id)?.hpMax;
+      if (!want || want < 1 || want === pl.hpMax) return pl;
+      changed = true;
+      const hp = pl.hp ?? pl.hpMax;
+      return { ...pl, hpMax: want, hp: hp >= pl.hpMax ? want : Math.min(hp, want) };
+    });
+    if (!changed) return;
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
   /** Fitxa de la API lligada a un jugador (undefined = la del mateix primer nom). */
   const setPlayerCharacter = useCallback((id: number, characterId: string | undefined) => {
     const updated = rPlayers.current.map(pl => {
@@ -1294,7 +1311,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadPSD, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell, deleteLayer, toggleVis, resetToken,
     buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,

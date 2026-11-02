@@ -70,6 +70,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.68 — Fitxes sense connexió, vida real i XP del bestiari
+- **Fitxes sense connexió**: les fitxes es desen en aquest ordinador. Sense back office (o sense el Mac mini engegat) es poden consultar, mostrar als jugadors, donar experiència i pujar de nivell igual; els canvis queden en una cua i es pugen sols quan et connectes (cada 30 s, en tornar a la pestanya o quan torna la xarxa). Si mai no t'havies connectat, es fan servir les fitxes de Notion i es creen al servidor la primera vegada. L'experiència no es compta mai dues vegades.
+- **Vida real**: la colla per defecte surt amb la vida i la velocitat de les fitxes (Jaume 12, Liriandor 8, Yunquerin 11 i 25 ft, Espardeny 12, Cigarramic 9 i 25 ft) i la vida màxima de cada jugador se sincronitza sola amb la seva fitxa (qui era ple es queda ple). Canviar-la al menú del token també canvia la fitxa.
+- **XP i vida del Bestiari Oryx**: cada una de les 130 criatures es juga amb un monstre oficial de D&D 5e (el de La mina perduda de Phandelver quan l'aventura el té: goblins, hobgoblins, espectador, Nezznar, Venomfang, gelatina ocre, estirges…) i en surt amb la vida i l'XP del seu valor de desafiament. Al botó de cada criatura es veu quin monstre és, el VD i l'XP.
+
 ### v4.67 — Fitxes de personatge i experiència
 - Les fitxes de la colla viuen a la base de dades (API `/characters`). Al back office hi ha una pàgina nova, **Personatges**: crear i editar fitxes (dades, característiques, salvacions i seccions de text), donar o treure experiència amb el motiu, veure'n l'historial, pujar de nivell i importar d'un clic les cinc fitxes de Notion.
 - **Experiència automàtica**: cada enemic té la seva XP (les plantilles, la de D&D 5e; els de la BD, el camp nou del back office; qualsevol, al menú del clic dret). En acabar un combat surt «Experiència del combat» amb la XP dels enemics derrotats repartida entre els jugadors: es pot retocar i, en confirmar-la, s'actualitzen les fitxes. La mateixa entrega no es compta mai dues vegades.

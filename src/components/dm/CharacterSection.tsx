@@ -12,6 +12,8 @@ import { characterFor, levelUpTo, xpProgress } from '@/lib/characters';
 export interface CharacterMenuProps {
   characters: ApiCharacter[];
   status: CharactersStatus;
+  /** Canvis fets sense connexió que encara s'han de pujar a la API. */
+  pending: number;
   /** Tria la fitxa del jugador (undefined = la del mateix nom). */
   onLink: (playerId: number, characterId: string | undefined) => void;
   onAward: (characterId: string, amount: number, reason: string) => void;
@@ -44,15 +46,6 @@ export function XpBar({ xp, level, height = 6 }: { xp: number; level: number; he
 export function CharacterSection({ player, p }: { player: Player; p: CharacterMenuProps }) {
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
-  if (p.status === 'off' || p.status === 'error') {
-    return (
-      <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px', fontSize: FS.xs, color: C.dim, lineHeight: 1.4 }}>
-        {p.status === 'off'
-          ? 'Connecta\'t al back office per veure la fitxa i l\'experiència d\'aquest personatge.'
-          : 'No s\'han pogut carregar les fitxes de la API.'}
-      </div>
-    );
-  }
   const c = characterFor(player, p.characters);
   const up = c ? levelUpTo(c) : null;
   const give = () => {
@@ -74,6 +67,7 @@ export function CharacterSection({ player, p }: { player: Player; p: CharacterMe
         </select>
       </div>
       {p.status === 'loading' && <span style={{ fontSize: FS.xs, color: C.dim }}>Carregant les fitxes…</span>}
+      {p.status === 'offline' && <OfflineNote pending={p.pending} />}
       {c && (
         <>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: FS.sm }}>
@@ -105,9 +99,23 @@ export function CharacterSection({ player, p }: { player: Player; p: CharacterMe
           </Button>
         </>
       )}
-      {!c && p.status === 'ready' && (
+      {!c && p.status !== 'loading' && (
         <span style={{ fontSize: FS.xs, color: C.dim }}>Cap fitxa amb aquest nom. Tria-la a la llista o crea-la al back office.</span>
       )}
     </div>
+  );
+}
+
+/**
+ * Sense connexió amb el back office: les fitxes són la còpia d'aquest ordinador i els canvis
+ * esperen a la cua (`lib/characters-store.ts`). Ho diu en una línia, amb un punt d'avís.
+ */
+export function OfflineNote({ pending }: { pending: number }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: FS.xs, color: C.dim, lineHeight: 1.35 }}
+      title="Les fitxes es desen en aquest ordinador i es pujaran soles al back office quan et connectis">
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.warn, flexShrink: 0 }} />
+      Sense connexió · {pending ? `${pending} ${pending === 1 ? 'canvi' : 'canvis'} per pujar` : 'còpia d\'aquest ordinador'}
+    </span>
   );
 }
