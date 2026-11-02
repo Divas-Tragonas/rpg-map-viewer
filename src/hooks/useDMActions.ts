@@ -10,6 +10,7 @@ import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { pruneDoors } from '@/lib/rooms/doors';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import { removeFromTurn } from '@/lib/turn';
+import { nextHpHit } from '@/lib/sprites/hitfx';
 import { bgFingerprint } from '@/lib/autosave';
 import { BC_CHANNEL, DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ELEMENTS_BY_ID, ENEMY_TEMPLATES, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import type { MapStructure, PSDInfo, PSDLayer, VisMap, PosMap, LibEnemy, PsdEnemyOverrides, PsdEnemyOverride, Wall, Room, Door, Point, CamRect, Notify } from '@/types';
@@ -568,7 +569,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   const adjustPlayerHp = useCallback((id: number, delta: number) => {
     const updated = rPlayers.current.map(pl =>
-      pl.id === id ? { ...pl, hp: Math.max(0, Math.min(pl.hpMax, (pl.hp ?? pl.hpMax) + delta)) } : pl
+      pl.id === id ? { ...pl, hp: Math.max(0, Math.min(pl.hpMax, (pl.hp ?? pl.hpMax) + delta)), hpHit: nextHpHit(pl.hpHit, delta) } : pl
     );
     rPlayers.current = updated; S.setPlayers(updated);
     const changed = updated.find(pl => pl.id === id);
@@ -1070,7 +1071,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   const adjustLibEnemyHp = useCallback((id: number, delta: number) => {
     const updated = rLibEnemies.current.map(en =>
-      en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)) } : en
+      en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)), hpHit: nextHpHit(en.hpHit, delta) } : en
     );
     rLibEnemies.current = updated; S.setLibEnemies(updated);
     const changed = updated.find(en => en.id === id);
@@ -1093,7 +1094,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const hpMax = cur.hpMax || 0;
     if (hpMax <= 0) return;
     const newHp = Math.max(0, Math.min(hpMax, (cur.hp ?? hpMax) + delta));
-    const nOv = { ...ov, [id]: { ...cur, hp: newHp } };
+    const nOv = { ...ov, [id]: { ...cur, hp: newHp, hpHit: nextHpHit(cur.hpHit, delta) } };
     rPsdEnemyOverrides.current = nOv; S.setPsdEnemyOverrides(nOv);
     const isNowDefeated = newHp <= 0;
     const wasDefeated = !!rDefeated.current[id];

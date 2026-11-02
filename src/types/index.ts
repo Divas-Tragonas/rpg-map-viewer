@@ -61,6 +61,14 @@ export interface ParsedPSD {
   error: string | null;
 }
 
+/**
+ * Últim canvi de vida que ha fet el DM (`d` = el que ha demanat, abans de retallar a [0, màx.]).
+ * `n` puja a cada canvi. El número del cop a la figureta mostra `d`, no la vida que s'ha perdut de
+ * debò: un atac de 6 a un token de 2 de vida surt «-6» (si sortís «-2», els jugadors en
+ * deduirien la vida). Viatja dins del token: cap camp de sync nou.
+ */
+export interface HpHit { d: number; n: number }
+
 export interface Player {
   id: number;
   name: string;
@@ -70,6 +78,7 @@ export interface Player {
   visible: boolean;
   hp: number;
   hpMax: number;
+  hpHit?: HpHit;
   /** Velocitat de moviment en peus (1 casella = 5 ft). Absent → DEFAULT_SPEED_FT. Limita el drag des de /player; el DM no té límit. */
   speed?: number;
   /** false → el token no es pot moure des de /player (el DM sempre pot). Absent → true. */
@@ -240,6 +249,7 @@ export interface LibEnemy {
   color: string;
   hpMax: number;
   hp: number;
+  hpHit?: HpHit;
   R: number;
   visible: boolean;
   imageData: string | null;
@@ -249,6 +259,7 @@ export interface LibEnemy {
 
 export interface PsdEnemyOverride {
   hp?: number;
+  hpHit?: HpHit;
   hpMax?: number;
   name?: string;
   imageData?: string;

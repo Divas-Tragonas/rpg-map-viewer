@@ -70,6 +70,11 @@ El manifest de noms i posicions (`src/lib/sprites/manifest.ts`) es regenera amb
 
 ## Changelog
 
+### v4.66 — El número del cop no delata la vida
+- El número que surt damunt de la figureta en rebre un cop és el dany que ha posat el DM, encara que el token en tingués menys: un atac de 6 a un goblin amb 2 de vida surt «-6», no «-2». Abans els jugadors podien deduir quanta vida li quedava.
+- El mateix amb les curacions: curar 5 a un token que ja era ple surt «+5» (abans no sortia res, i es veia que estava al màxim).
+- Sense camps nous de sincronització ni canvis a la API: l'últim canvi de vida viatja dins del mateix token (`hpHit`).
+
 ### v4.65 — Màgies a la mida de la graella
 - Els efectes de les màgies (projectils, foc, halos, esclats, espurnes i segells) són més petits i es mesuren per la casella de la graella, a l'app Clàssica i a la Píxel: el projectil màgic feia tres dards tan grossos com les figuretes i un esclat de casella i mitja.
 - Les àrees de reglament no canvien: la bola de foc, dormir, greix i la resta continuen marcant exactament on arriben.

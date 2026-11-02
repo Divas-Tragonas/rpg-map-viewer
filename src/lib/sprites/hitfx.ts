@@ -16,10 +16,22 @@
  *    tenyits del mateix vermell i «+N».
  *
  * El primer valor de vida que es veu d'un token no compta (carregar una partida no és un cop).
+ *
+ * **El número és el que ha demanat el DM, no la vida perduda** (`HpHit`, v4.66): un atac de 6 a
+ * un token amb 2 de vida surt «-6», i una curació de 5 a un token ple, «+5». Si el número sortís
+ * retallat, els jugadors en deduirien la vida que li quedava (o la màxima). Sense `HpHit` (una
+ * partida antiga, un canvi de la vida màxima) es dedueix de la vida com abans.
  */
 import { blit, parseSprite, tintedRegion } from './draw';
 import { pfDrawChar, pfAdvance, PF_LINE } from './font';
 import { PAL } from '@/lib/render/fxsprites';
+import type { HpHit } from '@/types';
+
+/** El `HpHit` que toca després de canviar la vida en `delta` (un canvi de 0 no és un cop). */
+export function nextHpHit(prev: HpHit | undefined, delta: number): HpHit | undefined {
+  if (!delta) return prev;
+  return { d: delta, n: (prev?.n ?? 0) + 1 };
+}
 
 const LUNGE_MS = 300;
 /** Quan arriba el cop dins de l'envestida (el punt més endavant). */
@@ -47,6 +59,8 @@ function severity(amount: number, hpMax: number | undefined): Severity {
 }
 
 const _hp = new Map<string, number>();
+/** Últim `HpHit.n` vist de cada token (`null` = el token encara no en portava cap). */
+const _hitN = new Map<string, number | null>();
 const _pos = new Map<string, { x: number; y: number; sprite: string }>();
 const _hits = new Map<string, Hit>();
 const _lunges = new Map<string, { t0: number; tx: number; ty: number; reach: number }>();
@@ -68,15 +82,23 @@ function styleOf(attacker: string | null): ImpactStyle {
  * el torn (si n'hi ha), que és qui ha fet el cop.
  */
 export function noteFigure(key: string, sprite: string, hp: number | undefined, hpMax: number | undefined,
-  x: number, y: number, attacker: string | null, now: number) {
+  x: number, y: number, attacker: string | null, now: number, hit?: HpHit) {
   _pos.set(key, { x, y, sprite });
   if (hp === undefined) return;
   const prev = _hp.get(key);
+  const prevN = _hitN.get(key);
   _hp.set(key, hp);
-  if (prev === undefined || prev === hp) return;
+  _hitN.set(key, hit?.n ?? null);
+  if (prev === undefined) return;
+  // Amb `HpHit` nou, el cop és el que ha demanat el DM (encara que la vida no s'hagi mogut: ja era
+  // a 0 o al màxim). Sense, es dedueix de la vida.
+  let delta: number;
+  if (hit && hit.n !== prevN) delta = hit.d;
+  else if (prev !== hp) delta = hp - prev;
+  else return;
   const seed = (now * 7919) % 1000;
-  if (hp > prev) { _hits.set(key, { t0: now, kind: 'heal', dir: [0, 0], style: 'star', seed, amount: hp - prev, sev: 1 }); return; }
-  const amount = prev - hp, sev = severity(amount, hpMax);
+  if (delta > 0) { _hits.set(key, { t0: now, kind: 'heal', dir: [0, 0], style: 'star', seed, amount: delta, sev: 1 }); return; }
+  const amount = -delta, sev = severity(amount, hpMax);
   const by = attacker && attacker !== key ? attacker : null;
   const a = by ? _pos.get(by) : undefined;
   let dir: [number, number] = [0, 0];

@@ -1,4 +1,5 @@
 import type { FrameContext } from './types';
+import type { HpHit } from '@/types';
 import { TOKEN_LERP, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
 import { packReady } from '@/lib/sprites/pack';
@@ -159,12 +160,12 @@ function pixelSprite(fc: FrameContext, sprite: string | undefined): string | nul
  */
 function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
   cx: number, cy: number, R: number, team: string,
-  opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[]; hp?: number; hpMax?: number }): () => void {
+  opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[]; hp?: number; hpMax?: number; hpHit?: HpHit }): () => void {
   const { sc } = fc;
   // Cops i curacions (`lib/sprites/hitfx.ts`): es dedueixen de la vida; qui ataca és qui té el torn.
   const turn = fc.rTurn?.current;
   const now = performance.now();
-  noteFigure(key, sprite, opts.hp, opts.hpMax, cx, cy + R * 0.62, turn?.active ? String(turn.order[turn.turnIndex]) : null, now);
+  noteFigure(key, sprite, opts.hp, opts.hpMax, cx, cy + R * 0.62, turn?.active ? String(turn.order[turn.turnIndex]) : null, now, opts.hpHit);
   const f = _facing.get(key);
   if (!f) _facing.set(key, { x: cx, left: false });
   else if (Math.abs(cx - f.x) > R * 0.25) { f.left = cx < f.x; f.x = cx; }  // marge: res de girs per tremolors del LERP
@@ -353,7 +354,7 @@ export function renderEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContex
 
     let fig: (() => void) | null = null;
     if (psdSprite) {
-      fig = drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: ov?.hpMax ? Math.max(0, ov.hp ?? ov.hpMax) : undefined, hpMax: ov?.hpMax });
+      fig = drawPixelFigure(ctx, fc, String(en.id), psdSprite, ep.x, ep.y, R, C.enemy, { defeated: isDefeated ? (isDM ? 1 : Math.min(1, crossProg * 2)) : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: ov?.hpMax ? Math.max(0, ov.hp ?? ov.hpMax) : undefined, hpMax: ov?.hpMax, hpHit: ov?.hpHit });
     } else if (isDefeated && !isDM) {
       const desatAlpha = Math.min(1, crossProg * 2);
       if (desatAlpha > 0) {
@@ -541,7 +542,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     let fig: (() => void) | null = null;
     if (libSprite) {
-      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined, hpMax: en.hpMax });
+      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined, hpMax: en.hpMax, hpHit: en.hpHit });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -760,7 +761,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     }
     let fig: (() => void) | null = null;
     if (plSprite) {
-      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax });
+      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax, hpHit: pl.hpHit });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
