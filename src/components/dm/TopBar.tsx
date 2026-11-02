@@ -419,7 +419,6 @@ function MoreMenu({ open, onToggle, onClose, onShowShortcuts, pixel, onSetPixel 
   open: boolean; onToggle: () => void; onClose: () => void; onShowShortcuts: () => void;
   pixel: boolean; onSetPixel: (v: boolean) => void;
 }) {
-  const compact = useCompact();
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} ariaLabel="Més opcions" title="Més opcions">
@@ -427,16 +426,13 @@ function MoreMenu({ open, onToggle, onClose, onShowShortcuts, pixel, onSetPixel 
       </BarButton>
       {open && (
         <Popover onClose={onClose} width={240}>
-          {/* Mòbil: a la barra no hi cap el canvi d'app, viu aquí. */}
-          {compact && (
-            <>
-              <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ flex: 1, fontSize: FS.md, fontWeight: 700, color: C.bright }}>App</span>
-                <AppSwitch pixel={pixel} onChange={onSetPixel} />
-              </div>
-              <MenuDivider />
-            </>
-          )}
+          {/* El canvi d'app (Clàssica · Píxel) és una preferència, no una decisió de cada
+              moment: viu aquí perquè la barra només tingui el que es fa servir a la taula. */}
+          <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ flex: 1, fontSize: FS.md, fontWeight: 700, color: C.bright }}>App</span>
+            <AppSwitch pixel={pixel} onChange={onSetPixel} />
+          </div>
+          <MenuDivider />
           <MenuItem icon={<Keyboard size={14} />} label="Dreceres de teclat"
             hint={<kbd style={{ fontFamily: 'inherit', border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: '1px 5px' }}>?</kbd>}
             onClick={() => { onShowShortcuts(); onClose(); }} />
@@ -526,7 +522,7 @@ export function TopBar(p: Props) {
   const close = useCallback(() => setMenu(null), []);
   const toggle = (id: MenuId) => () => setMenu(m => (m === id ? null : id));
   const hasMap = p.mapName !== null;
-  // Mòbil: només icones, sense el bloc del nom (el lateral és un calaix) i el canvi d'app al menú ⋯.
+  // Només icones al mòbil (sense el bloc del nom: el lateral és un calaix). El canvi d'app és sempre al menú ⋯.
   const compact = useCompactLayout();
 
   return (
@@ -565,7 +561,6 @@ export function TopBar(p: Props) {
       </div>
       )}
 
-      {!compact && <AppSwitch pixel={p.pixel} onChange={p.onSetPixel} />}
       <ModeSwitch mode={p.mode} onChange={p.onModeChange} />
 
       {/* És cosa de la partida: a Preparar només surt si hi ha alguna cosa en pantalla

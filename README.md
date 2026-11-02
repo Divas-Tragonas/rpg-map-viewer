@@ -78,7 +78,7 @@ l'estat complet al DM en tornar.
 
 ## App Píxel (sprites Oryx «Ultimate Fantasy»)
 
-Interruptor **Clàssica · Píxel** a la barra superior. L'app Píxel pinta els tokens com a
+Interruptor **Clàssica · Píxel** al menú **⋯** de la barra superior (i a la pantalla de benvinguda). L'app Píxel pinta els tokens com a
 figuretes animades, té un editor de mapes per caselles i fa servir els gràfics del paquet
 Oryx a les màgies i al rètol de torn (també a les pantalles de jugador).
 

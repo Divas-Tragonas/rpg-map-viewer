@@ -2100,6 +2100,12 @@ export function DMView() {
               <div style={{ fontSize: FS.md, marginTop: 6, lineHeight: 1.5 }}>
                 Obre el mapa (una imatge o un vídeo) o arrossega&apos;l a qualsevol lloc d&apos;aquesta pantalla.
               </div>
+              {/* Guia per a qui arriba de nou: el mateix recorregut que explica el README. */}
+              <ol style={{ margin: '14px auto 0', padding: 0, listStyle: 'none', textAlign: 'left', maxWidth: 348, fontSize: FS.sm, lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <li><b style={{ color: C.bright }}>1 · Obre un mapa</b> (o prova la demo o una missió)</li>
+                <li><b style={{ color: C.bright }}>2 · Prepara</b>: parets, sales, enemics i jugadors</li>
+                <li><b style={{ color: C.bright }}>3 · Juga</b>: obre una pantalla de jugador (menú Pantalles) i passa a Jugar</li>
+              </ol>
 
               {/* App Píxel: el mapa es pinta a casella (o s'importa de Tiled). */}
               {pixel && (
@@ -2152,6 +2158,7 @@ export function DMView() {
               <div style={{ marginTop: 16, fontSize: FS.sm, display: 'flex', gap: '6px 14px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => psdInputRef.current?.click()} style={welcomeLink}>Carregar un PSD</button>
                 <button onClick={() => sessionInputRef.current?.click()} style={welcomeLink}>Carregar una partida (.json)</button>
+                <button onClick={() => setPixel(!pixel)} style={welcomeLink}>{pixel ? 'Passar a l\'app Clàssica' : 'Passar a l\'app Píxel'}</button>
               </div>
               <div style={{ fontSize: FS.xs, marginTop: 10, opacity: 0.6, lineHeight: 1.5 }}>
                 El PSD és opcional: amb la imatge ja funcionen la graella, les sales, les parets, els llums i els tokens.

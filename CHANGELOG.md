@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.70 — Una barra més senzilla
+- L'interruptor Clàssica · Píxel surt de la barra superior i passa al menú ⋯ (a la mateixa mida que al mòbil); queda un sol interruptor gran, Preparar · Jugar
+- La pantalla de benvinguda explica el recorregut en 3 passos i ofereix el canvi d'app com a enllaç
+
 ### v4.69 — Documentació ordenada
 - `README.md` curt per a qui arriba de nou: què és, com s'engega, les pantalles i un primer ús en 5 passos
 - L'historial de versions passa a `CHANGELOG.md`
