@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.77 — Polit d'UI: Bestiari, DIVAS i botons de mida estable
+- **Bestiari**: la graella de plantilles era `1fr 1fr` i la columna no baixava de la mida del nom més llarg: «Castell de la Fumarola» sortia del lateral (tallat) i era més ample que el Bestiari. Ara `minmax(0, 1fr)`: les dues seccions fan la mateixa mida i els noms llargs porten punts suspensius
+- «**Party**» i «**la colla**» passen a «**DIVAS**» en tot el text visible (botó del panell de jugadors, tooltips, missions, cinemàtica Versus, back office). Els noms interns (`loadParty`, `DEFAULT_PARTY`, `party`) no canvien
+- **Botons de la barra de mida estable**: Partida diu sempre «Partida» (estat amb icona ✓ / ⚠ / disquet + punt d'avís; el «Desat fa 2 min» va al tooltip), Pantalles diu sempre «Pantalles» (recompte al tooltip), Desfer ja no allarga el botó amb el nom de l'acció (és al tooltip) i els punts d'estat reserven el seu lloc
+- Nou `docs/millores.md` amb el checklist del lot A
+
 ### v4.76 — Mòduls d'exemple
 - Botó **Exemples** a Història → Mòduls: importa dos mòduls de prova encadenats (*Les runes de Cony Cirera* → *L'Àgata (exemple)*) que fan servir tots els camps: textos per llegir, enemics (per plantilla, per figureta Oryx i genèric), PNJ, un diàleg amb opcions, sortides amb enllaç a un altre mòdul i al mapa de Cony Cirera (poble i Capella enrunada)
 - El paquet és a `public/modules/exemples.json` (abans, `docs/exemples/`)
