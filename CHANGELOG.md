@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.78 — Lot Dades: anàlisi i propostes de la API
+- Nou `docs/millores.md` (apartat «Dades»): estat actual de la Biblioteca (Enemics, Aliats, Base de dades) i proposta d'un sol catàleg per rols, disseny de la contrasenya (cookie httpOnly + `proxy.ts`), PNJ amb un camp `role` i botí com a tokens
+- `api-spec.txt`: documentat `POST /auth/login` i afegida la proposta pendent (camps `role`/`sprite`/`notes` a Enemy, JWT a les mutacions de `/enemies` i al WebSocket del DM)
+- Sense canvis de codi: el frontend no depèn de res nou fins que la API estigui desplegada
+
 ### v4.76 — Mòduls d'exemple
 - Botó **Exemples** a Història → Mòduls: importa dos mòduls de prova encadenats (*Les runes de Cony Cirera* → *L'Àgata (exemple)*) que fan servir tots els camps: textos per llegir, enemics (per plantilla, per figureta Oryx i genèric), PNJ, un diàleg amb opcions, sortides amb enllaç a un altre mòdul i al mapa de Cony Cirera (poble i Capella enrunada)
 - El paquet és a `public/modules/exemples.json` (abans, `docs/exemples/`)
