@@ -30,7 +30,7 @@ Les dues finestres del mateix ordinador es sincronitzen soles; per a una tablet,
 
 1. **Obre un mapa.** A la pantalla de benvinguda: *Obrir mapa* (imatge o vídeo), *Provar la demo* o una *Missió*. També pots deixar-hi un fitxer a sobre.
 2. **Prepara.** Interruptor **Preparar · Jugar** a la barra de dalt. A *Preparar* dibuixes parets, sales fosques, portes i llums, i calibres la graella.
-3. **Col·loca la colla i els enemics.** Lateral esquerre → *Escena* (jugadors i enemics) i *Biblioteca* (plantilles per afegir). Clic dret a un token = tota la seva fitxa.
+3. **Col·loca les DIVAS i els enemics.** Lateral esquerre → *Escena* (jugadors i enemics) i *Biblioteca* (plantilles per afegir). Clic dret a un token = tota la seva fitxa.
 4. **Obre una pantalla de jugador.** Menú **Pantalles** de la barra: obre una finestra al PC o copia l'adreça per a la tablet.
 5. **Juga.** Passa a *Jugar*: mou tokens, inicia el combat (barra de torns de baix), llança màgies i, amb **Mostrar als jugadors**, ensenya imatges, text, diàlegs o fitxes. **Ctrl+Z** desfà l'última acció i **?** mostra totes les dreceres.
 

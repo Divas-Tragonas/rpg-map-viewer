@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
-  ExternalLink, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
+  ExternalLink, AlertTriangle, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
   WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon, MapIcon, BookIcon,
 } from '@/components/icons';
 import { Button, IconButton } from '@/components/ui/Button';
@@ -147,6 +147,12 @@ const Dot = ({ color }: { color: string }) => (
   <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}`, flexShrink: 0 }} />
 );
 
+/** Punt d'estat que **sempre ocupa el seu lloc** (7 px): sense color queda buit. Així el botó no
+ *  canvia d'amplada quan l'estat s'encén o s'apaga (veure «Botons de mida estable» a docs/ui-dm.md). */
+const StateDot = ({ color }: { color?: string | null }) => (
+  <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, display: 'inline-block' }}>{color ? <Dot color={color} /> : null}</span>
+);
+
 /** Botó de la barra. `color` pinta el text i el contorn (estat de pantalles, de desat…). */
 /** Botó de la barra. Sempre neutre: els estats (avís, desat) els diu un punt o la icona,
  *  no el color de tot el botó (el daurat queda per a l'acció principal i el que és actiu). */
@@ -172,7 +178,7 @@ function CopyRow({ url }: { url: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <code style={{ flex: 1, minWidth: 0, fontSize: FS.sm, color: C.bright, background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: '4px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'all' }}>{url}</code>
-      <Button size="sm" onClick={copy} title="Copiar l'adreça" style={{ gap: 4 }}>
+      <Button size="sm" onClick={copy} title="Copiar l'adreça" style={{ gap: 4, minWidth: 74 }}>
         <Copy size={11} /> {copied ? 'Copiat' : 'Copiar'}
       </Button>
     </div>
@@ -206,11 +212,10 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={() => { setUrls(playerUrls()); onToggle(); }}
-        title={none ? 'Cap pantalla de jugador connectada · clic per obrir-ne una' : `${ids.length} pantalla${ids.length === 1 ? '' : 'es'} de jugador · clic per veure-les`}>
+        title={none ? 'Cap pantalla de jugador connectada · clic per obrir-ne una' : `${ids.length} pantalla${ids.length === 1 ? '' : 'es'} de jugador${worst > 0 ? ` · en veuen fins a un ${worst}% més` : ''} · clic per veure-les`}>
         <Monitor size={14} />
-        <Label>{none ? 'Cap pantalla de jugador' : `${ids.length} pantall${ids.length === 1 ? 'a' : 'es'}`}</Label>
-        {!none && worst > 0 && <Label><span style={{ color: worst >= 15 ? C.hpMid : C.dim, fontWeight: 600 }}>+{worst}%</span></Label>}
-        <Dot color={none ? C.warn : C.ok} />
+        <Label>Pantalles</Label>
+        <StateDot color={none ? C.warn : C.ok} />
       </BarButton>
       {open && (
         <Popover onClose={onClose} width={330} padding={12}>
@@ -272,18 +277,20 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
   // Quan el desat falla, el botó ho ha de dir: l'única pista que hi havia era que l'etiqueta
   // deixava d'avançar, i te n'assabentaves en perdre la partida.
   const failing = hasMap && autosaveEnabled && autosaveFailing;
-  const label = !hasMap ? 'Partida' : !autosaveEnabled ? 'Sense desar' : failing ? 'No es pot desar' : autosaveAt ? `Desat ${agoLabel(autosaveAt)}` : 'Desant…';
+  // Mida estable: el botó sempre diu «Partida»; l'estat el diu la icona (✓ desat, ⚠ error, disquet
+  // si encara no s'ha desat o és apagat + punt d'avís) i el temps («fa 2 min») va al tooltip.
   const title = !hasMap ? 'Obrir o importar una partida'
     : failing ? 'El desat automàtic NO pot escriure (espai del navegador ple o finestra privada). Exporta la partida a un fitxer per no perdre-la.'
-      : autosaveEnabled ? 'Desat automàtic actiu (cada 30 s i en amagar la pestanya)'
-        : 'Desat automàtic apagat: si tanques o refresques, perdràs la partida';
+      : !autosaveEnabled ? 'Desat automàtic apagat: si tanques o refresques, perdràs la partida'
+        : autosaveAt ? `Desat ${agoLabel(autosaveAt)} · desat automàtic actiu (cada 30 s i en amagar la pestanya)`
+          : 'Desant… · desat automàtic actiu (cada 30 s i en amagar la pestanya)';
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} title={title}>
-        {hasMap && autosaveEnabled && autosaveAt && !failing ? <CheckIcon size={14} color={C.hpHigh} /> : <SaveIcon size={14} />}
-        <Label>{label}</Label>
-        {hasMap && !autosaveEnabled && <Dot color={C.warn} />}
-        {failing && <Dot color={C.enemy} />}
+        {failing ? <AlertTriangle size={14} color={C.enemy} />
+          : hasMap && autosaveEnabled && autosaveAt ? <CheckIcon size={14} color={C.hpHigh} /> : <SaveIcon size={14} />}
+        <Label>Partida</Label>
+        <StateDot color={hasMap && !autosaveEnabled ? C.warn : null} />
         <Label><ChevronDown size={12} color={C.dim} /></Label>
       </BarButton>
       <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
@@ -328,7 +335,7 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
               <div style={{ padding: '6px 10px 2px', fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 0.4 }}>Missions</div>
               {missions.map(m => (
                 <MenuItem key={m.id} icon={<MapIcon size={14} />} label={m.name} hint={m.subtitle}
-                  title={hasMap ? `Obre ${m.name} amb la colla. El mapa d'ara es tanca (exporta'l abans si el vols guardar).` : `Obre ${m.name} amb la colla`}
+                  title={hasMap ? `Obre ${m.name} amb les DIVAS. El mapa d'ara es tanca (exporta'l abans si el vols guardar).` : `Obre ${m.name} amb les DIVAS`}
                   onClick={() => { onOpenMission(m.id); onClose(); }} />
               ))}
             </>
@@ -350,7 +357,7 @@ function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridV
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={onToggle} title="Opcions de vista de la teva pantalla">
         <SlidersIcon size={14} /> <Label>Vista</Label>
-        {enemyHighlight && <Dot color={C.enemyHL} />}
+        <StateDot color={enemyHighlight ? C.enemyHL : null} />
       </BarButton>
       {open && (
         <Popover onClose={onClose} width={280} padding={14}>
@@ -569,7 +576,7 @@ export function TopBar(p: Props) {
         <BarButton active={p.showOpen} onClick={p.onToggleShow}
           title="Ensenya una imatge, un vídeo o un text a pantalla completa als jugadors">
           <ImageIcon size={14} /> <Label>Mostrar als jugadors</Label>
-          {p.showActive && <Dot color={C.ok} />}
+          <StateDot color={p.showActive ? C.ok : null} />
         </BarButton>
       )}
 
@@ -586,12 +593,9 @@ export function TopBar(p: Props) {
         <Button size="md" onClick={p.onUndo} disabled={!p.undoLabel}
           title={p.undoLabel ? `Desfer: ${p.undoLabel} (Ctrl+Z)` : 'No hi ha res a desfer'}
           aria-label="Desfer"
-          style={{ height: compact ? 36 : 32, gap: 7, maxWidth: 230, ...(compact ? { padding: '0 9px' } : {}) }}>
+          style={{ height: compact ? 36 : 32, gap: 7, ...(compact ? { padding: '0 9px' } : {}) }}>
           <RotateCcw size={14} />
           <Label>Desfer</Label>
-          {p.undoLabel && !compact && (
-            <span style={{ color: C.dim, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>· {p.undoLabel}</span>
-          )}
         </Button>
         <ScreensMenu open={menu === 'screens'} onToggle={toggle('screens')} onClose={close}
           playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} onOpenBoard={p.onOpenBoard} />

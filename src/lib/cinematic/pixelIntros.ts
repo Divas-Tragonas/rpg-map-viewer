@@ -35,7 +35,7 @@ export const PIXEL_INTROS: { id: PixelIntroId; label: string; hint: string; dur:
   { id: 'portal',  label: 'Portal del temps',  hint: 'Chrono Trigger: ona, portal i aparició',         dur: 5.8, msg: "Des d'una altra era..." },
   { id: 'psyche',  label: 'Fons psicodèlic',   hint: 'EarthBound: fons ondulant de colors',            dur: 5.2, msg: "T'has trobat amb {nom}!" },
   { id: 'warning', label: 'WARNING',           hint: 'Mega Man: alarma, teletransport i barra',        dur: 5.4 },
-  { id: 'versus',  label: 'Versus',            hint: 'Street Fighter: la colla contra el boss',        dur: 5.0 },
+  { id: 'versus',  label: 'Versus',            hint: 'Street Fighter: les DIVAS contra el boss',        dur: 5.0 },
   { id: 'title',   label: 'Rètol del boss',    hint: 'Zelda: franges de cinema i nom que cau',         dur: 5.2, msg: 'Enemic terrible' },
   { id: 'shadow',  label: "L'ombra",           hint: 'Souls: terratrèmol, silueta i barra llarga',     dur: 6.0 },
 ];
@@ -471,7 +471,7 @@ const quest: Scene = (ctx, t, e) => {
   const { W, H } = e;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   const party = e.party.slice(0, 4);
-  const lead = party[0] ? pixelText(party[0].name).split(' ')[0] : 'LA COLLA';
+  const lead = party[0] ? pixelText(party[0].name).split(' ')[0] : 'DIVAS';
   // Finestra de la colla a dalt (només si n'hi ha): figureta i nom centrats a cada casella.
   const top = easeOut(seg(t, 0.1, 0.5));
   if (party.length && top > 0) {
@@ -794,7 +794,7 @@ const warning: Scene = (ctx, t, e) => {
   }
 };
 
-/** 8. Street Fighter: pantalla partida, la colla contra el boss i un «VS» que esclata. */
+/** 8. Street Fighter: pantalla partida, les DIVAS contra el boss i un «VS» que esclata. */
 const versus: Scene = (ctx, t, e) => {
   const { W, H } = e;
   const inL = easeOut(seg(t, 0, 0.45)), inR = easeOut(seg(t, 0.1, 0.55));
@@ -825,7 +825,7 @@ const versus: Scene = (ctx, t, e) => {
     text(ctx, 'VS', W / 2 + shake, H * 0.45 - sc * 3.5, { kind: 'fancy', scale: sc, align: 'center', color: '#ffd257', shadow: '#5a0000' });
   }
   if (t > 1.5) {
-    text(ctx, typed('LA COLLA', t, 1.5, 20), 10, H - 14, { color: '#bcd0ff' });
+    text(ctx, typed('DIVAS', t, 1.5, 20), 10, H - 14, { color: '#bcd0ff' });
     text(ctx, typed(e.group.length <= 18 ? e.group : e.name, t, 1.6, 20), W - 10, H - 14, { align: 'right', color: '#ffc0b0' });
   }
 };

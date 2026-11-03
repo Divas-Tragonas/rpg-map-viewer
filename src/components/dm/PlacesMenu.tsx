@@ -42,7 +42,7 @@ export function PlacesMenu({ mission, current, busy, onGo, onHover }: Props) {
     <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: compact ? 'nowrap' : 'wrap', maxWidth: compact ? 'calc(100% - 150px)' : 'calc(100% - 210px)' }}>
       <div style={{ position: 'relative' }}>
         <button style={{ ...chip, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={() => setOpen(v => !v)}
-          title="On és la colla: entrar a un lloc o tornar al poble">
+          title="On són les DIVAS: entrar a un lloc o tornar al poble">
           {here ? <DoorIcon size={14} /> : <MapIcon size={14} />}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: compact ? 104 : 170 }}>{here ? here.name : mission.name}</span>
           <ChevronDown size={12} style={{ color: C.dim }} />
@@ -84,7 +84,7 @@ export function PlacesMenu({ mission, current, busy, onGo, onHover }: Props) {
                 );
               })}
               <div style={{ padding: '6px 8px 4px', fontSize: FS.xs, color: C.dim, lineHeight: 1.35 }}>
-                Al mapa, doble clic a la marca d&apos;una porta també hi entra. La colla hi va sencera i el combat s&apos;acaba.
+                Al mapa, doble clic a la marca d&apos;una porta també hi entra. Les DIVAS hi van senceres i el combat s&apos;acaba.
               </div>
             </div>
           </>
@@ -92,7 +92,7 @@ export function PlacesMenu({ mission, current, busy, onGo, onHover }: Props) {
       </div>
       {here && (
         <button style={{ ...chip, opacity: busy ? 0.6 : 1, ...(compact ? { padding: '0 10px' } : {}) }} disabled={busy} onClick={() => go(VILLAGE)}
-          aria-label={`Sortir a ${mission.name}`} title={`Tornar a ${mission.name}: la colla surt davant de la porta`}>
+          aria-label={`Sortir a ${mission.name}`} title={`Tornar a ${mission.name}: les DIVAS surten davant de la porta`}>
           <BackIcon size={14} /> {!compact && `Sortir a ${mission.name}`}
         </button>
       )}

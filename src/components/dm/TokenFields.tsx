@@ -176,7 +176,7 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
         )}
         {!pl && t.setXp && (
           <NumField label="XP" value={t.xp ?? 0} min={0} max={155000} step={5}
-            title="Experiència que dona en ser derrotat: es reparteix entre la colla en acabar el combat" onCommit={t.setXp} />
+            title="Experiència que dona en ser derrotat: es reparteix entre les DIVAS en acabar el combat" onCommit={t.setXp} />
         )}
       </div>
       {p.pixel && <PixelLook t={t} p={p} />}

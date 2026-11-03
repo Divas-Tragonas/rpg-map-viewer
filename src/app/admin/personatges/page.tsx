@@ -117,7 +117,7 @@ export default function PersonatgesPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
         <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: 20, color: C.bright }}>Personatges</h1>
-          <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>Fitxes de la colla. L&apos;experiència del combat s&apos;hi suma sola des del visor del DM.</div>
+          <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>Fitxes de les DIVAS. L&apos;experiència del combat s&apos;hi suma sola des del visor del DM.</div>
         </div>
         {missingSeeds.length > 0 && !loading && !error && (
           <Button variant="secondary" disabled={saving} onClick={() => void importSeeds()}

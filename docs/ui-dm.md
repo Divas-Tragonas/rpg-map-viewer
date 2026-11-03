@@ -153,7 +153,7 @@
 - Control lliscant al menú **Vista** de la barra superior que abaixa l'**opacitat del mapa de fons NOMÉS a la pantalla del DM** (ajuda per veure clar sales/tokens/màgies quan hi ha molta informació). `rBgDmOpacity` (default 1) → el tick de `useRafLoop` fa `media.style.opacity`. Com que el fons és un element DOM darrere del canvas, abaixar-lo dim només la imatge del mapa; els overlays del canvas (sales, tokens, spells, dibuix) es mantenen nítids. **No es sincronitza**: els jugadors veuen sempre el fons opac.
 
 ## Panell de jugadors (`src/components/dm/PlayersPanel.tsx`)
-- Va dins d'una `SidebarSection` ("Jugadors · N") amb els botons ＋ (desplega el formulari d'alta, que si no no ocupa espai) i Party.
+- Va dins d'una `SidebarSection` ("Jugadors · N") amb els botons ＋ (desplega el formulari d'alta, que si no no ocupa espai) i DIVAS (carrega els 5 jugadors per defecte; abans «Party»).
 - **Una fila prima per jugador** (`PlayerRow`, ~32 px, el mateix format que les files d'enemics de l'Escena): avatar amb inicials del seu color, nom, cadenat si `canMove === false` i `HpControl` `sm`. Clic a la fila = seleccionar el token (la fila seleccionada s'encén); **clic dret = el menú del token**, amb la fitxa (també per a un token que ara no es veu a la pantalla).
 - Abans eren targetes de 68 px amb un engranatge que desplegava la configuració (vida màxima, velocitat, visió, moviment): amb cinc jugadors el panell ocupava mig lateral. Tot això és ara al **menú del clic dret** del token; el panell només és per veure i tocar la vida durant el joc.
 

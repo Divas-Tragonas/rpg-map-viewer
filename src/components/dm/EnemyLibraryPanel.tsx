@@ -41,9 +41,11 @@ function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail }:
   );
 }
 
-const GRID: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 };
+// `minmax(0, 1fr)`: amb `1fr` a pèl la columna no baixa de la mida del nom més llarg («Os mussol captiu»)
+// i la graella sortia del lateral (Castell de la Fumarola tallat i més ample que el Bestiari).
+const GRID: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3 };
 // Una sola columna: els noms de la BD són llargs ("Guàrdia de la Meridiana") i a dues quedaven tallats.
-const DB_GRID: React.CSSProperties = { ...GRID, gridTemplateColumns: '1fr' };
+const DB_GRID: React.CSSProperties = { ...GRID, gridTemplateColumns: 'minmax(0, 1fr)' };
 
 /**
  * Pestanya Biblioteca: plantilles per AFEGIR enemics. Els que ja són a l'escena es gestionen

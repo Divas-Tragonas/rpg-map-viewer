@@ -88,7 +88,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
       actions={
         <>
           <SectionButton onClick={() => setAddOpen(o => !o)} active={addOpen} title="Afegir un jugador nou">＋</SectionButton>
-          <SectionButton onClick={onLoadParty} title="Carrega els 5 jugadors per defecte">Party</SectionButton>
+          <SectionButton onClick={onLoadParty} title="Carrega els 5 jugadors per defecte">DIVAS</SectionButton>
         </>
       }>
       {/* El formulari d'alta només ocupa espai quan el vols: la majoria del temps el que
@@ -124,7 +124,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
       </div>
       {players.length === 0 && !addOpen && (
         <div style={{ padding: '4px 0 2px', fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
-          Encara no hi ha cap jugador. Prem <b style={{ color: C.text }}>Party</b> per carregar el grup de la campanya o <b style={{ color: C.text }}>＋</b> per afegir-ne un.
+          Encara no hi ha cap jugador. Prem <b style={{ color: C.text }}>DIVAS</b> per carregar el grup de la campanya o <b style={{ color: C.text }}>＋</b> per afegir-ne un.
         </div>
       )}
     </SidebarSection>
