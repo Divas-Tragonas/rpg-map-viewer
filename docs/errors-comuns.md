@@ -60,4 +60,6 @@
 | Llegir `localStorage` d'un magatzem a l'inicialitzador d'un `useState` o al render | Error d'hidratació | `useJsonStore` (`useSyncExternalStore` amb el valor inicial al servidor) |
 | Anotar al diari des d'un handler amb codi propi en lloc de `logJournal` | Entrades duplicades o que fallen amb el magatzem; el diari trenca el joc si llança | `logJournal(kind, text)` (no llança i desduplica); els esdeveniments sense punt únic, a `useJournalWatchers` |
 | Panell flotant nou a la dreta amb `zIndex` ≥ 12 | Tapa la barra de torns i els seus globus («Finalitzar el combat?»); el combat no es pot acabar | `zIndex` 11 i deixar l'espai de la barra amb combat (veure `StoryPanel`) |
+| Hit-test de tokens escrit a mà (un bucle per família) | El clic agafa un token que és sota un altre, o no troba el cap d'una figureta | `tokenAt` (`render/token-geom.ts`): mateix ordre que el render, base abans que figura i amb el ventall dels apilats |
+| Offset o radi d'un jugador canviat sense moure la cantonada | El token surt del centre de la casella | Els jugadors es desen per la cantonada (centre = `pos + R`): compensar −ΔR com `setTokenSize`/`sizeAllTokens` |
 | Tecla global que escriu al camp que acaba d'enfocar | La «n» de la drecera apareix dins el camp de nota | `preventDefault` al keydown i enfocar amb un petit retard (`JournalView`) |

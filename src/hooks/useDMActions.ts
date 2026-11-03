@@ -430,16 +430,27 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPos.current = newPos; S.setPos(newPos); _broadcastState({});
   }, [_broadcastState]);
 
+  // Amb AutoSize apagat, torna les mides per defecte (`{}`). Els jugadors es desen per la cantonada
+  // (centre = pos + R): en canviar-los el radi es mou la cantonada perquè el centre no es mogui de
+  // la casella (com `setTokenSize`); sense això quedaven descentrats en activar o treure «Mida».
   const sizeAllTokens = useCallback(() => {
     const gs = rGridSize.current; if (gs <= 0) return;
     const Rv = Math.round(gs * 0.45);
     const overrides: Record<string, number> = {};
-    rPlayers.current.forEach(pl => { overrides[`pl_${pl.id}`] = Rv; });
-    rLibEnemies.current.forEach(en => {
-      const tmpl = findTemplate(en.templateId);
-      const sm = tmpl?.sm ?? 0.90;
-      overrides[`lib_${en.id}`] = Math.max(8, Math.round(gs * sm / 2));
+    if (rGridAutoSize.current) {
+      rPlayers.current.forEach(pl => { overrides[`pl_${pl.id}`] = Rv; });
+      rLibEnemies.current.forEach(en => {
+        const tmpl = findTemplate(en.templateId);
+        const sm = tmpl?.sm ?? 0.90;
+        overrides[`lib_${en.id}`] = Math.max(8, Math.round(gs * sm / 2));
+      });
+    }
+    const prev = rTokenSizeOverride.current, newPos = { ...rPos.current };
+    rPlayers.current.forEach(pl => {
+      const k = `pl_${pl.id}`, d = (overrides[k] ?? 22) - (prev[k] ?? 22), p = newPos[k];
+      if (d && p) newPos[k] = { x: p.x - d, y: p.y - d };
     });
+    rPos.current = newPos; S.setPos(newPos);
     rTokenSizeOverride.current = overrides;
     S.setTokenSizeOverride(overrides);
     _broadcastState({ tokenSizeOverride: overrides });

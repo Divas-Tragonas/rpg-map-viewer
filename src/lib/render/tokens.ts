@@ -2,26 +2,69 @@ import type { FrameContext } from './types';
 import type { HpHit } from '@/types';
 import { TOKEN_LERP, C } from '@/constants';
 import { drawConditionBadges } from '@/lib/conditions';
-import { packReady } from '@/lib/sprites/pack';
-import { hasCreature, drawCreature, grayCreature } from '@/lib/sprites/draw';
+import { drawCreature, grayCreature } from '@/lib/sprites/draw';
 import { drawFigureState, figureLook, isLying, reducedMotion } from '@/lib/sprites/states';
 import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
 import { pointInPolygon } from '@/lib/geometry';
+import { FIG_SCALE, FOOT_FLAT, placeFigure, pixelSpriteOf, spreadOffset, tokenBounds } from './token-geom';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
 const _facing = new Map<string, { x: number; left: boolean }>();
 
 /**
- * Traça d'un aro al voltant d'un token. A l'app Píxel els aros (estats, torn, ressaltat,
- * selecció) són el·lipses als peus de la figureta, en la mateixa perspectiva que l'ombra:
- * un cercle vertical al voltant d'una figura dreta no lliga amb el pixel art.
+ * Traça d'un aro al voltant d'un token. A l'app Píxel els aros (estats, color, torn, ressaltat) són
+ * el·lipses als peus de la figureta, en la mateixa perspectiva que l'ombra: un cercle vertical al
+ * voltant d'una figura dreta no lliga amb el pixel art. Els peus i l'ombra són al CENTRE del token
+ * (el de la casella), veure `lib/render/token-geom.ts`.
  */
-const FOOT_DY = 0.62, FOOT_FLAT = 0.36;
-function ringPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, R: number, foot: boolean) {
+function ringPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, _R: number, foot: boolean) {
   ctx.beginPath();
-  if (foot) ctx.ellipse(cx, cy + R * FOOT_DY, r, r * FOOT_FLAT, 0, 0, Math.PI * 2);
+  if (foot) ctx.ellipse(cx, cy, r, r * FOOT_FLAT, 0, 0, Math.PI * 2);
   else ctx.arc(cx, cy, r, 0, Math.PI * 2);
+}
+
+// ── Halos ─────────────────────────────────────────────────────────────────────
+// Jerarquia, de dins a fora i de menys a més prominent (veure docs/tokens-i-combat.md, «Halos»):
+//   1. Estats  — anell SEGMENTAT de colors, gruixut, per DINS de la vora (`drawConditionBadges`). Quiet.
+//   2. Color   — línia CONTÍNUA fina just per fora de la vora, amb un fil fosc de contrast. Quiet.
+//   3. Torn    — aro daurat doble amb resplendor que respira, més enfora.
+//   4. Selecció — CLAUDÀTORS cian a les quatre cantonades d'una capsa que envolta tot el token: l'única
+//      forma que no és un anell, la més gruixuda i l'única que es pinta damunt de la figura.
+/** Radi de l'aro de color (px de mapa). */
+const colorR = (R: number, sc: number, foot: boolean) => foot ? R * 1.1 : R + 2.5 / sc;
+
+function drawColorHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, color: string, foot: boolean, invis = false) {
+  const r = colorR(R, sc, foot);
+  ctx.save();
+  if (invis) ctx.setLineDash([5 / sc, 3 / sc]);
+  ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1 / sc;
+  ringPath(ctx, cx, cy, r + 1.6 / sc, R, foot); ctx.stroke();
+  ctx.strokeStyle = invis ? 'rgba(100,180,255,.75)' : color; ctx.lineWidth = 2.2 / sc;
+  ringPath(ctx, cx, cy, r, R, foot); ctx.stroke();
+  ctx.restore();
+}
+
+const SEL_COLOR = '#5fd8ff';
+/**
+ * Selecció: claudàtors a les cantonades de la capsa del token (amb la figura sencera, del cap a la
+ * base). El seleccionat principal respira; els altres d'una selecció múltiple, quiets.
+ */
+function drawSelection(ctx: CanvasRenderingContext2D, box: { l: number; r: number; t: number; b: number }, R: number, sc: number, primary: boolean) {
+  const breathe = primary && !reducedMotion() ? 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 3.4) : 0;
+  const pad = R * 0.12 + (6 + 2.5 * breathe) / sc;
+  const l = box.l - pad, r = box.r + pad, t = box.t - pad, b = box.b + pad;
+  const arm = Math.min(r - l, b - t) * 0.27;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(l, t + arm); ctx.lineTo(l, t); ctx.lineTo(l + arm, t);
+  ctx.moveTo(r - arm, t); ctx.lineTo(r, t); ctx.lineTo(r, t + arm);
+  ctx.moveTo(r, b - arm); ctx.lineTo(r, b); ctx.lineTo(r - arm, b);
+  ctx.moveTo(l + arm, b); ctx.lineTo(l, b); ctx.lineTo(l, b - arm);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 6 / sc; ctx.stroke();
+  ctx.strokeStyle = SEL_COLOR; ctx.globalAlpha *= primary ? 1 : 0.8; ctx.lineWidth = 3.2 / sc; ctx.stroke();
+  ctx.restore();
 }
 
 /**
@@ -72,7 +115,7 @@ const overlapArea = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
 /** Cos d'un token a la pantalla (la part de la figureta o del disc que un nom no hauria de tapar). */
 const tokenBody = (t: NameTag): Box => t.fig
-  ? { l: t.cx - t.r * 0.75, r: t.cx + t.r * 0.75, t: t.cy - t.r * 1.15, b: t.cy + t.r * 0.9 }
+  ? { l: t.cx - t.r * 0.75, r: t.cx + t.r * 0.75, t: t.cy - t.r * 1.75, b: t.cy + t.r * 0.4 }
   : { l: t.cx - t.r, r: t.cx + t.r, t: t.cy - t.r, b: t.cy + t.r };
 
 /**
@@ -143,20 +186,29 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
   ctx.restore();
 }
 
-/** Centre per als badges dels estats: amb la figura estirada, baixen fins a ella (no suren on hi hauria el cap). */
-const badgeY = (cy: number, R: number, sprite: string | null, conds: readonly string[]) => sprite && isLying(conds) ? cy + R * 1.4 : cy;
+/**
+ * Centre per als badges dels estats. Amb figureta, els peus són al centre del token i els badges van
+ * sobre el cap (`drawConditionBadges` els puja 0,55·R més); estirada, baixen fins a ella.
+ */
+const FIG_BADGE_LIFT = 0.62;
+const badgeY = (cy: number, R: number, sprite: string | null, conds: readonly string[]) =>
+  !sprite ? cy : isLying(conds) ? cy + R * (1.4 - FIG_BADGE_LIFT) : cy - R * FIG_BADGE_LIFT;
 
 /** El token es pinta com a figureta? (estil Píxel, paquet carregat i criatura coneguda). */
-function pixelSprite(fc: FrameContext, sprite: string | undefined): string | null {
-  return fc.rAppStyle?.current === 'pixel' && packReady() && hasCreature(sprite) ? sprite : null;
-}
+const pixelSprite = (fc: FrameContext, sprite: string | undefined) => pixelSpriteOf(fc.rAppStyle?.current, sprite);
+
+/** Quin token es pinta a la passada de dalt (`pass: 'top'`): el seleccionat, perquè quedi damunt dels altres. */
+export type TokenPass = 'all' | 'base' | 'top';
+const topKeyOf = (fc: FrameContext) => fc.isDM && fc.rSelectedToken.current != null ? String(fc.rSelectedToken.current) : null;
+const skipInPass = (key: string, top: string | null, pass: TokenPass) => pass !== 'all' && ((key === top) !== (pass === 'top'));
 
 /**
- * Figureta damunt d'una base: ombra el·líptica, anell del color de l'equip als peus i la
- * criatura animada (4 fotogrames d'espera, desfasats per token). Derrotat → dreta i en
- * grisos. Substitueix només el disc del token: nom, vida, estats i aros es pinten igual.
- * Pinta la base i RETORNA la funció que pinta la figura: qui crida la crida després dels aros
- * dels peus (veure `renderEnemyTokens`), perquè quedin sota la figura.
+ * Figureta damunt d'una base: ombra el·líptica i anell del color de l'equip als peus, centrats al
+ * centre del token (`cx, cy`, el de la casella), i la criatura animada (4 fotogrames d'espera,
+ * desfasats per token) trepitjant l'ombra, centrada pel seu contingut real (`placeFigure`).
+ * Derrotat → dreta i en grisos. Substitueix només el disc del token: nom, vida, estats i aros es
+ * pinten igual. Pinta la base i RETORNA la funció que pinta la figura: qui crida la crida després
+ * dels aros dels peus, perquè quedin sota la figura.
  */
 function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
   cx: number, cy: number, R: number, team: string,
@@ -165,21 +217,19 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   // Cops i curacions (`lib/sprites/hitfx.ts`): es dedueixen de la vida; qui ataca és qui té el torn.
   const turn = fc.rTurn?.current;
   const now = performance.now();
-  noteFigure(key, sprite, opts.hp, opts.hpMax, cx, cy + R * 0.62, turn?.active ? String(turn.order[turn.turnIndex]) : null, now, opts.hpHit);
+  const footY = cy;
+  noteFigure(key, sprite, opts.hp, opts.hpMax, cx, footY, turn?.active ? String(turn.order[turn.turnIndex]) : null, now, opts.hpHit);
   const f = _facing.get(key);
   if (!f) _facing.set(key, { x: cx, left: false });
   else if (Math.abs(cx - f.x) > R * 0.25) { f.left = cx < f.x; f.x = cx; }  // marge: res de girs per tremolors del LERP
   const left = _facing.get(key)!.left;
-  const S = R * 2.4;
+  const S = R * FIG_SCALE;
   ctx.save();
   ctx.globalAlpha = opts.alpha ?? 1;
-  // Ombra i base de l'equip als peus.
+  // Ombra als peus, centrada a la casella, i l'aro del color de l'equip per fora.
   ctx.fillStyle = 'rgba(0,0,0,.38)';
-  ctx.beginPath(); ctx.ellipse(cx, cy + R * 0.62, R * 0.82, R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = team; ctx.lineWidth = 2.2 / sc;
-  if (opts.invis) ctx.setLineDash([5 / sc, 3 / sc]);
-  ctx.beginPath(); ctx.ellipse(cx, cy + R * 0.62, R * 0.86, R * 0.31, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.ellipse(cx, footY, R * 0.82, R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+  drawColorHalo(ctx, cx, footY, R, sc, team, true, opts.invis);
   ctx.restore();
   // La figura es pinta DESPRÉS: abans hi van els aros dels peus (estats, torn, ressaltat,
   // selecció), que no l'han de tapar mai.
@@ -187,29 +237,32 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   return () => {
     ctx.save();
     ctx.globalAlpha = alpha;
-    const hit = figureFx(key, cx, cy + R * 0.62, S, now, reducedMotion());
+    const hit = figureFx(key, cx, footY, S, now, reducedMotion());
     if (hit.dx || hit.dy || hit.rot) {
       // Envestida i empenta: la figura es mou i s'inclina sobre els peus (l'ombra es queda).
-      ctx.translate(cx + hit.dx, cy + R * 0.62 + hit.dy); ctx.rotate(hit.rot); ctx.translate(-cx, -(cy + R * 0.62));
+      ctx.translate(cx + hit.dx, footY + hit.dy); ctx.rotate(hit.rot); ctx.translate(-cx, -footY);
     }
+    const pf = placeFigure(sprite, cx, footY, R, left);
     const d = opts.defeated ?? 0;
     if (d > 0) {
       // Derrotat: la figura es queda dreta, quieta i perd el color (es fon des del color).
       const gray = grayCreature(sprite);
       ctx.imageSmoothingEnabled = false;
-      if (d < 1) drawCreature(ctx, sprite, 0, cx - S / 2, cy - S * 0.62, S, left);
+      if (d < 1) drawCreature(ctx, sprite, 0, pf.x - S / 2, pf.top, S, left);
       ctx.globalAlpha *= Math.min(1, d) * 0.85;
       if (gray) {
-        if (left) { ctx.translate(cx + S / 2, 0); ctx.scale(-1, 1); ctx.drawImage(gray, 0, cy - S * 0.62, S, S); }
-        else ctx.drawImage(gray, cx - S / 2, cy - S * 0.62, S, S);
+        if (left) { ctx.translate(pf.x + S / 2, 0); ctx.scale(-1, 1); ctx.drawImage(gray, 0, pf.top, S, S); }
+        else ctx.drawImage(gray, pf.x - S / 2, pf.top, S, S);
       }
     } else {
       if (opts.invis) ctx.globalAlpha *= 0.45;
       // Amb els estats a la figura (`lib/sprites/states.ts`): estirada, de pedra, quieta, contorn…
-      drawFigureState(ctx, sprite, figureLook(opts.conds ?? []), cx, cy + R * 0.62, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1), now, hit.flash);
+      // Estirada, la figura es posa de través sobre l'ombra (sense la correcció dels peus).
+      const look = figureLook(opts.conds ?? []);
+      drawFigureState(ctx, sprite, look, look.lying ? cx : pf.x, look.lying ? footY : pf.foot, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1), now, hit.flash);
     }
     ctx.restore();
-    if (alpha > 0.3) drawFigureHitFx(ctx, key, cx, cy + R * 0.62, S, now);
+    if (alpha > 0.3) drawFigureHitFx(ctx, key, cx, footY, S, now);
   };
 }
 
@@ -274,32 +327,67 @@ function getTokenImg(src: string): HTMLImageElement {
   return img;
 }
 
-// Aro del token que té el torn actiu (sistema per torns). Daurat SÒLID i gruixut:
-// coherent amb la paleta groga però deliberadament diferent de l'aro de "ressaltar
-// enemics" (doble anell suau, alpha animat) i del blau discontinu de selecció del DM.
+// Aro del token que té el torn actiu (sistema per torns). Daurat SÒLID amb resplendor que respira,
+// per fora de l'aro de color (veure «Halos»): deliberadament diferent de l'aro de "ressaltar
+// enemics" (doble anell suau, alpha animat) i dels claudàtors de selecció del DM.
 function drawActiveTurnRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, foot = false): void {
-  const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 3);
+  const pT = performance.now() / 1000, pulse = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(pT * 3);
+  const base = colorR(R, sc, foot);
   ctx.save();
-  ctx.strokeStyle = `rgba(255,190,40,${0.22 + 0.14 * pulse})`; ctx.lineWidth = 9 / sc;
-  ringPath(ctx, cx, cy, R + (9 + 3 * pulse) / sc, R, foot); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,196,52,0.95)'; ctx.lineWidth = 4 / sc;
-  ringPath(ctx, cx, cy, R + (5 + 1.5 * pulse) / sc, R, foot); ctx.stroke();
+  ctx.strokeStyle = `rgba(255,190,40,${0.22 + 0.14 * pulse})`; ctx.lineWidth = 8 / sc;
+  ringPath(ctx, cx, cy, base + (9 + 3 * pulse) / sc, R, foot); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,196,52,0.95)'; ctx.lineWidth = 3.5 / sc;
+  ringPath(ctx, cx, cy, base + (5 + 1 * pulse) / sc, R, foot); ctx.stroke();
   ctx.restore();
 }
 
-export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+/**
+ * Ombra d'un token de disc: concèntrica (una mica més gran i difosa), no desplaçada cap avall a la
+ * dreta, perquè el centre visual del token i el de l'ombra coincideixin amb el de la casella.
+ */
+function drawDiscShadow(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number) {
+  ctx.fillStyle = 'rgba(0,0,0,.22)';
+  ctx.beginPath(); ctx.arc(cx, cy, R + 4 / sc, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.arc(cx, cy, R + 2 / sc, 0, Math.PI * 2); ctx.fill();
+}
+
+/**
+ * Selecció del DM, damunt de tot el token (claudàtors). `cx, cy`: centre; amb figureta, la capsa va
+ * del cap a la base.
+ */
+function selectionFor(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, cx: number, cy: number, R: number, sprite: string | null, conds: readonly string[]) {
+  if (!fc.isDM) return;
+  const primary = fc.rSelectedToken.current === key;
+  if (!primary && !fc.rMultiSelected.current.has(key)) return;
+  // Estirada, la figura és de través sobre l'ombra: la capsa és la de la base, no la de la figura dreta.
+  const box = sprite && isLying(conds)
+    ? { l: cx - R * FIG_SCALE / 2, r: cx + R * FIG_SCALE / 2, t: cy - R * 0.75, b: cy + R * 0.5 }
+    : tokenBounds({ key, x: cx, y: cy, R, sprite });
+  drawSelection(ctx, box, R, fc.sc, primary);
+}
+
+/**
+ * `pass`: `'base'` pinta tots els tokens menys el seleccionat i `'top'` només el seleccionat, perquè
+ * quedi damunt dels altres (el mateix ordre que fa servir el hit-test, `token-geom.ts`).
+ */
+export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, pass: TokenPass = 'all'): void {
   const {
     sc, pp, isDM, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
-    visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride, rHighlightAlpha, rTurn,
+    visualPosRef, rTokenSizeOverride, rHighlightAlpha, rTurn,
   } = fc;
   const _turn = rTurn?.current;
   const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
+  const top = topKeyOf(fc);
 
   rLibEnemies.current.forEach(en => {
+    if (skipInPass(`lib_${en.id}`, top, pass)) return;
     const rawEp = (pp[`lib_${en.id}`] as { x: number; y: number } | undefined) || { x: 0, y: 0 };
     let ep: { x: number; y: number };
     if (isDM) {
-      ep = rawEp;
+      // Ventall dels tokens apilats (`token-geom.ts`): offset només visual.
+      const so = spreadOffset(`lib_${en.id}`);
+      ep = so.x || so.y ? { x: rawEp.x + so.x, y: rawEp.y + so.y } : rawEp;
     } else {
       const key = `lib_${en.id}`;
       const vp = visualPosRef.current[key];
@@ -338,10 +426,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     ctx.globalAlpha = enAlpha;
     const libSprite = pixelSprite(fc, en.sprite);
-    if (!libSprite) {
-      ctx.fillStyle = 'rgba(0,0,0,.4)';
-      ctx.beginPath(); ctx.arc(ep.x + 2 / sc, ep.y + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
-    }
+    if (!libSprite) drawDiscShadow(ctx, ep.x, ep.y, R, sc);
 
     let fig: (() => void) | null = null;
     if (libSprite) {
@@ -376,11 +461,12 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
           ctx.drawImage(tImg, ep.x - R, ep.y - R, R * 2, R * 2); ctx.restore();
         }
       }
-      ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
+      ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.5 / sc;
       if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
+    if (!libSprite) drawColorHalo(ctx, ep.x, ep.y, R, sc, en.color, false, isInvis);
 
     const showStates = isDM || !isInvis;
     ctx.globalAlpha = enAlpha;
@@ -396,7 +482,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     }
     ctx.globalAlpha = 1;
     const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
-      if (showStates) drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, libSprite, enCondIds), R, enCondIds, sc, libSprite ? { footY: ep.y + R * FOOT_DY, flat: FOOT_FLAT } : undefined, parts);
+      if (showStates) drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, libSprite, enCondIds), R, enCondIds, sc, libSprite ? { footY: ep.y, flat: FOOT_FLAT } : undefined, parts);
     };
     badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
 
@@ -405,10 +491,11 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       const pT = performance.now() / 1000;
       const pulse = 0.5 + 0.5 * Math.sin(pT * 3.2 + en.id * 0.43);
       ctx.save();
+      const hr = colorR(R, sc, !!libSprite);
       ctx.strokeStyle = `rgba(255,210,0,${(0.10 + 0.08 * pulse) * _ha})`; ctx.lineWidth = 10 / sc;
-      ringPath(ctx, ep.x, ep.y, R + (11 + 4 * pulse) / sc, R, !!libSprite); ctx.stroke();
+      ringPath(ctx, ep.x, ep.y, hr + (11 + 4 * pulse) / sc, R, !!libSprite); ctx.stroke();
       ctx.strokeStyle = `rgba(255,220,50,${(0.60 + 0.35 * pulse) * _ha})`; ctx.lineWidth = 2.5 / sc;
-      ringPath(ctx, ep.x, ep.y, R + (4 + 2 * pulse) / sc, R, !!libSprite); ctx.stroke();
+      ringPath(ctx, ep.x, ep.y, hr + (4 + 2 * pulse) / sc, R, !!libSprite); ctx.stroke();
       ctx.restore();
     }
 
@@ -452,14 +539,10 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       drawActiveTurnRing(ctx, ep.x, ep.y, R, sc, !!libSprite);
     }
 
-    if (isDM && (rSelectedToken.current === `lib_${en.id}` || rMultiSelected.current.has(`lib_${en.id}`))) {
-      const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
-      ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
-      ringPath(ctx, ep.x, ep.y, R + 7 / sc, R, !!libSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    }
-
     // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
     if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
+    ctx.globalAlpha = 1;
+    selectionFor(ctx, fc, `lib_${en.id}`, ep.x, ep.y, R, libSprite, enCondIds);
 
     ctx.globalAlpha = 1;
   });
@@ -479,8 +562,8 @@ export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext)
   const ghostSprite = pixelSprite(fc, pl.sprite);
   if (ghostSprite) {
     ctx.save(); ctx.globalAlpha = 0.55;
-    const S = R * 2.4;
-    drawCreature(ctx, ghostSprite, 0, cx - S / 2, cy - S * 0.62, S);
+    const S = R * FIG_SCALE, pf = placeFigure(ghostSprite, cx, cy, R, false);
+    drawCreature(ctx, ghostSprite, 0, pf.x - S / 2, pf.top, S);
     ctx.restore();
     return;
   }
@@ -498,14 +581,17 @@ export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext)
   ctx.restore();
 }
 
-export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+/** Tokens dels jugadors (`pass`: veure `renderLibEnemyTokens`). La posició és la cantonada; el centre, `+R`. */
+export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, pass: TokenPass = 'all'): void {
   const {
-    sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rMultiSelected, rTokenSizeOverride,
+    sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride,
     rDefeated, defeatedAnimRef, rTurn,
   } = fc;
   const _turn = rTurn?.current;
   const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
+  const top = topKeyOf(fc);
   rPlayers.current.forEach(pl => {
+    if (skipInPass(`pl_${pl.id}`, top, pass)) return;
     const rawPos = pp[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     let ppos = rawPos;
     const key = `pl_${pl.id}`;
@@ -518,6 +604,9 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       const anim = advanceMovePath(fc, key);
       if (anim) ppos = anim;
       else if (visualPosRef.current[key]) delete visualPosRef.current[key];
+      // Ventall dels tokens apilats (`token-geom.ts`): offset només visual.
+      const so = spreadOffset(key);
+      if (so.x || so.y) ppos = { x: ppos.x + so.x, y: ppos.y + so.y };
     } else {
       const vp = visualPosRef.current[key];
       if (!vp) { visualPosRef.current[key] = { ...rawPos }; ppos = rawPos; }
@@ -549,10 +638,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     }
     ctx.globalAlpha = 1;
     const plSprite = pixelSprite(fc, pl.sprite);
-    if (!plSprite) {
-      ctx.fillStyle = 'rgba(0,0,0,.4)';
-      ctx.beginPath(); ctx.arc(ppos.x + R + 2 / sc, ppos.y + R + 2 / sc, R, 0, Math.PI * 2); ctx.fill();
-    }
+    if (!plSprite) drawDiscShadow(ctx, ppos.x + R, ppos.y + R, R, sc);
     let fig: (() => void) | null = null;
     if (plSprite) {
       fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax, hpHit: pl.hpHit });
@@ -572,11 +658,12 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     } else {
       ctx.fillStyle = pl.color;
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
+      ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.5 / sc;
       if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
+    if (!plSprite) drawColorHalo(ctx, ppos.x + R, ppos.y + R, R, sc, pl.color, false, isInvis);
     if (!plSprite) {
       ctx.fillStyle = '#fff'; ctx.font = `bold ${13 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
@@ -586,7 +673,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       color: pl.color, bg: 'rgba(8,12,18,.8)', alpha: 1, pri: 0 });
     ctx.textAlign = 'left';
     const badges = (parts?: { ring?: boolean; badges?: boolean }) =>
-      drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? { footY: ppos.y + R + R * FOOT_DY, flat: FOOT_FLAT } : undefined, parts);
+      drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? { footY: ppos.y + R, flat: FOOT_FLAT } : undefined, parts);
     badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
 
     if (isDM && pl.hpMax > 0) {
@@ -619,15 +706,10 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     };
     if (!fig) drawCross();
 
-    if (isDM && (rSelectedToken.current === `pl_${pl.id}` || rMultiSelected.current.has(`pl_${pl.id}`))) {
-      const pT = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(pT * 4.5);
-      ctx.save(); ctx.strokeStyle = `rgba(100,210,255,${0.65 + 0.35 * pulse})`; ctx.lineWidth = 2.5 / sc; ctx.setLineDash([6 / sc, 3 / sc]);
-      ringPath(ctx, ppos.x + R, ppos.y + R, R + 7 / sc, R, !!plSprite); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    }
-
     if (_activeId != null && _activeId === `pl_${pl.id}` && !isDefeated) drawActiveTurnRing(ctx, ppos.x + R, ppos.y + R, R, sc, !!plSprite);
 
     // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
     if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
+    selectionFor(ctx, fc, `pl_${pl.id}`, ppos.x + R, ppos.y + R, R, plSprite, plCondIds);
   });
 }

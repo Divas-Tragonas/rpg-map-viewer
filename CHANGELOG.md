@@ -3,6 +3,15 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.79 — Tokens: halos, centre, apilats i menú al costat
+- **Halos amb jerarquia**: estats = anell segmentat per dins; color = línia fina contínua per fora; torn = aro daurat que respira; **selecció = claudàtors cian** a les cantonades de tot el token (l'únic que no és un anell i es pinta a sobre de la figura)
+- **Centre**: a l'app Píxel l'ombra i l'aro de color van al centre de la casella i la figura els trepitja, centrada pel contingut real de cada sprite (capsa alfa, sense valors per token). L'ombra dels discos és concèntrica
+- `sizeAllTokens` (i apagar «Mida» a la graella) recentren els jugadors en canviar-los el radi
+- **Un sol hit-test** (`render/token-geom.ts`) en l'ordre en què es pinten: el seleccionat queda a sobre i és el que es clica; la base del token té prioritat sobre el cap d'una figura veïna
+- **Tokens apilats**: amb el cursor a sobre (centres a menys de mitja casella, `TOKEN_STACK_TOL`) s'obren en ventall amb una animació curta i tornen al seu lloc en sortir. Offset només visual
+- **Menú del token** al costat del token (dreta o esquerra), centrat verticalment i dins la pantalla; contingut reordenat: vida, estats, conjurs i parlar a dalt, la fitxa a baix
+- Sense canvis a la API
+
 ### v4.78 — Menú principal, rail de la dreta, icones i menys text
 - **Menú ☰**: «Vista» i «⋯» s'uneixen en un sol menú pla (Vista · App · Ajuda). La barra passa de 4 menús a 3 (Pantalles, Partida, ☰)
 - **Rail de la dreta**: «Mostrar als jugadors» i «Història» surten de la barra i passen a una columna d'icones a la dreta del mapa (punt verd si s'està mostrant res). El panell d'Història li deixa lloc

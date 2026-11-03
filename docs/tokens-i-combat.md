@@ -37,9 +37,40 @@
   - Part amb **`bg`** → es pinta amb el **color del badge**. ⚠️ És l'única manera neta de fer la barra del "prohibit" (*Eixordat*): amb evenodd, allà on la barra creuava un forat de la silueta la doble inversió el tornava a omplir i quedava un escaquer.
 - **Tinta llegible** (`conditionInk`): blanc sobre colors foscos i gairebé negre sobre els clars (groc, cian, gris). Sense això, els estats de color clar pintaven un isotip blanc sobre blanc.
 - **Distintiu al mapa** (`drawConditionBadges`, cridada des de les tres famílies de tokens a `render/tokens.ts`, sempre **després** de pintar el token):
-  1. **Anell segmentat** a la vora del token: un tram per estat amb el seu color. És la lectura d'un cop d'ull — encara que els isotips quedin petits, els colors ja diuen quants estats hi ha. Va **per dins** del radi del token: a fora hi viuen l'aro daurat del torn, el de ressaltar enemics i el blau de selecció, i s'hi trepitjarien.
+  1. **Anell segmentat** a la vora del token: un tram per estat amb el seu color. És la lectura d'un cop d'ull — encara que els isotips quedin petits, els colors ja diuen quants estats hi ha. Va **per dins** del radi del token: a fora hi viuen l'aro del color, el daurat del torn, el de ressaltar enemics i els claudàtors de selecció (veure «Halos dels tokens»).
   2. **Badges amb isotip** repartits en un **arc simètric respecte del capdamunt** del token: amb pocs estats queden centrats sobre el cap i, a mesura que se n'acumulen, s'obren cap als costats fins a envoltar-lo. Si l'arc s'omple, el badge s'encongeix fins a un mínim llegible i, només si encara no hi caben, l'últim lloc mostra «+N».
 - **Menú** (`ConditionPicker`, usat pel menú d'un token i pel de multi-selecció a `ContextMenuOverlay`): **dues files de 8 isotips**, sense nom a sota (abans era una graella de 4 columnes amb el nom, que ocupava mig menú). El nom no es perd: la línia de capçalera «Estats» diu quins té el token i, en passar per sobre d'una icona, el nom en català amb el castellà i l'anglès (que també van al **`title` natiu** del botó). Els actius s'omplen del color de l'estat; els apagats són un isotip clar (`C.text`) sobre un cercle **opac** tenyit del seu color (`mix`): amb l'isotip del color de l'estat, els foscos (Encegat, Inconscient, Moribund) no es veien, i amb un cercle transparent les parts `bg` (la barra d'Ensordit) no tapaven la silueta.
+
+## Halos dels tokens (`render/tokens.ts`, v4.79)
+- **Problema**: selecció, color i estats eren tres anells concèntrics gairebé iguals (a l'app Píxel, tres el·lipses als peus a 0,86·R, 0,98·R i R+7 px) i no se sabia quin era quin.
+- **Jerarquia**, de dins a fora i de menys a més prominent:
+
+| Halo | Forma | Lloc | Gruix | Animació |
+|---|---|---|---|---|
+| Estats | anell **segmentat** de colors (`drawConditionBadges`) | per **dins** de la vora (Píxel: el·lipse a 0,98·R) | gruixut (≈0,11·R) | cap |
+| Color del token | línia **contínua** amb un fil fosc de contrast (`drawColorHalo`) | just **per fora** (disc: R+2,5 px; Píxel: el·lipse a 1,1·R) | 2,2 px | cap |
+| Torn actiu | aro **daurat doble** amb resplendor (`drawActiveTurnRing`) | per fora del de color | 3,5 px + resplendor 8 px | respira |
+| Selecció (DM) | **claudàtors** cian a les 4 cantonades (`drawSelection`) | capsa de tot el token (amb figureta, del cap a la base; estirada, la base) | 3,2 px + contorn fosc 6 px | el principal respira; els altres d'una multi-selecció, quiets i una mica més tènues |
+
+- La selecció és l'única forma que no és un anell i es pinta **l'última** (damunt de la figura). El ressaltar enemics continua sent el doble anell groc suau, ara per fora de l'aro de color.
+- Al disc, la vora blanca és més fina (1,5 px): és la vora del disc, no un halo.
+- `prefers-reduced-motion` atura la respiració del torn i de la selecció.
+
+## Centre del token i figureta (`render/token-geom.ts`, v4.79)
+- **Centre**: jugadors per la cantonada (`pos + R`), enemics de la biblioteca pel centre. ⚠️ En canviar el radi d'un jugador s'ha de moure la cantonada (−ΔR) perquè el centre no surti de la casella: ho fan `setTokenSize` i `sizeAllTokens` (que ara també fa el reset en apagar «Mida» a `GridPanel`; abans el reset deixava els jugadors descentrats).
+- **Ombra dels discos**: concèntrica (dos discs foscos una mica més grans), no desplaçada avall a la dreta.
+- **Figureta (Píxel)**: l'**ombra i l'aro de color van al centre de la casella** i la figura els **trepitja**. Abans l'ombra era a `cy + 0,62·R` (gairebé a la vora de baix de la casella) i la figura es pintava amb uns offsets fixos pensats per a un sprite «mitjà». Ara la posició surt del **contingut real de cada sprite** (`creatureBounds`: capsa alfa i centroide horitzontal del fotograma 0, calculats una vegada per sprite i cachejats): el centroide horitzontal de l'art queda a `cx` (amb el signe girat si la figura mira a l'esquerra) i la fila de baix dels peus a `cy + 0,06·R` (`placeFigure`). Res de valors per token.
+- `drawFigureState` no ha canviat: rep el peu ja corregit. Estirada, la figura es posa de través sobre l'ombra sense la correcció dels peus. Els badges dels estats pugen 0,62·R (`badgeY`) per continuar sobre el cap; el fantasma del drag del jugador (`renderDragGhost`) fa servir el mateix `placeFigure`.
+
+## Hit-test i tokens apilats (`render/token-geom.ts`, v4.79)
+- **Un sol hit-test**: `tokenAt(R, mx, my, sc)` per al clic (seleccionar/arrossegar), el Ctrl+arrossegar de l'eina de formes, el clic dret i el doble clic. Abans eren quatre bucles copiats (enemics primer, després jugadors) que no seguien l'ordre de pintura: amb un jugador damunt d'un enemic, el clic agafava l'enemic de sota.
+- **Ordre z = ordre de pintura** (`tokenSlots`): biblioteca, jugadors i **el seleccionat a sobre de tot**. El render ho fa amb dues passades (`pass: 'base' | 'top'` a `renderLibEnemyTokens`/`renderPlayerTokens`, des de `useRafLoop`); la pantalla de jugador fa una sola passada (`'all'`).
+- **Forma del hit**: primer la **base** (cercle de radi R + 4 px de pantalla) de tots els tokens, de dalt a baix; només si no n'hi ha cap, el **cos de la figureta** (capsa del contingut, `figureBox`). Així el cap d'una figura que puja dins la casella de dalt no li pren el clic al token que hi ha a la casella.
+- **Apilats → ventall**: en passar el cursor (DM, eina de selecció, sense arrossegar ni marquee) per sobre d'un token que en té d'altres a menys de **`TOKEN_STACK_TOL` = 0,5 caselles** (en cadena; sense graella, del diàmetre del token), s'obren en ventall al voltant del seu centre: veïns separats 1,6·R, el primer cap a l'esquerra (les figuretes són altes; de costat no es tapen). Dos tokens a caselles veïnes (1 casella) no s'obren.
+  - L'offset és **només visual** (`spreadOffset`): `rPos` no es toca, ni es desa ni viatja als jugadors. Viu al mòdul (com `_facing`), no a `DMRefs`: no el llegeix cap component.
+  - El càlcul del munt es fa al `pointermove` (`updateTokenSpread`), no a cada frame; mentre el cursor és dins del ventall obert no es recalcula. L'animació (exponencial, τ = 55 ms) avança al rAF (`advanceTokenSpread`, a `useRafLoop` abans dels tokens). En sortir, en clicar un token (comença el drag) o en sortir del canvas, tornen al seu lloc.
+  - El hit-test fa servir les posicions **del ventall** (on es veu cada token).
+  - Al tàctil no hi ha hover: el toc agafa el de dalt; per arribar al de sota, seleccionar-lo des del lateral.
 
 ## Efecte mecànic dels estats (`src/lib/rules/conditions.ts`)
 - **Problema que resolia**: després de la feinada de la v4.07/v4.08 hi havia 16 estats amb isotip, color i traduccions i **només un feia alguna cosa** (`blinded`, que encongeix el radi de llum a `darkrooms.ts`). Un token Agafat o Paralitzat es movia els seus 30 peus com si res.

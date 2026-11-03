@@ -16,3 +16,24 @@
 - El lateral té un `ScrollArea` dins d'un altre (`SidebarSection maxBodyHeight={420}` a Biblioteca): doble scroll a pantalles baixes.
 - Textos de FloatingToolbar (radi de llums) i resta de TurnTracker no tocats (fora d'abast).
 - Pendent: línia de dreceres de la paleta de caselles a `ShortcutsHelp`.
+
+## Lot B — Tokens (render i interacció)
+
+Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fix mínim a `useDMActions` (radi ↔ posició dels jugadors); el «submenú» és `ContextMenuOverlay`; la tasca 4 queda per després.
+
+- [x] 1. Halos: jerarquia selecció (claudàtors, el més prominent) > torn > color (vora) > estats (dins)
+- [x] 2. Centroide: ombra i peus de la figura al centre de la cel·la; figura centrada pel seu contingut real (bbox alfa, per sprite); ombra dels discos concèntrica
+- [x] 2b. `sizeAllTokens` / reset d'AutoSize compensen la posició dels jugadors (cantonada + R)
+- [x] 3a. Hit-test únic (`lib/render/token-geom.ts`) en ordre z visual; el seleccionat es pinta i es clica a sobre
+- [x] 3b. Tokens apilats: s'obren en passar-hi per sobre (offset visual, animat al rAF), tolerància `TOKEN_STACK_TOL`
+- [ ] 4. Colors i textures del grup — **ajornat** per l'usuari
+- [x] 5. Menú del token (`ContextMenuOverlay`) al costat del token, centrat verticalment i dins la pantalla
+- [x] Verificació: tsc + lint + captures (1, 2 apilats, 5 junts, vora, zoom)
+- [x] CHANGELOG + APP_VERSION + docs
+
+### Fora d'abast (anotat, no tocat)
+- `usePlayerTokenDrag` (pantalla de jugador) té el seu propi hit-test circular: no fa servir el nou `token-geom` (no agafa el cap de les figuretes).
+- La selecció per marquee (`useMouseHandlers`, `inside(...)`) llegeix els centres a mà; funciona, però podria passar per `tokenSlots(R, false)`.
+- `selectAndArmDrag` afegeix el token a la selecció múltiple encara que només n'hi hagi un de seleccionat (clic a A i després a B → tots dos seleccionats). Comportament previ; revisar si és volgut.
+- Les figuretes es pinten en ordre d'array, no per Y: en una vista 3/4, la de més avall hauria de tapar la de dalt. Canviar-ho també canviaria l'ordre z del hit-test.
+- Al tàctil no hi ha hover: el ventall dels apilats no s'obre (es podria obrir amb un toc llarg).
