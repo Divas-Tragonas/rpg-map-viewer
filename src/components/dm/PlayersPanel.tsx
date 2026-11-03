@@ -124,7 +124,7 @@ export function PlayersPanel({ players, newPName, setNewPName, newPColor, setNew
       </div>
       {players.length === 0 && !addOpen && (
         <div style={{ padding: '4px 0 2px', fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
-          Encara no hi ha cap jugador. Prem <b style={{ color: C.text }}>DIVAS</b> per carregar el grup de la campanya o <b style={{ color: C.text }}>＋</b> per afegir-ne un.
+          Cap jugador
         </div>
       )}
     </SidebarSection>

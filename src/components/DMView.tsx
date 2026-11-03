@@ -71,6 +71,7 @@ import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
 import { buildSheetShow, characterFor, STATS_PART } from '@/lib/characters';
 import { creatureStats } from '@/lib/bestiary';
+import { RightRail } from '@/components/dm/RightRail';
 import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
 import { useStory } from '@/hooks/useStory';
 import { useJournalWatchers } from '@/hooks/useJournalWatchers';
@@ -1697,9 +1698,7 @@ export function DMView() {
         mapName={bgLoaded ? bgName : null}
         sidebarOpen={sideOpen} onToggleSidebar={toggleSide}
         mode={mode} onModeChange={switchMode}
-        showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
         undoLabel={undoLabel} onUndo={undoLast}
-        storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => !v)}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         onOpenBoard={() => { if (!openBoard()) notify("El navegador no ha deixat obrir el tauler de missions: permet les finestres emergents d'aquesta pàgina."); }}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt} autosaveFailing={autosaveFailing}
@@ -1826,6 +1825,10 @@ export function DMView() {
             onGo={id => void scenes.goTo(id)} onHover={scenes.hover} />
         )}
         <SceneCurtain closed={!!scenes.curtain?.closed} title={scenes.curtain?.title ?? ''} pixel={pixel} zIndex={45} />
+        <RightRail
+          canShow={mode === 'jugar' || showPanelOpen || expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId}
+          showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
+          storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => !v)} />
         <CanvasHUD
           gridCalibrating={gridCalibrating} hasMap={bgLoaded}
           zoom={zoom} onZoomChange={onZoomChange} onResetView={onResetView}
@@ -1926,9 +1929,8 @@ export function DMView() {
                 </>
               )}
               {!expositorLocalSrc && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8, color: C.dim }}>
+                <div title="Arrossega o clica per carregar imatge / vídeo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8, color: C.dim }}>
                   <ImageIcon size={28} color={C.dim} />
-                  <div style={{ fontSize: FS.sm }}>Arrossega o clica per carregar imatge / vídeo</div>
                 </div>
               )}
             </div>

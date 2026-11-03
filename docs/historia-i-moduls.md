@@ -1,6 +1,6 @@
 # Història: mòduls i diari de la sessió
 
-> El panell **Història** (botó de la barra superior): el mòdul que es juga, la biblioteca de mòduls
+> El panell **Història** (botó de la rail de la dreta del mapa): el mòdul que es juga, la biblioteca de mòduls
 > importats i el diari de la sessió. Part de la documentació tècnica: vegeu [docs/README.md](README.md).
 
 ## Per què existeix
@@ -139,7 +139,7 @@ línia per entrada marcada (`recapText`). El DM el mostra als jugadors com quals
 el botó és desactivat.
 
 ## UI (`StoryPanel`, `ModuleView`, `ModuleLibrary`, `JournalView`)
-- Botó **Història** a la barra superior (sempre visible). El panell va a la **dreta del mapa, sota el
+- Botó **Història** a la rail d'icones de la dreta del mapa (`RightRail`, sempre visible). El panell va a la **dreta del mapa, sota el
   zoom** (el «Mostrar als jugadors» és a l'esquerra: es poden tenir oberts alhora). Tres pestanyes: **Mòdul**
   (l'actiu), **Mòduls** (biblioteca: importar fitxer o enganxar JSON, triar, canviar l'estat, eliminar amb
   confirmació) i **Diari**.

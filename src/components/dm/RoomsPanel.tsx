@@ -135,10 +135,11 @@ export function RoomsPanel({
         {/* Sense accions a la capçalera: les eines Parets i Llums i el desfer dels canvis del
             mapa viuen a la barra d'eines del mode Preparar. */}
         {rooms.length === 0 ? (
-          <div style={{ padding: '2px 12px 8px', color: C.dim, fontSize: FS.sm, lineHeight: 1.5 }}>
-            {wallsCount > 0
+          <div style={{ padding: '2px 12px 8px', color: C.dim, fontSize: FS.sm, lineHeight: 1.5 }}
+            title={wallsCount > 0
               ? 'Hi ha parets dibuixades però cap recinte tancat encara. Tanca el perímetre perquè es detecti una sala.'
-              : 'Dibuixa parets amb l’eina Parets de la barra d’eines (tecla 5) i les sales apareixeran aquí.'}
+              : 'Dibuixa parets amb l’eina Parets de la barra d’eines (tecla 5) i les sales apareixeran aquí.'}>
+            {wallsCount > 0 ? 'Cap recinte tancat' : 'Cap sala'}
           </div>
         ) : (
           <>

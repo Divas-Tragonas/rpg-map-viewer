@@ -53,11 +53,6 @@ export function WelcomeScreen(p: Props) {
           Obre el mapa (una imatge o un vídeo) o arrossega&apos;l a qualsevol lloc d&apos;aquesta pantalla.
         </div>
         {/* Guia per a qui arriba de nou: el mateix recorregut que explica el README. */}
-        <ol style={{ margin: '14px auto 0', padding: 0, listStyle: 'none', textAlign: 'left', maxWidth: 348, fontSize: FS.sm, lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <li><b style={{ color: C.bright }}>1 · Obre un mapa</b> (o prova la demo o una missió)</li>
-          <li><b style={{ color: C.bright }}>2 · Prepara</b>: parets, sales, enemics i jugadors</li>
-          <li><b style={{ color: C.bright }}>3 · Juga</b>: obre una pantalla de jugador (menú Pantalles) i passa a Jugar</li>
-        </ol>
 
         {/* App Píxel: el mapa es pinta a casella (o s'importa de Tiled). */}
         {pixel && (

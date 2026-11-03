@@ -23,7 +23,7 @@ export function DropZone({ accept, label, sub, active, color, onFile, onDrop, di
       <Upload size={12} color={active ? color : C.dim} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ color: active ? color : C.dim, fontWeight: 500, fontSize: FS.sm, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
-        <div style={{ color: C.dim, fontSize: FS.xs, marginTop: 1 }}>{sub}</div>
+        {sub && <div style={{ color: C.dim, fontSize: FS.xs, marginTop: 1 }}>{sub}</div>}
       </div>
     </label>
   );

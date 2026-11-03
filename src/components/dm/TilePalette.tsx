@@ -142,8 +142,9 @@ export function TilePalette({ brush, onBrush }: Props) {
           </div>
         </ScrollArea>
       )}
-      <div style={{ padding: '6px 10px', borderTop: `1px solid ${C.border}`, fontSize: FS.xs, color: C.dim, lineHeight: 1.5 }}>
-        Arrossega per pintar · <b style={{ color: C.text }}>Maj</b> omple un rectangle · <b style={{ color: C.text }}>clic dret</b> esborra
+      <div style={{ padding: '6px 10px', borderTop: `1px solid ${C.border}`, fontSize: FS.xs, color: C.dim, lineHeight: 1.5 }}
+        title="Arrossega per pintar · Maj omple un rectangle · clic dret esborra">
+        Pintar · Maj omple · clic dret esborra
       </div>
     </div>
   );

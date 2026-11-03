@@ -43,10 +43,8 @@ export function PixelMapPanel({ tileMapSize, onCreate, onImportTmx, onEdit }: Pr
         {tileMapSize ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontSize: FS.sm, color: C.text }}>{tileMapSize.cols} × {tileMapSize.rows} caselles</div>
-            <Button variant="primary" size="md" onClick={onEdit} style={{ gap: 6 }}><TilesIcon size={13} /> Editar (eina Caselles · 7)</Button>
-            <div style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.5 }}>
-              Les parets que pintis fan de parets de veritat: sales fosques, llum i moviment. Les torxes fan llum.
-            </div>
+            <Button variant="primary" size="md" onClick={onEdit} style={{ gap: 6 }}
+              title="Les parets que pintis fan de parets de veritat: sales fosques, llum i moviment. Les torxes fan llum."><TilesIcon size={13} /> Editar (eina Caselles · 7)</Button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: ready ? 1 : 0.5 }}>

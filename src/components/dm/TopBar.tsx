@@ -2,9 +2,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  ImageIcon, Monitor, Maximize2, Copy, SaveIcon, ChevronDown, SlidersIcon, MoreHorizontal, Keyboard,
-  ExternalLink, AlertTriangle, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon, Shield,
-  WallIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon, MapIcon, BookIcon,
+  Monitor, Maximize2, Copy, SaveIcon, ChevronDown, MenuIcon, Keyboard,
+  ExternalLink, AlertTriangle, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon,
+  HammerIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon, MapIcon, FlagIcon, DashboardIcon,
 } from '@/components/icons';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
@@ -19,7 +19,7 @@ export const TOP_BAR_H = 48;
 /** Amplada del bloc del nom del mapa: la mateixa que el lateral, perquè la resta s'alineï amb l'escenari. */
 const IDENTITY_W = 250;
 
-type MenuId = 'screens' | 'game' | 'view' | 'more';
+type MenuId = 'screens' | 'game' | 'more';
 
 interface Props {
   /** Nom del fitxer del mapa; null = encara no n'hi ha cap de carregat. */
@@ -28,10 +28,6 @@ interface Props {
   sidebarOpen: boolean; onToggleSidebar: () => void;
   /** Preparar (construir el mapa) o Jugar (a la taula). */
   mode: DMMode; onModeChange: (m: DMMode) => void;
-  /** «Mostrar als jugadors» (expositor + revelador): panell obert i si ara mateix s'hi mostra res. */
-  showOpen: boolean; showActive: boolean; onToggleShow: () => void;
-  /** Panell «Història» (mòdul actiu, biblioteca i diari de la sessió). */
-  storyOpen: boolean; onToggleStory: () => void;
   /** Què desfaria el «Desfer» (null = res) i l'acció; la mateixa que Ctrl+Z. */
   undoLabel: string | null; onUndo: () => void;
   /** Pantalles de jugador connectades (id → mida en píxels CSS del seu canvas). */
@@ -106,7 +102,7 @@ function Popover({ onClose, width, padding = 6, children }: {
   const compact = useCompact();
   const place: React.CSSProperties = compact
     ? { position: 'fixed', top: TOP_BAR_H + 6, left: 8, right: 8, maxHeight: `calc(100dvh - ${TOP_BAR_H + 20}px)`, overflowY: 'auto' }
-    : { position: 'absolute', top: 'calc(100% + 8px)', right: 0, width };
+    : { position: 'absolute', top: 'calc(100% + 8px)', right: 0, width, maxHeight: `calc(100dvh - ${TOP_BAR_H + 20}px)`, overflowY: 'auto' };
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 1 }} onClick={onClose} />
@@ -221,11 +217,7 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
         <Popover onClose={onClose} width={330} padding={12}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Pantalles de jugador</div>
-            {none ? (
-              <div style={{ fontSize: FS.sm, color: C.dim, lineHeight: 1.45 }}>
-                No n&apos;hi ha cap de connectada. Una pantalla surt aquí uns segons després d&apos;obrir-se.
-              </div>
-            ) : (
+            {none ? null : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {rows.map(r => (
                   <div key={r.id} style={{ fontSize: FS.sm, color: C.text, display: 'flex', gap: 6 }}>
@@ -235,7 +227,6 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
                     </span>
                   </div>
                 ))}
-                <div style={{ fontSize: FS.xs, color: C.dim, marginTop: 2 }}>Totes veuen com a mínim tot el teu enquadrament.</div>
               </div>
             )}
             <Button variant="primary" block onClick={() => { onOpenPlayer(); onClose(); }} style={{ gap: 6 }}>
@@ -302,18 +293,14 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 10px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Desat automàtic</span>
-                  <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.45 }}>
-                    {failing
-                      ? `No pot escriure (espai ple o finestra privada). ${autosaveAt ? `L'últim que va funcionar: ${agoLabel(autosaveAt)}.` : 'No s\'ha arribat a desar res.'} Exporta la partida a un fitxer.`
-                      : autosaveEnabled
-                      ? `Cada 30 s i en amagar la pestanya. ${autosaveAt ? `Últim: ${agoLabel(autosaveAt)}.` : 'Encara no s\'ha desat res.'}`
-                      : 'Apagat: si refresques o tanques, perds la partida.'}
+                  <span title={title} style={{ fontSize: FS.xs, color: failing ? C.enemy : C.dim, lineHeight: 1.45 }}>
+                    {failing ? 'No pot escriure' : !autosaveEnabled ? 'Apagat' : autosaveAt ? `Últim: ${agoLabel(autosaveAt)}` : 'Encara no s\'ha desat'}
                   </span>
                 </div>
                 <Switch on={autosaveEnabled} onChange={onToggleAutosave} label="Desat automàtic" />
               </div>
               {autosaveEnabled && (
-                <MenuItem icon={<CheckIcon size={14} />} label="Desar ara" onClick={() => { onSaveNow(); onClose(); }} />
+                <MenuItem icon={<SaveIcon size={14} />} label="Desar ara" onClick={() => { onSaveNow(); onClose(); }} />
               )}
               <MenuDivider />
             </>
@@ -334,7 +321,7 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
               <MenuDivider />
               <div style={{ padding: '6px 10px 2px', fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 0.4 }}>Missions</div>
               {missions.map(m => (
-                <MenuItem key={m.id} icon={<MapIcon size={14} />} label={m.name} hint={m.subtitle}
+                <MenuItem key={m.id} icon={<FlagIcon size={14} />} label={m.name} hint={m.subtitle}
                   title={hasMap ? `Obre ${m.name} amb les DIVAS. El mapa d'ara es tanca (exporta'l abans si el vols guardar).` : `Obre ${m.name} amb les DIVAS`}
                   onClick={() => { onOpenMission(m.id); onClose(); }} />
               ))}
@@ -347,96 +334,73 @@ function GameMenu({ open, onToggle, onClose, hasMap, autosaveEnabled, autosaveAt
 }
 
 /**
- * Vista (només a la pantalla del DM): opacitat del mapa i ressaltar enemics. Abans eren un
- * lliscador al peu del lateral i dos xips a dalt al centre.
+ * Secció «Vista» del menú principal (només a la pantalla del DM): graella, figuretes, opacitat
+ * del mapa i ressaltar enemics. Abans era un menú propi a la barra. Les explicacions van als
+ * `title` (tooltip), no com a paràgrafs.
  */
-function ViewMenu({ open, onToggle, onClose, bgOpacity, onBgOpacityChange, gridVisible, onToggleGrid, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked, figureGrade, onToggleFigureGrade }: {
-  open: boolean; onToggle: () => void; onClose: () => void;
-} & Pick<Props, 'bgOpacity' | 'onBgOpacityChange' | 'gridVisible' | 'onToggleGrid' | 'enemyHighlight' | 'highlightLocked' | 'onToggleEnemyHighlight' | 'onToggleHighlightLocked' | 'figureGrade' | 'onToggleFigureGrade'>) {
+function ViewSection({ bgOpacity, onBgOpacityChange, gridVisible, onToggleGrid, enemyHighlight, highlightLocked, onToggleEnemyHighlight, onToggleHighlightLocked, figureGrade, onToggleFigureGrade }:
+  Pick<Props, 'bgOpacity' | 'onBgOpacityChange' | 'gridVisible' | 'onToggleGrid' | 'enemyHighlight' | 'highlightLocked' | 'onToggleEnemyHighlight' | 'onToggleHighlightLocked' | 'figureGrade' | 'onToggleFigureGrade'>) {
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px' };
+  const name: React.CSSProperties = { flex: 1, fontSize: FS.md, fontWeight: 600, color: C.text };
   return (
-    <div style={{ position: 'relative' }}>
-      <BarButton active={open} onClick={onToggle} title="Opcions de vista de la teva pantalla">
-        <SlidersIcon size={14} /> <Label>Vista</Label>
-        <StateDot color={enemyHighlight ? C.enemyHL : null} />
-      </BarButton>
-      {open && (
-        <Popover onClose={onClose} width={280} padding={14}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <GridIcon size={14} color={C.dim} />
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Graella</span>
-              <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.4 }}>A les pantalles dels jugadors. Tu la veus quan mous tokens o mesures.</span>
-            </div>
-            <Switch on={gridVisible} onChange={onToggleGrid} label="Graella visible" />
-          </div>
-          {/* Només amb un mapa que en porta (missions): és un ajust del mapa, no de la UI. */}
-          {figureGrade && (
-            <>
-              <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <PixelSwordIcon size={14} color={C.dim} />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Figuretes a to amb el mapa</span>
-                  <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.4 }}>Colors apagats com els del mapa. A totes les pantalles.</span>
-                </div>
-                <Switch on={figureGrade.on} onChange={onToggleFigureGrade} label="Figuretes a to amb el mapa" />
-              </div>
-            </>
-          )}
-          <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label htmlFor="dm-bg-opacity" style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.md, fontWeight: 700, color: C.bright }}>
-              Opacitat del mapa
-              <span style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>{Math.round(bgOpacity * 100)}%</span>
-            </label>
-            <input id="dm-bg-opacity" type="range" min={0.1} max={1} step={0.05} value={bgOpacity}
-              onChange={e => onBgOpacityChange(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.45 }}>
-              Només a la teva pantalla: els jugadors veuen el mapa sempre opac.
-            </span>
-          </div>
-          {/* Amb qualsevol mapa: es ressalten els enemics de la biblioteca. */}
-          {(
-            <>
-              <div style={{ height: 1, background: C.border, margin: '12px 0' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: FS.md, fontWeight: 700, color: C.bright }}>Ressaltar enemics</span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <Button active={enemyHighlight} color={C.enemyHL} onClick={onToggleEnemyHighlight} style={{ flex: 1, gap: 6, height: 32 }}>
-                    <TargetIcon size={12} /> {enemyHighlight ? 'Ressaltant' : 'Ressaltar'}
-                  </Button>
-                  <Button active={highlightLocked} color={C.enemyHL} onClick={onToggleHighlightLocked}
-                    aria-label="Fixar el ressaltat" title={highlightLocked ? 'Fixat: no s\'apaga sol' : 'Dura 3,5 s'} style={{ width: 40, height: 32, padding: 0 }}>
-                    {highlightLocked ? <LockIcon size={12} /> : <UnlockIcon size={12} />}
-                  </Button>
-                </div>
-                <span style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.45 }}>
-                  {highlightLocked ? 'Fixat: es queda encès fins que el tornis a prémer.' : 'Dura 3,5 s. Amb el cadenat es queda fix.'}
-                </span>
-              </div>
-            </>
-          )}
-        </Popover>
+    <>
+      <SectionLabel>Vista</SectionLabel>
+      <div style={row} title="Graella a les pantalles dels jugadors. Tu la veus quan mous tokens o mesures.">
+        <GridIcon size={14} color={C.dim} /><span style={name}>Graella</span>
+        <Switch on={gridVisible} onChange={onToggleGrid} label="Graella visible" />
+      </div>
+      {/* Només amb un mapa que en porta (missions): és un ajust del mapa, no de la UI. */}
+      {figureGrade && (
+        <div style={row} title="Colors apagats com els del mapa. A totes les pantalles.">
+          <PixelSwordIcon size={14} color={C.dim} /><span style={name}>Figuretes a to amb el mapa</span>
+          <Switch on={figureGrade.on} onChange={onToggleFigureGrade} label="Figuretes a to amb el mapa" />
+        </div>
       )}
-    </div>
+      <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch', gap: 4 }} title="Només a la teva pantalla: els jugadors veuen el mapa sempre opac.">
+        <label htmlFor="dm-bg-opacity" style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.md, fontWeight: 600, color: C.text }}>
+          Opacitat del mapa
+          <span style={{ color: C.dim, fontVariantNumeric: 'tabular-nums' }}>{Math.round(bgOpacity * 100)}%</span>
+        </label>
+        <input id="dm-bg-opacity" type="range" min={0.1} max={1} step={0.05} value={bgOpacity}
+          onChange={e => onBgOpacityChange(parseFloat(e.target.value))} style={{ width: '100%' }} />
+      </div>
+      <div style={row} title={highlightLocked ? 'Fixat: es queda encès fins que el tornis a prémer.' : 'Dura 3,5 s. Amb el cadenat es queda fix.'}>
+        <span style={name}>Ressaltar enemics</span>
+        <Button active={enemyHighlight} color={C.enemyHL} onClick={onToggleEnemyHighlight} style={{ gap: 6, height: 28, width: 40, padding: 0 }}
+          aria-label="Ressaltar enemics" aria-pressed={enemyHighlight}>
+          <TargetIcon size={12} />
+        </Button>
+        <Button active={highlightLocked} color={C.enemyHL} onClick={onToggleHighlightLocked}
+          aria-label="Fixar el ressaltat" style={{ width: 40, height: 28, padding: 0 }}>
+          {highlightLocked ? <LockIcon size={12} /> : <UnlockIcon size={12} />}
+        </Button>
+      </div>
+    </>
   );
 }
 
-function MoreMenu({ open, onToggle, onClose, onShowShortcuts, pixel, onSetPixel }: {
-  open: boolean; onToggle: () => void; onClose: () => void; onShowShortcuts: () => void;
-  pixel: boolean; onSetPixel: (v: boolean) => void;
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ padding: '8px 10px 2px', fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</div>
+);
+
+/**
+ * Menú principal (☰): Vista, App i Ajuda en un sol nivell. Substitueix els menús «Vista» i ⋯.
+ * El canvi d'app (Clàssica · Píxel) és una preferència, no una decisió de cada moment.
+ */
+function MainMenu({ open, onToggle, onClose, hasMap, onShowShortcuts, pixel, onSetPixel, view }: {
+  open: boolean; onToggle: () => void; onClose: () => void; hasMap: boolean; onShowShortcuts: () => void;
+  pixel: boolean; onSetPixel: (v: boolean) => void; view: Parameters<typeof ViewSection>[0];
 }) {
   return (
     <div style={{ position: 'relative' }}>
-      <BarButton active={open} onClick={onToggle} ariaLabel="Més opcions" title="Més opcions">
-        <MoreHorizontal size={16} />
+      <BarButton active={open} onClick={onToggle} ariaLabel="Menú principal" title="Menú principal: vista, app, dreceres">
+        <MenuIcon size={16} />
       </BarButton>
       {open && (
-        <Popover onClose={onClose} width={240}>
-          {/* El canvi d'app (Clàssica · Píxel) és una preferència, no una decisió de cada
-              moment: viu aquí perquè la barra només tingui el que es fa servir a la taula. */}
-          <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ flex: 1, fontSize: FS.md, fontWeight: 700, color: C.bright }}>App</span>
+        <Popover onClose={onClose} width={300}>
+          {hasMap && <><ViewSection {...view} /><MenuDivider /></>}
+          <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ flex: 1, fontSize: FS.md, fontWeight: 600, color: C.text }}>App</span>
             <AppSwitch pixel={pixel} onChange={onSetPixel} />
           </div>
           <MenuDivider />
@@ -445,7 +409,7 @@ function MoreMenu({ open, onToggle, onClose, onShowShortcuts, pixel, onSetPixel 
             onClick={() => { onShowShortcuts(); onClose(); }} />
           <Link href="/admin" target="_blank" className="dm-menu-item" onClick={onClose}
             style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: RADIUS.md, fontSize: FS.md, fontWeight: 600, color: C.text, textDecoration: 'none' }}>
-            <span style={{ display: 'flex', color: C.dim }}><Shield size={14} /></span>
+            <span style={{ display: 'flex', color: C.dim }}><DashboardIcon size={14} /></span>
             <span style={{ flex: 1 }}>Back office</span>
             <ExternalLink size={12} color={C.dim} />
           </Link>
@@ -464,7 +428,7 @@ function MoreMenu({ open, onToggle, onClose, onShowShortcuts, pixel, onSetPixel 
 function ModeSwitch({ mode, onChange }: { mode: DMMode; onChange: (m: DMMode) => void }) {
   const compact = useCompact();
   const opts: [DMMode, string, React.ReactNode, string][] = [
-    ['preparar', 'Preparar', <WallIcon key="p" size={13} />, 'Construir el mapa: parets, portes, llums, graella i capes'],
+    ['preparar', 'Preparar', <HammerIcon key="p" size={13} />, 'Construir el mapa: parets, portes, llums, graella i capes'],
     ['jugar', 'Jugar', <SwordsIcon key="j" size={13} />, 'A la taula: regla, dibuix, màgies i torns'],
   ];
   return (
@@ -570,21 +534,6 @@ export function TopBar(p: Props) {
 
       <ModeSwitch mode={p.mode} onChange={p.onModeChange} />
 
-      {/* És cosa de la partida: a Preparar només surt si hi ha alguna cosa en pantalla
-          (perquè es pugui amagar). */}
-      {(p.mode === 'jugar' || p.showActive || p.showOpen) && (
-        <BarButton active={p.showOpen} onClick={p.onToggleShow}
-          title="Ensenya una imatge, un vídeo o un text a pantalla completa als jugadors">
-          <ImageIcon size={14} /> <Label>Mostrar als jugadors</Label>
-          <StateDot color={p.showActive ? C.ok : null} />
-        </BarButton>
-      )}
-
-      <BarButton active={p.storyOpen} onClick={p.onToggleStory}
-        title="Mòdul que es juga, biblioteca de mòduls i diari de la sessió (N: nota ràpida)">
-        <BookIcon size={14} /> <Label>Història</Label>
-      </BarButton>
-
       <div style={{ flex: 1, minWidth: 0 }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 4 : 6, flexShrink: 0 }}>
@@ -604,16 +553,11 @@ export function TopBar(p: Props) {
           onToggleAutosave={p.onToggleAutosave} onSaveNow={p.onSaveNow}
           onExport={p.onExport} onImport={p.onImport} onOpenServer={p.onOpenServer}
           missions={p.missions} onOpenMission={p.onOpenMission} />
-        {hasMap && (
-          <ViewMenu open={menu === 'view'} onToggle={toggle('view')} onClose={close}
-            bgOpacity={p.bgOpacity} onBgOpacityChange={p.onBgOpacityChange}
-            gridVisible={p.gridVisible} onToggleGrid={p.onToggleGrid}
-            enemyHighlight={p.enemyHighlight} highlightLocked={p.highlightLocked}
-            onToggleEnemyHighlight={p.onToggleEnemyHighlight} onToggleHighlightLocked={p.onToggleHighlightLocked}
-            figureGrade={p.figureGrade} onToggleFigureGrade={p.onToggleFigureGrade} />
-        )}
-        <MoreMenu open={menu === 'more'} onToggle={toggle('more')} onClose={close} onShowShortcuts={p.onShowShortcuts}
-          pixel={p.pixel} onSetPixel={p.onSetPixel} />
+        <MainMenu open={menu === 'more'} onToggle={toggle('more')} onClose={close} hasMap={hasMap}
+          onShowShortcuts={p.onShowShortcuts} pixel={p.pixel} onSetPixel={p.onSetPixel}
+          view={{ bgOpacity: p.bgOpacity, onBgOpacityChange: p.onBgOpacityChange, gridVisible: p.gridVisible, onToggleGrid: p.onToggleGrid,
+            enemyHighlight: p.enemyHighlight, highlightLocked: p.highlightLocked, onToggleEnemyHighlight: p.onToggleEnemyHighlight,
+            onToggleHighlightLocked: p.onToggleHighlightLocked, figureGrade: p.figureGrade, onToggleFigureGrade: p.onToggleFigureGrade }} />
       </div>
     </header>
     </CompactContext.Provider>

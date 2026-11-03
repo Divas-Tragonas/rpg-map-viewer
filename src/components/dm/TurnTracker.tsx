@@ -253,8 +253,8 @@ export function TurnTracker({
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)', padding: 14,
           }}>
             <div style={{ color: C.bright, fontWeight: 700, fontSize: FS.lg, marginBottom: 4 }}>Iniciar combat per torns</div>
-            <div style={{ color: C.dim, fontSize: FS.sm, marginBottom: 10 }}>
-              Tots els jugadors s&apos;afegeixen automàticament. Tria quins enemics o grups incloure:
+            <div style={{ color: C.dim, fontSize: FS.sm, marginBottom: 10 }} title="Tots els jugadors s'afegeixen automàticament">
+              Enemics o grups a incloure:
             </div>
 
             {groups.length > 0 && (

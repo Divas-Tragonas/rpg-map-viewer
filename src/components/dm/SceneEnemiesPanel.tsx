@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Eye, EyeOff, Trash2, SwordsIcon } from '@/components/icons';
+import { Eye, EyeOff, Trash2, SkullIcon, Shield } from '@/components/icons';
 import { C, FS, RADIUS, tint } from '@/constants';
 import { SidebarSection, SectionButton } from '@/components/ui/SidebarSection';
 import { HpControl } from '@/components/ui/HpControl';
@@ -89,17 +89,17 @@ export function SceneEnemiesPanel({
 
   return (
     <>
-      <SidebarSection title="Enemics" icon={<SwordsIcon size={13} />} count={total} bodyPadding="0 4px 8px"
+      <SidebarSection title="Enemics" icon={<SkullIcon size={13} />} count={total} bodyPadding="0 4px 8px"
         actions={<SectionButton onClick={onOpenLibrary} title="Afegir enemics des de la Biblioteca">＋</SectionButton>}>
         {total === 0 && (
           <div style={{ padding: '2px 8px 4px', fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
-            Cap enemic a l&apos;escena. Afegeix-ne des de la <b style={{ color: C.text, cursor: 'pointer' }} onClick={onOpenLibrary}>Biblioteca</b>.
+            Cap enemic
           </div>
         )}
         {rows(enemies)}
       </SidebarSection>
       {allies.length > 0 && (
-        <SidebarSection title="Aliats" icon={<SwordsIcon size={13} />} count={allies.length} bodyPadding="0 4px 8px">
+        <SidebarSection title="Aliats" icon={<Shield size={13} />} count={allies.length} bodyPadding="0 4px 8px">
           {rows(allies)}
         </SidebarSection>
       )}

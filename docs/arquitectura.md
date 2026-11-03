@@ -44,7 +44,7 @@ src/
 │   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (biblioteca) en files primes
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
 │   │   ├── PlacesMenu      # Llocs de la missió (a dalt a l'esquerra del mapa): entrar a un lloc o sortir al poble
-│   │   ├── TopBar          # Barra superior: nom del mapa, Preparar·Jugar, Mostrar als jugadors, pantalles, partida, vista, ⋯
+│   │   ├── TopBar          # Barra superior: nom del mapa, Preparar·Jugar, pantalles, partida, ☰ (vista, app, ajuda); RightRail: Mostrar als jugadors i Història
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text / Diàleg del panell «Mostrar als jugadors»
 │   │   ├── DialogPanel, DialogControls  # Diàlegs: pestanya per escriure el guió i barra del DM mentre corre

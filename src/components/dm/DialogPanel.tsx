@@ -4,7 +4,7 @@ import type { DialogCamMode, DialogStyle, SavedDialog } from '@/types';
 import { C, FS, RADIUS, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
-import { PlayIcon, SaveIcon, X } from '@/components/icons';
+import { InfoIcon, PlayIcon, SaveIcon, X } from '@/components/icons';
 import { CAM_MODES, STYLES, isAnonymous, isNarrator, matchCast, parseScript, setLineOpts, type ScriptSay } from '@/lib/dialog/script';
 import { DIALOG_CPS } from '@/hooks/useDialog';
 
@@ -88,9 +88,9 @@ export function DialogPanel({ draft, onDraft, tokens, saved, running, onStart, o
           <textarea value={draft.script} onChange={e => set({ script: e.target.value })} rows={7} spellCheck={false}
             aria-label="Guió del diàleg"
             style={{ ...field, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: FS.md, lineHeight: 1.5, resize: 'vertical' }} />
-          <div style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.6 }}>
-            <b style={{ color: C.text }}>Nom: text</b> per línia · <b style={{ color: C.text }}>*paraula*</b> èmfasi · <b style={{ color: C.text }}>...</b> pausa ·
-            {' '}<b style={{ color: C.text }}>&gt; opció -&gt; etiqueta</b> · <b style={{ color: C.text }}># etiqueta</b> · <b style={{ color: C.text }}>-&gt; fi</b>
+          <div style={{ fontSize: FS.xs, color: C.dim, display: 'flex', alignItems: 'center', gap: 5, cursor: 'help' }}
+            title={'Nom: text — una línia per rèplica\n*paraula* — èmfasi\n... — pausa\n> opció -> etiqueta — opció que salta a una etiqueta\n# etiqueta — destí d\'un salt\n-> fi — acaba el diàleg'}>
+            <InfoIcon size={12} /> Sintaxi del guió
           </div>
           {parsed.warnings.map(w => <div key={w} style={{ fontSize: FS.sm, color: C.warn }}>{w}</div>)}
 

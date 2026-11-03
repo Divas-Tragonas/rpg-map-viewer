@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.78 — Menú principal, rail de la dreta, icones i menys text
+- **Menú ☰**: «Vista» i «⋯» s'uneixen en un sol menú pla (Vista · App · Ajuda). La barra passa de 4 menús a 3 (Pantalles, Partida, ☰)
+- **Rail de la dreta**: «Mostrar als jugadors» i «Història» surten de la barra i passen a una columna d'icones a la dreta del mapa (punt verd si s'està mostrant res). El panell d'Història li deixa lloc
+- **Icones noves** perquè cap concepte en comparteixi: Història (pergamí), Preparar (martell), Mostrar (faristol), Missions (bandera), Base de dades, Back office (tauler), menú (hamburguesa); Enemics → calavera i Aliats → escut a l'Escena; Desar ara → disquet; Importar mapa → imatge
+- **Menys text tutorial**: eliminats o passats a tooltip els textos explicatius de la benvinguda, Biblioteca, Jugadors, Enemics, Sales, Mapa de caselles, paleta, diàleg, diari, mòduls, menús de Pantalles/Partida/Vista i Llocs. Els buits diuen només «Cap jugador», «Cap enemic», «Cap sala»
+
 ### v4.77 — Polit d'UI: Bestiari, DIVAS i botons de mida estable
 - **Bestiari**: la graella de plantilles era `1fr 1fr` i la columna no baixava de la mida del nom més llarg: «Castell de la Fumarola» sortia del lateral (tallat) i era més ample que el Bestiari. Ara `minmax(0, 1fr)`: les dues seccions fan la mateixa mida i els noms llargs porten punts suspensius
 - «**Party**» i «**la colla**» passen a «**DIVAS**» en tot el text visible (botó del panell de jugadors, tooltips, missions, cinemàtica Versus, back office). Els noms interns (`loadParty`, `DEFAULT_PARTY`, `party`) no canvien

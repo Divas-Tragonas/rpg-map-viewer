@@ -83,8 +83,9 @@ export function PlacesMenu({ mission, current, busy, onGo, onHover }: Props) {
                   </button>
                 );
               })}
-              <div style={{ padding: '6px 8px 4px', fontSize: FS.xs, color: C.dim, lineHeight: 1.35 }}>
-                Al mapa, doble clic a la marca d&apos;una porta també hi entra. Les DIVAS hi van senceres i el combat s&apos;acaba.
+              <div style={{ padding: '6px 8px 4px', fontSize: FS.xs, color: C.dim, lineHeight: 1.35 }}
+                title="Al mapa, doble clic a la marca d'una porta també hi entra. Les DIVAS hi van senceres i el combat s'acaba.">
+                Doble clic a una porta del mapa també hi entra
               </div>
             </div>
           </>

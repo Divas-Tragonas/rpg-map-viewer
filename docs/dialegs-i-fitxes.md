@@ -35,7 +35,7 @@
 - ⚠️ La propietat «Nivell» de la base de Notion no lliga amb les fitxes (diu p. ex. «7/trickery cleric» on la fitxa diu Mag 1): la llavor fa servir la fitxa.
 
 ## Expositor (visualitzador d'imatges/vídeo)
-- Pestanya «Imatge o vídeo» del panell «Mostrar als jugadors» (botó de la barra superior) → preview amb zoom/pan + Ken Burns.
+- Pestanya «Imatge o vídeo» del panell «Mostrar als jugadors» (botó de la rail de la dreta del mapa) → preview amb zoom/pan + Ken Burns.
 - El jugador mostra el contingut a pantalla completa (overlay zIndex 50) amb fade IN/OUT i `EXPOSITOR_SYNC` (LERP).
 
 ## Revelador de text (`src/lib/textreveal/`)

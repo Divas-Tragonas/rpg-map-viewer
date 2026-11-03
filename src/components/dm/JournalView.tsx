@@ -97,8 +97,9 @@ export function JournalView({ journal, lib, story, notify, noteFocus }: {
       </div>
 
       {entries.length === 0 ? (
-        <div style={{ padding: 16, fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
-          El diari anota sol les escenes, els combats, l&apos;XP, els diàlegs, les cinemàtiques i les sales que reveles. Quan la sessió acabi, en surt el resum per a Notion.
+        <div style={{ padding: 16, fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}
+          title="El diari anota sol les escenes, els combats, l'XP, els diàlegs, les cinemàtiques i les sales que reveles. Quan la sessió acabi, en surt el resum per a Notion.">
+          El diari s&apos;omple sol mentre jugues.
         </div>
       ) : (
         <ScrollArea style={{ flex: 1, minHeight: 120 }}>

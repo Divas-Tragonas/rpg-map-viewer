@@ -10,6 +10,7 @@ import { modulesStore } from '@/lib/modules';
 import { ModuleView } from './ModuleView';
 import { ModuleLibrary } from './ModuleLibrary';
 import { JournalView } from './JournalView';
+import { RAIL_W } from '@/components/dm/RightRail';
 
 export type StoryTab = 'modul' | 'moduls' | 'diari';
 
@@ -48,7 +49,7 @@ export function StoryPanel({ tab, onTab, onClose, story, notify, noteFocus, onGo
   return (
     <div role="dialog" aria-label="Història"
       style={{
-        position: 'absolute', top, right: 12, zIndex: 11, width: STORY_PANEL_W, maxWidth: 'calc(100% - 24px)',
+        position: 'absolute', top, right: compact ? 12 : 12 + RAIL_W, zIndex: 11, width: STORY_PANEL_W, maxWidth: 'calc(100% - 24px)',
         ...(compact ? { left: 12, width: 'auto' } : {}),
         maxHeight: `calc(100% - ${top + 12 + (avoidTurnBar ? TURN_BAR_GAP : 0)}px)`, display: 'flex', flexDirection: 'column', overflow: 'hidden',
         background: C.float, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.float,

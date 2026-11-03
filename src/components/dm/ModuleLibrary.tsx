@@ -77,8 +77,9 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
       </div>
 
       {mods.length === 0 ? (
-        <div style={{ padding: 16, fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
-          Cap mòdul importat. Un paquet és un JSON amb el disparador, els textos per llegir, els enemics i les sortides d&apos;una pàgina de la base MÒDULS de Notion. Demana a Claude que et generi el de la sessió.
+        <div style={{ padding: 16, fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}
+          title="Un paquet és un JSON amb el disparador, els textos per llegir, els enemics i les sortides d'una pàgina de la base MÒDULS de Notion. Demana a Claude que et generi el de la sessió.">
+          Cap mòdul importat.
         </div>
       ) : (
         <ScrollArea style={{ flex: 1, minHeight: 0 }}>
