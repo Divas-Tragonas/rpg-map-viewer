@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.79 — Lot Dades: contrasenya de la web i un sol bestiari
+- **Contrasenya de la web**: tota la web (DM, back office, Expositor) demana una contrasenya; la **pantalla de jugador** (`/player`, també dins de la wiki) no. Viu al servidor de Next, no a la API: funciona encara que la API estigui apagada. Es configura a Vercel amb `SITE_PASSWORD` (i `SITE_SECRET`); sense, la porta queda oberta (ús local). Pàgina nova `/login`, cookie httpOnly de 30 dies
+- `middleware.ts` → `proxy.ts` (nom nou de Next 16); el back office segueix demanant el login de la API a més de la contrasenya
+- **Biblioteca: un sol bestiari**. Desapareix la secció «Base de dades»: els enemics de la BD surten dins d'**Enemics**, barrejats per projecte i amb la icona de la base de dades. Sense connexió amb la API simplement no hi són. Els noms llargs ocupen la fila sencera
+- Nou `docs/millores.md` (apartat «Dades»): decisions, opcions per fer tokens nous amb els sprites (variants de color, equipament, retrat) i esborrany dels prompts de la API
+- `api-spec.txt`: documentat `POST /auth/login` i afegida la proposta pendent (camps `role`/`sprite`/`notes` a Enemy, seguretat de la API)
+
 ### v4.78 — Menú principal, rail de la dreta, icones i menys text
 - **Menú ☰**: «Vista» i «⋯» s'uneixen en un sol menú pla (Vista · App · Ajuda). La barra passa de 4 menús a 3 (Pantalles, Partida, ☰)
 - **Rail de la dreta**: «Mostrar als jugadors» i «Història» surten de la barra i passen a una columna d'icones a la dreta del mapa (punt verd si s'està mostrant res). El panell d'Història li deixa lloc

@@ -4,13 +4,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { BookIcon, DatabaseIcon, Shield } from '@/components/icons';
 import { C, FS, RADIUS } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
-import { EnemyGroupToolbar, GroupBody, GroupHeader } from '@/components/ui/EnemyGroups';
-import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
 import { api, isApiConfigured } from '@/lib/api';
 import { creatureThumb, creatureNames } from '@/lib/sprites/draw';
 import { useSpritePack } from '@/hooks/useSpritePack';
 import type { ApiEnemy } from '@/lib/api';
-import { groupEnemies } from '@/lib/enemy-groups';
+import { groupKey } from '@/lib/enemy-groups';
 import type { LibEnemy } from '@/types';
 
 interface Props {
@@ -22,18 +20,21 @@ interface Props {
   pixel?: boolean;
 }
 
-function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void; thumb?: string | null; detail?: string }) {
+function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail, fromDb }: { name: string; color: string; hpMax: number; inScene: number; onClick: () => void; thumb?: string | null; detail?: string; fromDb?: boolean }) {
   return (
-    <button onClick={onClick} title={`Afegir ${name} a l'escena (${hpMax} de vida${detail ? ` · ${detail}` : ''})`}
+    <button onClick={onClick} title={`Afegir ${name} a l'escena (${hpMax} de vida${detail ? ` · ${detail}` : ''}${fromDb ? ' · de la base de dades' : ''})`}
       style={{
-        display: 'flex', alignItems: 'center', gap: 5, padding: '5px 7px',
+        display: 'flex', alignItems: 'center', gap: 5, padding: '5px 7px', minWidth: 0,
+        // Els noms llargs (sobretot els de la BD) ocupen la fila sencera en lloc de quedar tallats.
+        gridColumn: name.length > 13 ? 'span 2' : undefined,
         background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
         borderRadius: RADIUS.sm, cursor: 'pointer', color: C.text, fontSize: FS.sm, textAlign: 'left',
       }}>
       {thumb
-        ? <img src={thumb} alt="" style={{ width: 20, height: 20, margin: -4, imageRendering: 'pixelated', flexShrink: 0 }} />
+        ? <img src={thumb} alt="" style={{ width: 20, height: 20, margin: -4, imageRendering: 'pixelated', flexShrink: 0, objectFit: 'cover', borderRadius: fromDb ? '50%' : 0 }} />
         : <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, flexShrink: 0 }} />}
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      {fromDb && <span style={{ color: C.dim, display: 'flex', flexShrink: 0 }}><DatabaseIcon size={11} /></span>}
       {inScene > 0
         ? <span title={`${inScene} a l'escena`} style={{ color: C.enemy, fontSize: FS.xs, fontWeight: 700 }}>×{inScene}</span>
         : <span style={{ color: C.dim, fontSize: FS.xs }}>{hpMax}</span>}
@@ -41,110 +42,100 @@ function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail }:
   );
 }
 
-// `minmax(0, 1fr)`: amb `1fr` a pèl la columna no baixa de la mida del nom més llarg («Os mussol captiu»)
-// i la graella sortia del lateral (Castell de la Fumarola tallat i més ample que el Bestiari).
+// `minmax(0, 1fr)`: amb `1fr` a pèl la columna no baixa de la mida del nom més llarg i la graella
+// sortia del lateral.
 const GRID: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3 };
-// Una sola columna: els noms de la BD són llargs ("Guàrdia de la Meridiana") i a dues quedaven tallats.
-const DB_GRID: React.CSSProperties = { ...GRID, gridTemplateColumns: 'minmax(0, 1fr)' };
+
+const CASTLE = 'Castell de la Fumarola';
+const BESTIARY = 'Bestiari';
+
+/** Una entrada del bestiari únic: plantilla del codi o enemic de la BD (`db`, només amb connexió). */
+interface Entry { t: EnemyTemplate; db?: ApiEnemy; group: string }
+
+/** Enemic de la BD com a plantilla (per a la cerca i el botó). El grup és el seu projecte. */
+function dbEntry(en: ApiEnemy): Entry {
+  const detail = [en.project, en.category].map(v => v?.trim()).filter(Boolean).join(' · ') || undefined;
+  return {
+    t: { id: en.id, name: en.name, color: en.color, hpMax: en.hpMax, R: en.R, sm: en.sm, xp: en.xp ?? 0, group: BESTIARY, detail },
+    db: en,
+    group: en.project?.trim() || BESTIARY,
+  };
+}
 
 /**
  * Pestanya Biblioteca: plantilles per AFEGIR enemics. Els que ja són a l'escena es gestionen
  * (vida, visibilitat, eliminar) a la pestanya Escena, junt amb els jugadors.
- * Els de la BD es poden agrupar per projecte o per categoria (grups plegables).
+ *
+ * Un sol bestiari: les plantilles del codi i, si hi ha connexió amb la API, els enemics de la BD
+ * barrejats per projecte (amb la icona de la BD). Sense connexió, els de la BD simplement no hi són.
+ * Els aliats van a part.
  */
 export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel }: Props) {
   useSpritePack();
   const [beastQ, setBeastQ] = useState('');
   const [dbEnemies, setDbEnemies] = useState<ApiEnemy[]>([]);
-  const [dbLoading, setDbLoading] = useState(false);
-  const grouping = useEnemyGrouping('dm');
+  // `isApiConfigured` és una variable d'entorn pública: dona el mateix al servidor i al client.
+  const [dbLoading, setDbLoading] = useState(isApiConfigured);
 
   useEffect(() => {
     if (!isApiConfigured()) return;
-    setDbLoading(true);
     api.enemies.list()
       .then(setDbEnemies)
-      .catch(() => {})
+      .catch(() => {})   // sense connexió: el bestiari queda només amb les plantilles del codi
       .finally(() => setDbLoading(false));
   }, []);
 
   const countOf = (templateId: string) => libEnemies.filter(e => e.templateId === templateId).length;
-  const entries = useMemo<EnemyTemplate[]>(
-    () => [...ENEMY_TEMPLATES, ...(pixel ? extraCreatures(creatureNames()).map(creatureTemplate) : [])],
-    [pixel]);
+  const entries = useMemo<Entry[]>(() => [
+    ...ENEMY_TEMPLATES.map(t => ({ t, group: t.group })),
+    ...(pixel ? extraCreatures(creatureNames()).map(creatureTemplate).map(t => ({ t, group: t.group })) : []),
+    ...dbEnemies.map(dbEntry),
+  ], [pixel, dbEnemies]);
   const q = beastQ.trim().toLowerCase().replace(/_/g, ' ');
-  const shown = entries.filter(t => !q || `${t.name} ${t.detail ?? ''} ${t.sprite ?? ''}`.toLowerCase().replace(/_/g, ' ').includes(q));
-  const allyList = shown.filter(t => t.ally);
-  const foes = shown.filter(t => !t.ally);
-  const castle = foes.filter(t => t.group === 'Castell de la Fumarola');
-  const bestiary = foes.filter(t => t.group !== 'Castell de la Fumarola')
-    .sort((x, y) => x.name.localeCompare(y.name, 'ca'));
-  const templateGroup = (label: string, items: EnemyTemplate[]) => (
+  const shown = entries.filter(({ t, group }) => !q
+    || `${t.name} ${t.detail ?? ''} ${t.sprite ?? ''} ${group}`.toLowerCase().replace(/_/g, ' ').includes(q));
+  const allyList = shown.filter(e => e.t.ally);
+  const foes = shown.filter(e => !e.t.ally);
+
+  // Grups: el Castell primer, els projectes de la BD per ordre alfabètic i el Bestiari l'últim.
+  // Mateixa clau que el back office (`groupKey`): «Cripta» i «cripta » van junts.
+  const groups = new Map<string, { label: string; items: Entry[] }>();
+  for (const e of foes) {
+    const k = groupKey(e.group);
+    const g = groups.get(k) ?? { label: e.group, items: [] };
+    g.items.push(e); groups.set(k, g);
+  }
+  const rank = (label: string) => label === CASTLE ? 0 : label === BESTIARY ? 2 : 1;
+  const ordered = [...groups.values()].sort((a, b) => rank(a.label) - rank(b.label) || a.label.localeCompare(b.label, 'ca'));
+  for (const g of ordered) {
+    if (g.label !== CASTLE) g.items.sort((x, y) => x.t.name.localeCompare(y.t.name, 'ca'));
+  }
+
+  const button = ({ t, db }: Entry) => (
+    <TemplateButton key={db ? `db:${t.id}` : t.id} name={t.name} color={t.color} hpMax={t.hpMax} detail={t.detail}
+      inScene={countOf(t.id)} fromDb={!!db}
+      onClick={() => (db ? onAddDbEnemy(db) : onAddEnemy(t))}
+      thumb={db ? (db.imageData || null) : (pixel && t.sprite ? creatureThumb(t.sprite) : null)} />
+  );
+  const templateGroup = (label: string, items: Entry[]) => (
     <div key={label} style={{ marginTop: 6 }}>
       <div style={{ fontSize: FS.xs, color: C.dim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .5, margin: '2px 0 4px' }}>{label} · {items.length}</div>
-      <div style={GRID}>
-        {items.map(t => (
-          <TemplateButton key={t.id} name={t.name} color={t.color} hpMax={t.hpMax} detail={t.detail}
-            inScene={countOf(t.id)} onClick={() => onAddEnemy(t)}
-            thumb={pixel && t.sprite ? creatureThumb(t.sprite) : null} />
-        ))}
-      </div>
+      <div style={GRID}>{items.map(button)}</div>
     </div>
-  );
-  const groups = grouping.by === 'none' ? [] : groupEnemies(dbEnemies, grouping.by);
-  const dbButton = (en: ApiEnemy) => (
-    <TemplateButton key={en.id} name={en.name} color={en.color} hpMax={en.hpMax}
-      inScene={countOf(en.id)} onClick={() => onAddDbEnemy(en)} />
   );
 
   return (
     <>
-      {/* Catàleg únic: plantilles + bestiari Oryx (app Píxel) en un sol bloc; els aliats a part. */}
       <SidebarSection title="Enemics" icon={<BookIcon size={13} />} count={foes.length} defaultOpen maxBodyHeight={420} bodyPadding="0 8px 8px">
         <input value={beastQ} onChange={e => setBeastQ(e.target.value)} placeholder="Cerca (goblin, Jalil, dragon…)"
           style={{ width: '100%', boxSizing: 'border-box', height: 26, margin: '2px 0 6px', padding: '0 8px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: C.dark, color: C.bright, fontSize: FS.sm, outline: 'none' }} />
+        {dbLoading && <div style={{ fontSize: FS.xs, color: C.dim }}>carregant la base de dades…</div>}
         {foes.length === 0 && <div style={{ fontSize: FS.xs, color: C.dim }}>Cap resultat</div>}
-        {castle.length > 0 && templateGroup('Castell de la Fumarola', castle)}
-        {bestiary.length > 0 && templateGroup('Bestiari', bestiary)}
+        {ordered.map(g => templateGroup(g.label, g.items))}
       </SidebarSection>
       {allyList.length > 0 && (
         <SidebarSection title="Aliats" icon={<Shield size={13} />} count={allyList.length} defaultOpen bodyPadding="0 8px 8px">
-          <div style={GRID}>
-            {allyList.map(t => (
-              <TemplateButton key={t.id} name={t.name} color={t.color} hpMax={t.hpMax} detail={t.detail}
-                inScene={countOf(t.id)} onClick={() => onAddEnemy(t)}
-                thumb={pixel && t.sprite ? creatureThumb(t.sprite) : null} />
-            ))}
-          </div>
-        </SidebarSection>
-      )}
-
-      {isApiConfigured() && (
-        <SidebarSection title="Base de dades" icon={<DatabaseIcon size={13} />} count={dbEnemies.length} defaultOpen bodyPadding="0 8px 8px">
-          {dbLoading && <div style={{ fontSize: FS.xs, color: C.dim }}>carregant…</div>}
-          {!dbLoading && dbEnemies.length === 0 && (
-            <div style={{ fontSize: FS.xs, color: C.dim }}>Cap enemic a la BD</div>
-          )}
-          {dbEnemies.length > 0 && (
-            <EnemyGroupToolbar by={grouping.by} onBy={grouping.setBy}
-              allFolded={groups.length > 0 && groups.every(g => grouping.isCollapsed(g.key))}
-              onFoldAll={fold => grouping.foldAll(groups.map(g => g.key), fold)} />
-          )}
-          {dbEnemies.length > 0 && grouping.by === 'none' && (
-            <div style={{ ...DB_GRID, marginTop: 6 }}>{dbEnemies.map(dbButton)}</div>
-          )}
-          {groups.map(g => {
-            const open = !grouping.isCollapsed(g.key);
-            return (
-              <div key={`g:${g.key}`} style={{ marginTop: 4, borderTop: `1px solid ${C.border}` }}>
-                <GroupHeader label={g.label} count={g.items.length} open={open} unnamed={!g.key}
-                  onToggle={() => grouping.toggle(g.key)} />
-                <GroupBody open={open}>
-                  <div style={{ ...DB_GRID, paddingBottom: 2 }}>{g.items.map(dbButton)}</div>
-                </GroupBody>
-              </div>
-            );
-          })}
+          <div style={GRID}>{allyList.map(button)}</div>
         </SidebarSection>
       )}
     </>

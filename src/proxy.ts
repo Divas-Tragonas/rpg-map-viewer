@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { SITE_COOKIE, isPublicPath, siteAuthEnabled, verifySessionToken } from '@/lib/site-auth';
 
 async function verifyJWT(token: string): Promise<boolean> {
   const secret = process.env.JWT_SECRET ?? '';
@@ -38,17 +39,34 @@ async function verifyJWT(token: string): Promise<boolean> {
   }
 }
 
-export async function middleware(request: NextRequest) {
+/**
+ * Porta de la web (Next 16: `proxy.ts` substitueix `middleware.ts`).
+ * 1. Contrasenya de la web (`lib/site-auth.ts`): tot demana la cookie `site_session` menys la
+ *    pantalla de jugador (`/player`), la pàgina `/login` i els fitxers estàtics (el matcher els
+ *    exclou: la pantalla de jugador els necessita). Sense `SITE_PASSWORD`, oberta.
+ * 2. Back office (`/admin/*`): a més, el JWT de la API (`admin_token`), com abans.
+ */
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/admin/login') {
-    return NextResponse.next();
+  if (siteAuthEnabled() && !isPublicPath(pathname)
+      && !(await verifySessionToken(request.cookies.get(SITE_COOKIE)?.value))) {
+    if (pathname.startsWith('/api/')) {
+      return Response.json({ error: 'unauthorized' }, { status: 401 });
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
+    return NextResponse.redirect(url);
   }
 
-  if (pathname.startsWith('/admin')) {
+  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
     const token = request.cookies.get('admin_token')?.value;
     if (!token || !(await verifyJWT(token))) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+      const url = request.nextUrl.clone();
+      url.pathname = '/admin/login';
+      url.search = '';
+      return NextResponse.redirect(url);
     }
   }
 
@@ -56,5 +74,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  // Tot menys els fitxers de Next i qualsevol camí amb extensió (sprites, mapes, icones, mòduls…).
+  matcher: ['/((?!_next/static|_next/image|.*\\..*).*)'],
 };

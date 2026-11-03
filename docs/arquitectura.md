@@ -21,6 +21,25 @@
 | `/player` | `PlayerView` | Vista del jugador (pantalla secundària) |
 | `/player?embed=1` | `PlayerView` | La mateixa, incrustada al tauler de missions de la wiki (veure «Pantalla de jugador dins de la wiki») |
 | `/expositor` | `ExpositorPage` | **Visor local** per a un monitor de recanvi: obres un fitxer a mà i es veu a pantalla completa. **No és l'Expositor del DM** (no rep res del BC ni del WS) |
+| `/login` | `SiteLoginPage` | Contrasenya de la web (veure «Contrasenya de la web»). Pública |
+| `/admin/*` | back office | Enemics i personatges de la API; demana també el login de la API (`/admin/login`) |
+
+### Contrasenya de la web (`src/proxy.ts` + `src/lib/site-auth.ts`, v4.79)
+
+- **Què protegeix**: tota la web menys la pantalla de jugador (`/player`, també `?embed=1`), `/login`,
+  `/api/site-login` i els fitxers estàtics (el `matcher` exclou `_next/*` i qualsevol camí amb extensió:
+  sprites, mapes, mòduls). Sense la cookie → redirecció a `/login?next=…` (o 401 a `/api/*`).
+- **No depèn de la API**: la contrasenya viu al servidor de Next. Variables d'entorn (a Vercel:
+  *Settings → Environment Variables*, i tornar a desplegar):
+  - `SITE_PASSWORD` — la contrasenya. **Sense, la porta està oberta** (`npm run dev`, LAN).
+  - `SITE_SECRET` — recomanat (text llarg a l'atzar): signa la cookie. Canviar-lo o canviar la
+    contrasenya tanca totes les sessions.
+- **Cookie** `site_session`: httpOnly, `SameSite=Lax`, `Secure` amb https, 30 dies (`SITE_SESSION_DAYS`).
+  Porta `<caducitat>.<HMAC-SHA256>`, res llegible. Sortir: `DELETE /api/site-login`.
+- **Back office**: `/admin/*` demana a més el JWT de la API (`admin_token`), com abans. Next 16:
+  `middleware.ts` és obsolet i el fitxer es diu `proxy.ts` (funció `proxy`).
+- ⚠️ Una pàgina pública nova (com `/player`) s'ha d'afegir a `isPublicPath`; un fitxer que la
+  pantalla de jugador carregui sense extensió quedaria darrere la contrasenya.
 
 ## Estructura de fitxers
 

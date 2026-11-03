@@ -140,6 +140,16 @@ Notes /sessions:
 - 413 (payload massa gran) si se supera el límit; el frontend ho gestiona.
 
 
+## AUTH — POST /auth/login (existent, no documentat fins a la v4.79)
+
+POST   /auth/login       body { password: string }
+       200 → { token: string }   // JWT HS256 signat amb JWT_SECRET (el mateix que fa servir
+                                 // el `middleware.ts` del frontend per protegir /admin/*)
+       401 → { error: string }
+El frontend desa el token a la cookie `admin_token` (escrita per JS, 7 dies) i l'envia com a
+`Authorization: Bearer` a /sessions i /characters. Proposta de canvi: veure «lot Dades» al final.
+
+
 ## ERRORS
 
 400  { "error": "..." }   validació fallida
@@ -308,3 +318,17 @@ pack OPAC), GET/PUT(upsert)/DELETE /modules[/:slug] i model JournalSession (name
 endedAt, markdown, entries opac) amb GET/POST/DELETE /journal-sessions, tot amb JWT admin.
 El prompt complet per a la sessió de la API és a docs/historia-i-moduls.md («Pendent»).
 Fins que no es desplegui, el frontend NO en depèn.
+
+
+## PROPOSTA PENDENT (NO IMPLEMENTADA) — lot Dades (v4.79)
+
+Decisions i prompts complets a docs/millores.md (apartat «Dades»). Fins que no es despleguin, el
+frontend NO en depèn.
+
+1. Enemy: camps nous `role` ('enemy' | 'ally' | 'npc' | 'object', per defecte 'enemy'),
+   `sprite` (≤60, '' per defecte: figureta Oryx o "i:<objecte>") i `notes` (≤300, '').
+   GET sempre els retorna; POST opcionals; PUT només si venen al body.
+2. Seguretat: POST/PUT/DELETE /enemies amb JWT admin (401 sense); /auth/login retorna
+   { token, expiresAt }, JWT amb `role: 'dm'` i exp 30 dies, 429 després de 10 intents/15 min;
+   WS role=dm exigeix `&token=<JWT>` (4403 si no, només quan JWT_SECRET està definit);
+   CORS amb `Authorization` a Allow-Headers.
