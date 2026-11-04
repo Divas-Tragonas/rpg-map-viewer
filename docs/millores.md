@@ -327,7 +327,7 @@ Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fi
 - [x] Ventall: espera de 0,4 s i augment del token assenyalat
 - [x] Menú: Dades, Conjurs, Estats, Parla, Nivell
 
-- [x] Torn i ressaltar enemics: sense aro daurat/groc; el halo de color fa l'efecte de l'antic aro daurat amb el color del token (v4.84; el difuminat de la v4.83 es va descartar)
+- [x] Torn i ressaltar enemics: sense aro daurat/groc; el halo de color es queda al seu lloc, més gruixut, una mica més viu i amb un vel que respira (v4.85, opció B)
 
 ### Fora d'abast (anotat, no tocat)
 - El menú no segueix el token si canvia de mida (capsa del moment d'obrir-lo).

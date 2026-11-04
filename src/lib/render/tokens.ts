@@ -46,29 +46,55 @@ function haloSlots(R: number, sc: number, foot: boolean): HaloSlots {
 }
 
 /**
+ * El color del token amb una mica més de saturació i de brillantor (HSL: +0,12 i +0,06): el halo de
+ * color, quan marca el torn, s'havia de veure com l'antic aro daurat, i un color de token (sovint
+ * fosc o apagat) es perdia més sobre el mapa. Pujada lleugera per no canviar el color del jugador.
+ */
+const _vivid = new Map<string, string>();
+function vivid(color: string): string {
+  const hit = _vivid.get(color);
+  if (hit) return hit;
+  let out = color;
+  const m = /^#([0-9a-f]{6})$/i.exec(color);
+  if (m) {
+    const n = parseInt(m[1], 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dd = mx - mn;
+    let h = 0, sat = 0;
+    if (dd) {
+      sat = dd / (1 - Math.abs(2 * l - 1));
+      h = mx === r ? ((g - b) / dd) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    out = `hsl(${h.toFixed(1)}, ${(Math.min(1, sat + 0.12) * 100).toFixed(1)}%, ${(Math.min(0.85, l + 0.06) * 100).toFixed(1)}%)`;
+  }
+  _vivid.set(color, out);
+  return out;
+}
+
+/**
  * Halo del color del token. Sempre igual; amb `glow` > 0 (té el torn: 1; ressaltar enemics: el seu
- * alfa) fa **el mateix efecte que tenia l'aro daurat del torn**, però amb el color del token: un vel
- * ample i translúcid per fora que respira (6 px, alfa 0,22–0,36, a 3,5–5 px de la línia) i la línia
- * sòlida més gruixuda (3 px). Abans el torn i el ressaltar eren dos anells més, daurat i groc, al
- * voltant del token. `phase` desfasa la respiració.
+ * alfa) es queda al seu lloc però fa de distintiu: el color una mica més viu (`vivid`), la línia més
+ * gruixuda (3,5 px) i un vel ample (9 px) del mateix color per sota que respira, com el de l'antic aro
+ * daurat. Abans el torn i el ressaltar eren dos anells més, daurat i groc, per fora de la selecció.
+ * `phase` desfasa la respiració.
  */
 function drawColorHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, color: string, foot: boolean,
   invis = false, glow = 0, phase = 0) {
   const d = haloSlots(R, sc, foot).color;
-  const ink = invis ? 'rgba(100,180,255,.75)' : color;
   const g = glow > 0.01 ? glow : 0;
+  const ink = invis ? 'rgba(100,180,255,.75)' : g ? vivid(color) : color;
   ctx.save();
   if (invis) ctx.setLineDash([5 / sc, 3 / sc]);
   if (g) {
     const p = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 3 + phase);
     const a = ctx.globalAlpha;
-    ctx.strokeStyle = ink; ctx.globalAlpha = a * g * (0.22 + 0.14 * p); ctx.lineWidth = 6 / sc;
-    ringPath(ctx, cx, cy, d + (3.5 + 1.5 * p) / sc, R, foot); ctx.stroke();
+    ctx.strokeStyle = ink; ctx.globalAlpha = a * g * (0.3 + 0.2 * p); ctx.lineWidth = 9 / sc;
+    ringPath(ctx, cx, cy, d, R, foot); ctx.stroke();
     ctx.globalAlpha = a;
   }
   ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1 / sc;
-  ringPath(ctx, cx, cy, d + 1.6 / sc, R, foot); ctx.stroke();
-  ctx.strokeStyle = ink; ctx.lineWidth = (2.2 + 0.8 * g) / sc;
+  ringPath(ctx, cx, cy, d + (1.6 + 1.4 * g) / sc, R, foot); ctx.stroke();
+  ctx.strokeStyle = ink; ctx.lineWidth = (2.2 + 1.3 * g) / sc;
   ringPath(ctx, cx, cy, d, R, foot); ctx.stroke();
   ctx.restore();
 }

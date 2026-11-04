@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.85 — Torn: halo de color més gruixut i una mica més viu
+- Quan el token té el torn o es ressalta, el halo de color es queda al seu lloc: línia més gruixuda, color una mica més saturat i lluminós, i un vel del mateix color per sota que respira (abans quedava tapat per la selecció)
+- Sense canvis a la API
+
 ### v4.84 — Torn: el mateix efecte que l'aro daurat
 - El halo de color, quan el token té el torn o es ressalta, fa exactament l'efecte que tenia l'aro daurat (vel translúcid que respira i línia més gruixuda), amb el color del token
 - Fora el difuminat de la v4.83
