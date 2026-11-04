@@ -47,34 +47,28 @@ function haloSlots(R: number, sc: number, foot: boolean): HaloSlots {
 
 /**
  * Halo del color del token. Sempre igual; amb `glow` > 0 (té el torn: 1; ressaltar enemics: el seu
- * alfa) hi afegeix un **doble resplendor del mateix color** que respira. Abans el torn era un aro daurat
- * a part i el ressaltar, un altre de groc: tres anells més al voltant del token, i com que anaven en
- * px de pantalla canviaven de proporció amb el zoom. El resplendor va en proporció a la mida del token
- * a la pantalla (`R·sc`), o sigui que es veu igual a qualsevol zoom. `phase` desfasa la respiració.
+ * alfa) fa **el mateix efecte que tenia l'aro daurat del torn**, però amb el color del token: un vel
+ * ample i translúcid per fora que respira (6 px, alfa 0,22–0,36, a 3,5–5 px de la línia) i la línia
+ * sòlida més gruixuda (3 px). Abans el torn i el ressaltar eren dos anells més, daurat i groc, al
+ * voltant del token. `phase` desfasa la respiració.
  */
 function drawColorHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, color: string, foot: boolean,
   invis = false, glow = 0, phase = 0) {
   const d = haloSlots(R, sc, foot).color;
   const ink = invis ? 'rgba(100,180,255,.75)' : color;
+  const g = glow > 0.01 ? glow : 0;
   ctx.save();
   if (invis) ctx.setLineDash([5 / sc, 3 / sc]);
-  if (glow > 0.01) {
+  if (g) {
     const p = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 3 + phase);
-    const px = R * sc;  // radi del token a la pantalla: shadowBlur va en px de pantalla
     const a = ctx.globalAlpha;
-    // Dos passos: un vel ample i molt difuminat i un de més estret i viu, tots dos sobre la línia.
-    ctx.strokeStyle = ink; ctx.shadowColor = ink;
-    ctx.globalAlpha = a * glow * (0.3 + 0.2 * p);
-    ctx.lineWidth = Math.max(4, px * 0.16) / sc; ctx.shadowBlur = Math.max(8, px * (0.3 + 0.12 * p));
-    ringPath(ctx, cx, cy, d, R, foot); ctx.stroke();
-    ctx.globalAlpha = a * glow * (0.55 + 0.3 * p);
-    ctx.lineWidth = Math.max(2.5, px * 0.06) / sc; ctx.shadowBlur = Math.max(4, px * (0.1 + 0.05 * p));
-    ringPath(ctx, cx, cy, d, R, foot); ctx.stroke();
-    ctx.globalAlpha = a; ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = ink; ctx.globalAlpha = a * g * (0.22 + 0.14 * p); ctx.lineWidth = 6 / sc;
+    ringPath(ctx, cx, cy, d + (3.5 + 1.5 * p) / sc, R, foot); ctx.stroke();
+    ctx.globalAlpha = a;
   }
   ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1 / sc;
   ringPath(ctx, cx, cy, d + 1.6 / sc, R, foot); ctx.stroke();
-  ctx.strokeStyle = ink; ctx.lineWidth = 2.2 / sc;
+  ctx.strokeStyle = ink; ctx.lineWidth = (2.2 + 0.8 * g) / sc;
   ringPath(ctx, cx, cy, d, R, foot); ctx.stroke();
   ctx.restore();
 }
