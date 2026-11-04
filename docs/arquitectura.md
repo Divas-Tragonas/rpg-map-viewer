@@ -24,7 +24,7 @@
 | `/login` | `SiteLoginPage` | Contrasenya de la web (veure «Contrasenya de la web»). Pública |
 | `/admin/*` | back office | Enemics i personatges de la API; demana també el login de la API (`/admin/login`) |
 
-### Contrasenya de la web (`src/proxy.ts` + `src/lib/site-auth.ts`, v4.79)
+### Contrasenya de la web (`src/proxy.ts` + `src/lib/site-auth.ts`, v4.81)
 
 - **Què protegeix**: tota la web menys la pantalla de jugador (`/player`, també `?embed=1`), `/login`,
   `/api/site-login` i els fitxers estàtics (el `matcher` exclou `_next/*` i qualsevol camí amb extensió:
@@ -149,7 +149,8 @@ src/
 │   │   ├── areaspells.ts   # Dormir i greix (àrees persistents, passada 'ground')
 │   │   ├── fxsprites.ts    # Sprites de partícules (foc, fum, halo, socarrim) + ajudants comuns dels efectes
 │   │   ├── zonefx.ts       # Zones màgiques a la pantalla del jugador (vora SDF + fotogrames clau fosos + arcs del llamp)
-│   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens
+│   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens (halos)
+│   │   ├── token-geom.ts   # centre, figureta (placeFigure), hit-test (tokenAt) i ventall dels apilats
 │   │   ├── places.ts       # Marques dels llocs de la missió al mapa del DM (portes i sortida)
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador) + pixelIntros.ts (les 10 de pixel art)
@@ -208,7 +209,7 @@ DMView (component React)
 | `renderShapePreview` | render/zones.ts | Preview del shape tool al DM |
 | `advanceStrokeAnim` | render/drawing.ts | Reprodueix traços de dibuix frame a frame |
 | `renderSpells` | render/spells.ts | Animacions dels spells (inclosos els dels grimoris, `bookspells.ts`). Dues passades: `'ground'` (sota tokens) i `'air'` (sobre) |
-| `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures |
+| `renderLibEnemyTokens` | render/tokens.ts | Tokens biblioteca d'enemics lliures. Al DM, dues passades amb `renderPlayerTokens` (`'base'` i `'top'`: el seleccionat a sobre); abans, `advanceTokenSpread` |
 | `renderPlayerTokens` | render/tokens.ts | Tokens jugador: LERP, condicions |
 | `renderNameTags` | render/tokens.ts | Només jugador: els noms de tots els tokens, junts i sense encavalcar-se (veure «Noms dels tokens a la pantalla de jugador») |
 | `renderRooms` | render/darkrooms.ts | Sales fosques: foscor amb llum dels tokens retallada (LOS) / overlay+contorn+ull (DM) |
@@ -261,6 +262,7 @@ const rPos = useRef<PosMap>({});              // ref mirall (lectura O(1) dins t
 | `BC_CHANNEL` | `'rpg_map_sync_v18'` | BroadcastChannel |
 | `TOKEN_LERP` | `0.07` | Suavitzat moviment tokens |
 | `TSCALE` | `90` | Escala base tokens |
+| `TOKEN_STACK_TOL` | `0.5` | Tokens «apilats» (fracció de casella entre centres): s'obren en ventall sota el cursor (`render/token-geom.ts`) |
 | `C` | objecte colors | Paleta UI (`bg`, `panel`, `accent`, `text`...) |
 | `CONDITIONS` | array | Estats de D&D (16, amb `label` en català, `es`/`en` i `color`) |
 | `FS` / `RADIUS` / `SHADOW` | objectes | Escala tipogràfica, radis i ombres del DM (veure «Sistema visual») |

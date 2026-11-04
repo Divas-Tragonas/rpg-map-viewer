@@ -3,12 +3,29 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
-### v4.79 — Lot Dades: contrasenya de la web i un sol bestiari
+### v4.81 — Lot Dades: contrasenya de la web i un sol bestiari
 - **Contrasenya de la web**: tota la web (DM, back office, Expositor) demana una contrasenya; la **pantalla de jugador** (`/player`, també dins de la wiki) no. Viu al servidor de Next, no a la API: funciona encara que la API estigui apagada. Es configura a Vercel amb `SITE_PASSWORD` (i `SITE_SECRET`); sense, la porta queda oberta (ús local). Pàgina nova `/login`, cookie httpOnly de 30 dies
 - `middleware.ts` → `proxy.ts` (nom nou de Next 16); el back office segueix demanant el login de la API a més de la contrasenya
 - **Biblioteca: un sol bestiari**. Desapareix la secció «Base de dades»: els enemics de la BD surten dins d'**Enemics**, barrejats per projecte i amb la icona de la base de dades. Sense connexió amb la API simplement no hi són. Els noms llargs ocupen la fila sencera
 - Nou `docs/millores.md` (apartat «Dades»): decisions, opcions per fer tokens nous amb els sprites (variants de color, equipament, retrat) i esborrany dels prompts de la API
 - `api-spec.txt`: documentat `POST /auth/login` i afegida la proposta pendent (camps `role`/`sprite`/`notes` a Enemy, seguretat de la API)
+
+### v4.80 — Tokens: halos en carrils, peus més avall, ventall amb espera
+- **Halos**: tornen a ser tres anells (estats, color i la selecció blava discontínua de sempre) i cadascun té el seu carril a la mateixa distància de l'ombra per tot arreu (a l'app Píxel, l'el·lipse de l'ombra eixamplada, no escalada): ja no s'encavalquen
+- A l'app Píxel, els peus, l'ombra i els halos van una mica per sota del centre de la casella
+- Canviar la mida d'un jugador ja no el fa saltar un moment a la pantalla de jugador
+- Tokens apilats: el ventall s'obre després de 0,4 s amb el cursor a sobre, i el token assenyalat creix una mica i passa a sobre
+- Menú del token: Dades, Conjurs, Estats, Parla i Nivell
+- Sense canvis a la API
+
+### v4.79 — Tokens: halos, centre, apilats i menú al costat
+- **Halos amb jerarquia**: estats = anell segmentat per dins; color = línia fina contínua per fora; torn = aro daurat que respira; **selecció = claudàtors cian** a les cantonades de tot el token (l'únic que no és un anell i es pinta a sobre de la figura)
+- **Centre**: a l'app Píxel l'ombra i l'aro de color van al centre de la casella i la figura els trepitja, centrada pel contingut real de cada sprite (capsa alfa, sense valors per token). L'ombra dels discos és concèntrica
+- `sizeAllTokens` (i apagar «Mida» a la graella) recentren els jugadors en canviar-los el radi
+- **Un sol hit-test** (`render/token-geom.ts`) en l'ordre en què es pinten: el seleccionat queda a sobre i és el que es clica; la base del token té prioritat sobre el cap d'una figura veïna
+- **Tokens apilats**: amb el cursor a sobre (centres a menys de mitja casella, `TOKEN_STACK_TOL`) s'obren en ventall amb una animació curta i tornen al seu lloc en sortir. Offset només visual
+- **Menú del token** al costat del token (dreta o esquerra), centrat verticalment i dins la pantalla; contingut reordenat: vida, estats, conjurs i parlar a dalt, la fitxa a baix
+- Sense canvis a la API
 
 ### v4.78 — Menú principal, rail de la dreta, icones i menys text
 - **Menú ☰**: «Vista» i «⋯» s'uneixen en un sol menú pla (Vista · App · Ajuda). La barra passa de 4 menús a 3 (Pantalles, Partida, ☰)

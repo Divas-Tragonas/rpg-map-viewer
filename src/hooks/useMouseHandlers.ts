@@ -7,6 +7,7 @@ import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
 import { tokenMenuFor } from '@/lib/token-menu';
+import { tokenAt, tokenBounds, updateTokenSpread, clearTokenSpread } from '@/lib/render/token-geom';
 import { placeMarkAt, lastPlaceView } from '@/lib/render/places';
 
 const AREA_TYPES = PERSISTENT_SPELLS;
@@ -14,7 +15,7 @@ const AREA_SETTLED = (sp: import('@/types').Spell) => {
   const DUR: Record<string, number> = { sleep: 3.0, grease: 3.5 };
   return (performance.now() - sp.startTime) / 1000 > (DUR[sp.type] ?? 2.5);
 };
-import type { PosMap, Wall } from '@/types';
+import type { ContextMenuState, PosMap, Wall } from '@/types';
 import type { DMRefs } from './useDMRefs';
 
 /** Treu la màgia que esperava el clic de destí (i la seva previsualització). */
@@ -321,25 +322,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (tool === 'shape') {
       if (e.ctrlKey) {
         // Tokens have highest priority for CTRL+drag in shape tool
-        for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
-          const len = R.rLibEnemies.current[i];
-          const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
-          const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
-          if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
-            R.dragRef.current = { id: `lib_${len.id}`, ox: mx - lep.x, oy: my - lep.y };
-            S.setActiveDrag(`lib_${len.id}`); S.setSelectedToken(`lib_${len.id}`); R.rSelectedToken.current = `lib_${len.id}`; S.setCanvasCursor('grabbing');
-            e.preventDefault(); return;
-          }
-        }
-        for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
-          const pl = R.rPlayers.current[i];
-          const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
-          const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
-          if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
-            R.dragRef.current = { id: `pl_${pl.id}`, ox: mx - ppos.x, oy: my - ppos.y };
-            S.setActiveDrag(`pl_${pl.id}`); S.setSelectedToken(`pl_${pl.id}`); R.rSelectedToken.current = `pl_${pl.id}`; S.setCanvasCursor('grabbing');
-            e.preventDefault(); return;
-          }
+        const hitTok = tokenAt(R, mx, my, sc);
+        const hp = hitTok && getTokenPos(R, hitTok.key);
+        if (hitTok && hp) {
+          clearTokenSpread();
+          R.dragRef.current = { id: hitTok.key, ox: mx - hp.x, oy: my - hp.y };
+          S.setActiveDrag(hitTok.key); S.setSelectedToken(hitTok.key); R.rSelectedToken.current = hitTok.key; S.setCanvasCursor('grabbing');
+          e.preventDefault(); return;
         }
         // Painted zones
         for (let i = R.rPaintedZones.current.length - 1; i >= 0; i--) {
@@ -409,25 +398,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setActiveDrag(id); S.setCanvasCursor('grabbing');
     };
 
-    // Check lib enemies first (they are on top)
-    for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
-      const len = R.rLibEnemies.current[i];
-      const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
-      const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
-      if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
-        selectAndArmDrag(`lib_${len.id}`, lep);
-        e.preventDefault(); return;
-      }
-    }
-
-    for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
-      const pl = R.rPlayers.current[i];
-      const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
-      const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
-      if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
-        selectAndArmDrag(`pl_${pl.id}`, ppos);
-        e.preventDefault(); return;
-      }
+    // Token sota el cursor: el de més amunt tal com es veu (el seleccionat a sobre, i amb el
+    // ventall dels apilats obert, on es veu cada un). El ventall es tanca en començar a arrossegar.
+    const hitTok = tokenAt(R, mx, my, sc);
+    const hitPos = hitTok && getTokenPos(R, hitTok.key);
+    if (hitTok && hitPos) {
+      clearTokenSpread();
+      selectAndArmDrag(hitTok.key, hitPos);
+      e.preventDefault(); return;
     }
 
 
@@ -603,6 +581,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const hovDoor = doorAt(R.rDoors.current, { x: mx, y: my }, 9 / sc)?.id ?? null;
       R.rHoveredDoorId.current = hovDoor;
       if (hovDoor !== prevHovDoor) S.setCanvasCursor(hovDoor ? 'pointer' : 'default');
+      // Tokens apilats: s'obren en ventall sota el cursor (offset visual, l'anima el rAF).
+      if (!R.rAreaSelectMode.current) updateTokenSpread(R, mx, my, sc, R.rGridSize.current);
+    } else {
+      clearTokenSpread();
     }
 
     if (tool === 'pen' || tool === 'eraser' || tool === 'shape') {
@@ -932,6 +914,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     R.rHoveredDoorId.current = null;
     R.rHoveredPaintedZoneId.current = null;
     R.rCursorScreenPos.current = null;
+    clearTokenSpread();
     if (R.rDrawTool.current === 'pointer') {
       R.rPointerPos.current = null;
       R.bcRef.current?.postMessage({ type: 'POINTER', pos: null });
@@ -1005,31 +988,20 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     // If the right-clicked token is part of an active multi-selection, show the group menu instead
     const sel = R.rMultiSelected.current;
-    const maybeMultiMenu = (id: number | string): boolean => {
+    const maybeMultiMenu = (id: number | string, anchor?: ContextMenuState['anchor']): boolean => {
       if (sel.size <= 1 || !sel.has(id)) return false;
-      S.setContextMenu({ id, name: `${sel.size} seleccionats`, x: e.clientX, y: e.clientY, isMultiSelect: true, ids: [...sel], existingGroupId: groupOfSelection([...sel]) });
+      S.setContextMenu({ id, name: `${sel.size} seleccionats`, x: e.clientX, y: e.clientY, isMultiSelect: true, ids: [...sel], existingGroupId: groupOfSelection([...sel]), anchor });
       return true;
     };
 
-    // Check lib enemies
-    for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
-      const len = R.rLibEnemies.current[i];
-      const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
-      const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
-      if (Math.hypot(mx - lep.x, my - lep.y) <= lR) {
-        if (maybeMultiMenu(`lib_${len.id}`)) return;
-        S.setContextMenu(tokenMenuFor(R, `lib_${len.id}`, e.clientX, e.clientY));
-        return;
-      }
-    }
-    for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
-      const pl = R.rPlayers.current[i];
-      const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
-      const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
-      if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) {
-        if (maybeMultiMenu(`pl_${pl.id}`)) return;
-        S.setContextMenu(tokenMenuFor(R, `pl_${pl.id}`, e.clientX, e.clientY)); return;
-      }
+    const hitTok = tokenAt(R, mx, my, sc);
+    if (hitTok) {
+      // Capsa del token a la finestra: el menú s'hi col·loca al costat, sense tapar-lo.
+      const b = tokenBounds(hitTok), toX = (x: number) => e.clientX + (x - mx) * sc, toY = (y: number) => e.clientY + (y - my) * sc;
+      const anchor = { l: toX(b.l), r: toX(b.r), t: toY(b.t), b: toY(b.b) };
+      if (maybeMultiMenu(hitTok.key, anchor)) return;
+      S.setContextMenu(tokenMenuFor(R, hitTok.key, e.clientX, e.clientY, anchor));
+      return;
     }
     // Sala detectada (eina Parets) — prioritat més baixa (àrea gran sota els tokens)
     for (let i = R.rRooms.current.length - 1; i >= 0; i--) {
@@ -1053,7 +1025,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const mk = v && placeMarkAt(R.rPlaceMarks.current, e.clientX - rect.left, e.clientY - rect.top, v.sc, v.ox, v.oy);
       if (mk) { R.rPlaceEnter.current(mk.id); return; }
     }
-    const { mx, my } = mc(e);
+    const { mx, my, sc } = mc(e);
 
     const selectGroupOrSolo = (id: number | string) => {
       const gid = R.rTokenGroups.current.get(id);
@@ -1067,18 +1039,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.rSelectedToken.current = id; S.setSelectedToken(id);
     };
 
-    for (let i = R.rLibEnemies.current.length - 1; i >= 0; i--) {
-      const len = R.rLibEnemies.current[i];
-      const lep = R.rPos.current[`lib_${len.id}`] || { x: 0, y: 0 };
-      const lR = R.rTokenSizeOverride.current[`lib_${len.id}`] ?? len.R;
-      if (Math.hypot(mx - lep.x, my - lep.y) <= lR) { selectGroupOrSolo(`lib_${len.id}`); return; }
-    }
-    for (let i = R.rPlayers.current.length - 1; i >= 0; i--) {
-      const pl = R.rPlayers.current[i];
-      const ppos = R.rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
-      const pR = R.rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
-      if (Math.hypot(mx - (ppos.x + pR), my - (ppos.y + pR)) <= pR + 4) { selectGroupOrSolo(`pl_${pl.id}`); return; }
-    }
+    const hitTok = tokenAt(R, mx, my, sc);
+    if (hitTok) selectGroupOrSolo(hitTok.key);
   }, [mc]);
 
   return { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick, mc };

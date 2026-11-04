@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.79';
+export const APP_VERSION = 'v4.81';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -256,6 +256,13 @@ export function tint(color: string, alpha: number): string {
 export const BC_CHANNEL = 'rpg_map_sync_v18';
 export const TOKEN_LERP  = 0.07;
 export const TSCALE      = 90;
+/**
+ * Tolerància de «tokens apilats», en fracció de la mida de casella (sense graella, del diàmetre del
+ * token): dos tokens amb els centres a menys d'això es consideren un munt, i en passar-hi el cursor
+ * s'obren en ventall (`lib/render/token-geom.ts`). 0,5 = mitja casella: dos tokens en caselles veïnes
+ * (1 casella) no ho són; dos a la mateixa casella o a mig camí, sí.
+ */
+export const TOKEN_STACK_TOL = 0.5;
 
 // 1 grid cell = 5ft (D&D convention). Token radius (px) = gridSize * 0.09 * feet,
 // so a 5ft (medium) token comes out to gridSize*0.45 — matching the existing

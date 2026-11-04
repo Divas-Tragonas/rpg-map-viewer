@@ -241,6 +241,11 @@ export interface ContextMenuState {
   ids?: (number | string)[];
   /** Group the token/selection currently belongs to (fully), if any. */
   existingGroupId?: string;
+  /**
+   * Capsa del token a la finestra (px de client) quan el menú s'obre des del mapa: el menú es
+   * col·loca al costat, centrat verticalment, en lloc de sota el cursor (veure `ContextMenuOverlay`).
+   */
+  anchor?: { l: number; r: number; t: number; b: number };
   /** Set when the right-click landed on a detected room (walls tool). */
   isRoom?: boolean;
   roomDark?: boolean;

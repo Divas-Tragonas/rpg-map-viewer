@@ -1,5 +1,5 @@
 'use client';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { X, GripIcon, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
@@ -112,6 +112,23 @@ const menuBox = (x: number, y: number, maxH: number): React.CSSProperties => ({
   background: C.panel, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg,
   zIndex: 9999, boxShadow: SHADOW.menu,
 });
+
+/** Distància entre el token i el menú obert al seu costat (px). */
+const SIDE_GAP = 14;
+/**
+ * Menú d'un token obert des del mapa (`anchor` = capsa del token a la finestra): al costat del token
+ * (a la dreta; si no hi cap, a l'esquerra), centrat verticalment respecte d'ell i sempre dins de la
+ * finestra. Abans s'obria sota el cursor i tapava el token que s'estava editant. `h`: alçada mesurada.
+ */
+const anchoredBox = (a: NonNullable<ContextMenuState['anchor']>, h: number): React.CSSProperties => {
+  const W = window.innerWidth, H = window.innerHeight;
+  let left = a.r + SIDE_GAP;
+  if (left + MENU_W > W - 8) left = a.l - SIDE_GAP - MENU_W;
+  if (left < 8) left = Math.max(8, Math.min(a.r + SIDE_GAP, W - MENU_W - 8));  // pantalla estreta: no hi cap a cap costat
+  const hh = Math.min(h, H - 16);
+  const top = Math.max(8, Math.min((a.t + a.b) / 2 - hh / 2, H - hh - 8));
+  return { ...menuBox(left, top, 0), left, top };
+};
 
 /** Posició d'un menú flotant (l'ha mogut el DM): on l'ha deixat, amb la capçalera sempre a la vista. */
 const floatBox = (p: MenuPos): React.CSSProperties => {
@@ -237,6 +254,16 @@ export function ContextMenuOverlay({
   // Les accions del menú que el tanquen (parlar, llançar un conjur…) conserven el lloc flotant.
   const onDismiss = useCallback(() => { onFloat(null); onClose(); }, [onFloat, onClose]);
   const floating = !!floatPos;
+  // Alçada real del menú del token, per centrar-lo verticalment respecte del token (`anchoredBox`).
+  // ResizeObserver avisa després del layout i abans de pintar: no es veu cap salt.
+  const [menuEl, setMenuEl] = useState<HTMLDivElement | null>(null);
+  const [menuH, setMenuH] = useState(0);
+  useLayoutEffect(() => {
+    if (!menuEl) return;
+    const ro = new ResizeObserver(() => setMenuH(menuEl.offsetHeight));
+    ro.observe(menuEl);
+    return () => ro.disconnect();
+  }, [menuEl]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -262,7 +289,9 @@ export function ContextMenuOverlay({
     window.addEventListener('pointerup', up);
     onFloat({ x: r.left, y: r.top });
   };
-  const box = (x: number, y: number, maxH: number) => floatPos ? floatBox(floatPos) : menuBox(x, y, maxH);
+  // Obert des d'un token del mapa (`anchor`): al seu costat; si no, sota el cursor (sales, zones, lateral).
+  const box = (x: number, y: number, maxH: number) => floatPos ? floatBox(floatPos)
+    : contextMenu?.anchor ? anchoredBox(contextMenu.anchor, menuH || maxH) : menuBox(x, y, maxH);
   const head = { onClose: onDismiss, onDrag: startDrag, floating };
 
   if (!contextMenu) return null;
@@ -332,7 +361,7 @@ export function ContextMenuOverlay({
     const idsStr = ids.map(String);
     const libCount = ids.filter(tid => typeof tid === 'string' && tid.startsWith('lib_')).length;
     return (
-      <div data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, 440)}>
+      <div ref={setMenuEl} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, 440)}>
         <MenuHeader title={contextMenu.name} {...head} />
         <ConditionPicker
           multi
@@ -410,7 +439,7 @@ export function ContextMenuOverlay({
   const book = contextMenu.casterPos ? spellbookFor(t.name) : [];
   const actionBtn: React.CSSProperties = { flex: '1 1 auto', minWidth: 0 };
   return (
-    <div key={t.key} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, book.length > 0 ? 620 : 400)}>
+    <div key={t.key} ref={setMenuEl} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, book.length > 0 ? 620 : 400)}>
       <MenuHeader title={<NameField key={`${t.key}:${t.name}`} value={t.name} onCommit={t.rename} />} {...head}>
         {/* Derrotat és un interruptor amb nom: abans era un ✕ solt just on s'espera el botó
             de tancar el menú, i en tota la resta de l'app ✕ vol dir tancar o eliminar. */}
@@ -421,13 +450,18 @@ export function ContextMenuOverlay({
         </Button>
       </MenuHeader>
 
-      {/* Fitxa: vida i, a sota, els camps que es configuren (vida màxima, mida, velocitat…). */}
+      {/* Ordre: Dades (vida i camps del token), Conjurs, Estats, Parla i Nivell (fitxa del
+          personatge); al final, les accions de gestió. */}
       <div style={{ padding: '7px 8px 8px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <div style={sectionLabel}>Dades</div>
         {t.hpMax > 0 && <div style={{ display: 'flex' }}><HpControl hp={t.hp} hpMax={t.hpMax} onAdjust={t.adjustHp} size="md" /></div>}
         <TokenFields t={t} p={edit} />
       </div>
 
-      {pl && <CharacterSection player={pl} p={{ ...characters, onShowSheet: (cid, key) => { characters.onShowSheet(cid, key); onClose(); } }} />}
+      {contextMenu.casterPos && (() => {
+        const origin = contextMenu.casterPos;
+        return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
+      })()}
 
       <ConditionPicker
         active={conditions[id] || []}
@@ -438,15 +472,12 @@ export function ContextMenuOverlay({
         }}
       />
 
-      {contextMenu.casterPos && (() => {
-        const origin = contextMenu.casterPos;
-        return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
-      })()}
-
       <TokenSpeech tokenKey={t.key} dialogs={dialogs[t.key] ?? []}
         onSpeak={(text, kind) => { onSpeak(t.key, text, kind); onClose(); }}
         onPlay={dlgId => { onPlayDialog(t.key, dlgId); onClose(); }}
         onEdit={() => { onEditDialogs(t.key); onClose(); }} />
+
+      {pl && <CharacterSection player={pl} p={{ ...characters, onShowSheet: (cid, key) => { characters.onShowSheet(cid, key); onClose(); } }} />}
 
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '6px 8px 8px' }}>
         {pl && confirmDelPlayer === t.key ? (

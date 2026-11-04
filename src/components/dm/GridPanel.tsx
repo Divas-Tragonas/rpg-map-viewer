@@ -27,7 +27,7 @@ interface Props {
   gridCalibCurrRef: React.MutableRefObject<{ cx: number; cy: number } | null>;
 }
 
-export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating, rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rGridLineWidth, rGridCalibrating, rTokenSizeOverride, setGridVisible, setGridSize, setGridSnap, setGridAutoSize, setGridLineWidth, setGridCalibrating, setTokenSizeOverride, onSnapAll, onSizeAll, onBroadcast, gridCalibRef, gridCalibCurrRef }: Props) {
+export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating, rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rGridLineWidth, rGridCalibrating, setGridVisible, setGridSize, setGridSnap, setGridAutoSize, setGridLineWidth, setGridCalibrating, onSnapAll, onSizeAll, onBroadcast, gridCalibRef, gridCalibCurrRef }: Props) {
   return (
     // Panell flotant (flyout de la barra d'eines): mateix aspecte que la resta de flyouts.
     <div style={{ padding: '9px 11px', borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', width: 250, pointerEvents: 'auto' }}>
@@ -48,7 +48,7 @@ export function GridPanel({ gridVisible, gridSize, gridSnap, gridAutoSize, gridL
         <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.xs, color: C.dim, cursor: 'pointer' }} title="Ajusta tots els tokens al 90% de la cel·la">
           <input type="checkbox" checked={gridAutoSize} onChange={e => {
             setGridAutoSize(e.target.checked); rGridAutoSize.current = e.target.checked;
-            if (e.target.checked) onSizeAll(); else { setTokenSizeOverride({}); rTokenSizeOverride.current = {}; onBroadcast(); }
+            onSizeAll();  // apagat: torna les mides per defecte (i recentra els jugadors)
           }} style={{ accentColor: C.accent }} />
           Mida
         </label>

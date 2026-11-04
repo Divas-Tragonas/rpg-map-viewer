@@ -28,8 +28,8 @@ La frase «Posar únicament …» no tenia més sentit: un sol bestiari on els d
 ### Checklist
 
 - [x] a) Mapa de l'estat actual + estructura final proposada
-- [x] a) **Un sol bestiari** a la Biblioteca: els de la BD barrejats per projecte (icona BD); sense connexió no hi són (v4.79)
-- [x] b) **Contrasenya de la web** sense API: `SITE_PASSWORD` a Vercel, cookie httpOnly, `proxy.ts`; `/player` lliure (v4.79)
+- [x] a) **Un sol bestiari** a la Biblioteca: els de la BD barrejats per projecte (icona BD); sense connexió no hi són (v4.81)
+- [x] b) **Contrasenya de la web** sense API: `SITE_PASSWORD` a Vercel, cookie httpOnly, `proxy.ts`; `/player` lliure (v4.81)
 - [ ] b) Configurar `SITE_PASSWORD` i `SITE_SECRET` a Vercel i tornar a desplegar (**ho ha de fer l'usuari**)
 - [x] c) PNJ: recomanació aprovada (camp `role`); s'anirà revisant
 - [ ] c) `LibEnemy.role` + filtres (Iniciar torns «Tots», XP, ressaltar, extres de la cinemàtica)
@@ -83,7 +83,7 @@ projecte/categoria com a agrupació, sense importar d'on ve:
 
 ### b) Contrasenya
 
-> **Decisió (v4.79):** contrasenya **de la web**, no de la API: `SITE_PASSWORD` al servidor de Next
+> **Decisió (v4.81):** contrasenya **de la web**, no de la API: `SITE_PASSWORD` al servidor de Next
 > (Vercel), cookie httpOnly i `src/proxy.ts`. Tot demana la contrasenya menys `/player`. Funciona encara
 > que la API estigui apagada. Detall a `docs/arquitectura.md` («Contrasenya de la web»). El que hi ha a
 > sota és l'anàlisi inicial; els forats de la **API** (2 i 3) segueixen oberts i van al prompt de l'e).
@@ -248,3 +248,32 @@ pel WebSocket, i qualsevol podia esborrar enemics de la BD.
 
 - Render: pintar `sprite: 'i:…'` com a objecte i color del nom per rol a la pantalla de jugador (lot de render).
 - Lot A: el lateral té doble scroll a la Biblioteca (`SidebarSection maxBodyHeight`), ja anotat al lot A.
+
+## Lot B — Tokens (render i interacció)
+
+Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fix mínim a `useDMActions` (radi ↔ posició dels jugadors); el «submenú» és `ContextMenuOverlay`; la tasca 4 queda per després.
+
+- [x] 1. Halos: jerarquia (v4.79 amb claudàtors; a la v4.80 tornen a ser tres anells, veure Ronda 2)
+- [x] 2. Centroide: ombra i peus de la figura al centre de la cel·la; figura centrada pel seu contingut real (bbox alfa, per sprite); ombra dels discos concèntrica
+- [x] 2b. `sizeAllTokens` / reset d'AutoSize compensen la posició dels jugadors (cantonada + R)
+- [x] 3a. Hit-test únic (`lib/render/token-geom.ts`) en ordre z visual; el seleccionat es pinta i es clica a sobre
+- [x] 3b. Tokens apilats: s'obren en passar-hi per sobre (offset visual, animat al rAF), tolerància `TOKEN_STACK_TOL`
+- [ ] 4. Colors i textures del grup — **ajornat** per l'usuari
+- [x] 5. Menú del token (`ContextMenuOverlay`) al costat del token, centrat verticalment i dins la pantalla
+- [x] Verificació: tsc + lint + captures (1, 2 apilats, 5 junts, vora, zoom)
+- [x] CHANGELOG + APP_VERSION + docs
+
+### Ronda 2 (v4.80, comentaris del DM)
+- [x] Halos: tornen a ser tres anells (selecció blava discontínua de sempre), cadascun al seu carril a distància fixa de l'ombra/vora
+- [x] Peus i ombra una mica per sota del centre de la casella (`FOOT_DROP` 0,3·R)
+- [x] Salt en canviar la mida d'un jugador (pantalla de jugador: LERP de la cantonada) corregit
+- [x] Ventall: espera de 0,4 s i augment del token assenyalat
+- [x] Menú: Dades, Conjurs, Estats, Parla, Nivell
+
+### Fora d'abast (anotat, no tocat)
+- El menú no segueix el token si canvia de mida (capsa del moment d'obrir-lo).
+- `usePlayerTokenDrag` (pantalla de jugador) té el seu propi hit-test circular: no fa servir el nou `token-geom` (no agafa el cap de les figuretes).
+- La selecció per marquee (`useMouseHandlers`, `inside(...)`) llegeix els centres a mà; funciona, però podria passar per `tokenSlots(R, false)`.
+- `selectAndArmDrag` afegeix el token a la selecció múltiple encara que només n'hi hagi un de seleccionat (clic a A i després a B → tots dos seleccionats). Comportament previ; revisar si és volgut.
+- Les figuretes es pinten en ordre d'array, no per Y: en una vista 3/4, la de més avall hauria de tapar la de dalt. Canviar-ho també canviaria l'ordre z del hit-test.
+- Al tàctil no hi ha hover: el ventall dels apilats no s'obre (es podria obrir amb un toc llarg).
