@@ -84,6 +84,11 @@ export function setFigureGrade(g: FigureGrade | null | undefined) {
   emit({ ...state });  // la UI torna a fer les miniatures
 }
 
+/** Figureta composta (Forja, `kit.ts`) amb l'ajust de color actiu, o tal qual si no n'hi ha. */
+export function gradeFigureCanvas(c: HTMLCanvasElement): HTMLCanvasElement {
+  return grade ? gradeSheet(c, grade) : c;
+}
+
 function gradeSheet(img: SheetImage, g: FigureGrade): HTMLCanvasElement {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const ctx = c.getContext('2d', { willReadFrequently: true })!;

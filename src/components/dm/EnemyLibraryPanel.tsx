@@ -6,10 +6,14 @@ import { C, FS, RADIUS } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { api, isApiConfigured } from '@/lib/api';
 import { creatureThumb, creatureNames } from '@/lib/sprites/draw';
+import { isKit } from '@/lib/sprites/kit';
 import { useSpritePack } from '@/hooks/useSpritePack';
 import type { ApiEnemy } from '@/lib/api';
 import { groupKey } from '@/lib/enemy-groups';
 import type { LibEnemy } from '@/types';
+import { ForgeSection } from '@/components/dm/ForgePanel';
+import { useJsonStore } from '@/lib/localStore';
+import { forgeStore, forgedTemplate } from '@/lib/forge-store';
 
 interface Props {
   /** Enemics ja afegits a l'escena: només per mostrar quants n'hi ha de cada plantilla. */
@@ -48,6 +52,7 @@ const GRID: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repea
 
 const CASTLE = 'Castell de la Fumarola';
 const BESTIARY = 'Bestiari';
+const FORGE = 'Forja';
 
 /** Una entrada del bestiari únic: plantilla del codi o enemic de la BD (`db`, només amb connexió). */
 interface Entry { t: EnemyTemplate; db?: ApiEnemy; group: string }
@@ -85,19 +90,21 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel 
       .finally(() => setDbLoading(false));
   }, []);
 
+  const forged = useJsonStore(forgeStore);
   const countOf = (templateId: string) => libEnemies.filter(e => e.templateId === templateId).length;
   const entries = useMemo<Entry[]>(() => [
+    ...forged.map(f => ({ t: forgedTemplate(f), group: FORGE })),
     ...ENEMY_TEMPLATES.map(t => ({ t, group: t.group })),
     ...(pixel ? extraCreatures(creatureNames()).map(creatureTemplate).map(t => ({ t, group: t.group })) : []),
     ...dbEnemies.map(dbEntry),
-  ], [pixel, dbEnemies]);
+  ], [pixel, dbEnemies, forged]);
   const q = beastQ.trim().toLowerCase().replace(/_/g, ' ');
   const shown = entries.filter(({ t, group }) => !q
     || `${t.name} ${t.detail ?? ''} ${t.sprite ?? ''} ${group}`.toLowerCase().replace(/_/g, ' ').includes(q));
   const allyList = shown.filter(e => e.t.ally);
   const foes = shown.filter(e => !e.t.ally);
 
-  // Grups: el Castell primer, els projectes de la BD per ordre alfabètic i el Bestiari l'últim.
+  // Grups: les figuretes de la Forja, el Castell, els projectes de la BD per ordre alfabètic i el Bestiari l'últim.
   // Mateixa clau que el back office (`groupKey`): «Cripta» i «cripta » van junts.
   const groups = new Map<string, { label: string; items: Entry[] }>();
   for (const e of foes) {
@@ -105,17 +112,17 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel 
     const g = groups.get(k) ?? { label: e.group, items: [] };
     g.items.push(e); groups.set(k, g);
   }
-  const rank = (label: string) => label === CASTLE ? 0 : label === BESTIARY ? 2 : 1;
+  const rank = (label: string) => label === FORGE ? -1 : label === CASTLE ? 0 : label === BESTIARY ? 2 : 1;
   const ordered = [...groups.values()].sort((a, b) => rank(a.label) - rank(b.label) || a.label.localeCompare(b.label, 'ca'));
   for (const g of ordered) {
-    if (g.label !== CASTLE) g.items.sort((x, y) => x.t.name.localeCompare(y.t.name, 'ca'));
+    if (g.label !== CASTLE && g.label !== FORGE) g.items.sort((x, y) => x.t.name.localeCompare(y.t.name, 'ca'));
   }
 
   const button = ({ t, db }: Entry) => (
     <TemplateButton key={db ? `db:${t.id}` : t.id} name={t.name} color={t.color} hpMax={t.hpMax} detail={t.detail}
       inScene={countOf(t.id)} fromDb={!!db}
       onClick={() => (db ? onAddDbEnemy(db) : onAddEnemy(t))}
-      thumb={db ? (db.imageData || null) : (pixel && t.sprite ? creatureThumb(t.sprite) : null)} />
+      thumb={db ? (db.imageData || null) : ((pixel || isKit(t.sprite)) && t.sprite ? creatureThumb(t.sprite) : null)} />
   );
   const templateGroup = (label: string, items: Entry[]) => (
     <div key={label} style={{ marginTop: 6 }}>
@@ -138,6 +145,7 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel 
           <div style={GRID}>{allyList.map(button)}</div>
         </SidebarSection>
       )}
+      <ForgeSection onAdd={onAddEnemy} />
     </>
   );
 }

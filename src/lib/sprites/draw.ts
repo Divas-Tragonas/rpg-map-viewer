@@ -5,6 +5,7 @@
 import { sheet, figureGradeKey, type SheetId } from './pack';
 import { CREATURES, ITEMS, PORTRAIT_PARTS } from './manifest';
 import { CREATURE_VARIANTS } from './variants';
+import { isKit, kitSheet, parseKit } from './kit';
 
 export const TILE = 48;
 /**
@@ -32,13 +33,17 @@ export const spriteName = (name: string, variant: number) => variant ? `${name}~
 /** Colors de les variants d'una criatura (buit si no en té). */
 export const creatureVariants = (name: string): readonly string[] => CREATURE_VARIANTS[name] ?? [];
 
-/** La figureta existeix? Accepta el nom amb variant. */
-export const hasCreature = (n: string | undefined | null): n is string => !!n && parseSprite(n).name in CREATURES;
+/** La figureta existeix? Accepta el nom amb variant i les de la Forja (`kit:…`, veure `kit.ts`). */
+export const hasCreature = (n: string | undefined | null): n is string =>
+  !!n && (isKit(n) ? !!parseKit(n) : parseSprite(n).name in CREATURES);
 
 const FRAMES = 3;  // fotogrames de l'animació d'espera (els 3 primers del full)
 const variantSheet = (variant: number) => `heroes_v${variant}` as SheetId;
 /** El full que pinta exactament aquesta figureta ja hi és? (per no desar a les memòries cau l'original en lloc de la variant) */
-export const sheetReady = (sprite: string) => { const v = parseSprite(sprite).variant; return !!sheet(v ? variantSheet(v) : 'heroes'); };
+export const sheetReady = (sprite: string) => {
+  if (isKit(sprite)) return !!kitSheet(sprite);
+  const v = parseSprite(sprite).variant; return !!sheet(v ? variantSheet(v) : 'heroes');
+};
 
 /** Retall genèric d'un full, a (dx,dy,dw,dh). Retorna false si el full encara no hi és. */
 export function blit(ctx: CanvasRenderingContext2D, id: SheetId, sx: number, sy: number, sw: number, sh: number,
@@ -62,6 +67,15 @@ export function creatureFrame(now: number, seed = 0): number {
  */
 export function drawCreature(ctx: CanvasRenderingContext2D, sprite: string, frame: number,
   dx: number, dy: number, size: number, flip = false): boolean {
+  if (isKit(sprite)) {
+    const strip = kitSheet(sprite); if (!strip) return false;
+    const prev = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+    const sx = (frame % FRAMES) * TILE;
+    if (!flip) ctx.drawImage(strip, sx, 0, TILE, TILE, dx, dy, size, size);
+    else { ctx.save(); ctx.translate(dx + size, dy); ctx.scale(-1, 1); ctx.drawImage(strip, sx, 0, TILE, TILE, 0, 0, size, size); ctx.restore(); }
+    ctx.imageSmoothingEnabled = prev;
+    return true;
+  }
   const { name, variant } = parseSprite(sprite);
   const p = CREATURES[name]; if (!p) return false;
   const id = variant && sheet(variantSheet(variant)) ? variantSheet(variant) : 'heroes';

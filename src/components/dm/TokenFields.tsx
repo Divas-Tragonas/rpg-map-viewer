@@ -5,6 +5,8 @@ import { C, FS, RADIUS, DEFAULT_SPEED_FT, DEFAULT_VISION_FT, feetFromRadius, FON
 import type { LibEnemy, Player, TokenSizeMap } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { SpritePicker, PortraitBuilder } from '@/components/dm/PixelPickers';
+import { ForgeControls } from '@/components/dm/ForgePanel';
+import { DEFAULT_KIT, kitSprite, parseKit } from '@/lib/sprites/kit';
 import { creatureThumb, creatureVariants, parseSprite, spriteName } from '@/lib/sprites/draw';
 import { useSpritePack } from '@/hooks/useSpritePack';
 
@@ -197,6 +199,8 @@ function PixelLook({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
   const [open, setOpen] = useState<'sprite' | 'portrait' | null>(null);
   const pl = t.player;
   const thumb = t.sprite ? creatureThumb(t.sprite) : null;
+  // Figureta de la Forja: en lloc de les variants de color, l'equipament.
+  const kit = parseKit(t.sprite);
   const box: React.CSSProperties = { width: 32, height: 32, borderRadius: RADIUS.sm, background: C.dark, border: `1px solid ${C.border}`, imageRendering: 'pixelated', flexShrink: 0 };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -214,7 +218,13 @@ function PixelLook({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
       {open === 'sprite' && <SpritePicker value={t.sprite} onPick={t.setSprite} onClose={() => setOpen(null)} />}
       {open === 'portrait' && pl && <PortraitBuilder onPick={url => p.onSetPlayerLook?.(pl.id, { portrait: url })} onClose={() => setOpen(null)} />}
     </div>
-    {t.sprite && <SpriteVariants sprite={t.sprite} onChange={t.setSprite} />}
+    {kit
+      ? <ForgeControls recipe={kit} onChange={r => t.setSprite(kitSprite(r))} />
+      : t.sprite && <SpriteVariants sprite={t.sprite} onChange={t.setSprite} />}
+    {!kit && (
+      <Button size="sm" variant="ghost" onMouseDown={e => { e.stopPropagation(); t.setSprite(kitSprite(DEFAULT_KIT)); }}
+        title="Canvia la figureta per una de la Forja, que es pot equipar (armadura, casc, arma i escut)">Equipar a la Forja</Button>
+    )}
     </div>
   );
 }

@@ -35,7 +35,10 @@ La frase «Posar únicament …» no tenia més sentit: un sol bestiari on els d
 - [ ] c) `LibEnemy.role` + filtres (Iniciar torns «Tots», XP, ressaltar, extres de la cinemàtica)
 - [x] d) Anàlisi dels sprites + maqueta de recolorit (opcions a «d) bis»)
 - [x] d) Estudi dels objectes + prototip de re-pixelat (`scripts/sprite-kit-prototype.py`), a «d) ter»
-- [ ] d) L'usuari tria opció (1 automàtic · 2 kit retocat + Forja · 3 figuretes acabades)
+- [x] d) Triada l'**opció 2** (peces retocades a mà + Forja), només bases d'home, casc centrat
+- [x] d) Forja v1 (v4.82): `kit.ts` + `kit-art.json` + `ForgePanel` + equipament al menú del token; 0 px de diferència app ↔ script
+- [ ] d) Retoc de l'art segons ús (peces que no agradin, més armes o cascos); més endavant, bases de dona/goblin/esquelet
+- [ ] d) Figuretes de la Forja a la BD: el camp `sprite` del prompt de la API ha de ser ≤120 (receptes de ~50 caràcters)
 - [ ] e) Prompts definitius per a `divas_tragonas_api` (quan a–d estiguin resolts): `role`/`sprite`/`notes` + seguretat de la API
 - [ ] FASE final: verificar la API amb `curl`, back office «Criatures» amb Rol/Figureta/Notes, i pujar a `master`
 
@@ -233,6 +236,10 @@ tintes), més recolorir la pell del tors i de les cames amb els tons del joc d'a
 
 Preguntes obertes: quines bases (homes, dones, també goblins o esquelets equipats?) i qui retoca els
 píxels (jo per codi, o tu amb Aseprite sobre el full generat).
+
+**Decisió (v4.82):** opció 2, bases d'home (`prisoner_a/b/c`), el retoc el fa Claude per codi. Detall
+tècnic a `docs/pixel-i-missions.md` («Forja de figuretes»). El casc del prototip anava d'1 px a la dreta
+(7 px de la columna 22 a la 28 sobre un cap de la 21 a la 26): ara els cascos fan 8 px, de la 20 a la 27.
 
 ### Prompts per a `divas_tragonas_api`
 

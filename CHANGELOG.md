@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.82 — Forja de figuretes
+- Nova secció **Forja** a la Biblioteca: crea figuretes vestint un maniquí (tres cossos d'home) amb **armadura** (10 jocs: tela, cuir, cuir reblonat, malla, placa, reial, or, sang, místic, salvatge), **casc** (10), **arma** (15, en acer, or, místic o vorpal) i **escut** (4 formes, 8 materials). Previsualització animada, «A l'atzar», nom, vida, XP i aliat
+- Les peces són els objectes del paquet redibuixats a l'escala i la densitat de detall de les figuretes; el casc va centrat sobre el cap
+- «Afegir a l'escena» o «Desar»: les desades surten al bestiari, al grup Forja
+- **Equipament**: al menú del clic dret d'un token de la Forja es pot canviar l'armadura, el casc, l'arma i l'escut; la resta de tokens tenen «Equipar a la Forja»
+- Es veuen igual al DM i a les pantalles de jugador (la recepta viatja dins del nom de la figureta; res de la API), amb animació, ajust de color de les missions, estats i gris de derrotat
+- `scripts/forja-preview.py` per previsualitzar i retocar les peces
+
 ### v4.81 — Lot Dades: contrasenya de la web i un sol bestiari
 - **Contrasenya de la web**: tota la web (DM, back office, Expositor) demana una contrasenya; la **pantalla de jugador** (`/player`, també dins de la wiki) no. Viu al servidor de Next, no a la API: funciona encara que la API estigui apagada. Es configura a Vercel amb `SITE_PASSWORD` (i `SITE_SECRET`); sense, la porta queda oberta (ús local). Pàgina nova `/login`, cookie httpOnly de 30 dies
 - `middleware.ts` → `proxy.ts` (nom nou de Next 16); el back office segueix demanant el login de la API a més de la contrasenya
