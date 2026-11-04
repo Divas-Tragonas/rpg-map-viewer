@@ -29,8 +29,8 @@ function TemplateButton({ name, color, hpMax, inScene, onClick, thumb, detail, f
     <button onClick={onClick} title={`Afegir ${name} a l'escena (${hpMax} de vida${detail ? ` · ${detail}` : ''}${fromDb ? ' · de la base de dades' : ''})`}
       style={{
         display: 'flex', alignItems: 'center', gap: 5, padding: '5px 7px', minWidth: 0,
-        // Els noms llargs (sobretot els de la BD) ocupen la fila sencera en lloc de quedar tallats.
-        gridColumn: name.length > 13 ? 'span 2' : undefined,
+        // Sempre dues columnes: un nom llarg s'escurça amb «…» (sencer al `title`). Fer-lo ocupar
+        // la fila sencera deixava forats i desordenava la graella.
         background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
         borderRadius: RADIUS.sm, cursor: 'pointer', color: C.text, fontSize: FS.sm, textAlign: 'left',
       }}>

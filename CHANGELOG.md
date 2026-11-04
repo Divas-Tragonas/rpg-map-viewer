@@ -3,6 +3,9 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.86 — Biblioteca: sempre dues columnes
+- Els tokens del bestiari amb nom llarg ja no ocupen dues caselles: la graella és sempre de dues columnes i el nom s'escurça amb «…» (sencer en passar-hi per sobre)
+
 ### v4.85 — Torn: halo de color més gruixut i una mica més viu
 - Quan el token té el torn o es ressalta, el halo de color es queda al seu lloc: línia més gruixuda, color una mica més saturat i lluminós, i un vel del mateix color per sota que respira (abans quedava tapat per la selecció)
 - Sense canvis a la API
