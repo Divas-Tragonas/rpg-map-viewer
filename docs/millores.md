@@ -34,7 +34,8 @@ La frase «Posar únicament …» no tenia més sentit: un sol bestiari on els d
 - [x] c) PNJ: recomanació aprovada (camp `role`); s'anirà revisant
 - [ ] c) `LibEnemy.role` + filtres (Iniciar torns «Tots», XP, ressaltar, extres de la cinemàtica)
 - [x] d) Anàlisi dels sprites + maqueta de recolorit (opcions a «d) bis»)
-- [ ] d) L'usuari tria opció per als tokens fets amb sprites
+- [x] d) Estudi dels objectes + prototip de re-pixelat (`scripts/sprite-kit-prototype.py`), a «d) ter»
+- [ ] d) L'usuari tria opció (1 automàtic · 2 kit retocat + Forja · 3 figuretes acabades)
 - [ ] e) Prompts definitius per a `divas_tragonas_api` (quan a–d estiguin resolts): `role`/`sprite`/`notes` + seguretat de la API
 - [ ] FASE final: verificar la API amb `curl`, back office «Criatures» amb Rol/Figureta/Notes, i pujar a `master`
 
@@ -166,23 +167,72 @@ preparada, sense vida, sense moviment, no es poden revelar/amagar per separat). 
 
 ### d) bis — Tokens nous a partir dels sprites
 
-**Què hi ha:** les figuretes (`uf_heroes.png`, `CREATURES`) són **d'una sola peça** (48 px, 4 fotogrames),
-sense capes d'armadura. Els objectes (`ITEMS`: `armor_gold_chest`, `helmet_…`, armes…) són **icones**
-de 48 px, no peces que es puguin posar damunt d'una figureta. L'únic generador amb capes és el de
-**retrats** (`lib/sprites/portrait.ts`: cap, roba/armadura, casc, cabell…).
+**Primera proposta (descartada per l'usuari):** només recolorir figuretes existents. Era un pintat:
+no canviava ni armes ni cascos.
 
-**Opcions** (maqueta: `knight`, `warrior_m` i `paladin` en or, sang i místic recolorint els grisos):
+### d) ter — Estudi: refer els objectes a l'escala de les figuretes («Forja»)
 
-1. **Variant de color** (recomanada): figureta base + material (or, sang, místic, plata, bronze) que
-   recoloreix el metall. «Soldat d'armadura daurada» = `knight` + or. Es veu nadiu de la pixel art.
-   Dades: `sprite: 'knight~gold'` al token/plantilla. Cost ~1 dia (la part de pintar és del lot de render).
-2. **Equipament com a objectes del token**: llista `items` al token amb icones d'`ITEMS` (inventari al
-   menú del clic dret i, opcionalment, 1–2 icones petites al costat del token). No canvia la figureta,
-   però serveix per al botí (passar objectes d'un token a un altre). Cost ~1 dia.
-3. **Retrat equipat**: fer servir el generador de retrats amb les peces d'armadura/casc triades per al
-   token (diàlegs i cinemàtica). No canvia la figureta del mapa. Cost ~½ dia.
+**Què representen els objectes** (`ITEMS`, `uf_items.png`):
+- **Armadures:** 10 jocs (cloth, leather, studded, chain, plate, royal, gold, blood, mystic, wild) × 5 peces
+  (casc, cos, guants, cames, botes). Cada joc té el seu casc propi: cimera daurada, visera de placa,
+  gorra de cuir, cota de malla…
+- **Escuts:** 4 formes (buckler, heater, kite, great) × 8 materials (wood, iron, gold, royal, elven,
+  flame, ice, mystic, vorpal).
+- **Armes:** ~35 formes (espasa, espasa ampla, falç, daga, destral, destral gran, maça, maça gran,
+  martell, llança, llança gran, trident, bastons, arcs, ballesta…) més les sèries or, místic, vorpal i
+  màgic (les mateixes formes amb una altra paleta).
 
-Es poden combinar (1 per al mapa + 2 per a l'inventari). **Cal que triïs abans d'aplicar.**
+**Densitat de detall (mesurat):**
+
+| | Figureta (`uf_heroes`) | Objecte (`uf_items`) |
+|---|---|---|
+| Mida | cos ~20–31 × 31–36 px; cap ~7 px | casc 14×18–25, espasa 8×31, escut 22×22 |
+| Colors | ~15 per figureta, sense contorn negre (tot és ombrejat) | 5–7 per objecte |
+| Escala | 1× | **~2,2×**: cal reduir a ~0,45 |
+
+**Base per vestir:** `prisoner_a/b/c` són **cossos nus** (maniquí): cap a les files 9–16, tors 14–23,
+braços avall amb les mans a les files 24–26, cames 29–39. Animació d'espera de 3 fotogrames: el tronc baixa
+0/1/2 px i les cames no es mouen. Per tant, cada peça només necessita aquest desplaçament per fotograma.
+
+**Prototip** (`scripts/sprite-kit-prototype.py`): «re-pixelat» = reduir l'objecte a mida de figureta
+(casc 7 px, escut 8–9, arma 11–21) i tornar cada píxel a la paleta del mateix objecte (sense mitges
+tintes), més recolorir la pell del tors i de les cames amb els tons del joc d'armadura.
+- ✅ Proporcions i siluetes bones: a mida de mapa es distingeixen el casc, la llança, la destral, el
+  bastó i l'escut.
+- ❌ Materials massa plans (un sol color per a tot el cos); el peto reduït queda empastat; no hi ha
+  el contrast metall + roba + pell de les figuretes originals.
+- Conclusió: l'automàtic resol la **forma**, però el **material del cos** s'ha de dibuixar a mà.
+
+**Proposta: «Forja» de figuretes** (sense API; les dades van al camp `sprite` que ja existeix)
+- **Recepta** com a clau de figureta: `kit:<base>|<armadura>|<casc>|<arma>|<escut>`
+  (p. ex. `kit:prisoner_a|gold|gold|broadsword|gold_heater`). Funciona per a plantilles, tokens i
+  partides desades. Per a la BD, el camp `sprite` del prompt de la API ha de ser ≤120 caràcters.
+- **Full de peces** `public/sprites/kit.png`, generat pel script i **retocat a mà**:
+  - 10 cossos i 10 cames (un per joc, amb 3 tons i un accent de roba);
+  - 10 cascos;
+  - ~12 armes de forma diferent (les sèries or, místic i vorpal són canvis de paleta);
+  - 4 escuts (els materials són canvis de paleta).
+
+  En total, unes 46 peces petites.
+- **Execució:** la figureta es compon un cop, en carregar (3 fotogrames, a memòria cau, amb
+  `figureGradeKey()` a la clau), i es registra com una criatura més. `drawCreature` i la resta no
+  canvien gaire (un `if` per a `kit:`; és del lot de render).
+- **UI:** pestanya «Forja» a la Biblioteca. Hi tries base, armadura, casc, arma i escut, la
+  previsualització es mou i, en desar-la, queda com a plantilla.
+- **«Equipar» tokens actuals:** només es pot amb les figuretes de la Forja, perquè tenen capes. Les
+  figuretes Oryx fixes (`knight`, `warrior_m`…) no tenen capes: canviar-los l'arma voldria dir
+  esborrar-ne píxels a mà, una per una.
+
+**Opcions:**
+
+| | Què | Qualitat | Cost |
+|---|---|---|---|
+| 1 | Automàtic, com el prototip, millorat | mitjana (com la maqueta) | ~1,5 dies |
+| 2 (recomanada) | Kit generat + **retocat a mà** + Forja | propera a l'Oryx | 3–4 dies |
+| 3 | Només 8–10 figuretes acabades (sense Forja ni combinacions lliures) | alta | ~1,5 dies |
+
+Preguntes obertes: quines bases (homes, dones, també goblins o esquelets equipats?) i qui retoca els
+píxels (jo per codi, o tu amb Aseprite sobre el full generat).
 
 ### Prompts per a `divas_tragonas_api`
 
