@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.83 — Torn i ressaltat amb el halo de color
+- Fora l'aro daurat del torn i el groc de «ressaltar enemics»: el halo de color del token fa de distintiu. És sempre igual i, quan el token té el torn o es ressalta, fa un doble resplendor del color del token que respira
+- El resplendor va en proporció a la mida del token a la pantalla: no canvia de proporció amb el zoom
+- Sense canvis a la API
+
 ### v4.82 — Forja de figuretes
 - Nova secció **Forja** a la Biblioteca: crea figuretes vestint un maniquí (tres cossos d'home) amb **armadura** (10 jocs: tela, cuir, cuir reblonat, malla, placa, reial, or, sang, místic, salvatge), **casc** (10), **arma** (15, en acer, or, místic o vorpal) i **escut** (4 formes, 8 materials). Previsualització animada, «A l'atzar», nom, vida, XP i aliat
 - Les peces són els objectes del paquet redibuixats a l'escala i la densitat de detall de les figuretes; el casc va centrat sobre el cap

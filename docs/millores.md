@@ -327,6 +327,8 @@ Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fi
 - [x] Ventall: espera de 0,4 s i augment del token assenyalat
 - [x] Menú: Dades, Conjurs, Estats, Parla, Nivell
 
+- [x] Torn i ressaltar enemics: sense aro daurat/groc; el halo de color fa un doble resplendor del color del token (v4.83)
+
 ### Fora d'abast (anotat, no tocat)
 - El menú no segueix el token si canvia de mida (capsa del moment d'obrir-lo).
 - `usePlayerTokenDrag` (pantalla de jugador) té el seu propi hit-test circular: no fa servir el nou `token-geom` (no agafa el cap de les figuretes).

@@ -122,8 +122,8 @@ export function drawConditionBadges(
   for (const id of condIds) { const c = CONDITIONS_BY_ID.get(id); if (c) list.push(c); }
   if (list.length === 0) return;
 
-  // L'anell va per DINS de la vora del token: fora hi viuen l'aro daurat del torn,
-  // el de ressaltar enemics i el blau de selecció, i s'hi trepitjarien.
+  // L'anell va per DINS de la vora del token: fora hi viuen l'aro de color (que també marca
+  // el torn i el ressaltar enemics) i el blau de selecció, i s'hi trepitjarien.
   const ringW = Math.max(3 / sc, R * 0.11);
   const Rring = Math.max(ringW, R - ringW / 2);
   if (parts.ring !== false) {
