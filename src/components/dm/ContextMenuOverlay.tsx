@@ -450,13 +450,18 @@ export function ContextMenuOverlay({
         </Button>
       </MenuHeader>
 
-      {/* Ordre per freqüència d'ús a la partida: vida, estats, conjurs i parlar a dalt; la fitxa
-          (camps que es configuren una vegada) i les accions de gestió, a baix. */}
-      {t.hpMax > 0 && (
-        <div style={{ padding: '7px 8px 8px', borderBottom: `1px solid ${C.border}`, display: 'flex' }}>
-          <HpControl hp={t.hp} hpMax={t.hpMax} onAdjust={t.adjustHp} size="md" />
-        </div>
-      )}
+      {/* Ordre: Dades (vida i camps del token), Conjurs, Estats, Parla i Nivell (fitxa del
+          personatge); al final, les accions de gestió. */}
+      <div style={{ padding: '7px 8px 8px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <div style={sectionLabel}>Dades</div>
+        {t.hpMax > 0 && <div style={{ display: 'flex' }}><HpControl hp={t.hp} hpMax={t.hpMax} onAdjust={t.adjustHp} size="md" /></div>}
+        <TokenFields t={t} p={edit} />
+      </div>
+
+      {contextMenu.casterPos && (() => {
+        const origin = contextMenu.casterPos;
+        return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
+      })()}
 
       <ConditionPicker
         active={conditions[id] || []}
@@ -467,21 +472,10 @@ export function ContextMenuOverlay({
         }}
       />
 
-      {contextMenu.casterPos && (() => {
-        const origin = contextMenu.casterPos;
-        return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
-      })()}
-
       <TokenSpeech tokenKey={t.key} dialogs={dialogs[t.key] ?? []}
         onSpeak={(text, kind) => { onSpeak(t.key, text, kind); onClose(); }}
         onPlay={dlgId => { onPlayDialog(t.key, dlgId); onClose(); }}
         onEdit={() => { onEditDialogs(t.key); onClose(); }} />
-
-      {/* Fitxa: els camps que es configuren (vida màxima, mida, velocitat…) i la del personatge. */}
-      <div style={{ padding: '7px 8px 8px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <div style={sectionLabel}>Dades</div>
-        <TokenFields t={t} p={edit} />
-      </div>
 
       {pl && <CharacterSection player={pl} p={{ ...characters, onShowSheet: (cid, key) => { characters.onShowSheet(cid, key); onClose(); } }} />}
 

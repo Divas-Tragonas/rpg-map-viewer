@@ -68,10 +68,10 @@ function stepFor(br: number, Rb: number): number {
  * token n'acumula molts, els colors del contorn ja diuen quants estats té i quins.
  */
 function drawConditionRing(
-  ctx: CanvasRenderingContext2D, cx: number, cy: number, Rr: number, list: Condition[], lw: number, flat = 1,
+  ctx: CanvasRenderingContext2D, cx: number, cy: number, Rr: number, list: Condition[], lw: number, flat = 1, ry = Rr * flat,
 ): void {
-  // `flat` < 1 → el·lipse (aureola en perspectiva als peus d'una figureta de l'app Píxel).
-  const seg = (a0: number, a1: number) => { ctx.beginPath(); ctx.ellipse(cx, cy, Rr, Rr * flat, 0, a0, a1); ctx.stroke(); };
+  // `flat` < 1 o `ry` → el·lipse (aureola en perspectiva als peus d'una figureta de l'app Píxel).
+  const seg = (a0: number, a1: number) => { ctx.beginPath(); ctx.ellipse(cx, cy, Rr, ry, 0, a0, a1); ctx.stroke(); };
   const n = list.length;
   const slice = TAU / n;
   // Amb un sol estat l'anell és continu (sense osca); amb més, cada tram es
@@ -106,8 +106,11 @@ function drawConditionRing(
  */
 export function drawConditionBadges(
   ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, condIds: string[], sc: number,
-  /** App Píxel: l'anell va als peus (`footY`), aplanat (`flat`), i els badges sobre el cap. */
-  foot?: { footY: number; flat: number },
+  /**
+   * App Píxel: l'anell va als peus (`footY`), aplanat (`flat`), i els badges sobre el cap. `rx, ry`:
+   * semieixos de l'anell (els dona `render/tokens.ts` perquè quedi a la mateixa distància de l'ombra).
+   */
+  foot?: { footY: number; flat: number; rx?: number; ry?: number },
   /**
    * Quina part pintar (per defecte totes dues). A l'app Píxel l'anell va SOTA la figureta i els
    * badges a sobre, i per això `render/tokens.ts` les pinta en dos moments.
@@ -124,7 +127,7 @@ export function drawConditionBadges(
   const ringW = Math.max(3 / sc, R * 0.11);
   const Rring = Math.max(ringW, R - ringW / 2);
   if (parts.ring !== false) {
-    if (foot) drawConditionRing(ctx, cx, foot.footY, R * 0.98, list, ringW * 0.9, foot.flat);
+    if (foot) drawConditionRing(ctx, cx, foot.footY, foot.rx ?? R * 0.98, list, ringW * 0.9, foot.flat, foot.ry);
     else drawConditionRing(ctx, cx, cy, Rring, list, ringW);
   }
   if (parts.badges === false) return;

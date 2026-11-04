@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.80 — Tokens: halos en carrils, peus més avall, ventall amb espera
+- **Halos**: tornen a ser tres anells (estats, color i la selecció blava discontínua de sempre) i cadascun té el seu carril a la mateixa distància de l'ombra per tot arreu (a l'app Píxel, l'el·lipse de l'ombra eixamplada, no escalada): ja no s'encavalquen
+- A l'app Píxel, els peus, l'ombra i els halos van una mica per sota del centre de la casella
+- Canviar la mida d'un jugador ja no el fa saltar un moment a la pantalla de jugador
+- Tokens apilats: el ventall s'obre després de 0,4 s amb el cursor a sobre, i el token assenyalat creix una mica i passa a sobre
+- Menú del token: Dades, Conjurs, Estats, Parla i Nivell
+- Sense canvis a la API
+
 ### v4.79 — Tokens: halos, centre, apilats i menú al costat
 - **Halos amb jerarquia**: estats = anell segmentat per dins; color = línia fina contínua per fora; torn = aro daurat que respira; **selecció = claudàtors cian** a les cantonades de tot el token (l'únic que no és un anell i es pinta a sobre de la figura)
 - **Centre**: a l'app Píxel l'ombra i l'aro de color van al centre de la casella i la figura els trepitja, centrada pel contingut real de cada sprite (capsa alfa, sense valors per token). L'ombra dels discos és concèntrica

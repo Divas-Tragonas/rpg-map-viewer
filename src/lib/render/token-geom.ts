@@ -38,6 +38,19 @@ export const FIG_SCALE = 2.4;
 export const FIG_TOP = 0.62 + 0.62 / FIG_SCALE;
 /** Aplanat de les el·lipses dels peus (ombra, color, estats, torn). */
 export const FOOT_FLAT = 0.36;
+/**
+ * Els peus (i l'ombra i els halos) van una mica per sota del centre de la casella, en fracció de R:
+ * la figura puja per sobre dels peus, i amb els peus al centre el cos quedava a la meitat de dalt.
+ */
+export const FOOT_DROP = 0.3;
+export const footOf = (cy: number, R: number) => cy + R * FOOT_DROP;
+/** Semieixos de l'ombra dels peus (fracció de R): la base dels halos de l'app Píxel. */
+export const SHADOW_RX = 0.82, SHADOW_RY = 0.28;
+/**
+ * El·lipse a la distància `d` (px de mapa) de l'ombra: s'eixampla `d` pels DOS eixos, no s'escala,
+ * perquè quedi a la mateixa distància de l'ombra per tot arreu.
+ */
+export const footEllipse = (R: number, d: number) => ({ rx: R * SHADOW_RX + d, ry: R * SHADOW_RY + d });
 /** Quant s'enfonsen els peus dins l'ombra (fracció de R): trepitja l'ombra, no hi sura. */
 const FOOT_SINK = 0.06;
 
@@ -94,8 +107,9 @@ export function figureBox(sprite: string, cx: number, footY: number, R: number):
 export interface TokenSlot { key: string; x: number; y: number; R: number; sprite: string | null }
 
 /**
- * Tots els tokens en l'ordre en què es pinten (de sota a sobre): biblioteca, jugadors i, al final,
- * el seleccionat. Amb `visual`, el centre inclou l'offset del ventall dels apilats.
+ * Tots els tokens en l'ordre en què es pinten (de sota a sobre): biblioteca, jugadors, el seleccionat
+ * i, a sobre de tot, el que el cursor assenyala dins d'un ventall obert. Amb `visual`, el centre i el
+ * radi inclouen l'offset i l'augment del ventall dels apilats.
  */
 export function tokenSlots(refs: TokenRefs, visual = true): TokenSlot[] {
   const out: TokenSlot[] = [];
@@ -108,12 +122,13 @@ export function tokenSlots(refs: TokenRefs, visual = true): TokenSlot[] {
     const key = `pl_${pl.id}`, p = pos[key] || { x: pl.x, y: pl.y }, R = ov[key] ?? 22;
     out.push({ key, x: p.x + R, y: p.y + R, R, sprite: pixelSpriteOf(style, pl.sprite) });
   }
-  const top = refs.rSelectedToken.current != null ? String(refs.rSelectedToken.current) : null;
-  if (top) {
-    const i = out.findIndex(s => s.key === top);
+  const toTop = (key: string | null) => {
+    const i = key ? out.findIndex(s => s.key === key) : -1;
     if (i >= 0 && i < out.length - 1) out.push(out.splice(i, 1)[0]);
-  }
-  if (visual && _spread.size) for (const s of out) { const o = _spread.get(s.key); if (o) { s.x += o.x; s.y += o.y; } }
+  };
+  toTop(refs.rSelectedToken.current != null ? String(refs.rSelectedToken.current) : null);
+  toTop(_hover);
+  if (visual && _spread.size) for (const s of out) { const o = _spread.get(s.key); if (o) { s.x += o.x; s.y += o.y; s.R *= o.k; } }
   return out;
 }
 
@@ -122,7 +137,7 @@ const HIT_PAD = 4;
 const onBase = (s: TokenSlot, mx: number, my: number, sc: number) => Math.hypot(mx - s.x, my - s.y) <= s.R + HIT_PAD / sc;
 const onFigure = (s: TokenSlot, mx: number, my: number) => {
   if (!s.sprite) return false;
-  const b = figureBox(s.sprite, s.x, s.y, s.R);
+  const b = figureBox(s.sprite, s.x, footOf(s.y, s.R), s.R);
   return mx >= b.l && mx <= b.r && my >= b.t && my <= b.b;
 };
 
@@ -141,48 +156,72 @@ export function tokenAt(refs: TokenRefs, mx: number, my: number, sc: number, opt
 /** Capsa a la pantalla (px de mapa) del token, per col·locar-hi el menú al costat. */
 export function tokenBounds(s: TokenSlot): { l: number; r: number; t: number; b: number } {
   if (s.sprite) {
-    const f = figureBox(s.sprite, s.x, s.y, s.R);
-    return { l: Math.min(f.l, s.x - s.R), r: Math.max(f.r, s.x + s.R), t: f.t, b: s.y + s.R * FOOT_FLAT };
+    const fy = footOf(s.y, s.R), f = figureBox(s.sprite, s.x, fy, s.R);
+    return { l: Math.min(f.l, s.x - s.R), r: Math.max(f.r, s.x + s.R), t: f.t, b: fy + s.R * SHADOW_RY };
   }
   return { l: s.x - s.R, r: s.x + s.R, t: s.y - s.R, b: s.y + s.R };
 }
 
 // ── Tokens apilats: ventall en passar-hi el cursor ────────────────────────────
 /**
- * Offset VISUAL de cada token (px de mapa). Viu al mòdul i no a l'estat ni a `DMRefs`: no el llegeix
- * cap component, no es desa ni viatja als jugadors, i només el fan servir el render i el hit-test
- * (com `_facing` a `render/tokens.ts`). La posició real (`rPos`) no es toca mai.
+ * Offset VISUAL de cada token (px de mapa) i el seu augment (`k`). Viu al mòdul i no a l'estat ni a
+ * `DMRefs`: no el llegeix cap component, no es desa ni viatja als jugadors, i només el fan servir el
+ * render i el hit-test (com `_facing` a `render/tokens.ts`). La posició real (`rPos`) no es toca mai.
  */
-interface Spread { x: number; y: number; tx: number; ty: number }
+interface Spread { x: number; y: number; tx: number; ty: number; k: number; tk: number }
 const _spread = new Map<string, Spread>();
-let _cluster: { cx: number; cy: number; reach: number } | null = null;
+/** Ventall obert: centre, abast (mentre el cursor hi és, no es recalcula) i membres. */
+interface Cluster { cx: number; cy: number; reach: number; keys: Set<string> }
+let _cluster: Cluster | null = null;
+/** Ventall a punt d'obrir-se: s'obre (al rAF) si el cursor encara hi és passat `SPREAD_DELAY`. */
+let _pending: { sig: string; at: number; cluster: Cluster; targets: Map<string, Pt> } | null = null;
+/** Token que el cursor assenyala dins del ventall obert (creix i va a sobre de tot). */
+let _hover: string | null = null;
 let _lastT = 0;
 const ZERO: Pt = { x: 0, y: 0 };
 /** Separació entre veïns del ventall, en radis: < 2 vol dir que encara s'encavalquen una mica. */
 const SPREAD_GAP = 1.6;
 /** Constant de temps de l'animació (ms): ~3τ fins que s'atura. */
 const SPREAD_TAU = 55;
+/**
+ * Espera (ms) amb el cursor sobre el munt abans d'obrir-lo: passar-hi per sobre de camí a una altra
+ * banda no l'ha d'obrir. Uns 0,4 s: prou per no saltar a cada pas, poc per no fer esperar.
+ */
+const SPREAD_DELAY = 400;
+/** Augment del token assenyalat dins del ventall. */
+const HOVER_SCALE = 1.18;
 
 export const spreadOffset = (key: string): Pt => _spread.get(key) ?? ZERO;
+export const spreadScale = (key: string): number => _spread.get(key)?.k ?? 1;
+export const spreadHover = (): string | null => _hover;
 
 function collapse() {
-  _cluster = null;
-  for (const s of _spread.values()) { s.tx = 0; s.ty = 0; }
+  _cluster = null; _pending = null; _hover = null;
+  for (const s of _spread.values()) { s.tx = 0; s.ty = 0; s.tk = 1; }
 }
 
 /** Tanca el ventall (es tornen a juntar animats; `instant`, de cop). */
 export function clearTokenSpread(instant = false) {
-  if (instant) { _spread.clear(); _cluster = null; } else collapse();
+  if (instant) { _spread.clear(); _cluster = null; _pending = null; _hover = null; } else collapse();
 }
 
 /**
- * Cridat des del `pointermove` del DM (no a cada frame): si el cursor és sobre un token que en té
- * d'altres a menys de `TOKEN_STACK_TOL` caselles (en cadena), els obre en ventall al voltant del seu
- * centre. Mentre el cursor no surt del ventall obert, no es recalcula (si no, en anar a buscar un
- * token obert el cursor ja no seria sobre el munt i es tancaria).
+ * Cridat des del `pointermove` del DM (no a cada frame). Si el cursor és sobre un token que en té
+ * d'altres a menys de `TOKEN_STACK_TOL` caselles (en cadena), prepara el ventall al voltant del seu
+ * centre, i `advanceTokenSpread` l'obre quan el cursor hi ha estat `SPREAD_DELAY`. Mentre el cursor
+ * no surt del ventall obert, no es recalcula (si no, en anar a buscar un token obert el cursor ja no
+ * seria sobre el munt i es tancaria): només es mira quin token assenyala.
  */
 export function updateTokenSpread(refs: TokenRefs, mx: number, my: number, sc: number, gridSize: number) {
-  if (_cluster && Math.hypot(mx - _cluster.cx, my - _cluster.cy) <= _cluster.reach) return;
+  if (_cluster && Math.hypot(mx - _cluster.cx, my - _cluster.cy) <= _cluster.reach) {
+    const keys = _cluster.keys;
+    const h = tokenAt(refs, mx, my, sc, { filter: k => keys.has(k) })?.key ?? null;
+    if (h !== _hover) {
+      _hover = h;
+      for (const [k, s] of _spread) s.tk = k === h ? HOVER_SCALE : 1;
+    }
+    return;
+  }
   const real = tokenSlots(refs, false);
   const hov = tokenAt(refs, mx, my, sc, { visual: false });
   if (!hov) { collapse(); return; }
@@ -195,32 +234,39 @@ export function updateTokenSpread(refs: TokenRefs, mx: number, my: number, sc: n
     }
   }
   if (group.length < 2) { collapse(); return; }
+  // Ordre estable (d'esquerra a dreta) i primer cap a l'esquerra: les figuretes són altes, de costat no es tapen.
+  group.sort((a, b) => a.x - b.x || a.y - b.y || (a.key < b.key ? -1 : 1));
+  const sig = group.map(s => s.key).join('|');
+  if (_pending?.sig === sig) return;  // ja està esperant: no es torna a comptar el temps
+  if (_cluster) collapse();
   const n = group.length;
   const cx = group.reduce((a, s) => a + s.x, 0) / n, cy = group.reduce((a, s) => a + s.y, 0) / n;
   const Rm = Math.max(...group.map(s => s.R));
   // Veïns del cercle separats SPREAD_GAP·R (corda = 2·r·sin(π/n)); amb dos, un a cada costat.
   const rad = (SPREAD_GAP * Rm) / (2 * Math.sin(Math.PI / n));
-  // Ordre estable (d'esquerra a dreta) i primer cap a l'esquerra: les figuretes són altes, de costat no es tapen.
-  group.sort((a, b) => a.x - b.x || a.y - b.y || (a.key < b.key ? -1 : 1));
-  const keys = new Set(group.map(s => s.key));
-  for (const [k, s] of _spread) if (!keys.has(k)) { s.tx = 0; s.ty = 0; }
+  const targets = new Map<string, Pt>();
   group.forEach((s, i) => {
     const a = Math.PI + (2 * Math.PI * i) / n;
-    const tx = cx + rad * Math.cos(a) - s.x, ty = cy + rad * Math.sin(a) * 0.8 - s.y;
-    const cur = _spread.get(s.key);
-    if (cur) { cur.tx = tx; cur.ty = ty; } else _spread.set(s.key, { x: 0, y: 0, tx, ty });
+    targets.set(s.key, { x: cx + rad * Math.cos(a) - s.x, y: cy + rad * Math.sin(a) * 0.8 - s.y });
   });
-  _cluster = { cx, cy, reach: rad + Rm * 2.2 };
+  _pending = { sig, at: performance.now() + SPREAD_DELAY, cluster: { cx, cy, reach: rad + Rm * 2.2, keys: new Set(targets.keys()) }, targets };
 }
 
 /** Un pas de l'animació del ventall, des del bucle rAF (abans de pintar els tokens). */
 export function advanceTokenSpread(now: number) {
+  if (_pending && now >= _pending.at) {
+    for (const [k, t] of _pending.targets) {
+      const cur = _spread.get(k);
+      if (cur) { cur.tx = t.x; cur.ty = t.y; } else _spread.set(k, { x: 0, y: 0, tx: t.x, ty: t.y, k: 1, tk: 1 });
+    }
+    _cluster = _pending.cluster; _pending = null;
+  }
   if (!_spread.size) { _lastT = now; return; }
   const dt = Math.min(100, Math.max(0, now - (_lastT || now)));
   _lastT = now;
-  const k = reducedMotion() ? 1 : 1 - Math.exp(-dt / SPREAD_TAU);
+  const f = reducedMotion() ? 1 : 1 - Math.exp(-dt / SPREAD_TAU);
   for (const [key, s] of _spread) {
-    s.x += (s.tx - s.x) * k; s.y += (s.ty - s.y) * k;
-    if (s.tx === 0 && s.ty === 0 && Math.abs(s.x) < 0.05 && Math.abs(s.y) < 0.05) _spread.delete(key);
+    s.x += (s.tx - s.x) * f; s.y += (s.ty - s.y) * f; s.k += (s.tk - s.k) * f;
+    if (s.tx === 0 && s.ty === 0 && s.tk === 1 && Math.abs(s.x) < 0.05 && Math.abs(s.y) < 0.05 && Math.abs(s.k - 1) < 0.002) _spread.delete(key);
   }
 }
