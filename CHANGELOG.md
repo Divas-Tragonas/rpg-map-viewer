@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.90 — Halos: ordre de dins a fora i color més saturat
+- Els halos es pinten de dins a fora: estats, color i selecció, cadascun per sobre de l'anterior (abans l'anell dels estats tapava el de color); els isotips dels estats, damunt de tot
+- El halo de color del token té +15 % de saturació
+- Sense canvis a la API
+
 ### v4.89 — Sense fil negre al jugador, portes seguides i fora les portes dobles
 - **Fil negre arran de paret, del tot fora** a la pantalla de jugador: la llum del token s'aturava un píxel abans de la vora de la seva sala (per no vessar a la del costat) i aquell píxel quedava mig fosc. Ara la sala pròpia s'il·lumina sencera fins a la paret, sense tocar cap altra sala
 - **Portes horitzontals seguides**: el tram de mur entre dues portes ja no surt com un pilar solt (més estret i amb una altra cara), sinó com la resta del mur

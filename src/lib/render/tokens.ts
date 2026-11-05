@@ -46,13 +46,16 @@ function haloSlots(R: number, sc: number, foot: boolean): HaloSlots {
 }
 
 /**
- * El color del token amb una mica més de saturació i de brillantor (HSL: +0,12 i +0,06): el halo de
- * color, quan marca el torn, s'havia de veure com l'antic aro daurat, i un color de token (sovint
- * fosc o apagat) es perdia més sobre el mapa. Pujada lleugera per no canviar el color del jugador.
+ * El color del token amb més saturació i brillantor (HSL, sumats). El halo de color sempre va amb
+ * +0,15 de saturació (`HALO_SAT`): el color del token, sovint apagat, es perdia sobre el mapa. Quan
+ * marca el torn hi suma +0,12 de saturació i +0,06 de lluminositat més (`TURN_SAT`, `TURN_LIGHT`), per
+ * veure's com l'antic aro daurat. Pujades lleugeres per no canviar el color del jugador.
  */
+const HALO_SAT = 0.15, TURN_SAT = 0.12, TURN_LIGHT = 0.06;
 const _vivid = new Map<string, string>();
-function vivid(color: string): string {
-  const hit = _vivid.get(color);
+function vivid(color: string, ds: number, dl: number): string {
+  const key = `${color}|${ds}|${dl}`;
+  const hit = _vivid.get(key);
   if (hit) return hit;
   let out = color;
   const m = /^#([0-9a-f]{6})$/i.exec(color);
@@ -65,15 +68,15 @@ function vivid(color: string): string {
       h = mx === r ? ((g - b) / dd) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
       h *= 60; if (h < 0) h += 360;
     }
-    out = `hsl(${h.toFixed(1)}, ${(Math.min(1, sat + 0.12) * 100).toFixed(1)}%, ${(Math.min(0.85, l + 0.06) * 100).toFixed(1)}%)`;
+    out = `hsl(${h.toFixed(1)}, ${(Math.min(1, sat + ds) * 100).toFixed(1)}%, ${(Math.min(0.85, l + dl) * 100).toFixed(1)}%)`;
   }
-  _vivid.set(color, out);
+  _vivid.set(key, out);
   return out;
 }
 
 /**
  * Halo del color del token. Sempre igual; amb `glow` > 0 (té el torn: 1; ressaltar enemics: el seu
- * alfa) es queda al seu lloc però fa de distintiu: el color una mica més viu (`vivid`), la línia més
+ * alfa) es queda al seu lloc però fa de distintiu: el color encara més viu (`vivid`), la línia més
  * gruixuda (3,5 px) i un vel ample (9 px) del mateix color per sota que respira, com el de l'antic aro
  * daurat. Abans el torn i el ressaltar eren dos anells més, daurat i groc, per fora de la selecció.
  * `phase` desfasa la respiració.
@@ -82,7 +85,7 @@ function drawColorHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number, R:
   invis = false, glow = 0, phase = 0) {
   const d = haloSlots(R, sc, foot).color;
   const g = glow > 0.01 ? glow : 0;
-  const ink = invis ? 'rgba(100,180,255,.75)' : g ? vivid(color) : color;
+  const ink = invis ? 'rgba(100,180,255,.75)' : g ? vivid(color, HALO_SAT + TURN_SAT, TURN_LIGHT) : vivid(color, HALO_SAT, 0);
   ctx.save();
   if (invis) ctx.setLineDash([5 / sc, 3 / sc]);
   if (g) {
@@ -260,10 +263,8 @@ const skipInPass = (key: string, top: string | null, pass: TokenPass) => pass !=
  * dels aros dels peus, perquè quedin sota la figura.
  */
 function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
-  cx: number, cy: number, R: number, team: string,
-  opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[]; hp?: number; hpMax?: number; hpHit?: HpHit;
-    /** Resplendor del halo de color (torn o ressaltat), veure `drawColorHalo`. */ glow?: number; phase?: number }): () => void {
-  const { sc } = fc;
+  cx: number, cy: number, R: number,
+  opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[]; hp?: number; hpMax?: number; hpHit?: HpHit }): () => void {
   // Cops i curacions (`lib/sprites/hitfx.ts`): es dedueixen de la vida; qui ataca és qui té el torn.
   const turn = fc.rTurn?.current;
   const now = performance.now();
@@ -276,10 +277,9 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   const S = R * FIG_SCALE;
   ctx.save();
   ctx.globalAlpha = opts.alpha ?? 1;
-  // Ombra als peus i l'aro del color de l'equip per fora, al seu carril.
+  // Ombra als peus. Els halos (estats, color, selecció) els pinta qui crida, de dins a fora.
   ctx.fillStyle = 'rgba(0,0,0,.38)';
   ctx.beginPath(); ctx.ellipse(cx, footY, R * SHADOW_RX, R * SHADOW_RY, 0, 0, Math.PI * 2); ctx.fill();
-  drawColorHalo(ctx, cx, cy, R, sc, team, true, opts.invis, opts.glow, opts.phase);
   ctx.restore();
   // La figura es pinta DESPRÉS: abans hi van els aros dels peus (estats, torn, ressaltat,
   // selecció), que no l'han de tapar mai.
@@ -465,7 +465,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     let fig: (() => void) | null = null;
     if (libSprite) {
-      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, en.color, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, glow, phase, conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined, hpMax: en.hpMax, hpHit: en.hpHit });
+      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined, hpMax: en.hpMax, hpHit: en.hpHit });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -501,7 +501,6 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
-    if (!libSprite) drawColorHalo(ctx, ep.x, ep.y, R, sc, en.color, false, isInvis, glow, phase);
 
     const showStates = isDM || !isInvis;
     ctx.globalAlpha = enAlpha;
@@ -519,7 +518,12 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
       if (showStates) drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, libSprite, enCondIds), R, enCondIds, sc, libSprite ? footRing(ep.y, R, sc) : undefined, parts);
     };
-    badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
+    // Halos de dins a fora, i cada un per sobre de l'anterior: estats, color i (més avall) selecció.
+    // Els badges (isotips), al final, damunt de tot.
+    badges({ badges: false });
+    ctx.globalAlpha = enAlpha;
+    drawColorHalo(ctx, ep.x, ep.y, R, sc, en.color, !!libSprite, isInvis, glow, phase);
+    ctx.globalAlpha = 1;
 
     if (isDM && en.hpMax > 0) {
       const hp = Math.max(0, en.hp ?? en.hpMax);
@@ -559,7 +563,9 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     selectionFor(ctx, fc, `lib_${en.id}`, ep.x, ep.y, R, !!libSprite);
 
     // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
-    if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
+    if (fig) { fig(); ctx.globalAlpha = 1; }
+    badges({ ring: false });  // isotips dels estats, damunt de tot
+    if (fig) drawCross();
 
     ctx.globalAlpha = 1;
   });
@@ -672,7 +678,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     if (!plSprite) drawDiscShadow(ctx, ppos.x + R, ppos.y + R, R, sc);
     let fig: (() => void) | null = null;
     if (plSprite) {
-      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, pl.color, { defeated: isDefeated ? colorProg : 0, invis: isInvis, glow, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax, hpHit: pl.hpHit });
+      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax, hpHit: pl.hpHit });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -694,7 +700,6 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.beginPath(); ctx.arc(ppos.x + R, ppos.y + R, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
-    if (!plSprite) drawColorHalo(ctx, ppos.x + R, ppos.y + R, R, sc, pl.color, false, isInvis, glow);
     if (!plSprite) {
       ctx.fillStyle = '#fff'; ctx.font = `bold ${13 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
@@ -705,7 +710,9 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     ctx.textAlign = 'left';
     const badges = (parts?: { ring?: boolean; badges?: boolean }) =>
       drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? footRing(ppos.y + R, R, sc) : undefined, parts);
-    badges(fig ? { badges: false } : undefined);  // amb figureta, aquí només l'anell (sota la figura)
+    // Halos de dins a fora, i cada un per sobre de l'anterior: estats, color i (més avall) selecció.
+    badges({ badges: false });
+    drawColorHalo(ctx, ppos.x + R, ppos.y + R, R, sc, pl.color, !!plSprite, isInvis, glow);
 
     if (isDM && pl.hpMax > 0) {
       const hp = pl.hp ?? pl.hpMax, hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
@@ -740,6 +747,8 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     selectionFor(ctx, fc, `pl_${pl.id}`, ppos.x + R, ppos.y + R, R, !!plSprite);
 
     // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
-    if (fig) { fig(); ctx.globalAlpha = 1; badges({ ring: false }); drawCross(); }
+    if (fig) { fig(); ctx.globalAlpha = 1; }
+    badges({ ring: false });  // isotips dels estats, damunt de tot
+    if (fig) drawCross();
   });
 }

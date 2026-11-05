@@ -328,6 +328,7 @@ Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fi
 - [x] Menú: Dades, Conjurs, Estats, Parla, Nivell
 
 - [x] Torn i ressaltar enemics: sense aro daurat/groc; el halo de color es queda al seu lloc, més gruixut, una mica més viu i amb un vel que respira (v4.85, opció B)
+- [x] Ordre dels halos de dins a fora (estats < color < selecció) i halo de color amb +15 % de saturació (v4.90)
 
 ### Fora d'abast (anotat, no tocat)
 - El menú no segueix el token si canvia de mida (capsa del moment d'obrir-lo).
