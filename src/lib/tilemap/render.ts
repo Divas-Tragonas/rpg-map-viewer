@@ -172,16 +172,24 @@ export function tileLiveOf(m: TileMap): TileLive {
     const i = +k, c = i % m.cols, r = Math.floor(i / m.cols);
     const set = WALL_BY_ID.get(setId) ?? WALL_BY_ID.get('dungeon')!;
     const W = (col: number, dr: number) => wallPiece(set, col, dr);
-    // Peces de l'autor (columnes 10–13 del joc de paret, com als mapes d'exemple):
-    //  - paret horitzontal: tancada = la porta doble (10); oberta = els dos muntants (11);
-    //  - paret lateral: tancada = la porta vista de cantell, un muntant al mig (12); oberta =
-    //    la fulla de cara, girada contra la paret (13). Totes dues ocupen dues caselles d'alt.
+    // Peces de l'autor (columnes 10–13 del joc de paret), col·locades com als mapes d'exemple
+    // del paquet (`uf_example_*.tmx`, capa «door», casella a casella):
+    //  - paret horitzontal: tancada = la porta doble (10); oberta = els dos muntants (11).
+    //    La fila +2 del joc és l'OMBRA de la porta i va a la casella de sota (`dy` 1): sense
+    //    ella, sota la porta quedava una franja més clara que la resta del mur.
+    //  - paret lateral: tancada = la porta vista de cantell, un muntant (12); oberta = la
+    //    fulla de cara, girada contra la paret (13). Ocupen la cara del tram de dalt (`dy` −1)
+    //    i la casella de la porta. L'autor hi deixa a sota la VORA DE DALT del tram de baix
+    //    (mitja casella grisa, fila 0): el pas és la meitat de dalt i el muntant queda a la
+    //    junta entre els dos trams. Sense aquesta vora la casella quedava tota de terra i el
+    //    muntant semblava surar a mitja obertura.
     const piece = (col: number) => [{ dy: -1, tile: W(col, 0) }, { dy: 0, tile: W(col, 1) }];
+    const sideEdge = { dy: 0, tile: W(1, 0) };
     const h = doorAxis(m, c, r) === 'h';
     doors.push({
       id: `td_${i}`, x: c * TILE, y: r * TILE,
-      closed: h ? [{ dy: 0, tile: W(10, 1) }] : piece(12),
-      open: h ? piece(11) : piece(13),
+      closed: h ? [{ dy: 0, tile: W(10, 1) }, { dy: 1, tile: W(10, 2) }] : [sideEdge, ...piece(12)],
+      open: h ? [...piece(11), { dy: 1, tile: W(11, 2) }] : [sideEdge, ...piece(13)],
     });
   }
   return { anims, doors };

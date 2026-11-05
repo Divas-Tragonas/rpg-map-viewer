@@ -35,6 +35,8 @@ interface Props {
   onDeleteAreaSpell: (id: string) => void;
   onOpenSceneConfig: () => void;
   onBroadcast: () => void;
+  /** Desfer: desa l'estat d'aquests tokens ABANS d'un canvi fet aquí mateix (derrotat, estats). */
+  onBeforeTokens: (label: string, keys: string[]) => void;
   setDefeated: (v: DefeatedMap) => void;
   setConditions: (v: ConditionsMap) => void;
   removeLibEnemy: (id: number) => void;
@@ -234,7 +236,7 @@ function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: 
 export function ContextMenuOverlay({
   contextMenu, conditions, defeated, rDefeated, defeatedAnimRef, rConditions,
   edit, onRemovePlayer,
-  onClose: closeMenu, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast,
+  onClose: closeMenu, onToggleCondition, onDeletePaintedZone, onDeleteAreaSpell, onOpenSceneConfig, onBroadcast, onBeforeTokens,
   setDefeated, setConditions,
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
@@ -368,6 +370,7 @@ export function ContextMenuOverlay({
           active={[]}
           onToggle={condId => idsStr.forEach(tid => onToggleCondition(tid, condId))}
           onClear={() => {
+            onBeforeTokens('treure els estats', idsStr);
             const nc = { ...rConditions.current };
             idsStr.forEach(tid => delete nc[tid]);
             rConditions.current = nc; setConditions({ ...nc }); onBroadcast();
@@ -385,6 +388,7 @@ export function ContextMenuOverlay({
           )}
           <Button block variant="danger" onMouseDown={e => {
             e.stopPropagation();
+            onBeforeTokens('marcar tots derrotats', idsStr);
             const nd = { ...rDefeated.current };
             idsStr.forEach(tid => { if (!nd[tid]) { nd[tid] = true; defeatedAnimRef.current[tid] = 0; } });
             rDefeated.current = nd; setDefeated({ ...nd }); onBroadcast();
@@ -424,6 +428,7 @@ export function ContextMenuOverlay({
   // ── Token (jugador o enemic de la biblioteca) ────────────────────
   const isDefeated = !!defeated[id];
   const toggleDefeated = () => {
+    onBeforeTokens(defeated[id] ? 'treure derrotat' : 'derrotar', [String(id)]);
     const nd = { ...rDefeated.current };
     if (nd[id]) delete nd[id]; else { nd[id] = true; defeatedAnimRef.current[id] = 0; }
     if (!nd[id]) delete defeatedAnimRef.current[id];

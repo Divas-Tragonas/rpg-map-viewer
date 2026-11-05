@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useRef } from 'react';
-import { logUndo } from '@/lib/undo';
+import { pushUndo, stepUndo, clearHistory, snapCmd, type UndoCmd, type UndoDir } from '@/lib/undo';
 import { replayStroke } from '@/lib/render/drawing';
 import { getBBox, simplifyPolygon } from '@/lib/geometry';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
@@ -11,12 +11,12 @@ import { nextHpHit } from '@/lib/sprites/hitfx';
 import { bgFingerprint } from '@/lib/autosave';
 import { DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
 import { findTemplate, type EnemyTemplate } from '@/lib/bestiary';
-import type { PosMap, LibEnemy, Wall, Room, Door, Point, CamRect, Notify } from '@/types';
+import type { PosMap, LibEnemy, Wall, Room, Door, Point, CamRect, Notify, Player, StrokeData, LightSource } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
-import { reviveTileMap } from '@/lib/tilemap/model';
+import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
 import { getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
 
 interface Setters {
@@ -56,8 +56,18 @@ interface Setters {
   notify: Notify;
 }
 
-/** Profunditat màxima del Ctrl+Z de mapa (cada entrada són 4 referències: no pesa res). */
-const MAP_HISTORY_MAX = 60;
+/** Tot el que és d'un token, per desfer-ne qualsevol canvi (també eliminar-lo). */
+interface TokSnap {
+  key: string;
+  pl?: Player; plIdx: number;
+  en?: LibEnemy; enIdx: number;
+  pos?: Point; cond?: string[]; def?: boolean; size?: number; group?: string;
+  /** Lloc a la cua d'iniciativa (−1 si no hi era) i l'element tal com hi era. */
+  turnIdx: number; turnEl?: number | string;
+}
+
+/** Geometria del mapa per referència (veure `_captureGeo`). */
+interface GeoSnap { walls: Wall[]; rooms: Room[]; doors: Door[]; lights: LightSource[]; tileMap: TileMap | null }
 
 /**
  * Traços de ploma que es conserven com a objectes. A diferència de l'historial de mapa,
@@ -315,6 +325,198 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _sendStructState();
   }, [_sendStructState]);
 
+  // ── Desfer / refer únic (veure `lib/undo.ts`) ───────────────────────────────
+  // Totes les accions desfeibles apilen aquí una ordre. Cada ordre guarda només el que toca
+  // (uns tokens, una porta, la geometria del mapa…) i el desfer/refer passa per les mateixes
+  // vies que l'acció (`_broadcastState`, `UNDO_DRAW`): el jugador rep l'estat resultant.
+  const _record = useCallback((cmd: UndoCmd) => { pushUndo(R.rUndo.current, cmd); S.onUndoChange(); }, []);
+
+  /** Gest en curs (arrossegar): l'ordre es crea en prémer i s'apila en deixar anar si ha canviat res. */
+  const beginUndoGesture = useCallback((cmd: UndoCmd, changed: () => boolean) => {
+    R.rUndoGesture.current = { cmd, changed };
+  }, []);
+  const endUndoGesture = useCallback(() => {
+    const g = R.rUndoGesture.current; R.rUndoGesture.current = null;
+    if (g && g.changed()) _record(g.cmd);
+  }, [_record]);
+
+  // Tokens: tot el que és d'un token (fitxa, posició, estats, derrotat, mida, grup i lloc a la
+  // cua d'iniciativa). Serveix per a moure, PV, estats, mida i també per eliminar-lo.
+  const _snapTokens = useCallback((keys: string[]): TokSnap[] => keys.map(key => {
+    const plIdx = key.startsWith('pl_') ? rPlayers.current.findIndex(p => `pl_${p.id}` === key) : -1;
+    const enIdx = key.startsWith('lib_') ? rLibEnemies.current.findIndex(e => `lib_${e.id}` === key) : -1;
+    const t = rTurn.current;
+    const turnIdx = t.order.findIndex(o => String(o) === key);
+    return {
+      key, plIdx, enIdx,
+      pl: plIdx >= 0 ? rPlayers.current[plIdx] : undefined,
+      en: enIdx >= 0 ? rLibEnemies.current[enIdx] : undefined,
+      pos: rPos.current[key], cond: rConditions.current[key], def: rDefeated.current[key],
+      size: rTokenSizeOverride.current[key], group: R.rTokenGroups.current.get(key),
+      turnIdx, turnEl: turnIdx >= 0 ? t.order[turnIdx] : undefined,
+    };
+  }), []);
+
+  const _restoreTokens = useCallback((snaps: TokSnap[]) => {
+    let players = rPlayers.current, enemies = rLibEnemies.current, pos = rPos.current;
+    let cond = rConditions.current, def = rDefeated.current, size = rTokenSizeOverride.current, turn = rTurn.current;
+    const put = <T,>(obj: Record<string, T>, k: string, v: T | undefined): Record<string, T> => {
+      if (obj[k] === v) return obj;
+      const n = { ...obj }; if (v === undefined) delete n[k]; else n[k] = v; return n;
+    };
+    const putIn = <T extends { id: number }>(list: T[], pre: string, k: string, v: T | undefined, at: number): T[] => {
+      const i = list.findIndex(x => `${pre}${x.id}` === k);
+      if (v) {
+        if (i >= 0) { if (list[i] === v) return list; const n = list.slice(); n[i] = v; return n; }
+        const n = list.slice(); n.splice(Math.max(0, Math.min(at, n.length)), 0, v); return n;
+      }
+      return i >= 0 ? list.filter((_, j) => j !== i) : list;
+    };
+    for (const s of snaps) {
+      const k = s.key;
+      const wasThere = rPlayers.current.some(p => `pl_${p.id}` === k) || rLibEnemies.current.some(e => `lib_${e.id}` === k);
+      if (k.startsWith('pl_')) players = putIn(players, 'pl_', k, s.pl, s.plIdx);
+      else if (k.startsWith('lib_')) enemies = putIn(enemies, 'lib_', k, s.en, s.enIdx);
+      pos = put(pos, k, s.pos); cond = put(cond, k, s.cond); def = put(def, k, s.def); size = put(size, k, s.size);
+      if (s.group === undefined) R.rTokenGroups.current.delete(k); else R.rTokenGroups.current.set(k, s.group);
+      delete R.rMovePath.current[k];  // desfer és instantani: res d'animació de camí pendent
+      const exists = !!(s.pl || s.en);
+      if (wasThere && !exists) {
+        // Torna a desaparèixer (refer d'un «eliminar»): la mateixa neteja que en eliminar-lo.
+        const nt = removeFromTurn(turn, k, players, def); if (nt) turn = nt;
+        if (R.rSelectedToken.current === k) R.rSelectedToken.current = null;
+        R.rMultiSelected.current.delete(k);
+      } else if (!wasThere && exists && turn.active && s.turnEl !== undefined && !turn.order.some(o => String(o) === k)) {
+        // Torna a aparèixer (desfer un «eliminar»): recupera el seu lloc a la cua d'iniciativa.
+        const order = turn.order.slice(); const at = Math.min(s.turnIdx, order.length);
+        order.splice(at, 0, s.turnEl);
+        turn = { ...turn, order, turnIndex: at <= turn.turnIndex && order.length > 1 ? turn.turnIndex + 1 : turn.turnIndex };
+      }
+    }
+    if (players !== rPlayers.current) { rPlayers.current = players; S.setPlayers(players); }
+    if (enemies !== rLibEnemies.current) { rLibEnemies.current = enemies; S.setLibEnemies(enemies); }
+    if (pos !== rPos.current) { rPos.current = pos; S.setPos(pos); }
+    if (cond !== rConditions.current) { rConditions.current = cond; S.setConditions(cond); }
+    if (def !== rDefeated.current) { rDefeated.current = def; S.setDefeated(def); }
+    if (size !== rTokenSizeOverride.current) { rTokenSizeOverride.current = size; S.setTokenSizeOverride(size); }
+    if (turn !== rTurn.current) { rTurn.current = turn; S.setTurn(turn); }
+  }, []);
+
+  /** Nom d'un token per a l'etiqueta del desfer («moure Liriandor»). */
+  const _tokName = useCallback((key: string): string =>
+    rPlayers.current.find(p => `pl_${p.id}` === key)?.name
+    ?? rLibEnemies.current.find(e => `lib_${e.id}` === key)?.name ?? 'un token', []);
+
+  /** Ordre sobre uns tokens (crear-la ABANS del canvi). */
+  const tokensCmd = useCallback((label: string, keys: string[], opts: { mergeKey?: string; alive?: (d: UndoDir) => boolean } = {}) =>
+    snapCmd(label, () => _snapTokens(keys), s => { _restoreTokens(s); _broadcastState({}); }, opts),
+  [_snapTokens, _restoreTokens, _broadcastState]);
+  const _recordTokens = useCallback((label: string, keys: string[], mergeKey?: string) =>
+    _record(tokensCmd(label, keys, { mergeKey })), [_record, tokensCmd]);
+
+  /** Arrossegar tokens el DM: un gest = una entrada (també en grup). */
+  const beginTokenDrag = useCallback((keys: string[]) => {
+    const before = keys.map(k => rPos.current[k]);
+    const label = keys.length > 1 ? `moure ${keys.length} tokens` : `moure ${_tokName(keys[0])}`;
+    beginUndoGesture(tokensCmd(label, keys), () => keys.some((k, i) => rPos.current[k] !== before[i]));
+  }, [beginUndoGesture, tokensCmd, _tokName]);
+
+  // Geometria del mapa: parets, sales, portes, llums i mapa de caselles, per referència (tota
+  // mutació crea arrays nous: desar-les no costa cap còpia).
+  const _captureGeo = useCallback((): GeoSnap => ({
+    walls: rWalls.current, rooms: rRooms.current, doors: rDoors.current, lights: rLights.current, tileMap: R.rTileMap.current,
+  }), []);
+  const _restoreGeo = useCallback((g: GeoSnap) => {
+    // Els estats de JOC (sala fosca/revelada, porta oberta) no són de la geometria: tenen les
+    // seves pròpies ordres. Es conserven els actuals per id; si no, desfer una paret tornaria
+    // a amagar una sala que el DM ha revelat després.
+    const curR = new Map(rRooms.current.map(r => [r.id, r]));
+    const rooms = g.rooms.map(r => { const c = curR.get(r.id); return c && (c.dark !== r.dark || c.revealed !== r.revealed) ? { ...r, dark: c.dark, revealed: c.revealed } : r; });
+    const curD = new Map(rDoors.current.map(d => [d.id, d]));
+    const doors = g.doors.map(d => { const c = curD.get(d.id); return c && c.open !== d.open ? { ...d, open: c.open } : d; });
+    rWalls.current = g.walls; S.setWalls(g.walls);
+    rRooms.current = rooms; S.setRooms(rooms);
+    rDoors.current = doors; S.setDoors(doors);
+    rLights.current = g.lights; S.setLights(g.lights);
+    if (g.tileMap !== R.rTileMap.current) { R.rTileMap.current = g.tileMap; R.rTileRestore.current(); }
+    _broadcastState({});
+  }, [_broadcastState]);
+  const mapCmd = useCallback((label: string, mergeKey?: string) => snapCmd(label, _captureGeo, _restoreGeo, { mergeKey }), [_captureGeo, _restoreGeo]);
+  /** Desa la geometria a la pila ABANS d'un canvi del mapa (parets, sales, portes, llums, caselles). */
+  const _pushMapEdit = useCallback((label: string, mergeKey?: string) => _record(mapCmd(label, mergeKey)), [_record, mapCmd]);
+  /** Arrossegar una llum: s'apila en deixar anar, si s'ha mogut. */
+  const beginMapGesture = useCallback((label: string) => {
+    const before = _captureGeo();
+    beginUndoGesture(mapCmd(label), () => rLights.current !== before.lights || rWalls.current !== before.walls);
+  }, [beginUndoGesture, mapCmd, _captureGeo]);
+
+  // Estats de joc d'una sala o d'una porta, per id.
+  const _recordRoomFlags = useCallback((label: string, id: string) => _record(snapCmd(label,
+    () => { const r = rRooms.current.find(x => x.id === id); return r ? { dark: r.dark, revealed: r.revealed } : null; },
+    s => {
+      if (!s) return;
+      const nr = rRooms.current.map(r => r.id === id ? { ...r, dark: s.dark, revealed: s.revealed } : r);
+      rRooms.current = nr; S.setRooms(nr); _broadcastState({});
+    },
+    { alive: () => rRooms.current.some(r => r.id === id) })), [_record, _broadcastState]);
+  const _recordDoorOpen = useCallback((label: string, id: string) => _record(snapCmd(label,
+    () => rDoors.current.find(d => d.id === id)?.open !== false,
+    open => {
+      const nd = rDoors.current.map(d => d.id === id ? { ...d, open } : d);
+      rDoors.current = nd; S.setDoors(nd); _broadcastState({});
+    },
+    { alive: () => rDoors.current.some(d => d.id === id) })), [_record, _broadcastState]);
+
+  // Zones màgiques pintades.
+  const zonesCmd = useCallback((label: string) => snapCmd(label, () => rPaintedZones.current, z => {
+    rPaintedZones.current = z; S.setPaintedZones(z); _broadcastState({});
+  }), [_broadcastState]);
+  const beginZoneDrag = useCallback(() => {
+    const before = rPaintedZones.current;
+    beginUndoGesture(zonesCmd('moure zona màgica'), () => rPaintedZones.current !== before);
+  }, [beginUndoGesture, zonesCmd]);
+
+  // Traços de dibuix: l'historial viatja sencer al jugador (`UNDO_DRAW`), tant per desfer com
+  // per refer. Un traç que s'ha cuit a la base ja no es pot treure (caduca), com abans.
+  const drawEpochRef = useRef(0);
+  const _sendDrawHistory = useCallback(() => {
+    // La base només canvia quan es dibuixa, mai en desfer: durant una tanda de desfers
+    // s'envia una sola vegada i prou (és una imatge de la mida del mapa).
+    const baseline = strokeBaseVerRef.current !== sentBaseVerRef.current ? _strokeBaseline() : undefined;
+    if (baseline !== undefined) sentBaseVerRef.current = strokeBaseVerRef.current;
+    const msg = { type: 'UNDO_DRAW' as const, strokeHistory: [...strokeHistoryRef.current], ...(baseline !== undefined ? { strokeBaseline: baseline } : {}) };
+    bcRef.current?.postMessage(msg);
+    wsRef.current?.send(JSON.stringify(msg));
+    R.rAutosaveDirty.current = true;
+  }, [_strokeBaseline]);
+  /** Afegeix un traç acabat de dibuixar a l'historial i a la pila de desfer. */
+  const commitStroke = useCallback((stroke: StrokeData) => {
+    strokeHistoryRef.current.push(stroke);
+    // Els traços que passen del límit es rasteritzen i surten de la llista: el dibuix es veu
+    // igual, però l'historial deixa de créixer sense fre.
+    _capStrokeHistory();
+    const epoch = drawEpochRef.current, baseVer = strokeBaseVerRef.current;
+    const hist = () => strokeHistoryRef.current;
+    _record({
+      label: 'traç de dibuix', at: Date.now(),
+      alive: dir => drawEpochRef.current === epoch && strokeBaseVerRef.current === baseVer
+        && (dir === 'undo' ? hist()[hist().length - 1] === stroke : !hist().includes(stroke)),
+      undo() { hist().pop(); _repaintDrawCanvas(); _sendDrawHistory(); },
+      redo() { hist().push(stroke); _repaintDrawCanvas(); _sendDrawHistory(); },
+    });
+  }, [_record, _capStrokeHistory, _repaintDrawCanvas, _sendDrawHistory]);
+
+  /** Res a mig fer té sentit després de desfer o refer (cadena de parets, porta a mig col·locar). */
+  const _dropInProgress = useCallback(() => {
+    rWallPenLast.current = null; rWallChain.current = []; rWallCursor.current = null;
+    rDoorPlacement.current = null; rDoorPreview.current = null;
+    R.rUndoGesture.current = null;
+  }, []);
+  const undo = useCallback(() => { _dropInProgress(); stepUndo(R.rUndo.current, 'undo'); S.onUndoChange(); }, [_dropInProgress]);
+  const redo = useCallback(() => { _dropInProgress(); stepUndo(R.rUndo.current, 'redo'); S.onUndoChange(); }, [_dropInProgress]);
+  /** Carregar una partida o canviar d'escena: la pila d'abans ja no té sentit. */
+  const resetUndo = useCallback(() => { clearHistory(R.rUndo.current); drawEpochRef.current++; S.onUndoChange(); }, []);
+
   const loadBg = useCallback(async (file: File) => {
     if (!file) return;
     // Un tipus buit es tracta com a imatge: les partides desades des de versions antigues
@@ -491,22 +693,22 @@ export function useDMActions(R: DMRefs, S: Setters) {
     // `_broadcastState` que fan les funcions que criden aquesta ja el propaga.
     const nt = removeFromTurn(rTurn.current, key, rPlayers.current, rDefeated.current);
     if (nt) { rTurn.current = nt; S.setTurn(nt); }
-    // L'historial de Ctrl+Z no pot guardar moviments d'un token que ja no existeix.
-    R.rMoveHistory.current = R.rMoveHistory.current.filter(h => String(h.id) !== key);
-    S.onUndoChange();
   }, []);
 
   const removePlayer = useCallback((id: number) => {
     const key = `pl_${id}`;
+    _recordTokens(`eliminar ${_tokName(key)}`, [key]);
     const ns = rPlayers.current.filter(p => p.id !== id);
     rPlayers.current = ns; S.setPlayers(ns);
     const np = { ...rPos.current }; delete np[key];
     rPos.current = np; S.setPos(np);
     _cleanupTokenKey(key);
     _broadcastState({});
-  }, [_broadcastState, _cleanupTokenKey]);
+  }, [_broadcastState, _cleanupTokenKey, _recordTokens, _tokName]);
 
   const adjustPlayerHp = useCallback((id: number, delta: number) => {
+    // Clics seguits al mateix token (−1 cinc cops) = un sol desfer.
+    _recordTokens(`PV de ${_tokName(`pl_${id}`)}`, [`pl_${id}`], `hp:pl_${id}`);
     const updated = rPlayers.current.map(pl =>
       pl.id === id ? { ...pl, hp: Math.max(0, Math.min(pl.hpMax, (pl.hp ?? pl.hpMax) + delta)), hpHit: nextHpHit(pl.hpHit, delta) } : pl
     );
@@ -523,7 +725,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       }
     }
     _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _recordTokens, _tokName]);
 
   const setPlayerHpMax = useCallback((id: number, hpMax: number) => {
     const max = Math.max(1, hpMax);
@@ -621,67 +823,13 @@ export function useDMActions(R: DMRefs, S: Setters) {
   const clearDrawing = useCallback(() => {
     const oc = drawCanvasRef.current; if (!oc) return;
     oc.getContext('2d')!.clearRect(0, 0, oc.width, oc.height);
-    strokeHistoryRef.current = []; S.onUndoChange();
+    strokeHistoryRef.current = []; drawEpochRef.current++; S.onUndoChange();
     // La base guarda els traços vells ja rasteritzats: si no es buida, reapareixerien al
     // primer Ctrl+Z després d'esborrar-ho tot.
     strokeBaseRef.current = null; strokeBaseVerRef.current = 0; sentBaseVerRef.current = -1;
     bcRef.current?.postMessage({ type: 'CLEAR_DRAW' });
     wsRef.current?.send(JSON.stringify({ type: 'CLEAR_DRAW' }));
     _broadcastState({});
-  }, [_broadcastState]);
-
-  const undoStroke = useCallback(() => {
-    const hist = strokeHistoryRef.current;
-    if (hist.length === 0) return;
-    hist.pop(); S.onUndoChange();
-    _repaintDrawCanvas();
-    // La base només canvia quan es dibuixa, mai en desfer: durant una tanda de Ctrl+Z
-    // s'envia una sola vegada i prou (és una imatge de la mida del mapa).
-    const baseline = strokeBaseVerRef.current !== sentBaseVerRef.current ? _strokeBaseline() : undefined;
-    if (baseline !== undefined) sentBaseVerRef.current = strokeBaseVerRef.current;
-    const msg = { type: 'UNDO_DRAW' as const, strokeHistory: [...hist], ...(baseline !== undefined ? { strokeBaseline: baseline } : {}) };
-    bcRef.current?.postMessage(msg);
-    wsRef.current?.send(JSON.stringify(msg));
-  }, [_repaintDrawCanvas, _strokeBaseline]);
-
-  // ── Historial de canvis del mapa (Ctrl+Z de parets, sales, portes i llums) ──
-  // Una entrada és només les QUATRE REFERÈNCIES d'array d'abans del canvi: com que tota
-  // mutació d'aquests camps crea arrays nous (és el que fa funcionar la dieta del STATE),
-  // desar-les no costa cap còpia i restaurar-les torna l'estat exacte.
-  const _pushMapEdit = useCallback((label: string) => {
-    const h = R.rMapHistory.current;
-    const entry = {
-      label,
-      walls: rWalls.current, rooms: rRooms.current,
-      doors: rDoors.current, lights: rLights.current,
-      // El mapa de caselles també (per referència: cada edició en crea un de nou).
-      tileMap: R.rTileMap.current,
-    };
-    h.push(entry);
-    logUndo(R.rUndoLog.current, 'map', entry);
-    if (h.length > MAP_HISTORY_MAX) h.shift();
-    S.onUndoChange();
-  }, []);
-
-  /** Desfà l'últim canvi al mapa. Retorna l'etiqueta desfeta, o null si no n'hi havia cap. */
-  const undoMapEdit = useCallback((): string | null => {
-    const h = R.rMapHistory.current;
-    const entry = h.pop();
-    S.onUndoChange();
-    if (!entry) return null;
-    rWalls.current = entry.walls; S.setWalls(entry.walls);
-    rRooms.current = entry.rooms; S.setRooms(entry.rooms);
-    rDoors.current = entry.doors; S.setDoors(entry.doors);
-    rLights.current = entry.lights; S.setLights(entry.lights);
-    if (entry.tileMap !== undefined && entry.tileMap !== R.rTileMap.current) {
-      R.rTileMap.current = entry.tileMap;
-      R.rTileRestore.current();
-    }
-    // Qualsevol cosa a mig fer deixa de tenir sentit amb una geometria diferent.
-    rWallPenLast.current = null; rWallChain.current = []; rWallCursor.current = null;
-    rDoorPlacement.current = null; rDoorPreview.current = null;
-    _broadcastState({});
-    return entry.label;
   }, [_broadcastState]);
 
   // Nucli de l'estat de la partida: tot menys el fons, que cada consumidor adjunta a la
@@ -788,7 +936,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.conditions)    { rConditions.current = state.conditions; S.setConditions(state.conditions); }
       if (state.defeated)      { rDefeated.current = state.defeated; S.setDefeated(state.defeated); }
       if (state.paintedZones)  { rPaintedZones.current = state.paintedZones; S.setPaintedZones(state.paintedZones); }
-      if (state.strokeHistory) { strokeHistoryRef.current = state.strokeHistory; S.onUndoChange(); }
+      if (state.strokeHistory) strokeHistoryRef.current = state.strokeHistory;
+      // La pila de desfer d'abans no té res a veure amb la partida que es carrega.
+      resetUndo();
       // Base de traços vells. Les partides anteriors a aquest camp no en porten: llavors
       // l'historial ja ho és tot i la base es queda buida (comportament de sempre).
       strokeBaseRef.current = null; strokeBaseVerRef.current = 0; sentBaseVerRef.current = -1;
@@ -847,7 +997,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       console.error('Error carregant la partida:', err);
       S.notify(`No s'ha pogut carregar la partida: ${err instanceof Error ? err.message : 'fitxer no vàlid'}`);
     }
-  }, [_broadcastState, _sendFullState, loadBg, _repaintDrawCanvas]);
+  }, [_broadcastState, _sendFullState, loadBg, _repaintDrawCanvas, resetUndo]);
 
   const loadSession = useCallback(async (file: File) => {
     let state: unknown;
@@ -900,14 +1050,16 @@ export function useDMActions(R: DMRefs, S: Setters) {
     }
     const bbox = getBBox(points);
     const zone: import('@/types').PaintedZone = { id: Date.now().toString(), element, points, bbox };
+    _record(zonesCmd('zona màgica'));
     const nz = [...rPaintedZones.current, zone];
     rPaintedZones.current = nz; S.setPaintedZones(nz); setShapeMenu(null); _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _record, zonesCmd]);
 
   const deletePaintedZone = useCallback((id: string) => {
+    _record(zonesCmd('eliminar zona màgica'));
     const nz = rPaintedZones.current.filter(z => z.id !== id);
     rPaintedZones.current = nz; S.setPaintedZones(nz); _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _record, zonesCmd]);
 
   const deleteAreaSpell = useCallback((id: string) => {
     const ns = rActiveSpells.current.filter(s => s.id !== id);
@@ -918,14 +1070,16 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const clearPaintedZones = useCallback(() => {
+    if (rPaintedZones.current.length) _record(zonesCmd('esborrar les zones màgiques'));
     rPaintedZones.current = []; S.setPaintedZones([]); _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _record, zonesCmd]);
 
   const toggleCondition = useCallback((tokenId: string, condId: string) => {
+    _recordTokens(`estat de ${_tokName(tokenId)}`, [tokenId]);
     const cur = rConditions.current[tokenId] || [];
     const nc = { ...rConditions.current, [tokenId]: cur.includes(condId) ? cur.filter(x => x !== condId) : [...cur, condId] };
     rConditions.current = nc; S.setConditions(nc); _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _recordTokens, _tokName]);
 
   const openPlayerWindow = useCallback(() => {
     window.open('/player', '_blank', 'width=1280,height=720');
@@ -978,6 +1132,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const adjustLibEnemyHp = useCallback((id: number, delta: number) => {
+    _recordTokens(`PV de ${_tokName(`lib_${id}`)}`, [`lib_${id}`], `hp:lib_${id}`);
     const updated = rLibEnemies.current.map(en =>
       en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)), hpHit: nextHpHit(en.hpHit, delta) } : en
     );
@@ -994,12 +1149,13 @@ export function useDMActions(R: DMRefs, S: Setters) {
       }
     }
     _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _recordTokens, _tokName]);
 
   // Sets a token's diameter in feet (converted to the pixel radius used for rendering/hit-testing).
   // Player tokens are stored as a top-left corner + radius, so their position is compensated to
   // keep the visual center fixed when the radius changes; lib enemies are stored center-based.
   const setTokenSize = useCallback((id: string, feet: number) => {
+    _recordTokens(`mida de ${_tokName(id)}`, [id], `size:${id}`);
     const newR = radiusFromFeet(feet, rGridSize.current);
     const oldR = rTokenSizeOverride.current[id] ?? 22;
     const ov = { ...rTokenSizeOverride.current, [id]: newR };
@@ -1013,7 +1169,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       }
     }
     _broadcastState({ tokenSizeOverride: ov });
-  }, [_broadcastState]);
+  }, [_broadcastState, _recordTokens, _tokName]);
 
   const setLibEnemyProps = useCallback((id: number, props: Partial<LibEnemy>) => {
     const updated = rLibEnemies.current.map(en => en.id === id ? { ...en, ...props } : en);
@@ -1022,19 +1178,21 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const removeLibEnemy = useCallback((id: number) => {
+    _recordTokens(`eliminar ${_tokName(`lib_${id}`)}`, [`lib_${id}`]);
     const updated = rLibEnemies.current.filter(en => en.id !== id);
     rLibEnemies.current = updated; S.setLibEnemies(updated);
     const np = { ...rPos.current }; delete np[`lib_${id}`];
     rPos.current = np; S.setPos(np);
     _cleanupTokenKey(`lib_${id}`);
     _broadcastState({});
-  }, [_broadcastState, _cleanupTokenKey]);
+  }, [_broadcastState, _cleanupTokenKey, _recordTokens, _tokName]);
 
   const toggleLibEnemyVisibility = useCallback((id: number) => {
+    _recordTokens(`visibilitat de ${_tokName(`lib_${id}`)}`, [`lib_${id}`]);
     const updated = rLibEnemies.current.map(en => en.id === id ? { ...en, visible: !en.visible } : en);
     rLibEnemies.current = updated; S.setLibEnemies(updated);
     _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _recordTokens, _tokName]);
 
   // ── Parets → sales fosques ──────────────────────────────────────────────────
   // Re-detecta les cares tancades del graf de parets i reconcilia amb les sales
@@ -1061,19 +1219,21 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_broadcastState]);
 
   const removeDoor = useCallback((id: string) => {
-    _pushMapEdit('eliminar porta');
     const nd = rDoors.current.filter(d => d.id !== id);
     if (nd.length === rDoors.current.length) return;
+    _pushMapEdit('eliminar porta');
     rDoors.current = nd; S.setDoors(nd);
     _broadcastState({});
   }, [_broadcastState]);
 
   // Obre/tanca una porta (tancada → bloqueja llum i moviment com la paret sencera).
   const toggleDoor = useCallback((id: string) => {
+    const d0 = rDoors.current.find(d => d.id === id); if (!d0) return;
+    _recordDoorOpen(d0.open === false ? 'obrir porta' : 'tancar porta', id);
     const nd = rDoors.current.map(d => d.id === id ? { ...d, open: d.open === false } : d);
     rDoors.current = nd; S.setDoors(nd);
     _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _recordDoorOpen]);
 
   // Activa el mode de col·locació de porta (el mateix que s'obre sol en tancar una sala).
   const startDoorPlacement = useCallback((roomId: string | null) => {
@@ -1082,14 +1242,24 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, []);
 
   const setRoomDark = useCallback((id: string, dark: boolean) => {
+    _recordRoomFlags(dark ? 'marcar sala fosca' : 'treure la foscor', id);
     const nr = rRooms.current.map(r => r.id === id ? { ...r, dark, revealed: dark ? r.revealed : false } : r);
     rRooms.current = nr; S.setRooms(nr); _broadcastState({});
-  }, [_broadcastState]);
+  }, [_broadcastState, _recordRoomFlags]);
+
+  /** Revela o amaga una sala fosca (l'ull: clic a la sala ressaltada, menú i panell). */
+  const setRoomRevealed = useCallback((id: string, revealed: boolean) => {
+    const r0 = rRooms.current.find(r => r.id === id);
+    if (!r0 || !!r0.revealed === revealed) return;
+    _recordRoomFlags(revealed ? `revelar ${r0.name}` : `amagar ${r0.name}`, id);
+    const nr = rRooms.current.map(r => r.id === id ? { ...r, revealed } : r);
+    rRooms.current = nr; S.setRooms(nr); _broadcastState({});
+  }, [_broadcastState, _recordRoomFlags]);
 
   const toggleRoomReveal = useCallback((id: string) => {
-    const nr = rRooms.current.map(r => r.id === id ? { ...r, revealed: !r.revealed } : r);
-    rRooms.current = nr; S.setRooms(nr); _broadcastState({});
-  }, [_broadcastState]);
+    const r0 = rRooms.current.find(r => r.id === id);
+    if (r0) setRoomRevealed(id, !r0.revealed);
+  }, [setRoomRevealed]);
 
   const renameRoom = useCallback((id: string, name: string) => {
     // El camp del menú també l'aplica en perdre el focus (i en tancar el menú): sense canvi
@@ -1152,9 +1322,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
-    buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
+    buildAutosaveRecord, applySessionState, _pushMapEdit,
+    undo, redo, resetUndo, commitStroke, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
+    tokensCmd, _record, _recordTokens, setRoomRevealed,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,

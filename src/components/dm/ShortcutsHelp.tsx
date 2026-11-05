@@ -43,6 +43,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     rows: [
       ['Enter', 'Passar el torn'],
       ['Ctrl+Z', 'Desfer l\'última acció (el botó Desfer de dalt diu quina)'],
+      ['Ctrl+Maj+Z / Ctrl+Y', 'Refer el que s\'ha desfet'],
       ['Supr', 'Treure de l\'escena els enemics seleccionats'],
       ['Clic dret', 'Menú del token (vida, fitxa, estats, conjurs), la sala o la zona'],
       ['Doble clic', 'Seleccionar tot el grup d\'un token'],

@@ -336,3 +336,24 @@ Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fi
 - `selectAndArmDrag` afegeix el token a la selecció múltiple encara que només n'hi hagi un de seleccionat (clic a A i després a B → tots dos seleccionats). Comportament previ; revisar si és volgut.
 - Les figuretes es pinten en ordre d'array, no per Y: en una vista 3/4, la de més avall hauria de tapar la de dalt. Canviar-ho també canviaria l'ordre z del hit-test.
 - Al tàctil no hi ha hover: el ventall dels apilats no s'obre (es podria obrir amb un toc llarg).
+
+## Lot C — Interacció: desfer global, sales, portes (v4.87)
+
+Decisions de l'usuari: model aprovat + eliminar tokens també es desfà; «sala seleccionada» = la sala fosca ressaltada (ull) i el clic la commuta; les portes dolentes són les del mode Píxel (peces del sprite), resoltes mirant els exemples del paquet; push a `master`.
+
+- [x] 1a. Inventari del que entrava a l'historial
+- [x] 1b. Model: pila única d'ordres reversibles (veure `docs/ui-dm.md`, «Desfer / refer únic»)
+- [x] 1c. Implementació: tokens (moure, PV, estats, derrotat, mida, visibilitat, eliminar), geometria, portes, sales, llums, zones, traços, moviments de combat; refer (Ctrl+Maj+Z, Ctrl+Y, botó); límit 100; agrupar clics seguits
+- [x] 1d. Prova llarga (Playwright): 21 accions → desfer fins a l'inici → refer fins al final; DM (export .json) i jugador (BroadcastChannel) idèntics als dos extrems, cap error
+- [x] 2. Clic a la sala ressaltada = revelar/amagar d'un sol gest (tokens i portes primer)
+- [x] 3. Portes Píxel: peces col·locades com a `uf_example_*.tmx` (vora sota la porta lateral, ombra de la porta horitzontal, mur de dues files); captures abans/després
+- [x] tsc + lint (cap error de tipus; el lint només afegeix avisos del mateix patró que ja tenia el fitxer: refs mutades dins de `useCallback`)
+- [x] CHANGELOG + APP_VERSION + docs (`ui-dm.md`, `mapa-sales-llum.md`)
+
+### Fora d'abast (anotat, no tocat)
+- Afegir tokens (DIVAS, un enemic de la biblioteca) no es desfà: només eliminar-los.
+- «Estat» sobre una selecció múltiple des del menú fa una entrada per token (treure'ls tots sí que és una sola).
+- A la pantalla de jugador, la boira d'una sala fosca tapa la meitat de la casella d'una porta de caselles (cada meitat és d'una sala): amb sales fosques veïnes, la porta queda mig negra. Es podria deixar la casella de la porta fora de la foscor, com les parets.
+- Dibuixar una sala nova contra una paret que ja té porta (classe Clàssica) no la detecta si es comença a la cantonada: cal partir-la des de dins (vist en reproduir les portes).
+- Els llocs de missió (`pd_`) porten la porta pintada al PNG: obrir-la no en canvia el dibuix.
+- Les ordres de desfer apilen fins i tot canvis que no canvien res (−1 PV amb 0 PV); són inofensius però ocupen una entrada.

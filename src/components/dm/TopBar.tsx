@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   Monitor, Maximize2, Copy, SaveIcon, ChevronDown, MenuIcon, Keyboard,
   ExternalLink, AlertTriangle, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon,
-  HammerIcon, SwordsIcon, GridIcon, RotateCcw, PanelLeftIcon, PixelSwordIcon, MapIcon, FlagIcon, DashboardIcon,
+  HammerIcon, SwordsIcon, GridIcon, RotateCcw, RedoIcon, PanelLeftIcon, PixelSwordIcon, MapIcon, FlagIcon, DashboardIcon,
 } from '@/components/icons';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
@@ -30,6 +30,8 @@ interface Props {
   mode: DMMode; onModeChange: (m: DMMode) => void;
   /** Què desfaria el «Desfer» (null = res) i l'acció; la mateixa que Ctrl+Z. */
   undoLabel: string | null; onUndo: () => void;
+  /** Què refaria el «Refer» (Ctrl+Maj+Z / Ctrl+Y); null = res. */
+  redoLabel: string | null; onRedo: () => void;
   /** Pantalles de jugador connectades (id → mida en píxels CSS del seu canvas). */
   playerScreens: Record<string, { w: number; h: number; ts: number }>;
   /** Format (amplada/alçada) de l'enquadrament actual del DM; null si encara no n'hi ha. */
@@ -537,14 +539,20 @@ export function TopBar(p: Props) {
       <div style={{ flex: 1, minWidth: 0 }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 4 : 6, flexShrink: 0 }}>
-        {/* Un sol desfer per a tot (traços, canvis del mapa, moviments de combat), i diu què
-            desfarà: abans n'hi havia tres i el Ctrl+Z en triava un segons l'eina. */}
+        {/* Un sol desfer per a tot (veure `lib/undo.ts`), i diu què desfarà. El refer és només
+            una icona al costat: s'hi recorre menys i no ha de fer créixer la barra. */}
         <Button size="md" onClick={p.onUndo} disabled={!p.undoLabel}
           title={p.undoLabel ? `Desfer: ${p.undoLabel} (Ctrl+Z)` : 'No hi ha res a desfer'}
           aria-label="Desfer"
           style={{ height: compact ? 36 : 32, gap: 7, ...(compact ? { padding: '0 9px' } : {}) }}>
           <RotateCcw size={14} />
           <Label>Desfer</Label>
+        </Button>
+        <Button size="md" onClick={p.onRedo} disabled={!p.redoLabel}
+          title={p.redoLabel ? `Refer: ${p.redoLabel} (Ctrl+Maj+Z)` : 'No hi ha res a refer'}
+          aria-label="Refer"
+          style={{ height: compact ? 36 : 32, width: compact ? 36 : 32, padding: 0, justifyContent: 'center' }}>
+          <RedoIcon size={14} />
         </Button>
         <ScreensMenu open={menu === 'screens'} onToggle={toggle('screens')} onClose={close}
           playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} onOpenBoard={p.onOpenBoard} />

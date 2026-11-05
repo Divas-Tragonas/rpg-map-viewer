@@ -18,6 +18,7 @@ import type { PlaceMark } from '@/lib/render/places';
 import { resetExplored } from '@/lib/render/darkrooms';
 import { CURTAIN_CLOSE_MS } from '@/components/ui/SceneCurtain';
 import { logJournal } from '@/lib/journal';
+import { clearHistory } from '@/lib/undo';
 
 const wait = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -81,7 +82,8 @@ export function useMissionScenes(R: DMRefs, o: {
       ]);
       const state = sceneState(m, sc, oRef.current.buildCore(), target, blob);
       // Desfer: res de l'escena d'abans s'ha de poder desfer a la nova.
-      Rf.rMapHistory.current = []; Rf.rMoveHistory.current = []; Rf.rUndoLog.current = [];
+      // (`applySessionState` també la buida en carregar; aquí es fa abans de la cortina.)
+      clearHistory(Rf.rUndo.current);
       await oRef.current.applySessionState(state);
       // El fons és un <img> nou: s'espera que estigui a punt (màx. 4 s) abans d'obrir.
       for (let t = 0; t < 40; t++) {

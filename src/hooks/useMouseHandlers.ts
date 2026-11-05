@@ -1,6 +1,5 @@
 'use client';
 import { useCallback, useRef } from 'react';
-import { logUndo } from '@/lib/undo';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
@@ -15,7 +14,7 @@ const AREA_SETTLED = (sp: import('@/types').Spell) => {
   const DUR: Record<string, number> = { sleep: 3.0, grease: 3.5 };
   return (performance.now() - sp.startTime) / 1000 > (DUR[sp.type] ?? 2.5);
 };
-import type { ContextMenuState, PosMap, Wall } from '@/types';
+import type { ContextMenuState, PosMap, Wall, StrokeData } from '@/types';
 import type { DMRefs } from './useDMRefs';
 
 /** Treu la màgia que esperava el clic de destí (i la seva previsualització). */
@@ -47,6 +46,13 @@ interface MouseHandlerSetters {
   setLights: (v: import('@/types').LightSource[]) => void;
   /** Desa l'estat del mapa a l'historial abans d'un canvi (Ctrl+Z de parets/sales/llums). */
   pushMapEdit: (label: string) => void;
+  /** Revela o amaga una sala fosca (desfeible). */
+  setRoomRevealed: (id: string, revealed: boolean) => void;
+  /** Desfer: en prémer s'arma l'ordre (captura l'«abans»), en deixar anar s'apila si ha canviat res. */
+  beginTokenDrag: (keys: string[]) => void;
+  beginMapGesture: (label: string) => void;
+  beginZoneDrag: () => void;
+  endUndoGesture: () => void;
   /** Hi ha un arrossegament del mapa en curs (el DM hi posa el cursor de mà tancada). */
   setPanning: (v: boolean) => void;
   /** Eina Caselles (estil Píxel): pintar i esborrar al mapa de caselles. Veure `useTileMap`. */
@@ -83,11 +89,11 @@ function mapCoords(e: React.MouseEvent | MouseEvent, r: DOMRect, media: HTMLImag
 }
 
 /**
- * @param capStrokeHistory  Rasteritza i treu de l'historial els traços que passen del límit
- *   (`_capStrokeHistory` a `useDMActions`). Ve per paràmetre, com `_broadcastState`: aquest
- *   hook no rep l'objecte d'accions sencer.
+ * @param commitStroke  Afegeix un traç acabat a l'historial (amb el límit de traços cuits a la
+ *   base) i a la pila de desfer (`commitStroke` a `useDMActions`). Ve per paràmetre, com
+ *   `_broadcastState`: aquest hook no rep l'objecte d'accions sencer.
  */
-export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastState: BroadcastFn, capStrokeHistory: () => void) {
+export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastState: BroadcastFn, commitStroke: (stroke: StrokeData) => void) {
   // getBoundingClientRect pot forçar un reflow i es cridava a cada mousemove; el rect del
   // canvas només canvia quan canvia el layout, així que es cacheja amb un refresc curt.
   const rectCacheRef = useRef<{ rect: DOMRect; t: number } | null>(null);
@@ -248,7 +254,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (!R.rWallPenLast.current) {
         const v = vertexAt(R.rWalls.current, { x: mx, y: my }, 11 / sc);
         if (v) {
-          S.pushMapEdit('moure vèrtex');
+          // S'apila en deixar anar, i només si s'ha mogut (un clic sense moure no és cap canvi).
+          S.beginMapGesture('moure vèrtex');
           R.rWallVertexDrag.current = { orig: v, base: R.rWalls.current };
           R.rWallVertexHover.current = v;
           e.preventDefault(); return;
@@ -300,6 +307,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         if (Math.hypot(mx - ls.x, my - ls.y) <= hitR) {
           S.selectLight(ls.id);
           R.rLightDrag.current = { id: ls.id, ox: mx - ls.x, oy: my - ls.y };
+          S.beginMapGesture('moure llum');
           e.preventDefault(); return;
         }
       }
@@ -327,6 +335,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         if (hitTok && hp) {
           clearTokenSpread();
           R.dragRef.current = { id: hitTok.key, ox: mx - hp.x, oy: my - hp.y };
+          S.beginTokenDrag([String(hitTok.key)]);
           S.setActiveDrag(hitTok.key); S.setSelectedToken(hitTok.key); R.rSelectedToken.current = hitTok.key; S.setCanvasCursor('grabbing');
           e.preventDefault(); return;
         }
@@ -335,6 +344,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
           const zone = R.rPaintedZones.current[i];
           if (pointInPolygon(mx, my, zone.points)) {
             R.zoneDragRef.current = { zoneId: zone.id, startMx: mx, startMy: my, origPoints: zone.points.map(p => ({ ...p })), origBbox: { ...zone.bbox } };
+            S.beginZoneDrag();
             S.setCanvasCursor('grabbing'); e.preventDefault(); return;
           }
         }
@@ -395,6 +405,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       } else {
         R.groupDragRef.current = null;
       }
+      S.beginTokenDrag([String(id), ...[...(R.groupDragRef.current?.keys() ?? [])].map(String)]);
       S.setActiveDrag(id); S.setCanvasCursor('grabbing');
     };
 
@@ -427,17 +438,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setSelectedToken(null); R.rSelectedToken.current = null;
       R.rMultiSelected.current = new Set(); R.groupDragRef.current = null;
 
-      // Clic sobre una sala fosca = revelar-la. Per tornar-la a amagar cal tenir el mode
-      // MAJ actiu (evita re-enfosquir-la sense voler).
+      // Clic sobre la sala fosca ressaltada (la de l'ull) = commutar-la: revelar-la o tornar-la
+      // a amagar, d'un sol gest. Un clic sense voler es desfà amb Ctrl+Z. Els tokens i les
+      // portes de dins la sala tenen prioritat (s'han resolt abans i ja han sortit).
       if (hovR) {
         const rm = R.rRooms.current.find(r => r.id === hovR);
-        if (rm && rm.dark) {
-          if (!rm.revealed || R.rShiftPanToggle.current) {
-            const nr = R.rRooms.current.map(r => r.id === hovR ? { ...r, revealed: !r.revealed } : r);
-            R.rRooms.current = nr; S.setRooms(nr); _broadcastState({});
-          }
-          return;
-        }
+        if (rm && rm.dark) { S.setRoomRevealed(hovR, !rm.revealed); return; }
       }
     };
     startPan(e, clickAction);
@@ -744,6 +750,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.rWallVertexDrag.current) {
       R.rWallVertexDrag.current = null;
       S.redetectRooms();
+      S.endUndoGesture();
       return;
     }
 
@@ -751,6 +758,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.rLightDrag.current) {
       R.rLightDrag.current = null;
       S.setLights([...R.rLights.current]);
+      S.endUndoGesture();
       _broadcastState({});
       return;
     }
@@ -830,6 +838,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (R.zoneDragRef.current) {
       R.zoneDragRef.current = null;
       S.setPaintedZones([...R.rPaintedZones.current]);
+      S.endUndoGesture();
       _broadcastState({}); return;
     }
 
@@ -865,7 +874,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       _broadcastState({}); return;
     }
 
-    if (R.dragRef.current) setPos({ ...R.rPos.current });
+    if (R.dragRef.current) { setPos({ ...R.rPos.current }); S.endUndoGesture(); }
     if (R.pendingDeselectRef.current) {
       const { id } = R.pendingDeselectRef.current;
       R.pendingDeselectRef.current = null;
@@ -887,18 +896,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         R.bcRef.current?.postMessage(strokeMsg);
         R.wsRef.current?.send(JSON.stringify(strokeMsg));
         const stroke = { points: pts, color: R.rDrawColor.current, size: R.rDrawSize.current, tool: R.rDrawTool.current };
-        R.strokeHistoryRef.current.push(stroke);
-        logUndo(R.rUndoLog.current, 'stroke', stroke);
-        // Els traços que passen del límit es rasteritzen i surten de la llista: el dibuix
-        // es veu igual, però l'historial (que viatja sencer a cada STRUCT i UNDO_DRAW i
-        // entra a cada desat automàtic) deixa de créixer sense fre.
-        capStrokeHistory();
+        // A l'historial (amb el límit de traços) i a la pila de desfer.
+        commitStroke(stroke);
         R.rAutosaveDirty.current = true;  // el dibuix no passa per _broadcastState
-        S.onUndoChange();
       }
     }
     _broadcastState({});
-  }, [mc, _broadcastState, capStrokeHistory]);
+  }, [mc, _broadcastState, commitStroke]);
 
   const onMouseLeaveCanvas = useCallback(() => {
     if (S.tileTool) { S.tileTool.up(); S.tileTool.leave(); }
@@ -906,7 +910,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       if (R.panDragRef.current.moved) _broadcastState({});
       R.panDragRef.current = null; S.setPanning(false);
     }
-    if (R.dragRef.current) S.setPos?.({ ...R.rPos.current });
+    if (R.dragRef.current) { S.setPos?.({ ...R.rPos.current }); S.endUndoGesture(); }
     R.dragRef.current = null; S.setActiveDrag(null); R.groupDragRef.current = null; R.pendingDeselectRef.current = null;
     R.rHoveredRoomId.current = null;
     R.rWallCursor.current = null;

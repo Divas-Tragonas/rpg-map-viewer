@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.87 — Desfer i refer de tot, sales d'un clic i portes Píxel com al paquet
+- **Desfer / refer únic**: una sola pila d'accions (màx. 100). A més del dibuix i dels canvis del mapa, ara es desfan moure tokens el DM (un arrossegament = una entrada, també en grup), PV (clics seguits s'agrupen), estats, derrotat, mida, visibilitat, **eliminar un jugador o un enemic** (torna on era, també a la iniciativa), obrir/tancar portes, revelar/amagar i marcar fosca una sala, moure llums i el seu radi, i les zones màgiques
+- **Refer**: Ctrl+Maj+Z o Ctrl+Y, i un botó al costat de «Desfer»; tots dos diuen què faran
+- La càmera no entra mai a la pila. El jugador rep sempre l'estat resultant: provat desfent 21 accions fins a l'inici i refent-les fins al final, amb el DM i la pantalla de jugador idèntics
+- Desfer una paret ja no torna a amagar una sala revelada després ni tanca una porta oberta després
+- **Sales**: clic a la sala fosca ressaltada la revela o la torna a amagar d'un sol gest (abans amagar-la demanava el mode Maj); els tokens i les portes de dins tenen prioritat
+- **Portes Píxel** col·locades com als mapes d'exemple del paquet: la porta lateral deixa la vora del tram de baix (el muntant ja no sura a mitja obertura), la porta horitzontal fa ombra a sota, i en un mur de dues files la porta va a la fila de baix amb el pas obert a les dues (abans hi sortia una sala fantasma)
+
 ### v4.86 — Biblioteca: sempre dues columnes
 - Els tokens del bestiari amb nom llarg ja no ocupen dues caselles: la graella és sempre de dues columnes i el nom s'escurça amb «…» (sencer en passar-hi per sobre)
 

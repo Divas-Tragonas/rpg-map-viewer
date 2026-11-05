@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
 import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
-import { logUndo, peekUndo, type UndoKind } from '@/lib/undo';
+import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
 import type {
   PosMap, Player, Spell, PaintedZone,
@@ -12,7 +12,7 @@ import type {
   LibEnemy, Wall, Room, Door, LightSource, TurnState, Notice, Notify, FigureGrade,
 } from '@/types';
 import { clearExploredAt } from '@/lib/render/darkrooms';
-import { useDMRefs, type DMRefs } from '@/hooks/useDMRefs';
+import { useDMRefs } from '@/hooks/useDMRefs';
 import { useCinematic } from '@/hooks/useCinematic';
 import { useDMActions } from '@/hooks/useDMActions';
 import { useRafLoop } from '@/hooks/useRafLoop';
@@ -83,10 +83,6 @@ const SHOW_PANEL_W = 560;
 // Amplada del lateral: el bloc del nom del mapa de la barra superior hi queda alineat.
 const SIDEBAR_W = 270;
 
-/** Què desfaria el «Desfer» ara: llegeix el registre i les tres piles (veure `lib/undo.ts`). */
-const peekDmUndo = (R: DMRefs) => peekUndo(R.rUndoLog.current, {
-  stroke: R.strokeHistoryRef.current, map: R.rMapHistory.current, move: R.rMoveHistory.current,
-});
 
 export function DMView() {
   // ── State ────────────────────────────────────────────────────────────────
@@ -109,8 +105,8 @@ export function DMView() {
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [autosaveMeta, setAutosaveMeta] = useState<AutosaveMeta | null>(null);
   const [recovering, setRecovering] = useState(false);
-  // Què desfaria el proper «Desfer» (botó de la barra o Ctrl+Z); null = res. Veure `lib/undo.ts`.
-  const [undoNext, setUndoNext] = useState<{ kind: UndoKind; label?: string; tokenId?: number | string } | null>(null);
+  // Què desfaria el proper «Desfer» (Ctrl+Z) i què refaria el «Refer» (Ctrl+Maj+Z); null = res.
+  const [undoNext, setUndoNext] = useState<{ undo: string | null; redo: string | null }>({ undo: null, redo: null });
   // Pantalles de jugador connectades (id → mida), reportades pel missatge VIEWPORT.
   const [playerScreens, setPlayerScreens] = useState<Record<string, { w: number; h: number; ts: number }>>({});
   // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
@@ -323,15 +319,13 @@ export function DMView() {
     setDrawTool(t => { const owner = modeForTool(t); return owner && owner !== m ? 'none' : t; });
   }, [applyMode, setDrawTool]);
 
-  // ── Desfer únic ──────────────────────────────────────────────────────────────
-  // Torna a mirar quina acció desfaria el proper «Desfer». Es crida cada cop que alguna de
-  // les tres piles canvia (useDMActions i useMouseHandlers ho avisen amb `onUndoChange`).
+  // ── Desfer / refer únic ──────────────────────────────────────────────────────
+  // Torna a mirar què desfaria i què refaria la pila (`lib/undo.ts`). Es crida cada cop que
+  // la pila canvia (useDMActions ho avisa amb `onUndoChange`). L'etiqueta es calcula aquí i
+  // no al render: llegir refs al render és l'error de lint `react-hooks/refs`.
   const refreshUndo = useCallback(() => {
-    const e = peekDmUndo(R);
-    if (!e) setUndoNext(null);
-    else if (e.kind === 'map') setUndoNext({ kind: 'map', label: (e.ref as { label: string }).label });
-    else if (e.kind === 'move') setUndoNext({ kind: 'move', tokenId: (e.ref as { id: number | string }).id });
-    else setUndoNext({ kind: 'stroke' });
+    const u = peekUndo(R.rUndo.current, 'undo'), r = peekUndo(R.rUndo.current, 'redo');
+    setUndoNext(p => (p.undo === (u?.label ?? null) && p.redo === (r?.label ?? null)) ? p : { undo: u?.label ?? null, redo: r?.label ?? null });
   }, [R]);
 
   // Els diàlegs desats es refresquen a la UI quan es carrega una partida (`useDialog` es
@@ -377,9 +371,11 @@ export function DMView() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, undoStroke, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
-    buildAutosaveRecord, applySessionState, _pushMapEdit, undoMapEdit,
+    buildAutosaveRecord, applySessionState, _pushMapEdit,
+    undo, redo, commitStroke, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
+    tokensCmd, _record, _recordTokens, setRoomRevealed,
     addPaintedZone, deletePaintedZone, deleteAreaSpell, clearPaintedZones, toggleCondition, openPlayerWindow,
     addLibEnemy, addDbEnemy, adjustLibEnemyHp, setLibEnemyProps,
     removeLibEnemy, toggleLibEnemyVisibility, setTokenSize,
@@ -489,7 +485,8 @@ export function DMView() {
   const _budgetFor = useCallback((id: number | string): number => budgetFor(id, R.rPlayers.current), [R]);
 
   const _applyTurn = useCallback((t: TurnState) => {
-    R.rMoveHistory.current = [];  // cada canvi de torn reinicia l'historial de Ctrl+Z
+    // Cada canvi de torn fa caducar els moviments de combat de la pila (tornaven els peus del torn).
+    R.rTurnGen.current++;
     R.rTurn.current = t; setTurn(t); _broadcastState({});
     refreshUndo();
   }, [R, _broadcastState, refreshUndo]);
@@ -553,35 +550,6 @@ export function DMView() {
     const turnIndex = Math.max(0, newOrder.findIndex(o => String(o) === String(activeId)));
     _applyTurn({ ...t, order: newOrder, turnIndex });
   }, [R, _applyTurn]);
-
-  // Ctrl+Z (només amb l'eina de selecció i combat actiu): desfà l'últim moviment del token
-  // actiu i li retorna els peus gastats. L'historial es limita al torn actual (es neteja al canviar).
-  const undoTokenMove = useCallback(() => {
-    const hist = R.rMoveHistory.current;
-    if (hist.length === 0) return;
-    const last = hist.pop()!;
-    delete R.rMovePath.current[String(last.id)];  // desfer és instantani: res d'animació pendent
-    const np = { ...R.rPos.current, [last.id]: last.from };
-    R.rPos.current = np; setPos(np);
-    const t = R.rTurn.current;
-    if (t.active && String(t.order[t.turnIndex]) === String(last.id) && last.spentFt > 0) {
-      const nt = { ...t, activeRemainingFt: t.activeRemainingFt + last.spentFt };
-      R.rTurn.current = nt; setTurn(nt);
-    }
-    _broadcastState({});
-    refreshUndo();
-  }, [R, _broadcastState, refreshUndo]);
-
-  // «Desfer» únic (botó de la barra superior i Ctrl+Z): desfà l'última acció, sigui un traç,
-  // un canvi del mapa o un moviment de combat. Cada desfer treu l'objecte de la seva pila i
-  // la seva entrada del registre caduca sola (veure `lib/undo.ts`).
-  const undoLast = useCallback(() => {
-    const e = peekDmUndo(R);
-    if (!e) return;
-    if (e.kind === 'stroke') undoStroke();
-    else if (e.kind === 'map') undoMapEdit();
-    else undoTokenMove();
-  }, [R, undoStroke, undoMapEdit, undoTokenMove]);
 
   // Processa un TOKEN_MOVE rebut d'una pantalla de jugador (BC o WS). El DM és autoritat:
   // valida el bloqueig manual i, si hi ha combat, que sigui el token del torn actiu i que el
@@ -657,11 +625,20 @@ export function DMView() {
     }
 
     if (turn.active) {
-      // Registra el moviment (posició d'origen + peus gastats) per poder desfer-lo amb Ctrl+Z.
-      const move = { id, from: R.rPos.current[id] ?? { x, y }, spentFt: consumedFt };
-      R.rMoveHistory.current.push(move);
-      logUndo(R.rUndoLog.current, 'move', move);
-      refreshUndo();
+      // Desfeible amb Ctrl+Z fins que canviï el torn: torna la posició i els peus gastats.
+      const gen = R.rTurnGen.current;
+      const base = tokensCmd(`moviment de ${R.rPlayers.current.find(p => `pl_${p.id}` === sid)?.name ?? 'un jugador'}`, [sid]);
+      const ftBefore = turn.activeRemainingFt;
+      let ftAfter = ftBefore;
+      const setFt = (ft: number) => {
+        const t = R.rTurn.current; if (!t.active) return;
+        const nt = { ...t, activeRemainingFt: ft }; R.rTurn.current = nt; setTurn(nt);
+      };
+      _record({
+        ...base, alive: () => R.rTurnGen.current === gen,
+        undo() { ftAfter = R.rTurn.current.activeRemainingFt; setFt(ftBefore); base.undo(); },
+        redo() { setFt(ftAfter); base.redo(); },
+      });
     }
 
     // Animació de desplaçament a la pantalla del DM: el token recorre el camí real
@@ -760,11 +737,13 @@ export function DMView() {
     R.rNewLightRadiusFt.current = ft; setNewLightRadiusFt(ft);
     const sel = R.rLightSelected.current;
     if (sel) {
+      // Arrossegar el control lliscant fa molts canvis seguits: s'agrupen en un sol desfer.
+      _pushMapEdit('radi de llum', `light-radius:${sel}`);
       const nl = R.rLights.current.map(l => l.id === sel ? { ...l, radiusFt: ft } : l);
       R.rLights.current = nl; setLights(nl);
       _broadcastState({});
     }
-  }, [R, _broadcastState]);
+  }, [R, _broadcastState, _pushMapEdit]);
 
   // ── Reset de l'explorat d'una sala ────────────────────────────────────────────
   // Torna a fer negra del tot una sala ja explorada (fog of war): esborra la memòria
@@ -929,11 +908,12 @@ export function DMView() {
     setDmPrivateActive, setCanvasCursor,
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
+    setRoomRevealed, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
     tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave },
   }), [redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
-    useMouseHandlers(R, mouseSetters, _broadcastState, _capStrokeHistory);
+    useMouseHandlers(R, mouseSetters, _broadcastState, commitStroke);
 
   const handleMouseUp = useCallback(() => {
     onMouseUp(setPos, snapAllTokens, sizeAllTokens, setGridSize, setGridOriginX, setGridOriginY, setGridCalibrating);
@@ -1082,7 +1062,7 @@ export function DMView() {
   // Tecla N: nota ràpida al diari (obre el panell Història pel diari i enfoca el camp).
   const openQuickNote = useCallback(() => { setStoryTab('diari'); setStoryOpen(true); setNoteFocus(n => n + 1); }, []);
   useKeyboardHandlers(R, {
-    setDrawTool, undo: undoLast, skipBossIntro, onQuickNote: openQuickNote,
+    setDrawTool, undo, redo, skipBossIntro, onQuickNote: openQuickNote,
     toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
     onDeleteSelection,
     removeLastWall,
@@ -1683,11 +1663,6 @@ export function DMView() {
   const sceneFoes = useMemo(() => [
     ...libEnemies.map(en => ({ id: `lib_${en.id}`, name: en.name })),
   ], [libEnemies]);
-  // Etiqueta del «Desfer» de la barra: què desfarà (els moviments de combat són de jugadors).
-  const undoLabel = !undoNext ? null
-    : undoNext.kind === 'stroke' ? 'traç de dibuix'
-    : undoNext.kind === 'map' ? (undoNext.label ?? 'canvi del mapa')
-    : `moviment de ${players.find(p => `pl_${p.id}` === String(undoNext.tokenId))?.name ?? 'un token'}`;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
@@ -1698,7 +1673,7 @@ export function DMView() {
         mapName={bgLoaded ? bgName : null}
         sidebarOpen={sideOpen} onToggleSidebar={toggleSide}
         mode={mode} onModeChange={switchMode}
-        undoLabel={undoLabel} onUndo={undoLast}
+        undoLabel={undoNext.undo} onUndo={undo} redoLabel={undoNext.redo} onRedo={redo}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         onOpenBoard={() => { if (!openBoard()) notify("El navegador no ha deixat obrir el tauler de missions: permet les finestres emergents d'aquesta pàgina."); }}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt} autosaveFailing={autosaveFailing}
@@ -2159,7 +2134,7 @@ export function DMView() {
         onClose={() => setContextMenu(null)}
         floatPos={menuFloat} onFloat={setMenuFloat}
         onToggleCondition={toggleCondition} onDeletePaintedZone={deletePaintedZone} onDeleteAreaSpell={deleteAreaSpell}
-        onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState}
+        onOpenSceneConfig={openSceneConfig} onBroadcast={_broadcastState} onBeforeTokens={_recordTokens}
         setDefeated={setDefeated} setConditions={setConditions}
         removeLibEnemy={removeLibEnemy}
         onCreateGroup={onCreateGroup} onDissolveGroup={onDissolveGroup} onLeaveGroup={onLeaveGroup}

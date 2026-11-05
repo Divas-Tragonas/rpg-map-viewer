@@ -99,12 +99,29 @@ export function applyBrush(m: TileMap, brush: TileBrush, cells: Cell[]): number[
       case 'world': setFloor(m, c, r, brush.tile); break;
       case 'wall': if (WALL_BY_ID.has(brush.wall)) { delete m.doors[i]; setWall(m, c, r, brush.wall); } break;
       case 'door': {
-        const set = m.wallSet[i] || (m.wallRaw[i] >= 0 ? 'dungeon' : '');
+        // Mur horitzontal de DUES files (vora de dalt + cara): als mapes d'exemple del paquet
+        // la porta va a la fila de baix (la cara: la porta doble hi encaixa) i el pas
+        // travessa les dues files (a dalt hi queda terra). Si es clica la fila de dalt, la
+        // porta baixa a la cara; la fila de dalt es buida.
+        const dc = c; let dr = r;
+        const band2 = (cc: number, rr: number) => inMap(m, cc, rr) && inMap(m, cc, rr + 1)
+          && isWall(m, cc, rr) && isWall(m, cc, rr + 1) && !isWall(m, cc, rr - 1) && !isWall(m, cc, rr + 2)
+          && isWall(m, cc - 1, rr) && isWall(m, cc + 1, rr) && isWall(m, cc - 1, rr + 1) && isWall(m, cc + 1, rr + 1);
+        if (band2(c, r)) dr = r + 1;
+        const di = cellOf(m, dc, dr);
+        const set = m.wallSet[di] || (m.wallRaw[di] >= 0 ? 'dungeon' : '');
         // Només dins d'una paret recta: amb paret als dos costats (E-O o N-S).
-        const straight = (isWall(m, c - 1, r) && isWall(m, c + 1, r)) || (isWall(m, c, r - 1) && isWall(m, c, r + 1));
+        const straight = (isWall(m, dc - 1, dr) && isWall(m, dc + 1, dr)) || (isWall(m, dc, dr - 1) && isWall(m, dc, dr + 1));
         if (!set || !straight) continue;
-        m.doors[i] = set; m.wallSet[i] = ''; m.wallRaw[i] = EMPTY;
-        if (m.ground[i] < 0) m.ground[i] = groundUnder(m, c, r);
+        const top = band2(dc, dr - 1) ? cellOf(m, dc, dr - 1) : -1;
+        m.doors[di] = set; m.wallSet[di] = ''; m.wallRaw[di] = EMPTY;
+        if (m.ground[di] < 0) m.ground[di] = groundUnder(m, dc, dr);
+        if (top >= 0) {
+          m.wallSet[top] = ''; m.wallRaw[top] = EMPTY;
+          if (m.ground[top] < 0) m.ground[top] = groundUnder(m, dc, dr - 1);
+          touched.push(top);
+        }
+        if (di !== i) touched.push(di);
         break;
       }
       case 'decor': m.overlays[0][i] = brush.tile; break;

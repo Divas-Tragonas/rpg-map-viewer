@@ -13,7 +13,7 @@ import type { TileLive } from '@/lib/tilemap/render';
 import type { TileBrush } from '@/lib/tilemap/editor';
 import { newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
-import type { UndoEntry } from '@/lib/undo';
+import { emptyHistory, type UndoHistory, type UndoCmd } from '@/lib/undo';
 import type { DialogHost } from '@/lib/dialog/host';
 
 export function useDMRefs() {
@@ -79,15 +79,15 @@ export function useDMRefs() {
   const rTokenGroups     = useRef<Map<number | string, string>>(new Map());
   // Sistema per torns (iniciativa). Mirall de l'estat `turn`; el tick i el drag el llegeixen.
   const rTurn            = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
-  // Historial de moviments del torn actiu (per Ctrl+Z). DM-only, es neteja a cada canvi de torn.
-  const rMoveHistory     = useRef<Array<{ id: number | string; from: Point; spentFt: number }>>([]);
-  // Historial de canvis del mapa (Ctrl+Z de parets, sales, portes i llums). Cada entrada
-  // són les referències d'array d'abans del canvi: com que tota mutació les substitueix,
-  // desar-les no costa cap còpia. DM-only, no es sincronitza ni es desa a la partida.
-  const rMapHistory      = useRef<Array<{ label: string; walls: Wall[]; rooms: Room[]; doors: Door[]; lights: import('@/types').LightSource[]; tileMap?: TileMap | null }>>([]);
-  // Ordre de les tres piles de desfer (traços, mapa, moviments) per al «Desfer» únic:
-  // veure `lib/undo.ts`. DM-only, no es sincronitza ni es desa.
-  const rUndoLog         = useRef<UndoEntry[]>([]);
+  // Desfer / refer únic (veure `lib/undo.ts`): una sola pila d'ordres reversibles. DM-only,
+  // no es sincronitza ni es desa a la partida.
+  const rUndo            = useRef<UndoHistory>(emptyHistory());
+  // Puja a cada canvi de torn: les ordres de moviment de combat (que tornen els peus gastats)
+  // caduquen quan el torn canvia, com abans.
+  const rTurnGen         = useRef(0);
+  // Gest en curs que acabarà apilant una ordre (arrossegar tokens, una llum o una zona): es
+  // crea en prémer (captura l'«abans») i s'apila en deixar anar només si ha canviat res.
+  const rUndoGesture     = useRef<{ cmd: UndoCmd; changed: () => boolean } | null>(null);
   // Desat automàtic: hi ha canvis sense desar? El posa `_broadcastState` (per on passa
   // tota mutació d'estat) i el consumeix `useAutosave`, que només escriu si està a true.
   const rAutosaveDirty   = useRef(false);
@@ -233,7 +233,7 @@ export function useDMRefs() {
     rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rMoveHistory, rMapHistory, rUndoLog, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,
+    rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rUndo, rTurnGen, rUndoGesture, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, bcRef, wsRef,
     panDragRef, rPanOffset, visualPosRef, rMovePath, currentStrokeRef, strokeQueueRef,
