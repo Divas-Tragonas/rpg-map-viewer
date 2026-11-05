@@ -361,7 +361,7 @@ Decisions de l'usuari: model aprovat + eliminar tokens també es desfà; «sala 
 - [x] Portes horitzontals seguides: el mur entre portes ja no és un pilar solt
 - [x] Fora les portes dobles
 
-### Ronda 4 (v4.90)
+### Ronda 4 (v4.91)
 - [x] Mapa de caselles: no es pot passar per una porta tancada, ni estar-hi a sobre, ni a sobre d'una paret o al buit (rang del jugador + validació del DM). Provat amb Playwright: abans travessava la porta tancada; ara s'atura a la casella del davant
 - [ ] Pendent de decidir: si el DM també ha de quedar limitat en arrossegar (ara mou lliure, com sempre)
 
