@@ -1,10 +1,10 @@
 /**
- * Mode Fòsfor: la pantalla de jugador es veu com una TV de tub antiga (v4.92).
+ * Mode Fòsfor: la pantalla de jugador es veu com una TV de tub antiga (v4.92; paleta DB32 per proximitat des de la v4.93).
  *
  * Es fa DESPRÉS de pintar l'escena de sempre, sense tocar-la, i a la resolució real de la pantalla
  * (sense reduir píxels: el detall del mapa i de les figuretes es conserva):
  *   1. passada 1 (WebGL): el fons (`<img>`/`<video>`) i el canvas del mapa es componen i cada píxel
- *      es passa a la paleta de 16 colors;
+ *      es converteix en el color més proper de la paleta DB32 (32 colors);
  *   2. passada 2 (WebGL): corbatura del tub, línies d'escombrat, punts RGB, halo dels colors
  *      brillants i un parpelleig lleuger.
  * Les línies fines i les cantonades fosques de damunt de tot (rètols, fitxes, diàlegs) són CSS
@@ -14,13 +14,33 @@
  * l'escena normal amb el vidre de CSS a sobre.
  */
 
-/** Paleta del mode (la de la foto de referència): negre, blaus, verds, taronges i crema. */
+/**
+ * Paleta del mode: **DawnBringer 32** (DB32), la paleta de 32 colors de DawnBringer feta per a
+ * pixel art, d'ús lliure i molt estesa. És coherent (rampes de pell, terra, verds, blaus i grisos
+ * pensades per anar juntes) i cobreix tots els tons, així que cada color del mapa troba un parent
+ * proper: el marró continua sent marró, la pedra grisa i l'aigua blava.
+ */
 export const PHOSPHOR_PALETTE = [
-  '#000000', '#0c1f5c', '#1d4fc4', '#5ea8ff',            // buit i blaus (aigua, roca fosca)
-  '#0f5c33', '#1a9e4b', '#38d36a', '#9cf59a',            // verds (terra)
-  '#7a1e0e', '#e2541f', '#f79a4b', '#ffd3a1', '#fff4dc', // taronges i crema (parets)
-  '#ffffff',
+  '#000000', '#222034', '#45283c', '#663931', '#8f563b', '#df7126', '#d9a066', '#eec39a',
+  '#fbf236', '#99e550', '#6abe30', '#37946e', '#4b692f', '#524b24', '#323c39', '#3f3f74',
+  '#306082', '#5b6ee1', '#639bff', '#5fcde4', '#cbdbfc', '#ffffff', '#9badb7', '#847e87',
+  '#696a6a', '#595652', '#76428a', '#ac3232', '#d95763', '#d77bba', '#8f974a', '#8a6f30',
 ] as const;
+
+/** sRGB (#rrggbb) → OKLab: l'espai on la distància s'assembla a la diferència que veu l'ull. */
+export function hexToOklab(h: string): [number, number, number] {
+  const n = parseInt(h.slice(1), 16);
+  const lin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const r = lin((n >> 16) & 255), g = lin((n >> 8) & 255), b = lin(n & 255);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+  ];
+}
 
 /** Alçada en px de pantalla de cada línia d'escombrat (la del WebGL i la del vidre de CSS). */
 export function scanlinePx(H: number): number {
@@ -37,22 +57,28 @@ const hex = (h: string) => {
   const n = parseInt(h.slice(1), 16);
   return `vec3(${((n >> 16) & 255) / 255}, ${((n >> 8) & 255) / 255}, ${(n & 255) / 255})`;
 };
-const P = PHOSPHOR_PALETTE.map(hex);
+const f = (v: number) => v.toFixed(6);
+// Un `if` per color de la paleta (desplegat: el GLSL ES 1.0 no deixa triar un element d'una
+// taula uniforme amb un índex calculat al fragment).
+const NEAREST = PHOSPHOR_PALETTE.map(h => {
+  const [L, A, B] = hexToOklab(h);
+  return `  e = lab - vec3(${f(L)}, ${f(A)}, ${f(B)}); d = dot(e, e); if (d < bd) { bd = d; o = ${hex(h)}; }`;
+}).join('\n');
 
-// Passada 1: composició (fons + canvas del mapa) i paleta. Cada píxel es classifica per família de
-// color i dins de la família per lluminositat, perquè quedi com la foto: el buit negre, el terra
-// verd i les parets clares (crema i taronja).
-//   · blaus saturats (aigua) → rampa blava;  · verds i grocs verdosos (herba, arbres) → rampa verda;
-//   · càlids saturats (teulades, sang, foc) → rampa taronja;
-//   · neutres (pedra, terra, sorra, sense gaire color): foscos → blau marí i blau (roca), mitjans →
-//     verd (el terra de les masmorres), clars → taronja, préssec i crema (parets i camins).
-// Abans de classificar es fa la mitjana amb els 4 veïns: sense, la textura del terra (herba,
-// llambordes) saltava d'un color a l'altre i feia soroll.
+// Passada 1: composició (fons + canvas del mapa) i paleta. Cada píxel es converteix en el color
+// MÉS PROPER de la paleta, mesurat en OKLab (no en RGB: en RGB un gris mitjà i un verd apagat
+// semblen a la mateixa distància). Cap regla per famílies: el criteri és només la proximitat.
+// Abans es fa la mitjana amb els 4 veïns: sense, la textura del terra (herba, llambordes) saltava
+// d'un color a l'altre i feia soroll.
 // `rect` = on és el fons, en fraccions de la pantalla des de dalt a l'esquerra (x, y, amplada, alçada).
 // Les textures es pugen girades (UNPACK_FLIP_Y): `uv` (0 a baix) val tal qual per al mapa.
 // ⚠️ Cap comentari dins del GLSL: només hi pot anar ASCII.
 const FS_PALETTE = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 varying vec2 uv;
 uniform sampler2D map;
 uniform sampler2D media;
@@ -70,33 +96,18 @@ vec3 comp(vec2 q) {
 void main() {
   vec3 c = comp(uv) * 0.36
          + (comp(uv + texel) + comp(uv - texel) + comp(uv + vec2(texel.x, -texel.y)) + comp(uv + vec2(-texel.x, texel.y))) * 0.16;
-  float L = dot(c, vec3(0.299, 0.587, 0.114));
-  float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b)), d = mx - mn;
-  float s = mx > 0.0 ? d / mx : 0.0;
-  float h = 0.0;
-  if (d > 0.0) {
-    if (mx == c.r) h = mod((c.g - c.b) / d, 6.0);
-    else if (mx == c.g) h = (c.b - c.r) / d + 2.0;
-    else h = (c.r - c.g) / d + 4.0;
-    h /= 6.0;
-  }
-  vec3 o;
-  if (L < 0.07) o = ${P[0]};
-  else if (s > 0.22 && h > 0.47 && h < 0.75) {
-    o = L < 0.2 ? ${P[1]} : L < 0.42 ? ${P[2]} : ${P[3]};
-  } else if (s > 0.16 && h >= 0.13 && h <= 0.47) {
-    o = L < 0.2 ? ${P[4]} : L < 0.36 ? ${P[5]} : L < 0.56 ? ${P[6]} : ${P[7]};
-  } else if (s > 0.32 && (h < 0.13 || h > 0.85)) {
-    o = L < 0.22 ? ${P[8]} : L < 0.42 ? ${P[9]} : L < 0.62 ? ${P[10]} : L < 0.8 ? ${P[11]} : ${P[12]};
-  } else if (L < 0.14) o = ${P[1]};
-  else if (L < 0.21) o = ${P[2]};
-  else if (L < 0.3) o = ${P[4]};
-  else if (L < 0.4) o = ${P[5]};
-  else if (L < 0.5) o = ${P[6]};
-  else if (L < 0.6) o = ${P[10]};
-  else if (L < 0.76) o = ${P[11]};
-  else if (L < 0.94) o = ${P[12]};
-  else o = ${P[13]};
+  vec3 lin = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+  vec3 lms = vec3(
+    dot(lin, vec3(0.4122214708, 0.5363325363, 0.0514459929)),
+    dot(lin, vec3(0.2119034982, 0.6806995451, 0.1073969566)),
+    dot(lin, vec3(0.0883024619, 0.2817188376, 0.6299787005)));
+  lms = pow(max(lms, vec3(0.0)), vec3(1.0 / 3.0));
+  vec3 lab = vec3(
+    dot(lms, vec3(0.2104542553, 0.7936177850, -0.0040720468)),
+    dot(lms, vec3(1.9779984951, -2.4285922050, 0.4505937099)),
+    dot(lms, vec3(0.0259040371, 0.7827717662, -0.8086757660)));
+  vec3 o = vec3(0.0); vec3 e; float d; float bd = 100.0;
+${NEAREST}
   gl_FragColor = vec4(o, 1.0);
 }
 `;

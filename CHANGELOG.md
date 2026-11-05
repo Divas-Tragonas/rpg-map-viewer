@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.93 — Mode Fòsfor: paleta DB32 per proximitat
+- La paleta del mode Fòsfor ara és la **DawnBringer 32** (DB32): 32 colors pensats per a pixel art que lliguen entre ells (rampes de pell, terra, verds, blaus i grisos)
+- Cada color del mapa passa al **color més proper** de la paleta, mesurat en OKLab (com ho veu l'ull). Fora les regles per famílies de la v4.92, que ho tornaven tot verd, taronja i blau: ara el camí continua sent sorra, la pedra grisa, la fusta marró i les teulades vermelles
+- Sense canvis a la API
+
 ### v4.92 — Mode Fòsfor: les pantalles de jugador com una TV de tub antiga
 - **Mode Fòsfor**: interruptor al menú **Pantalles** del DM. Totes les pantalles de jugador s'apaguen com una TV (la imatge s'aplana en una ratlla blanca) i s'engeguen amb l'aspecte d'un monitor de tub: paleta de 16 colors (buit negre, terra verd, parets crema i taronja, aigua blava), pantalla corbada, línies d'escombrat, punts de fòsfor RGB, halo dels colors brillants i un parpelleig lleuger
 - A la resolució real de la pantalla: **no es redueixen els píxels**, el detall del mapa i de les figuretes es conserva
