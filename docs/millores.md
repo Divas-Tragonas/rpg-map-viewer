@@ -315,7 +315,7 @@ Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fi
 - [x] 2b. `sizeAllTokens` / reset d'AutoSize compensen la posició dels jugadors (cantonada + R)
 - [x] 3a. Hit-test únic (`lib/render/token-geom.ts`) en ordre z visual; el seleccionat es pinta i es clica a sobre
 - [x] 3b. Tokens apilats: s'obren en passar-hi per sobre (offset visual, animat al rAF), tolerància `TOKEN_STACK_TOL`
-- [ ] 4. Colors i textures del grup — **ajornat** per l'usuari
+- [x] 4. Colors i textures del grup (v4.95): figuretes pròpies `templar_axe` (Jaume) i `warrior_green` (Espardeny), Liriandor `wizard`, Cigarramic `halfling_thief~2`
 - [x] 5. Menú del token (`ContextMenuOverlay`) al costat del token, centrat verticalment i dins la pantalla
 - [x] Verificació: tsc + lint + captures (1, 2 apilats, 5 junts, vora, zoom)
 - [x] CHANGELOG + APP_VERSION + docs
@@ -336,7 +336,7 @@ Decisions de l'usuari: ombra al centre de la cel·la (la figura la trepitja); fi
 - La selecció per marquee (`useMouseHandlers`, `inside(...)`) llegeix els centres a mà; funciona, però podria passar per `tokenSlots(R, false)`.
 - `selectAndArmDrag` afegeix el token a la selecció múltiple encara que només n'hi hagi un de seleccionat (clic a A i després a B → tots dos seleccionats). Comportament previ; revisar si és volgut.
 - Les figuretes es pinten en ordre d'array, no per Y: en una vista 3/4, la de més avall hauria de tapar la de dalt. Canviar-ho també canviaria l'ordre z del hit-test.
-- Al tàctil no hi ha hover: el ventall dels apilats no s'obre (es podria obrir amb un toc llarg).
+- ~~Al tàctil no hi ha hover~~ — resolt a la v4.95: pulsació llarga a la pantalla de jugador.
 
 ## Lot C — Interacció: desfer global, sales, portes (v4.87)
 
@@ -369,5 +369,10 @@ Decisions de l'usuari: model aprovat + eliminar tokens també es desfà; «sala 
 - Afegir tokens (DIVAS, un enemic de la biblioteca) no es desfà: només eliminar-los.
 - «Estat» sobre una selecció múltiple des del menú fa una entrada per token (treure'ls tots sí que és una sola).
 - Dibuixar una sala nova contra una paret que ja té porta (classe Clàssica) no la detecta si es comença a la cantonada: cal partir-la des de dins (vist en reproduir les portes).
-- Els llocs de missió (`pd_`) porten la porta pintada al PNG: obrir-la no en canvia el dibuix.
+- ~~Els llocs de missió (`pd_`)~~ — eliminats amb Cony Cirera (v4.94).
 - Les ordres de desfer apilen fins i tot canvis que no canvien res (−1 PV amb 0 PV); són inofensius però ocupen una entrada.
+
+## Ronda de neteja (v4.94–v4.95)
+- [x] Fora Cony Cirera i el sistema de missions sencer (decisió de l'usuari): mapa, cases, full de poble, scripts, ajust de color, escenes/llocs, mòduls d'exemple. Es manté la demo de la taverna i el tauler de missions de la wiki
+- [x] Colors i figuretes de la colla (v4.95)
+- [x] Ventall dels apilats amb pulsació llarga a la pantalla de jugador (v4.95)

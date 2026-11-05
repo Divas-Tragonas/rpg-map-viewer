@@ -73,7 +73,10 @@
   - L'offset és **només visual** (`spreadOffset`): `rPos` no es toca, ni es desa ni viatja als jugadors. Viu al mòdul (com `_facing`), no a `DMRefs`: no el llegeix cap component.
   - El càlcul del munt es fa al `pointermove` (`updateTokenSpread`), no a cada frame: deixa el ventall **preparat** (`_pending`, amb l'hora d'obrir) i el rAF l'obre quan toca, encara que el cursor ja no es mogui. Mentre el cursor és dins del ventall obert no es recalcula (només es mira quin token assenyala). L'animació (exponencial, τ = 55 ms, també de l'augment) avança al rAF (`advanceTokenSpread`, a `useRafLoop` abans dels tokens). En sortir, en clicar un token (comença el drag) o en sortir del canvas, tornen al seu lloc.
   - El hit-test fa servir les posicions **del ventall** (on es veu cada token).
-  - Al tàctil no hi ha hover: el toc agafa el de dalt; per arribar al de sota, seleccionar-lo des del lateral.
+  - **Pantalla de jugador (tacte, v4.95)**: no hi ha hover, així que el ventall s'obre amb una **pulsació llarga** (`LONG_PRESS_MS` 450 ms, `usePlayerTokenDrag`) sobre un munt. Si el dit es mou més de 10 px abans d'hora, és un drag normal del token tocat; un segon dit (pessic) la cancel·la. `openTokenSpreadNow` l'obre sense l'espera del DM.
+    - Al ventall del jugador **només hi entren tokens de jugador visibles** (ni enemics ni invisibles): obrir-lo no pot delatar on és un enemic amagat o en una sala fosca.
+    - El toc agafa el token **més proper al dit** dins del marge del tacte (abans, el primer de la llista: amb el ventall obert podia agafar el veí). Moure'l tanca el ventall; un toc fora també.
+    - El render (`render/tokens.ts`) suma `spreadOffset` també a la pantalla de jugador, damunt del LERP.
 
 ## Efecte mecànic dels estats (`src/lib/rules/conditions.ts`)
 - **Problema que resolia**: després de la feinada de la v4.07/v4.08 hi havia 16 estats amb isotip, color i traduccions i **només un feia alguna cosa** (`blinded`, que encongeix el radi de llum a `darkrooms.ts`). Un token Agafat o Paralitzat es movia els seus 30 peus com si res.

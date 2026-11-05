@@ -3,6 +3,15 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.95 — Figuretes noves de la colla i ventall amb pulsació llarga
+- **Jaume III**: templari vermell amb la destral del bàrbar (figureta nova, editada a partir de les dues del paquet)
+- **Espardeny**: guerrer amb la roba verda del color del seu halo (figureta nova)
+- **Liriandor**: mag blau · **Cigarramic**: lladre mitjà lila (variant 3) · Yunquerin es queda igual
+- Les partides desades amb les figuretes d'abans passen a les noves en carregar-se (si no se n'havia triat una altra)
+- **Pantalla de jugador**: mantenir premut un munt de tokens obre el ventall dels apilats per poder agafar el de sota; un toc fora el tanca. Només hi entren tokens de jugador (no delata enemics amagats)
+- El toc agafa el token més proper al dit, no el primer de la llista
+- Sense canvis a la API
+
 ### v4.94 — Fora Cony Cirera i el sistema de missions
 - Eliminat tot el que era de **Cony Cirera**: el mapa de la missió, les cases (farga, batlle, graner, rectoria, capella, hostal…), el full de poble i els scripts que els generaven
 - Eliminat el **sistema de missions** (menú «Missions», botó de la benvinguda, entrar a les cases amb fos a negre, menú de llocs) i l'**ajust de color de les figuretes** («Figuretes a to amb el mapa»)

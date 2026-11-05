@@ -422,6 +422,8 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       const vp = visualPosRef.current[key];
       if (!vp) { visualPosRef.current[key] = { ...rawEp }; ep = rawEp; }
       else { vp.x += (rawEp.x - vp.x) * TOKEN_LERP; vp.y += (rawEp.y - vp.y) * TOKEN_LERP; ep = vp; }
+      const so = spreadOffset(key);
+      if (so.x || so.y) ep = { x: ep.x + so.x, y: ep.y + so.y };
     }
     // Dins d'un ventall, el token que assenyala el cursor creix una mica (`spreadScale`, només DM).
     const R = (rTokenSizeOverride.current[`lib_${en.id}`] ?? en.R) * spreadScale(`lib_${en.id}`);
@@ -653,6 +655,9 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
         if (anim) ppos = anim;
         else { vp.x += (rawPos.x - vp.x) * TOKEN_LERP; vp.y += (rawPos.y - vp.y) * TOKEN_LERP; ppos = vp; }
       }
+      // Ventall dels apilats obert amb una pulsació llarga (`usePlayerTokenDrag`): offset visual.
+      const so = spreadOffset(key);
+      if (so.x || so.y) ppos = { x: ppos.x + so.x, y: ppos.y + so.y };
     }
     // Dins d'un ventall, el token que assenyala el cursor creix una mica (`spreadScale`, només DM); la
     // cantonada es desplaça perquè creixi des del centre.

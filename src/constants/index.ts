@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v4.94';
+export const APP_VERSION = 'v4.95';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -62,12 +62,24 @@ export const DEFAULT_PARTY = [
   // `sprite`: figureta de l'estil Píxel (criatura del paquet Oryx, veure `lib/sprites`).
   // `hpMax` i `speed`: els de la fitxa de cada personatge (Notion, nivell 1). Amb la fitxa de la
   // API carregada, la vida màxima se sincronitza sola amb la seva (veure `syncPlayersHpMax`).
-  { name: 'Jaume III',  color: '#e05555', hpMax: 12, speed: 30, sprite: 'knight' },         // Vermell
-  { name: 'Liriandor',  color: '#4f8fd6', hpMax: 8,  speed: 30, sprite: 'elf_wizard' },     // Blau
+  { name: 'Jaume III',  color: '#e05555', hpMax: 12, speed: 30, sprite: 'templar_axe' },        // Vermell
+  { name: 'Liriandor',  color: '#4f8fd6', hpMax: 8,  speed: 30, sprite: 'wizard' },             // Blau
   { name: 'Yunquerin',  color: '#d4ae38', hpMax: 11, speed: 25, sprite: 'dwarf_cleric' },   // Groc
-  { name: 'Espardeny',  color: '#52b86e', hpMax: 12, speed: 30, sprite: 'halfling_thief' }, // Verd
-  { name: 'Cigarramic', color: '#a366c4', hpMax: 9,  speed: 25, sprite: 'barbarian_m' },    // Lila
+  { name: 'Espardeny',  color: '#52b86e', hpMax: 12, speed: 30, sprite: 'warrior_green' },      // Verd
+  { name: 'Cigarramic', color: '#a366c4', hpMax: 9,  speed: 25, sprite: 'halfling_thief~2' }, // Lila
 ];
+/**
+ * Figureta que tenia cada membre de la colla abans de la v4.95. Una partida desada que encara
+ * porta aquesta figureta passa a la nova en carregar-se (`partySprite`); si el DM n'havia triat
+ * una altra, es respecta.
+ */
+const OLD_PARTY_SPRITES: Record<string, string> = {
+  'Jaume III': 'knight', Liriandor: 'elf_wizard', Espardeny: 'halfling_thief', Cigarramic: 'barbarian_m',
+};
+export function partySprite(name: string, sprite: string | undefined): string | undefined {
+  if (!sprite || OLD_PARTY_SPRITES[name] !== sprite) return sprite;
+  return DEFAULT_PARTY.find(p => p.name === name)?.sprite ?? sprite;
+}
 /** Figureta per defecte d'un jugador nou a l'estil Píxel. */
 export const DEFAULT_PLAYER_SPRITE = 'warrior_m';
 

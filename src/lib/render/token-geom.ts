@@ -206,13 +206,52 @@ export function clearTokenSpread(instant = false) {
 }
 
 /**
+ * El munt de tokens sota el punt (posicions reals): el token assenyalat i els que en té a menys de
+ * `TOKEN_STACK_TOL` caselles, en cadena. Null si no hi ha cap token o si està sol.
+ */
+export function stackAt(refs: TokenRefs, mx: number, my: number, sc: number, gridSize: number, slop = 0): TokenSlot[] | null {
+  const real = tokenSlots(refs, false);
+  const hov = tokenAt(refs, mx, my, sc, { visual: false })
+    ?? (slop > 0 ? real.slice().reverse().find(s => Math.hypot(mx - s.x, my - s.y) <= s.R + slop) ?? null : null);
+  if (!hov) return null;
+  const tol = TOKEN_STACK_TOL * (gridSize > 0 ? gridSize : hov.R * 2);
+  const group: TokenSlot[] = [real.find(s => s.key === hov.key)!];
+  const left = real.filter(s => s.key !== hov.key);
+  for (let i = 0; i < group.length; i++) {
+    for (let j = left.length - 1; j >= 0; j--) {
+      if (Math.hypot(left[j].x - group[i].x, left[j].y - group[i].y) < tol) group.push(left.splice(j, 1)[0]);
+    }
+  }
+  return group.length < 2 ? null : group;
+}
+
+/** Hi ha un ventall obert (o a punt d'obrir-se)? */
+export const tokenSpreadOpen = (): boolean => !!_cluster || !!_pending;
+/** El punt és dins de l'abast del ventall obert? */
+export const insideTokenSpread = (mx: number, my: number): boolean =>
+  !!_cluster && Math.hypot(mx - _cluster.cx, my - _cluster.cy) <= _cluster.reach;
+
+/**
+ * Pantalla de jugador (tacte, sense hover): obre el ventall del munt sota el punt de cop, sense
+ * l'espera de `SPREAD_DELAY` (la pulsació llarga ja ha fet d'espera). Retorna si n'ha obert un.
+ */
+export function openTokenSpreadNow(refs: TokenRefs, mx: number, my: number, sc: number, gridSize: number, slop = 0): boolean {
+  collapse();
+  if (!stackAt(refs, mx, my, sc, gridSize, slop)) return false;
+  updateTokenSpread(refs, mx, my, sc, gridSize, slop);
+  if (!_pending) return false;
+  _pending.at = 0;
+  return true;
+}
+
+/**
  * Cridat des del `pointermove` del DM (no a cada frame). Si el cursor és sobre un token que en té
  * d'altres a menys de `TOKEN_STACK_TOL` caselles (en cadena), prepara el ventall al voltant del seu
  * centre, i `advanceTokenSpread` l'obre quan el cursor hi ha estat `SPREAD_DELAY`. Mentre el cursor
  * no surt del ventall obert, no es recalcula (si no, en anar a buscar un token obert el cursor ja no
  * seria sobre el munt i es tancaria): només es mira quin token assenyala.
  */
-export function updateTokenSpread(refs: TokenRefs, mx: number, my: number, sc: number, gridSize: number) {
+export function updateTokenSpread(refs: TokenRefs, mx: number, my: number, sc: number, gridSize: number, slop = 0) {
   if (_cluster && Math.hypot(mx - _cluster.cx, my - _cluster.cy) <= _cluster.reach) {
     const keys = _cluster.keys;
     const h = tokenAt(refs, mx, my, sc, { filter: k => keys.has(k) })?.key ?? null;
@@ -222,18 +261,8 @@ export function updateTokenSpread(refs: TokenRefs, mx: number, my: number, sc: n
     }
     return;
   }
-  const real = tokenSlots(refs, false);
-  const hov = tokenAt(refs, mx, my, sc, { visual: false });
-  if (!hov) { collapse(); return; }
-  const tol = TOKEN_STACK_TOL * (gridSize > 0 ? gridSize : hov.R * 2);
-  const group: TokenSlot[] = [real.find(s => s.key === hov.key)!];
-  const left = real.filter(s => s.key !== hov.key);
-  for (let i = 0; i < group.length; i++) {
-    for (let j = left.length - 1; j >= 0; j--) {
-      if (Math.hypot(left[j].x - group[i].x, left[j].y - group[i].y) < tol) group.push(left.splice(j, 1)[0]);
-    }
-  }
-  if (group.length < 2) { collapse(); return; }
+  const group = stackAt(refs, mx, my, sc, gridSize, slop);
+  if (!group) { collapse(); return; }
   // Ordre estable (d'esquerra a dreta) i primer cap a l'esquerra: les figuretes són altes, de costat no es tapen.
   group.sort((a, b) => a.x - b.x || a.y - b.y || (a.key < b.key ? -1 : 1));
   const sig = group.map(s => s.key).join('|');

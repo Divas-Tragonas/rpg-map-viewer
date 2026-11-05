@@ -7,6 +7,7 @@
  * Manual de monstres. Les figuretes sense monstre exacte (gòlem de gel, arnes, escarabats) fan
  * servir el més semblant: el DM ho pot canviar al menú del token.
  */
+import { PARTY_CREATURES } from '@/lib/sprites/manifest';
 
 /** XP per valor de desafiament (Manual del DM, taula «Experience Points by Challenge Rating»). */
 export const XP_BY_CR: Record<string, number> = {
@@ -252,6 +253,6 @@ export function findTemplate(id: string): EnemyTemplate | undefined {
  * L'Ós fa servir el minotaure només de figureta, per això no l'amaga.
  */
 export function extraCreatures(all: string[]): string[] {
-  const used = new Set(GENERIC.filter(t => t.id !== 'bear').map(t => t.sprite));
+  const used = new Set([...GENERIC.filter(t => t.id !== 'bear').map(t => t.sprite), ...PARTY_CREATURES]);
   return all.filter(n => !used.has(n));
 }

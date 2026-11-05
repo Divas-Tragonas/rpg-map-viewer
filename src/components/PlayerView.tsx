@@ -18,6 +18,7 @@ import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probe
 import { relayToParent } from '@/lib/relay';
 import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
+import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mediaSize, viewRect } from '@/lib/camera';
@@ -513,6 +514,7 @@ export function PlayerView() {
     rMovePath,
     rConditions,
     rTileLive,
+    rAppStyle,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
@@ -1085,6 +1087,8 @@ export function PlayerView() {
         }
       }
 
+      // Ventall dels apilats (pulsació llarga, `usePlayerTokenDrag`): un pas de l'animació.
+      advanceTokenSpread(performance.now());
       renderLibEnemyTokens(ctx, fc);
       renderPlayerTokens(ctx, fc);
       renderNameTags(ctx, fc);       // els noms, després de totes les figuretes i abans de la foscor

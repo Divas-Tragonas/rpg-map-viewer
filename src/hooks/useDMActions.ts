@@ -9,7 +9,7 @@ import { addEnemyNumbered } from '@/lib/enemy-naming';
 import { removeFromTurn } from '@/lib/turn';
 import { nextHpHit } from '@/lib/sprites/hitfx';
 import { bgFingerprint } from '@/lib/autosave';
-import { DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ENEMY_IMAGES, radiusFromFeet } from '@/constants';
+import { DEFAULT_PARTY, DEFAULT_SPEED_FT, DEFAULT_PLAYER_SPRITE, ENEMY_IMAGES, partySprite, radiusFromFeet } from '@/constants';
 import { findTemplate, type EnemyTemplate } from '@/lib/bestiary';
 import type { PosMap, LibEnemy, Wall, Room, Door, Point, CamRect, Notify, Player, StrokeData, LightSource } from '@/types';
 import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
@@ -913,7 +913,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // dedueix `loadBg` del fons.
       const savedSize = state.mapSize ?? state.psdInfo;
       if (savedSize?.width > 1 && savedSize?.height > 1) { rMapSize.current = savedSize; }
-      const normPlayers = (state.players || []).map((pl: import('@/types').Player) => ({ ...pl, hpMax: pl.hpMax || 0, hp: pl.hp ?? (pl.hpMax || 0) }));
+      const normPlayers = (state.players || []).map((pl: import('@/types').Player) => ({ ...pl, hpMax: pl.hpMax || 0, hp: pl.hp ?? (pl.hpMax || 0), sprite: partySprite(pl.name, pl.sprite) }));
       if (state.pos)           { rPos.current = state.pos;       S.setPos(state.pos); }
       if (state.zoom)          { rZoom.current = state.zoom;     S.setZoom(state.zoom); }
       if (state.panOffset)     { rPanOffset.current = state.panOffset; }

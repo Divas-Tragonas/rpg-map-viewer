@@ -8,6 +8,11 @@ import { effectiveWalls } from '@/lib/rooms/doors';
 import { movementLimit } from '@/lib/rules/conditions';
 import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point, ConditionsMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
+import { clearTokenSpread, insideTokenSpread, openTokenSpreadNow, spreadOffset, stackAt, tokenSpreadOpen, type TokenRefs } from '@/lib/render/token-geom';
+
+/** Pulsació llarga (ms) que obre el ventall dels tokens apilats, i el moviment (px) que la cancel·la. */
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_MOVE = 10;
 
 /**
  * Regió de caselles on el jugador pot moure el token durant el drag.
@@ -87,19 +92,29 @@ function hitTest(
   rTokenSizeOverride: RefObject<TokenSizeMap>,
 ): { id: string; ox: number; oy: number; R: number; speed: number; startX: number; startY: number } | null {
   const players = rPlayers.current;
+  // El més proper al dit (no el primer de la llista): amb el marge del tacte, dos tokens del
+  // ventall dels apilats poden quedar tots dos a l'abast, i s'ha d'agafar el que es toca.
+  let best: { id: string; ox: number; oy: number; R: number; speed: number; startX: number; startY: number } | null = null;
+  let bestD = Infinity;
   for (let i = players.length - 1; i >= 0; i--) {
     const pl = players[i];
     if (pl.canMove === false) continue; // moviment desactivat pel DM
     if (pl.hpMax > 0 && pl.hp <= 0) continue; // a 0 de vida no es pot moure (fins recuperar-ne)
     const pos = rPos.current[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     const R = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
-    if (Math.hypot(mx - (pos.x + R), my - (pos.y + R)) <= R + slop)
-      return {
-        id: `pl_${pl.id}`, ox: mx - pos.x, oy: my - pos.y, R,
+    // Dins del ventall dels apilats, el token es toca on es veu (offset només visual).
+    const so = spreadOffset(`pl_${pl.id}`);
+    // Distància a la vora (negativa dins): un token petit dins d'un de gran també es pot agafar.
+    const d = Math.hypot(mx - (pos.x + so.x + R), my - (pos.y + so.y + R)) - R;
+    if (d <= slop && d < bestD) {
+      bestD = d;
+      best = {
+        id: `pl_${pl.id}`, ox: mx - pos.x - so.x, oy: my - pos.y - so.y, R,
         speed: pl.speed ?? DEFAULT_SPEED_FT, startX: pos.x, startY: pos.y,
       };
+    }
   }
-  return null;
+  return best;
 }
 
 export function usePlayerTokenDrag(
@@ -131,9 +146,34 @@ export function usePlayerTokenDrag(
   rConditions: RefObject<ConditionsMap>,
   // Parts vives del mapa de caselles: hi va la màscara de caselles sòlides (`tileBlocker`).
   rTileLive?: RefObject<TileLive | null>,
+  // Estil (Píxel o Clàssic): per al hit-test de les figuretes del ventall.
+  rAppStyle?: RefObject<string>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
+  // Pulsació llarga en curs sobre un munt de tokens: si el dit no es mou, obre el ventall; si es
+  // mou abans d'hora, és un drag normal (es comença des del punt on s'ha posat el dit).
+  const pressRef = useRef<{ id: number; x: number; y: number; timer: number; start: () => void } | null>(null);
+
+  /**
+   * Només els tokens de JUGADOR visibles: el ventall no pot delatar on és un enemic amagat (o un
+   * jugador invisible), i a la pantalla de jugador només es poden agafar els propis.
+   */
+  const spreadRefs = (): TokenRefs => ({
+    rLibEnemies: { current: [] },
+    rPlayers: { current: rPlayers.current.filter(p => p.visible !== false && !(rConditions.current[`pl_${p.id}`] ?? []).includes('invisible')) },
+    rPos, rTokenSizeOverride,
+    rSelectedToken: { current: null },
+    rAppStyle,
+  });
+  const scaleOf = (canvas: HTMLCanvasElement) => {
+    const r = canvas.getBoundingClientRect();
+    const { mw, mh } = getMediaDimensions(mediaRef.current);
+    return Math.min(r.width / mw, r.height / mh) * rZoom.current;
+  };
+  const cancelPress = () => {
+    if (pressRef.current) { window.clearTimeout(pressRef.current.timer); pressRef.current = null; }
+  };
 
   function snapPos(np: { x: number; y: number }, id: string): { x: number; y: number } {
     if (!rGridSnap.current || rGridSize.current <= 0) return np;
@@ -148,12 +188,38 @@ export function usePlayerTokenDrag(
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (pointerIdRef.current !== null) return; // ja hi ha un drag actiu (multi-touch)
+    // Un segon dit durant la pulsació llarga (pessic per fer zoom): no és cap ventall.
+    if (pressRef.current) { cancelPress(); return; }
     const canvas = canvasRef.current;
     if (!canvas) return;
     const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
     // Amb el dit el hit ha de ser més generós que amb el ratolí
     const slop = e.pointerType === 'touch' ? 16 : 4;
     const hit = hitTest(mx, my, slop, rPos, rPlayers, rTokenSizeOverride);
+    // Un toc fora del ventall obert el tanca.
+    if (tokenSpreadOpen() && !hit && !insideTokenSpread(mx, my)) clearTokenSpread();
+    // Pulsació llarga sobre un munt (amb el ventall tancat): s'espera a veure si el dit es mou.
+    // Amb ratolí no cal: el DM té el hover, i un jugador amb ratolí pot fer servir la roda.
+    if (e.pointerType === 'touch' && !tokenSpreadOpen() && pressRef.current === null) {
+      const sc = scaleOf(canvas);
+      if (stackAt(spreadRefs(), mx, my, sc, rGridSize.current, slop)) {
+        const pid = e.pointerId;
+        const start = () => beginDrag(hit, pid, canvas);
+        const timer = window.setTimeout(() => {
+          if (pressRef.current?.id !== pid) return;
+          pressRef.current = null;
+          openTokenSpreadNow(spreadRefs(), mx, my, sc, rGridSize.current, slop);
+        }, LONG_PRESS_MS);
+        pressRef.current = { id: pid, x: e.clientX, y: e.clientY, timer, start };
+        try { canvas.setPointerCapture(pid); } catch { /* no crític */ }
+        return;
+      }
+    }
+    beginDrag(hit, e.pointerId, canvas);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Comença el drag del token tocat (si n'hi ha i el pot moure). */
+  function beginDrag(hit: ReturnType<typeof hitTest>, pointerId: number, canvas: HTMLCanvasElement) {
     if (!hit) return;
     // Durant un combat per torns, des de /player només es pot moure el token que té el
     // torn actiu, i el seu abast és el saldo de moviment restant (no la velocitat sencera).
@@ -196,13 +262,18 @@ export function usePlayerTokenDrag(
       last: { x: hit.startX + hit.R, y: hit.startY + hit.R },
       walls, blocked,
     };
-    pointerIdRef.current = e.pointerId;
+    pointerIdRef.current = pointerId;
     rSelectedToken.current = hit.id;
     // Captura: el drag continua encara que el dit surti del canvas
-    try { canvas.setPointerCapture(e.pointerId); } catch { /* no crític */ }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    try { canvas.setPointerCapture(pointerId); } catch { /* no crític */ }
+  }
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    // El dit s'ha mogut abans de la pulsació llarga: no és un ventall, és un drag.
+    const press = pressRef.current;
+    if (press && e.pointerId === press.id && Math.hypot(e.clientX - press.x, e.clientY - press.y) > LONG_PRESS_MOVE) {
+      cancelPress(); press.start();
+    }
     if (!dragRef.current || e.pointerId !== pointerIdRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -244,6 +315,7 @@ export function usePlayerTokenDrag(
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (pressRef.current?.id === e.pointerId) cancelPress();  // toc curt: no fa res
     if (!dragRef.current || e.pointerId !== pointerIdRef.current) return;
     const { id } = dragRef.current;
     const preview = rDragPreview.current;
@@ -274,6 +346,8 @@ export function usePlayerTokenDrag(
     dragRef.current = null;
     pointerIdRef.current = null;
     rSelectedToken.current = null;
+    // Un cop triat i mogut el token, el ventall es torna a tancar.
+    if (preview && preview.id === id) clearTokenSpread();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { onPointerDown, onPointerMove, onPointerUp, dragRef };
