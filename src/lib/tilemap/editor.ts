@@ -111,7 +111,12 @@ export function applyBrush(m: TileMap, brush: TileBrush, cells: Cell[]): number[
         const di = cellOf(m, dc, dr);
         const set = m.wallSet[di] || (m.wallRaw[di] >= 0 ? 'dungeon' : '');
         // Només dins d'una paret recta: amb paret als dos costats (E-O o N-S).
-        const straight = (isWall(m, dc - 1, dr) && isWall(m, dc + 1, dr)) || (isWall(m, dc, dr - 1) && isWall(m, dc, dr + 1));
+        // Una porta lateral pot tenir a sobre o a sota una altra porta lateral: les dues fan
+        // una porta doble (veure `doorGroups`).
+        const sideDoor = (cc: number, rr: number) => inMap(m, cc, rr) && cellOf(m, cc, rr) in m.doors && !(isWall(m, cc - 1, rr) && isWall(m, cc + 1, rr));
+        const wallOrSideDoor = (cc: number, rr: number) => isWall(m, cc, rr) || sideDoor(cc, rr);
+        const straight = (isWall(m, dc - 1, dr) && isWall(m, dc + 1, dr))
+          || (wallOrSideDoor(dc, dr - 1) && wallOrSideDoor(dc, dr + 1) && !(sideDoor(dc, dr - 1) && sideDoor(dc, dr + 1)));
         if (!set || !straight) continue;
         const top = band2(dc, dr - 1) ? cellOf(m, dc, dr - 1) : -1;
         m.doors[di] = set; m.wallSet[di] = ''; m.wallRaw[di] = EMPTY;

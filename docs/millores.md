@@ -350,10 +350,15 @@ Decisions de l'usuari: model aprovat + eliminar tokens també es desfà; «sala 
 - [x] tsc + lint (cap error de tipus; el lint només afegeix avisos del mateix patró que ja tenia el fitxer: refs mutades dins de `useCallback`)
 - [x] CHANGELOG + APP_VERSION + docs (`ui-dm.md`, `mapa-sales-llum.md`)
 
+### Ronda 2 (v4.88, comentaris del DM)
+- [x] Fil negre arran de paret a la sala il·luminada: la foscor ja no s'eixampla amb un contorn (`fillDarkness`)
+- [x] Portes Píxel tallades per la foscor: es tornen a pintar per sobre (`drawTileDoorsOver`)
+- [x] Portes laterals dobles (dues portes = una sola porta doble), amb la fulla de baix que treu el cap
+- [ ] Aspecte de la doble lateral TANCADA: ara un muntant per fulla; pendent que el DM triï (veure resposta)
+
 ### Fora d'abast (anotat, no tocat)
 - Afegir tokens (DIVAS, un enemic de la biblioteca) no es desfà: només eliminar-los.
 - «Estat» sobre una selecció múltiple des del menú fa una entrada per token (treure'ls tots sí que és una sola).
-- A la pantalla de jugador, la boira d'una sala fosca tapa la meitat de la casella d'una porta de caselles (cada meitat és d'una sala): amb sales fosques veïnes, la porta queda mig negra. Es podria deixar la casella de la porta fora de la foscor, com les parets.
 - Dibuixar una sala nova contra una paret que ja té porta (classe Clàssica) no la detecta si es comença a la cantonada: cal partir-la des de dins (vist en reproduir les portes).
 - Els llocs de missió (`pd_`) porten la porta pintada al PNG: obrir-la no en canvia el dibuix.
 - Les ordres de desfer apilen fins i tot canvis que no canvien res (−1 PV amb 0 PV); són inofensius però ocupen una entrada.

@@ -452,6 +452,32 @@ function roomPath(ctx: CanvasRenderingContext2D, room: Room): void {
   ctx.closePath();
 }
 
+/**
+ * Foscor de les sales: totes les que tenen el mateix alfa en UN SOL camí i un sol `fill`.
+ * Així dues sales contigües no deixen cap fil del mapa a la paret compartida (el rasteritzador
+ * calcula la cobertura de la unió) sense haver d'eixamplar-les cap enfora.
+ * ⚠️ Abans cada sala es farcia i es traçava amb un contorn del mateix color: el contorn
+ * sortia mig gruix fora del polígon, a sobre de la vora de la paret, i com que la llum del
+ * token només esborra fins al polígon de la seva sala, quedava un fil negre arran de paret
+ * encara que el token hi veiés (sobretot als mapes de caselles, on la paret és una casella).
+ */
+function fillDarkness(ctx: CanvasRenderingContext2D, fills: { room: Room; alpha: number }[]): void {
+  const groups = new Map<number, Room[]>();
+  for (const f of fills) {
+    const a = Math.round(f.alpha * 1000) / 1000;
+    const g = groups.get(a); if (g) g.push(f.room); else groups.set(a, [f.room]);
+  }
+  for (const [alpha, rooms] of groups) {
+    ctx.fillStyle = `rgba(3,4,7,${alpha})`;
+    ctx.beginPath();
+    for (const room of rooms) {
+      room.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+    }
+    ctx.fill();
+  }
+}
+
 // Ull (obert/tancat) dibuixat en coords de mapa però a mida constant de pantalla (÷ sc).
 function drawEye(ctx: CanvasRenderingContext2D, cx: number, cy: number, sc: number, open: boolean): void {
   const s = 1 / sc;
@@ -484,9 +510,8 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   const anim = fc.roomRevealAnimRef?.current ?? {};
   const hovId = fc.rHoveredRoomId?.current ?? null;
 
-  // Farcir amb el polígon exacte + contorn del mateix color eixampla la foscor uns
-  // píxels cap enfora, de manera que dues sales contigües se solapin i no quedi cap
-  // fil visible del mapa a la paret compartida.
+  // Marge (coords de mapa) per al culling i el rectangle de compòsit: la foscor ja no surt
+  // del polígon (veure `fillDarkness`), però l'antialiàsing de la vora sí que toca un píxel.
   const seamW = Math.max(2, 2.5 / sc);
 
   // Rectangle visible en coords de mapa: tot el que hi queda fora no pot pintar ni un
@@ -528,12 +553,7 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
     if (lights.length === 0) {
       // Sense fonts de llum: pintar la foscor directament (com sempre).
       ctx.save();
-      ctx.lineJoin = 'round'; ctx.lineWidth = seamW; ctx.setLineDash([]);
-      for (const f of visFills) {
-        ctx.fillStyle = `rgba(3,4,7,${f.alpha})`;
-        ctx.strokeStyle = `rgba(3,4,7,${f.alpha})`;
-        roomPath(ctx, f.room); ctx.fill(); ctx.stroke();
-      }
+      fillDarkness(ctx, visFills);
       ctx.restore();
     } else {
       // Amb llums: la foscor es pinta en una capa fora de pantalla, s'hi esborren les
@@ -546,12 +566,7 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       octx.setTransform(1, 0, 0, 1, 0, 0);
       octx.clearRect(0, 0, off.width, off.height);
       octx.setTransform(ctx.getTransform());
-      octx.lineJoin = 'round'; octx.lineWidth = seamW; octx.setLineDash([]);
-      for (const f of visFills) {
-        octx.fillStyle = `rgba(3,4,7,${f.alpha})`;
-        octx.strokeStyle = `rgba(3,4,7,${f.alpha})`;
-        roomPath(octx, f.room); octx.fill(); octx.stroke();
-      }
+      fillDarkness(octx, visFills);
       // Polígons de visibilitat de cada llum + la sala que conté el token (perquè dins de la
       // seva sala vegi tot el radi, sense ombres internes).
       // El polígon de cada llum es recalcula NOMÉS si la llum s'ha mogut / ha canviat de

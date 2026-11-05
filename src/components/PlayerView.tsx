@@ -27,7 +27,7 @@ import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, setFigureGrade } from '@/lib/sprites/pack';
 import { DialogHost } from '@/lib/dialog/host';
-import { drawTileLive, type TileLive } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver, type TileLive } from '@/lib/tilemap/render';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
 // arribar al DM ensenyava exactament el mateix que un mòbil ben connectat esperant que
@@ -1065,6 +1065,12 @@ export function PlayerView() {
       // La foscor de les sales fosques es pinta DAMUNT de tot: així qualsevol token,
       // dibuix o spell dins d'una sala fosca queda amagat als jugadors (fog of war).
       renderRooms(ctx, fc);
+      // Les portes del mapa de caselles es veuen sempre, com les parets: la foscor d'una sala
+      // en tapava la meitat de la casella (cada meitat és d'una sala).
+      if (rTileLive.current) {
+        const doors = rDoors.current;
+        drawTileDoorsOver(ctx, rTileLive.current, id => doors.find(d => d.id === id)?.open !== false);
+      }
 
       // Les caselles de moviment (groc) i el ghost del destí es pinten SOBRE la foscor: el
       // jugador ha de veure el seu abast i on deixarà anar encara que el destí no estigui

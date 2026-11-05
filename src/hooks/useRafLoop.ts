@@ -9,7 +9,7 @@ import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/gr
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { renderPlaceMarks } from '@/lib/render/places';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
-import { drawTileLive } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver } from '@/lib/tilemap/render';
 import { TILE } from '@/lib/tilemap/model';
 import { WALL_BY_ID } from '@/lib/tilemap/palette';
 import type { DMRefs } from './useDMRefs';
@@ -217,6 +217,11 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         drawTileLive(ctx, R.rTileLive.current, id => doors.find(d => d.id === id)?.open !== false, performance.now());
       }
       renderRooms(ctx, fc);
+      // Portes del mapa de caselles per sobre del vel de les sales fosques (com al jugador).
+      if (R.rTileLive.current) {
+        const doors = R.rDoors.current;
+        drawTileDoorsOver(ctx, R.rTileLive.current, id => doors.find(d => d.id === id)?.open !== false);
+      }
       renderWalls(ctx, fc);
       renderLightSources(ctx, fc);
       renderPaintedZones(ctx, fc);

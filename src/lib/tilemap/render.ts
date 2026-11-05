@@ -61,6 +61,9 @@ export function wallTileFor(m: TileMap, c: number, r: number): number {
   const h = hash(c, r);
   if (!wall(c, r + 1)) {
     if (!wall(c, r - 1) && !wall(c - 1, r) && !wall(c + 1, r)) return W(8, 1);
+    // Cara just a sobre d'una porta lateral: la llisa. Les variants amb decoració (estendard,
+    // calavera…) quedaven tapades a mitges pel muntant o la fulla de la porta.
+    if (inMap(m, c, r + 1) && cellOf(m, c, r + 1) in m.doors) return W(1, 2);
     return W(FACE_COLS[h % FACE_COLS.length], 2);
   }
   // Vora de dalt si el mur de dues files continua al costat (també on hi arriba una columna).
@@ -71,6 +74,30 @@ export function wallTileFor(m: TileMap, c: number, r: number): number {
 /** Les dues orientacions d'una porta: dins d'una paret horitzontal (veïns E-O) o vertical (N-S). */
 export function doorAxis(m: TileMap, c: number, r: number): 'h' | 'v' {
   return isWall(m, c - 1, r) && isWall(m, c + 1, r) ? 'h' : 'v';
+}
+
+/** Porta del mapa: casella de dalt (`i`, que en dona l'id `td_<i>`) i quantes caselles ocupa. */
+export interface DoorGroup { i: number; c: number; r: number; n: 1 | 2; axis: 'h' | 'v' }
+
+/**
+ * Portes del mapa agrupades. Dues portes LATERALS una sota l'altra són UNA porta doble (una
+ * sola `Door`, un sol clic l'obre sencera). Una tira més llarga es parteix en dobles de dalt
+ * a baix (i una de sola si en sobra).
+ */
+export function doorGroups(m: TileMap): DoorGroup[] {
+  const isV = (c: number, r: number) => inMap(m, c, r) && cellOf(m, c, r) in m.doors && doorAxis(m, c, r) === 'v';
+  const out: DoorGroup[] = [];
+  const taken = new Set<number>();
+  const keys = Object.keys(m.doors).map(Number).sort((a, b) => a - b);  // de dalt a baix
+  for (const i of keys) {
+    if (taken.has(i)) continue;
+    const c = i % m.cols, r = Math.floor(i / m.cols);
+    if (doorAxis(m, c, r) === 'h') { out.push({ i, c, r, n: 1, axis: 'h' }); continue; }
+    const two = isV(c, r + 1);
+    if (two) taken.add(cellOf(m, c, r + 1));
+    out.push({ i, c, r, n: two ? 2 : 1, axis: 'v' });
+  }
+  return out;
 }
 
 /** Pinta tota la part estàtica d'una casella (terra, decorats, ombra, paret, objectes quiets). */
@@ -142,6 +169,9 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
 // ── Parts vives (es pinten cada fotograma, DM i jugador) ──────────────────────
 
 /** El que no va al cuinat perquè es mou o canvia d'estat. Viatja al jugador dins del STATE. */
+/** Peça d'una porta: `dy` en caselles des de la de dalt; `shadow` = ombra (no es repinta sobre la foscor). */
+export interface DoorPiece { dy: number; tile: number; shadow?: boolean }
+
 export interface TileLive {
   /** Peces animades: posició (px de mapa) + fotogrames. */
   anims: { x: number; y: number; frames: number[]; ms: number }[];
@@ -149,7 +179,7 @@ export interface TileLive {
    * Portes del mapa de caselles: posició i peces tancada/oberta del seu joc. Cada peça va a
    * la casella de la porta (`dy` 0) o a la de dalt (`dy` −1), on sobresurt l'art.
    */
-  doors: { id: string; x: number; y: number; closed: { dy: number; tile: number }[]; open: { dy: number; tile: number }[] }[];
+  doors: { id: string; x: number; y: number; closed: DoorPiece[]; open: DoorPiece[] }[];
 }
 
 export function tileLiveOf(m: TileMap): TileLive {
@@ -168,28 +198,31 @@ export function tileLiveOf(m: TileMap): TileLive {
     for (const p of def?.parts ?? []) if (p.frames) anims.push({ x: (o.c + p.dx) * TILE, y: (o.r + p.dy) * TILE, frames: p.frames, ms: p.ms ?? 300 });
   }
   const doors: TileLive['doors'] = [];
-  for (const [k, setId] of Object.entries(m.doors)) {
-    const i = +k, c = i % m.cols, r = Math.floor(i / m.cols);
-    const set = WALL_BY_ID.get(setId) ?? WALL_BY_ID.get('dungeon')!;
+  for (const g of doorGroups(m)) {
+    const set = WALL_BY_ID.get(m.doors[g.i]) ?? WALL_BY_ID.get('dungeon')!;
     const W = (col: number, dr: number) => wallPiece(set, col, dr);
     // Peces de l'autor (columnes 10–13 del joc de paret), col·locades com als mapes d'exemple
-    // del paquet (`uf_example_*.tmx`, capa «door», casella a casella):
-    //  - paret horitzontal: tancada = la porta doble (10); oberta = els dos muntants (11).
-    //    La fila +2 del joc és l'OMBRA de la porta i va a la casella de sota (`dy` 1): sense
-    //    ella, sota la porta quedava una franja més clara que la resta del mur.
-    //  - paret lateral: tancada = la porta vista de cantell, un muntant (12); oberta = la
+    // del paquet (`uf_example_*.tmx`, capa «door», casella a casella). `dy` en caselles des
+    // de la casella de dalt de la porta.
+    //  - Paret horitzontal: tancada = la porta doble (10); oberta = els dos muntants (11).
+    //    La fila +2 del joc és l'OMBRA de la porta i va a la casella de sota.
+    //  - Paret lateral: tancada = la porta vista de cantell, un muntant (12); oberta = la
     //    fulla de cara, girada contra la paret (13). Ocupen la cara del tram de dalt (`dy` −1)
-    //    i la casella de la porta. L'autor hi deixa a sota la VORA DE DALT del tram de baix
-    //    (mitja casella grisa, fila 0): el pas és la meitat de dalt i el muntant queda a la
-    //    junta entre els dos trams. Sense aquesta vora la casella quedava tota de terra i el
-    //    muntant semblava surar a mitja obertura.
-    const piece = (col: number) => [{ dy: -1, tile: W(col, 0) }, { dy: 0, tile: W(col, 1) }];
-    const sideEdge = { dy: 0, tile: W(1, 0) };
-    const h = doorAxis(m, c, r) === 'h';
+    //    i la casella de la porta. A sota de tot hi va la VORA DE DALT del tram de baix (mitja
+    //    casella grisa, fila 0): el muntant queda a la junta entre els dos trams.
+    //  - Lateral DOBLE (dues caselles): el pas és una casella i mitja. Tancada, el muntant
+    //    s'allarga fins a la vora de baix; oberta, la fulla de dalt com la senzilla i, de la de
+    //    baix, només la part de dalt que treu el cap per sobre de la vora (13, fila +2).
+    const piece = (col: number, dy = 0) => [{ dy: dy - 1, tile: W(col, 0) }, { dy, tile: W(col, 1) }];
+    const last = g.n - 1;
+    const sideEdge = { dy: last, tile: W(1, 0) };
+    const h = g.axis === 'h';
     doors.push({
-      id: `td_${i}`, x: c * TILE, y: r * TILE,
-      closed: h ? [{ dy: 0, tile: W(10, 1) }, { dy: 1, tile: W(10, 2) }] : [sideEdge, ...piece(12)],
-      open: h ? [...piece(11), { dy: 1, tile: W(11, 2) }] : [sideEdge, ...piece(13)],
+      id: `td_${g.i}`, x: g.c * TILE, y: g.r * TILE,
+      closed: h ? [{ dy: 0, tile: W(10, 1) }, { dy: 1, tile: W(10, 2), shadow: true }]
+        : g.n === 2 ? [sideEdge, ...piece(12), ...piece(12, 1)] : [sideEdge, ...piece(12)],
+      open: h ? [...piece(11), { dy: 1, tile: W(11, 2), shadow: true }]
+        : g.n === 2 ? [sideEdge, ...piece(13), { dy: 1, tile: W(13, 2) }] : [sideEdge, ...piece(13)],
     });
   }
   return { anims, doors };
@@ -205,6 +238,22 @@ export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | nul
   for (const d of live.doors) {
     for (const p of openById(d.id) ? d.open : d.closed) drawTile(ctx, p.tile, d.x, d.y + p.dy * TILE);
   }
+}
+
+/**
+ * Torna a pintar les portes DAMUNT de la foscor de les sales (després de `renderRooms`). La
+ * casella d'una porta queda partida entre dues sales i la foscor de la que és fosca en tapava
+ * la meitat (o tota, si totes dues ho eren): una porta es veu sempre, com les parets. Les
+ * ombres no es repinten (són translúcides: es doblarien a la part il·luminada).
+ */
+export function drawTileDoorsOver(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean) {
+  if (!live || !live.doors.length || !sheet('terrain')) return;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  for (const d of live.doors) {
+    for (const p of openById(d.id) ? d.open : d.closed) if (!p.shadow) drawTile(ctx, p.tile, d.x, d.y + p.dy * TILE);
+  }
+  ctx.restore();
 }
 
 // Miniatures per a la paleta (dataURL, una per peça i mida).

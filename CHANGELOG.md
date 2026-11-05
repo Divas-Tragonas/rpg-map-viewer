@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.88 — Portes Píxel sempre visibles, portes laterals dobles i sense vora negra
+- **Sense vora negra a la sala il·luminada**: la foscor de les sales ja no s'eixampla amb un contorn cap enfora; quedava un fil negre arran de paret encara que el token hi veiés. Ara totes les sales del mateix to es farceixen en un sol camí (tampoc no hi queda cap fil entre sales veïnes)
+- **Les portes del mapa de caselles es veuen sempre**, com les parets: es tornen a pintar per sobre de la foscor (abans la sala fosca en tapava mitja porta, o tota)
+- **Portes laterals dobles**: dues portes laterals una sota l'altra són una sola porta doble (un clic l'obre sencera). Oberta: la fulla de dalt i, de la de baix, la part de dalt que treu el cap per sobre del mur. Tancada: el muntant de cada fulla
+- La cara del mur just a sobre d'una porta lateral és sempre la llisa (l'estendard o la calavera quedaven tapats a mitges per la porta)
+
 ### v4.87 — Desfer i refer de tot, sales d'un clic i portes Píxel com al paquet
 - **Desfer / refer únic**: una sola pila d'accions (màx. 100). A més del dibuix i dels canvis del mapa, ara es desfan moure tokens el DM (un arrossegament = una entrada, també en grup), PV (clics seguits s'agrupen), estats, derrotat, mida, visibilitat, **eliminar un jugador o un enemic** (torna on era, també a la iniciativa), obrir/tancar portes, revelar/amagar i marcar fosca una sala, moure llums i el seu radi, i les zones màgiques
 - **Refer**: Ctrl+Maj+Z o Ctrl+Y, i un botó al costat de «Desfer»; tots dos diuen què faran
