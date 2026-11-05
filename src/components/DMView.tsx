@@ -1700,7 +1700,7 @@ export function DMView() {
                 onSelect={selectToken} onMenu={openTokenMenu}
                 onToggleLibVis={toggleLibEnemyVisibility} onAdjustLibHp={adjustLibEnemyHp}
                 onRemoveLib={removeLibEnemy}
-                onOpenLibrary={() => setSidebarTab('biblioteca')}
+                onOpenLibrary={() => setSidebarTab('biblioteca')} pixel={pixel}
               />
             </>
           )}

@@ -60,7 +60,7 @@ src/
 │   ├── dm/                 # Panells i overlays del DM
 │   │   ├── ImportPanel (fons + demo), WelcomeScreen (benvinguda), PlayersPanel (files primes de jugadors)
 │   │   ├── TokenFields     # Fitxa d'un token dins del menú del clic dret (resolveToken, camps, NameField)
-│   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (biblioteca) en files primes
+│   │   ├── SceneEnemiesPanel   # Tots els enemics i aliats de l'escena, en files com les DIVAS (miniatura + ull)
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
 │   │   ├── TopBar          # Barra superior: nom del mapa, Preparar·Jugar, pantalles, partida, ☰ (vista, app, ajuda); RightRail: Mostrar als jugadors i Història
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat

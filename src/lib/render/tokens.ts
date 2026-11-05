@@ -151,6 +151,23 @@ function drawNameTag(ctx: CanvasRenderingContext2D, t: NameTag, u: number, x: nu
   ctx.fillStyle = t.color; ctx.fillText(t.text, x, top + (12 - t.gap) * u);
 }
 
+/**
+ * Barra de vida que només veu el DM, sota el nom: la mateixa per a jugadors i enemics (v4.96: la
+ * gruixuda dels enemics, amb els punts a dins, que es llegeix millor que la prima de sota).
+ */
+function drawHpBar(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, hpRaw: number, hpMax: number) {
+  const hp = Math.max(0, hpRaw), ratio = Math.min(1, hp / hpMax);
+  const barW = R * 2, barH = Math.max(13 / sc, R * 0.35);
+  const barX = cx - R, barY = cy + R + 16 / sc;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
+  ctx.fillStyle = ratio > 0.5 ? C.hpHigh : ratio > 0.25 ? C.hpMid : C.enemy;
+  ctx.fillRect(barX, barY, barW * ratio, barH);
+  ctx.font = `bold ${Math.max(9 / sc, barH * 0.62)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 2 / sc;
+  ctx.fillText(`${hp}/${hpMax}`, cx, barY + barH / 2);
+  ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+}
+
 /** Al DM, el nom es pinta on toca; a la pantalla de jugador (`fc.nameTags`) es pinten tots junts a `renderNameTags`. */
 function nameTag(ctx: CanvasRenderingContext2D, fc: FrameContext, t: NameTag) {
   if (fc.nameTags) { fc.nameTags.push(t); return; }
@@ -513,8 +530,9 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     }
     ctx.textBaseline = 'alphabetic';
     if (showStates) {
-      nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, badges: enCondIds.length > 0, size: 11, gap: 2, boxH: 13,
-        color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.85)', alpha: enAlpha, pri: 1 });
+      // Mateixa lletra, mida i fons que el nom de les DIVAS (només canvia el color).
+      nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, badges: enCondIds.length > 0, size: 10, gap: 3, boxH: 12,
+        color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.8)', alpha: enAlpha, pri: 1 });
     }
     ctx.globalAlpha = 1;
     const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
@@ -527,20 +545,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     drawColorHalo(ctx, ep.x, ep.y, R, sc, en.color, !!libSprite, isInvis, glow, phase);
     ctx.globalAlpha = 1;
 
-    if (isDM && en.hpMax > 0) {
-      const hp = Math.max(0, en.hp ?? en.hpMax);
-      const hpRatio = hp / en.hpMax;
-      const barW = R * 2, barH = Math.max(13 / sc, R * 0.35);
-      const barX = ep.x - R, barY = ep.y + R + 16 / sc;
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
-      ctx.fillRect(barX, barY, barW * hpRatio, barH);
-      const barFontSize = Math.max(9 / sc, barH * 0.62);
-      ctx.font = `bold ${barFontSize}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 2 / sc;
-      ctx.fillText(`${hp}/${en.hpMax}`, ep.x, barY + barH / 2);
-      ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-    }
+    if (isDM && en.hpMax > 0) drawHpBar(ctx, ep.x, ep.y, R, sc, en.hp ?? en.hpMax, en.hpMax);
 
     const drawCross = () => {
       if (isDefeated && showStates && (isDM || crossProg > 0)) {
@@ -719,15 +724,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     badges({ badges: false });
     drawColorHalo(ctx, ppos.x + R, ppos.y + R, R, sc, pl.color, !!plSprite, isInvis, glow);
 
-    if (isDM && pl.hpMax > 0) {
-      const hp = pl.hp ?? pl.hpMax, hpRatio = Math.max(0, Math.min(1, hp / pl.hpMax));
-      const barW = R * 2, barH = 5 / sc, barX = ppos.x, barY = ppos.y + R * 2 + 18 / sc;
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = hpRatio > 0.5 ? C.hpHigh : hpRatio > 0.25 ? C.hpMid : C.enemy;
-      ctx.fillRect(barX, barY, barW * hpRatio, barH);
-      ctx.font = `bold ${9 / sc}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#e6edf3';
-      ctx.fillText(`${hp}/${pl.hpMax}`, ppos.x + R, barY + barH + 9 / sc); ctx.textAlign = 'left';
-    }
+    if (isDM && pl.hpMax > 0) drawHpBar(ctx, ppos.x + R, ppos.y + R, R, sc, pl.hp ?? pl.hpMax, pl.hpMax);
 
     const drawCross = () => {
       if (isDefeated && (isDM || crossProg > 0)) {

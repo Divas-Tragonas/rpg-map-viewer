@@ -12,7 +12,8 @@ les 624 primeres files (el full original) i torna a escriure la fila.
 
   - `templar_axe` (Jaume III): el templari vermell amb la destral del bàrbar (`barbarian_m`) en lloc
     de l'alabarda. Es treu l'alabarda (columna 33 i el ferro de dalt), i s'hi enganxa la destral
-    del bàrbar del mateix fotograma, desplaçada perquè el mànec quedi dins del guant del templari.
+    del bàrbar del mateix fotograma, amb el mateix desplaçament a tots (el del fotograma 0, amb el
+    mànec dins del guant): la destral es mou com la del bàrbar.
   - `warrior_green` (Espardeny): el guerrer (`warrior_m`) amb la roba blava tenyida del verd del
     seu halo (#52b86e): es gira el to dels píxels blaus i es conserva la rampa de llum.
 """
@@ -58,8 +59,11 @@ def templar_axe(sheet, f):
                 t.putpixel((c, r), q if 0 < q[3] < 255 else (1, 1, 1, 38))
             else:
                 t.putpixel((c, r), (0, 0, 0, 0))
-    # 2. La destral del bàrbar, amb el mànec dins del guant.
-    dy = first_row(t, SHAFT_X, HAND_T) - first_row(b, SHAFT_X, (223, 223, 146))
+    # 2. La destral del bàrbar, amb el mànec dins del guant. El desplaçament es mesura al fotograma 0
+    #    i es fa servir per a tots: així la destral puja i baixa com la del bàrbar (el guant del
+    #    templari no es mou, i el mànec hi llisca per dins, com al bàrbar).
+    t0, b0 = frame(sheet, TEMPLAR, 0), frame(sheet, BARBARIAN, 0)
+    dy = first_row(t0, SHAFT_X, HAND_T) - first_row(b0, SHAFT_X, (223, 223, 146))
     for r in range(T):
         for c in range(SHAFT_X - 1, T):
             p = b.getpixel((c, r))

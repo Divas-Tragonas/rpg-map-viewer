@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.96 — Destral animada, noms i vida iguals per a tothom i miniatures als enemics
+- **Jaume III**: la destral puja i baixa com la del bàrbar (abans es quedava quieta)
+- **Noms al mapa**: els enemics i aliats fan servir la mateixa lletra, mida i fons que les DIVAS (només canvia el color)
+- **Vida al mapa (DM)**: les DIVAS ara tenen la mateixa barra que els enemics, gruixuda i amb els punts a dins
+- **Lateral (Escena)**: enemics i aliats amb miniatura com les DIVAS (figureta, imatge o inicials amb la vora del seu color); fora el puntet de color, i l'ull just al costat de la miniatura
+- Sense canvis a la API
+
 ### v4.95 — Figuretes noves de la colla i ventall amb pulsació llarga
 - **Jaume III**: templari vermell amb la destral del bàrbar (figureta nova, editada a partir de les dues del paquet)
 - **Espardeny**: guerrer amb la roba verda del color del seu halo (figureta nova)

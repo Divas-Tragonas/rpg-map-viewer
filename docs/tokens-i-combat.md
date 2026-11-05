@@ -64,6 +64,10 @@
 - **Figureta (Píxel)**: l'**ombra i els halos van als peus**, una mica per sota del centre de la casella (`FOOT_DROP` = 0,3·R, `footOf`), i la figura els **trepitja**: amb els peus just al centre (v4.79), el cos quedava a la meitat de dalt de la casella. Abans l'ombra era a `cy + 0,62·R` (gairebé a la vora de baix de la casella) i la figura es pintava amb uns offsets fixos pensats per a un sprite «mitjà». Ara la posició surt del **contingut real de cada sprite** (`creatureBounds`: capsa alfa i centroide horitzontal del fotograma 0, calculats una vegada per sprite i cachejats): el centroide horitzontal de l'art queda a `cx` (amb el signe girat si la figura mira a l'esquerra) i la fila de baix dels peus a `cy + 0,06·R` (`placeFigure`). Res de valors per token.
 - `drawFigureState` no ha canviat: rep el peu ja corregit. Estirada, la figura es posa de través sobre l'ombra sense la correcció dels peus. Els badges dels estats pugen 0,62·R (`badgeY`) per continuar sobre el cap; el fantasma del drag del jugador (`renderDragGhost`) fa servir el mateix `placeFigure`.
 
+## Nom i vida al canvas (`render/tokens.ts`, v4.96)
+- **Nom**: jugadors i enemics amb la mateixa etiqueta (negreta 10 px, fons fosc); només canvia el color (el del jugador, `#ffaaaa` als enemics).
+- **Vida (només el DM)**: `drawHpBar`, la mateixa per a tots: barra gruixuda sota el nom amb els punts a dins (abans les DIVAS tenien una barra prima amb el text a sota).
+
 ## Hit-test i tokens apilats (`render/token-geom.ts`, v4.79)
 - **Un sol hit-test**: `tokenAt(R, mx, my, sc)` per al clic (seleccionar/arrossegar), el Ctrl+arrossegar de l'eina de formes, el clic dret i el doble clic. Abans eren quatre bucles copiats (enemics primer, després jugadors) que no seguien l'ordre de pintura: amb un jugador damunt d'un enemic, el clic agafava l'enemic de sota.
 - **Ordre z = ordre de pintura** (`tokenSlots`): biblioteca, jugadors i **el seleccionat a sobre de tot**. El render ho fa amb dues passades (`pass: 'base' | 'top'` a `renderLibEnemyTokens`/`renderPlayerTokens`, des de `useRafLoop`); la pantalla de jugador fa una sola passada (`'all'`).
