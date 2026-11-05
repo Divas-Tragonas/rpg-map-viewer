@@ -10,7 +10,7 @@
  * ⚠️ `scripts/forja-preview.py` fa la mateixa composició per previsualitzar les peces: mantenir-los iguals.
  */
 import ART_JSON from './kit-art.json';
-import { getPack, figureGradeKey, gradeFigureCanvas } from './pack';
+import { getPack } from './pack';
 import { CREATURES } from './manifest';
 
 type Rows = string[];
@@ -198,11 +198,11 @@ function composeFrame(px: Px, r: KitRecipe, frame: number) {
 const _sheets = new Map<string, HTMLCanvasElement>();
 
 /**
- * Tira de 3 fotogrames (144×48) de la figureta, amb l'ajust de color del mapa aplicat. Null si la
+ * Tira de 3 fotogrames (144×48) de la figureta. Null si la
  * recepta no és vàlida o el full de criatures encara no s'ha carregat (no es desa: es torna a provar).
  */
 export function kitSheet(sprite: string): HTMLCanvasElement | null {
-  const key = `${figureGradeKey()}|${sprite}`;
+  const key = sprite;
   const hit = _sheets.get(key); if (hit) return hit;
   const r = parseKit(sprite); if (!r) return null;
   const img = getPack().sheets.heroes; if (!img) return null;
@@ -218,7 +218,6 @@ export function kitSheet(sprite: string): HTMLCanvasElement | null {
     composeFrame(new Px(data.data), r, f);
     g.putImageData(data, f * T, 0);
   }
-  const out = gradeFigureCanvas(c);
-  _sheets.set(key, out);
-  return out;
+  _sheets.set(key, c);
+  return c;
 }

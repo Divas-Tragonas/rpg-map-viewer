@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.94 — Fora Cony Cirera i el sistema de missions
+- Eliminat tot el que era de **Cony Cirera**: el mapa de la missió, les cases (farga, batlle, graner, rectoria, capella, hostal…), el full de poble i els scripts que els generaven
+- Eliminat el **sistema de missions** (menú «Missions», botó de la benvinguda, entrar a les cases amb fos a negre, menú de llocs) i l'**ajust de color de les figuretes** («Figuretes a to amb el mapa»)
+- Fora els dos **mòduls d'exemple** del panell Història i el camp `map` dels mòduls (apuntava a una missió)
+- Es manté la demo de la taverna i el tauler de missions de la wiki (ara sense apuntar a cap lloc)
+- Les partides desades amb missió es poden seguir carregant: els camps que ja no existeixen s'ignoren
+- Sense canvis a la API
+
 ### v4.93 — Mode Fòsfor: paleta DB32 per proximitat
 - La paleta del mode Fòsfor ara és la **DawnBringer 32** (DB32): 32 colors pensats per a pixel art que lliguen entre ells (rampes de pell, terra, verds, blaus i grisos)
 - Cada color del mapa passa al **color més proper** de la paleta, mesurat en OKLab (com ho veu l'ull). Fora les regles per famílies de la v4.92, que ho tornaven tot verd, taronja i blau: ara el camí continua sent sorra, la pedra grisa, la fusta marró i les teulades vermelles

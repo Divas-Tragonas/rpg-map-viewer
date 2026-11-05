@@ -17,8 +17,8 @@
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
-/** Tauler de missions que té el mapa en píxel (de moment, el de Cony Cirera). */
-export const BOARD_URL = process.env.NEXT_PUBLIC_BOARD_URL || 'https://divas-tragonas.github.io/wiki/missions/?lloc=cony-cirera';
+/** Tauler de missions de la wiki (es pot canviar amb `NEXT_PUBLIC_BOARD_URL`). */
+export const BOARD_URL = process.env.NEXT_PUBLIC_BOARD_URL || 'https://divas-tragonas.github.io/wiki/missions/';
 const BOARD_ORIGIN = new URL(BOARD_URL).origin;
 
 /** Finestres del tauler a qui el DM reenvia el canal (les que ha obert o que l'han saludat). */

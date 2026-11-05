@@ -17,7 +17,6 @@ import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
-import { getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
 
 interface Setters {
   setBgLoaded: (v: boolean) => void;
@@ -32,10 +31,6 @@ interface Setters {
   onUndoChange: () => void;
   /** Els diàlegs preparats han canviat (s'ha carregat una partida). */
   onDialogsChange?: () => void;
-  /** L'ajust de color de les figuretes del mapa ha canviat (missió, partida o fons nou). */
-  onFigureGradeChange?: (g: import('@/types').FigureGrade | null) => void;
-  /** Escenes de la missió (en carregar una partida o canviar d'escena): refresca el menú de llocs. */
-  onMissionScenesChange?: (s: import('@/types').MissionScenes | null) => void;
   setActiveSpells: (v: import('@/types').Spell[]) => void;
   setGridSize: (v: number) => void;
   setGridSnap: (v: boolean) => void;
@@ -236,13 +231,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
       appStyle: R.rAppStyle.current,
       // Mode Fòsfor de les pantalles de jugador: lleuger, s'envia sempre.
       phosphor: R.rPhosphor.current,
-      // Ajust de color de les figuretes del mapa (missions): lleuger, s'envia sempre.
-      figureGrade: getFigureGrade(),
       // Diàleg en curs (lleuger, sempre): així qui es connecta o reconnecta a mitja
       // conversa veu la línia d'ara mateix. Veure `useDialog`.
       dialog: _dialogNow(),
-      // Fos a negre del canvi d'escena (missions amb llocs): lleuger, sempre.
-      curtain: R.rCurtain.current,
     };
     const heavy: Record<string, unknown> = {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
@@ -286,10 +277,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       spellPreview: rSpellPreview.current,
       appStyle: R.rAppStyle.current,
       phosphor: R.rPhosphor.current,
-      figureGrade: getFigureGrade(),
       tileLive: R.rTileLive.current,
       dialog: _dialogNow(),
-      curtain: R.rCurtain.current,
       sheet: R.rSheetShow.current,
       // Dibuix a ploma: perquè el jugador reconstrueixi el drawCanvas en connectar-se (late
       // join) o en carregar una partida (els STROKE són incrementals i un jugador que no hi
@@ -539,9 +528,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
     }
     const buf = await file.arrayBuffer();
     bgBufferRef.current = { buffer: buf, mimeType: mime };
-    // L'ajust de color de les figuretes és d'un mapa concret (missions): un fons nou no en té.
-    // Si el fons ve d'una partida, `applySessionState` el torna a posar just després.
-    if (getFigureGrade()) { setFigureGrade(null); S.onFigureGradeChange?.(null); }
     const stage = stageRef.current; if (!stage) return;
     if (mediaRef.current) { mediaRef.current.remove(); (mediaRef as React.MutableRefObject<HTMLImageElement | HTMLVideoElement | null>).current = null; }
     // L'URL del fons anterior s'ha de revocar a mà: si no, cada canvi de mapa deixa penjada
@@ -867,10 +853,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // Estil Píxel: l'estil amb què es jugava i el mapa de caselles (per poder-lo seguir editant).
       appStyle: R.rAppStyle.current,
       tileMap: R.rTileMap.current,
-      // Ajust de color de les figuretes: és del mapa (una missió el porta), no de la UI.
-      figureGrade: getFigureGrade(),
-      // Escenes d'una missió amb llocs: on és la colla i com es van deixar els altres llocs.
-      missionScenes: R.rMissionScenes.current,
     };
     state.mapSize = rMapSize.current;
     return state;
@@ -980,12 +962,6 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // tenir per editar-lo i per a les parts vives (aigua, torxes, portes).
       R.rTileMap.current = state.tileMap ? reviveTileMap(state.tileMap) : null;
       R.rTileRestore.current({ rebake: false });
-      // L'ajust de color de les figuretes és del mapa: una partida que no en porta no en té.
-      setFigureGrade(state.figureGrade && typeof state.figureGrade === 'object' ? state.figureGrade : null);
-      S.onFigureGradeChange?.(getFigureGrade());
-      // Escenes de la missió: una partida que no en porta no és d'una missió amb llocs.
-      R.rMissionScenes.current = state.missionScenes && typeof state.missionScenes === 'object' ? state.missionScenes : null;
-      S.onMissionScenesChange?.(R.rMissionScenes.current);
       if ((state.strokeHistory && state.strokeHistory.length > 0) || strokeBaseRef.current) {
         const oc = drawCanvasRef.current;
         if (oc) {

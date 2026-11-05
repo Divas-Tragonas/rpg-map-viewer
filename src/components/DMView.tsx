@@ -9,7 +9,7 @@ import type {
   PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, Wall, Room, Door, LightSource, TurnState, Notice, Notify, FigureGrade,
+  LibEnemy, Wall, Room, Door, LightSource, TurnState, Notice, Notify,
 } from '@/types';
 import { clearExploredAt } from '@/lib/render/darkrooms';
 import { useDMRefs } from '@/hooks/useDMRefs';
@@ -56,13 +56,9 @@ import { useTileMap } from '@/hooks/useTileMap';
 import { TilePalette } from '@/components/dm/TilePalette';
 import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
 import { useSpritePack } from '@/hooks/useSpritePack';
-import { ensurePack, getFigureGrade, setFigureGrade } from '@/lib/sprites/pack';
-import { MISSIONS, missionState, missionUrl } from '@/lib/missions';
-import { useMissionScenes } from '@/hooks/useMissionScenes';
+import { ensurePack } from '@/lib/sprites/pack';
 import { useCompactLayout } from '@/hooks/useCompact';
 import { useCanvasPointer } from '@/hooks/useCanvasPointer';
-import { PlacesMenu } from '@/components/dm/PlacesMenu';
-import { SceneCurtain } from '@/components/ui/SceneCurtain';
 import { relayBoards, openBoard } from '@/lib/relay';
 import { addEnemyNumbered } from '@/lib/enemy-naming';
 import type { TileBrush } from '@/lib/tilemap/editor';
@@ -152,8 +148,6 @@ export function DMView() {
   const pack = useSpritePack();
   // Mapa de caselles obert (n'hi ha prou amb la mida per a la UI; el mapa viu a R.rTileMap).
   const [tileMapSize, setTileMapSize] = useState<{ cols: number; rows: number } | null>(null);
-  // Ajust de color de les figuretes del mapa (missions). Mirall per a la UI (viu a `lib/sprites/pack`).
-  const [figureGrade, setFigureGradeUI] = useState<FigureGrade | null>(null);
   // Fitxer arrossegant-se damunt del canvas (tota la pantalla accepta el mapa o la partida).
   const [fileOver, setFileOver] = useState(false);
   const fileDragDepth = React.useRef(0);
@@ -334,9 +328,6 @@ export function DMView() {
   // Els diàlegs desats es refresquen a la UI quan es carrega una partida (`useDialog` es
   // crea més avall: hi arriba per ref).
   const dialogsChangedRef = React.useRef<() => void>(() => {});
-  // Escenes de la missió (carregar una partida o canviar d'escena): l'assigna `useMissionScenes`.
-  const scenesChangedRef = React.useRef<(s: import('@/types').MissionScenes | null) => void>(() => {});
-  const dropScenesRef = React.useRef<() => void>(() => {});
 
   // ── Avisos a la pantalla ───────────────────────────────────────────────────
   // Abans, tot el que fallava en carregar (fons il·legible, partida corrupta, desat
@@ -360,8 +351,6 @@ export function DMView() {
   // ── Setters object for useDMActions ────────────────────────────────────────
   const S = useMemo(() => ({
     onDialogsChange: () => dialogsChangedRef.current(),
-    onMissionScenesChange: (sc: import('@/types').MissionScenes | null) => scenesChangedRef.current(sc),
-    onFigureGradeChange: setFigureGradeUI,
     setBgLoaded, setBgName,
     setPos, setZoom, setPlayers, setConditions, setDefeated,
     setPaintedZones, onUndoChange: refreshUndo, setActiveSpells, setGridSize, setGridSnap,
@@ -1093,46 +1082,19 @@ export function DMView() {
     R.rTileMap.current = null; R.rTileRestore.current({ rebake: false });
     if (R.rDrawTool.current === 'tiles') setDrawTool('none');
   }, [R, setDrawTool]);
-  // Un mapa nou deixa enrere la missió i els seus llocs.
-  const dropScenes = useCallback(() => dropScenesRef.current(), []);
-  const openNewMap = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); dropScenes(); return loadBg(f); }, [switchMode, loadBg, dropTileMap, dropScenes]);
+  const openNewMap = useCallback((f: File) => { switchMode('preparar'); dropTileMap(); return loadBg(f); }, [switchMode, loadBg, dropTileMap]);
   const openSession = useCallback((f: File) => { switchMode('jugar'); return loadSession(f); }, [switchMode, loadSession]);
   const openServerSession = useCallback((id: string) => { switchMode('jugar'); return serverLoadSession(id); }, [switchMode, serverLoadSession]);
-  const openDemo = useCallback(() => { switchMode('jugar'); dropTileMap(); dropScenes(); return loadDemo(); }, [switchMode, loadDemo, dropTileMap, dropScenes]);
-  // Missió: una partida preparada (mapa + colla col·locada + ajust de color de les figuretes),
-  // sempre a l'app Píxel (les figuretes són part del disseny del mapa).
-  const openMission = useCallback(async (id: string) => {
-    const m = MISSIONS.find(x => x.id === id); if (!m) return;
-    let blob: Blob;
-    try {
-      const res = await fetch(missionUrl(m));
-      if (!res.ok) throw new Error(String(res.status));
-      blob = await res.blob();
-    } catch {
-      notify(`No s'ha pogut carregar el mapa de la missió ${m.name}. Comprova la connexió i torna-ho a provar.`);
-      return;
-    }
-    switchMode('jugar'); dropTileMap(); setPixel(true);
-    await applySessionState(missionState(m, blob));
-    logJournal('map', `Missió: ${m.name}`);
-  }, [switchMode, dropTileMap, setPixel, applySessionState, notify]);
-  // Encendre o apagar l'ajust de color del mapa (a totes les pantalles: va dins del STATE).
-  const toggleFigureGrade = useCallback(() => {
-    const g = getFigureGrade(); if (!g) return;
-    const next = { ...g, off: !g.off };
-    setFigureGrade(next); setFigureGradeUI(next);
-    _broadcastState({});
-  }, [_broadcastState]);
-
+  const openDemo = useCallback(() => { switchMode('jugar'); dropTileMap(); return loadDemo(); }, [switchMode, loadDemo, dropTileMap]);
   const openTileMap = useCallback(async (cols: number, rows: number) => {
-    switchMode('preparar'); dropScenes();
+    switchMode('preparar');
     await createTileMap(cols, rows);
     setDrawTool('tiles');
-  }, [switchMode, createTileMap, setDrawTool, dropScenes]);
+  }, [switchMode, createTileMap, setDrawTool]);
   const openTmx = useCallback(async (f: File) => {
-    switchMode('preparar'); dropScenes();
+    switchMode('preparar');
     try { await importTmx(f); } catch (err) { console.error('Error important el .tmx:', err); }
-  }, [switchMode, importTmx, dropScenes]);
+  }, [switchMode, importTmx]);
 
   const loadAnyFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
@@ -1271,20 +1233,6 @@ export function DMView() {
   });
   useEffect(() => { dialogEndRef.current = () => { if (R.rDialog.current) dlg.end(); }; dialogsChangedRef.current = dlg.reloadDialogs; });
 
-  // ── Llocs de la missió (entrar i sortir de les cases amb fos a negre) ───────
-  const scenes = useMissionScenes(R, {
-    applySessionState: st => applySessionState(st),
-    buildCore: () => buildAutosaveRecord().state,
-    broadcast: () => _broadcastState({}),
-    notify: text => notify(text),
-    onBeforeSwitch: () => {
-      setContextMenu(null); setMenuFloat(null);
-      if (R.rDialog.current) dlg.end();
-      setSelectedToken(null);
-    },
-    onUndoChange: refreshUndo,
-  });
-  useEffect(() => { scenesChangedRef.current = scenes.setScenes; dropScenesRef.current = scenes.drop; }, [scenes.setScenes, scenes.drop]);
   const [dialogDraft, setDialogDraft] = useState<DialogDraft>(EMPTY_DRAFT);
   // Tokens de l'escena per relacionar-hi els noms del guió (de l'estat, no dels refs).
   const sceneTokenList = useMemo(() => [
@@ -1613,7 +1561,6 @@ export function DMView() {
   const story = useStory(R, {
     setLibEnemies, setPos, broadcast: () => _broadcastState({}), notify,
     showText: showTextInReveal, startDialog: dlg.start, sceneTokens: sceneTokenList,
-    goTo: scenes.goTo, openMission,
   });
   useJournalWatchers(R, { rooms, defeated, players, bgLoaded, bgName });
 
@@ -1693,8 +1640,6 @@ export function DMView() {
         onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
         onExport={saveSession} onImport={f => void openSession(f)}
         onOpenServer={serverSessionsEnabled ? () => setShowServerSessions(true) : undefined}
-        missions={MISSIONS} onOpenMission={id => void openMission(id)}
-        figureGrade={figureGrade ? { on: !figureGrade.off } : null} onToggleFigureGrade={toggleFigureGrade}
         bgOpacity={bgOpacity} onBgOpacityChange={onBgOpacityChange}
         gridVisible={gridVisible} onToggleGrid={toggleGridVisible}
         enemyHighlight={enemyHighlight} highlightLocked={highlightLocked}
@@ -1808,11 +1753,6 @@ export function DMView() {
           onContextMenu={onContextMenu}
           onDoubleClick={onDoubleClick}
         />
-        {scenes.mission && scenes.scenes && bgLoaded && (
-          <PlacesMenu mission={scenes.mission} current={scenes.scenes.current} busy={scenes.busy}
-            onGo={id => void scenes.goTo(id)} onHover={scenes.hover} />
-        )}
-        <SceneCurtain closed={!!scenes.curtain?.closed} title={scenes.curtain?.title ?? ''} pixel={pixel} zIndex={45} />
         <RightRail
           canShow={mode === 'jugar' || showPanelOpen || expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId}
           showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
@@ -2087,7 +2027,7 @@ export function DMView() {
             pixel={pixel} compact={compact} spritesStatus={pack.status}
             autosaveMeta={autosaveMeta} recovering={recovering}
             onOpenMap={f => void openNewMap(f)} onOpenSession={f => void openSession(f)} onOpenTmx={f => void openTmx(f)}
-            onOpenDemo={() => void openDemo()} onOpenMission={id => void openMission(id)}
+            onOpenDemo={() => void openDemo()}
             onCreateTileMap={() => void openTileMap(32, 22)}
             onRecover={() => void recoverAutosave()} onDiscardAutosave={() => void discardAutosave()}
             onTogglePixel={() => setPixel(!pixel)}

@@ -25,8 +25,7 @@ export const STATUS_ORDER: ModuleStatus[] = ['en-joc', 'preparat', 'esborrany', 
 export interface ModuleReadAloud { id: string; label: string; text: string }
 /** `creature`: id d'una plantilla (`goblin`, `fum_lhupo`), nom d'una criatura Oryx (`skeleton`, `wolf_black`) o qualsevol nom (sense figureta). */
 export interface ModuleFoe { creature: string; count: number; name?: string; hp?: number; xp?: number; sprite?: string; note?: string }
-export interface ModuleMapRef { mission: string; scene?: string }
-export interface ModuleExit { id: string; label: string; text?: string; to?: string; map?: ModuleMapRef }
+export interface ModuleExit { id: string; label: string; text?: string; to?: string }
 export interface ModuleDialog { id: string; title: string; script: string }
 export interface ModuleNpc { name: string; note?: string }
 
@@ -51,8 +50,6 @@ export interface ModulePack {
   dialogs: ModuleDialog[];
   exits: ModuleExit[];
   dmNotes?: string;
-  /** Mapa on passa (una missió de l'app i, si cal, un dels seus llocs). */
-  map?: ModuleMapRef;
 }
 
 export interface StoredModule {
@@ -95,12 +92,6 @@ export function normStatus(v: unknown): ModuleStatus {
   return 'preparat';
 }
 
-function mapRef(v: unknown): ModuleMapRef | undefined {
-  if (!isObj(v)) return undefined;
-  const mission = str(v.mission);
-  return mission ? { mission, scene: str(v.scene) } : undefined;
-}
-
 function parseOne(raw: unknown, idx: number, errors: string[]): ModulePack | null {
   if (!isObj(raw)) { errors.push(`Mòdul ${idx + 1}: no és un objecte.`); return null; }
   const title = str(raw.title) ?? str(raw.nom);
@@ -139,14 +130,14 @@ function parseOne(raw: unknown, idx: number, errors: string[]): ModulePack | nul
     if (!isObj(e)) return [];
     const label = str(e.label); if (!label) return [];
     const to = str(e.to);
-    return [{ id: uniq(slugify(str(e.id) ?? '') || `s${i + 1}`), label, text: str(e.text), to: to ? slugify(to) : undefined, map: mapRef(e.map) }];
+    return [{ id: uniq(slugify(str(e.id) ?? '') || `s${i + 1}`), label, text: str(e.text), to: to ? slugify(to) : undefined }];
   });
 
   return {
     format: MODULE_FORMAT, version: MODULE_VERSION, id, title,
     notionUrl: str(raw.notionUrl), kind: str(raw.kind), level: num(raw.level), duration: str(raw.duration),
     status: normStatus(raw.status), quests: strs(raw.quests), trigger: str(raw.trigger), scene: strs(raw.scene),
-    readAloud, foes, npcs, dialogs, exits, dmNotes: str(raw.dmNotes), map: mapRef(raw.map),
+    readAloud, foes, npcs, dialogs, exits, dmNotes: str(raw.dmNotes),
   };
 }
 

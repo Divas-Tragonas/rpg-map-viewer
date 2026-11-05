@@ -60,47 +60,6 @@ export interface SheetShow {
 /** Estil de l'app: el clàssic de sempre o el Píxel (sprites, mapes de caselles). */
 export type AppStyle = 'classic' | 'pixel';
 
-/**
- * Ajust de color de les figuretes (app Píxel) perquè lliguin amb un mapa de tons apagats (les
- * missions: el paquet és molt saturat). Es fa per píxel als fulls de criatures, un sol cop
- * (`setFigureGrade` a `lib/sprites/pack.ts`): saturació, multiplicador càlid i guany, i els
- * negres passen a la tinta del mapa. `off` → el mapa en té, però el DM l'ha apagat.
- */
-/**
- * Cortina d'escena (missions amb llocs): fos a negre a totes les pantalles mentre el DM canvia
- * de mapa (entrar o sortir d'una casa). `scene` = l'escena que hi haurà en obrir-se: si una
- * pantalla veu que canvia, oblida la boira explorada de l'escena d'abans. `title` = nom del lloc,
- * que surt al mig del negre. Viatja dins del STATE i del STRUCT (lleuger, sempre; `null` = cap).
- */
-export interface SceneCurtain {
-  closed: boolean;
-  scene: string;
-  title: string;
-}
-
-/**
- * Escenes d'una missió amb llocs (veure `lib/missions.ts`): on és la colla (`current`, `VILLAGE`
- * = el mapa de la missió) i l'estat desat de cada escena on ja ha estat (sense el fons, que és
- * el mapa del lloc). Es desa a la partida.
- */
-export interface MissionScenes {
-  mission: string;
-  current: string;
-  saved: Record<string, Record<string, unknown>>;
-}
-
-export interface FigureGrade {
-  sat: number;
-  warm: [number, number, number];
-  gain: number;
-  ink: [number, number, number];
-  /**
-   * Opacitat (0..1) de l'ombra que cada figureta fa cap a baix a la dreta, com els arbres i les
-   * cases del mapa. És el que les fa destacar del fons sense posar-los cap contorn.
-   */
-  shadow?: number;
-  off?: boolean;
-}
 
 export interface Point {
   x: number;
@@ -431,10 +390,6 @@ export interface BCStateMessage {
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   // Diàleg en curs (camp lleuger, sempre; `null` = cap). Absent → DM antic, no tocar res.
   dialog?: DialogSync | null;
-  // Ajust de color de les figuretes del mapa (lleuger, sempre; `null` = cap). Absent → DM antic.
-  figureGrade?: FigureGrade | null;
-  // Fos a negre del canvi d'escena (lleuger, sempre; `null` = cap). Absent → DM antic.
-  curtain?: SceneCurtain | null;
   // Fitxa d'un personatge a les pantalles (pesat: només quan canvia; `null` = amagada).
   sheet?: SheetShow | null;
 }
@@ -477,8 +432,6 @@ export interface BCStructMessage {
   phosphor?: boolean;
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   dialog?: DialogSync | null;
-  figureGrade?: FigureGrade | null;
-  curtain?: SceneCurtain | null;
   sheet?: SheetShow | null;
   /**
    * Dibuix a ploma per a qui es connecta tard o carrega una partida. Els traços més antics

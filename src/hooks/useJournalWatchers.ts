@@ -38,12 +38,11 @@ export function useJournalWatchers(R: DMRefs, o: { rooms: Room[]; defeated: Defe
     }
   }, [defeated, players]);
 
-  // Mapa obert (sense comptar els de les missions: ja surten com a escenes). Un petit retard
-  // perquè la partida acabi de carregar-se i es sàpiga si és d'una missió.
+  // Mapa obert. Un petit retard perquè la partida acabi de carregar-se.
   useEffect(() => {
     if (!bgLoaded || !bgName) return;
     const t = window.setTimeout(() => {
-      if (!refs.current.rMissionScenes.current) logJournal('map', `Mapa: ${bgName.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim() || bgName}`);
+      logJournal('map', `Mapa: ${bgName.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim() || bgName}`);
     }, 700);
     return () => window.clearTimeout(t);
   }, [bgLoaded, bgName]);

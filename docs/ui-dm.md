@@ -48,7 +48,7 @@
 
 ## Textos i icones (v4.78)
 - **Poc text tutorial**: l'explicació d'un control va al `title` (o a `ShortcutsHelp`), no com a paràgraf visible. Els buits diuen només «Cap jugador», «Cap enemic», «Cap sala».
-- **Icones úniques per concepte** (`icons.tsx`): Història `ScrollIcon`, Preparar `HammerIcon`, Mostrar `PresentIcon`, Missions `FlagIcon`, Base de dades `DatabaseIcon`, back office `DashboardIcon`, menú `MenuIcon`; Enemics (Escena) `SkullIcon`, Aliats `Shield`; Desar ara `SaveIcon`; Importar mapa `ImageIcon`. No reutilitzar una icona per a dos conceptes veïns.
+- **Icones úniques per concepte** (`icons.tsx`): Història `ScrollIcon`, Preparar `HammerIcon`, Mostrar `PresentIcon`, Base de dades `DatabaseIcon`, back office `DashboardIcon`, menú `MenuIcon`; Enemics (Escena) `SkullIcon`, Aliats `Shield`; Desar ara `SaveIcon`; Importar mapa `ImageIcon`. No reutilitzar una icona per a dos conceptes veïns.
 
 ## Eines de dibuix (barra flotant)
 - `FloatingToolbar` (`src/components/dm/FloatingToolbar.tsx`) — columna de botons flotants tipus Photoshop a baix a l'esquerra del canvas (dins del `stageRef`, no a la finestra lateral). Les eines depenen del mode (`PLAY_TOOLS` / `PREP_TOOLS`, veure «Modes Preparar · Jugar»).
@@ -68,7 +68,6 @@
   - **Pantalles** (`ScreensMenu`): veure «Menú de pantalles» a la secció de la càmera compartida. Mentre no n'hi ha cap, un **punt** d'avís (el botó no canvia de color).
   - **Partida** (`GameMenu`): el botó sempre diu «Partida»; l'estat del desat és la icona i el `title` («Desat fa 2 min», es refresca cada 15 s). Dins: interruptor del desat automàtic, desar ara, exportar a `.json`, obrir un `.json` i partides al servidor (si hi ha API).
   - **☰ Menú principal** (`MainMenu`, v4.78; abans «Vista» i «⋯»): un sol nivell. **Vista** (només amb mapa: graella, figuretes a to, opacitat del mapa, ressaltar enemics + cadenat) · **App** (Clàssica · Píxel) · **Ajuda** (dreceres, back office, versió). Les explicacions curtes són `title`, no paràgrafs. El `Popover` de l'escriptori fa scroll si no hi cap.
-  - **Missions** viuen al menú Partida.
 - ⚠️ **Botons de mida estable** (v4.79): cap botó de la barra pot canviar d'amplada quan canvia el seu estat. Text fix («Partida», «Pantalles», «Desfer»); l'estat el diu la **icona** (✓ desat, ⚠ error, disquet) o un `StateDot`, que **sempre ocupa els seus 7 px** (buit si no hi ha estat), i el detall («Desat fa 2 min», «3 pantalles · +12%», «Desfer: afegir paret») va al `title`. Un botó nou de la barra que mostri un estat ha de seguir el mateix patró.
 - ⚠️ Els botons de la barra (`BarButton`) són **sempre neutres**: un estat (cap pantalla, desat automàtic apagat, desat fa poc) el diu un punt (`Dot`) o la icona, no el color de tot el botó. `C.warn` (#d29922) és pràcticament el mateix daurat que l'acció principal i, amb el botó sencer de color avís, «Cap pantalla de jugador» semblava el botó principal de la barra.
 - Els menús són `Popover` (nivell de mòdul): clic fora o **Esc** els tanquen. ⚠️ L'Esc es captura en fase de captura amb `stopImmediatePropagation`, si no `useKeyboardHandlers` també tornaria a l'eina de selecció (mateix criteri que `RadialMenu`).

@@ -3,13 +3,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layers } from '@/components/icons';
 import { TurnBanner } from '@/components/player/TurnBanner';
 import { SheetCard } from '@/components/player/SheetCard';
-import { SceneCurtain } from '@/components/ui/SceneCurtain';
 import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
 import { BC_CHANNEL, APP_VERSION, FONT_SERIF } from '@/constants';
 import {
   renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
-import { renderRooms, clearExploredAt, resetExplored } from '@/lib/render/darkrooms';
+import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells, spellShake, followSpellPreview } from '@/lib/render/spells';
 import { renderPlayerTokens, renderLibEnemyTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
@@ -22,10 +21,10 @@ import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mediaSize, viewRect } from '@/lib/camera';
-import type { MapSize, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview, SceneCurtain as SceneCurtainState } from '@/types';
+import type { MapSize, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle, SheetShow } from '@/types';
-import { ensurePack, packReady, setFigureGrade } from '@/lib/sprites/pack';
+import { ensurePack, packReady } from '@/lib/sprites/pack';
 import { DialogHost } from '@/lib/dialog/host';
 import { drawTileLive, drawTileDoorsOver, tileBlocker, type TileLive } from '@/lib/tilemap/render';
 import { PhosphorScreen, scanlinePx } from '@/lib/phosphor/screen';
@@ -118,15 +117,8 @@ export function PlayerView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRef  = useRef<HTMLElement | null>(null);
   const bgTransitionRef = useRef<HTMLDivElement>(null);
-  // Cortina del canvi d'escena (missions amb llocs). S'obre quan el fons nou és a punt.
-  const [curtainUi, setCurtainUi] = useState<{ closed: boolean; title: string } | null>(null);
   // Fitxa d'un personatge que ensenya el DM (pestanya «Fitxa» de Mostrar als jugadors).
   const [sheet, setSheet] = useState<SheetShow | null>(null);
-  const bgLoadingRef = useRef(false);
-  const curtainKeyRef = useRef('');
-  const curtainSeqRef = useRef(0);
-  const lastSceneRef = useRef<string | undefined>(undefined);
-  const curtainWasClosedRef = useRef(false);
 
   // Mida del mapa que ha comunicat el DM; `null` = encara no hi ha mapa (no es pinta res).
   const rMapSize     = useRef<MapSize | null>(null);
@@ -347,7 +339,6 @@ export function PlayerView() {
   const _loadBgFromUrl = useCallback((url: string, mimeType: string, withFade: boolean) => {
     const stage = stageRef.current; if (!stage) return;
     const overlay = bgTransitionRef.current;
-    bgLoadingRef.current = true;
     const doLoad = () => {
       if (mediaRef.current) { mediaRef.current.remove(); mediaRef.current = null; }
       if (bgObjectUrlRef.current && bgObjectUrlRef.current !== url) URL.revokeObjectURL(bgObjectUrlRef.current);
@@ -356,9 +347,6 @@ export function PlayerView() {
       const el = document.createElement(isVid ? 'video' : 'img') as HTMLVideoElement & HTMLImageElement;
       el.style.cssText = 'position:absolute;pointer-events:none;display:block;top:0;left:0;';
       if (isVid) { el.autoplay = true; el.loop = true; el.muted = true; el.playsInline = true; }
-      const done = () => { if (mediaRef.current === el) bgLoadingRef.current = false; };
-      el.addEventListener(isVid ? 'loadeddata' : 'load', done, { once: true });
-      el.addEventListener('error', done, { once: true });
       el.src = url;
       stage.appendChild(el);
       mediaRef.current = el;
@@ -402,30 +390,6 @@ export function PlayerView() {
       };
     };
     cycle();
-  }, []);
-
-  const _applyCurtain = useCallback((c: SceneCurtainState | null) => {
-    const key = c ? `${c.closed ? 1 : 0}|${c.scene}` : '';
-    if (key === curtainKeyRef.current) return;
-    curtainKeyRef.current = key;
-    const seq = ++curtainSeqRef.current;
-    if (!c) { setCurtainUi(null); return; }
-    if (c.closed) { curtainWasClosedRef.current = true; setCurtainUi({ closed: true, title: c.title }); return; }
-    const t0 = performance.now();
-    const tryOpen = () => {
-      if (seq !== curtainSeqRef.current) return;
-      const el = mediaRef.current as HTMLImageElement | null;
-      const ready = !bgLoadingRef.current && (!el || el.tagName !== 'IMG' || (el.complete && el.naturalWidth > 0));
-      if (!ready && performance.now() - t0 < 5000) { setTimeout(tryOpen, 100); return; }
-      // Escena nova darrere de la cortina (o un canvi d'escena que no s'ha vist tancar-se).
-      if (curtainWasClosedRef.current || (lastSceneRef.current !== undefined && c.scene !== lastSceneRef.current)) {
-        resetExplored(); visualPosRef.current = {}; rMovePath.current = {};
-      }
-      curtainWasClosedRef.current = false;
-      lastSceneRef.current = c.scene;
-      setCurtainUi({ closed: false, title: c.title });
-    };
-    tryOpen();
   }, []);
 
   // Reconcilia la llista de spells d'àrea amb la font de veritat del DM (STATE/STRUCT).
@@ -598,12 +562,9 @@ export function PlayerView() {
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
         // Mode Fòsfor (lleuger, sempre). Absent → DM antic: no tocar res.
         if (msg.phosphor !== undefined) _setPhosphor(!!msg.phosphor);
-        // Ajust de color de les figuretes del mapa (missions). Absent → DM antic: no tocar res.
-        if (msg.figureGrade !== undefined) setFigureGrade(msg.figureGrade);
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
         // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
         if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
-        if (msg.curtain !== undefined) _applyCurtain(msg.curtain);
         // Fitxa d'un personatge (pesat: només arriba quan canvia; null = amagada).
         if (msg.sheet !== undefined) setSheet(msg.sheet);
         if (msg.measure) rMeasure.current = { a: msg.measure.a ?? null, b: msg.measure.b ?? null };
@@ -691,12 +652,9 @@ export function PlayerView() {
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
         // Mode Fòsfor (lleuger, sempre). Absent → DM antic: no tocar res.
         if (msg.phosphor !== undefined) _setPhosphor(!!msg.phosphor);
-        // Ajust de color de les figuretes del mapa (missions). Absent → DM antic: no tocar res.
-        if (msg.figureGrade !== undefined) setFigureGrade(msg.figureGrade);
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
         // Diàleg: també al STRUCT, perquè una tablet que es connecta a mitja conversa la vegi.
         if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
-        if (msg.curtain !== undefined) _applyCurtain(msg.curtain);
         // Fitxa d'un personatge (pesat: només arriba quan canvia; null = amagada).
         if (msg.sheet !== undefined) setSheet(msg.sheet);
         if (msg.dmPreviewActive !== undefined) {
@@ -1251,7 +1209,6 @@ export function PlayerView() {
       />
       <TurnBanner data={turnBanner} pixel={pixel} />
       <SheetCard sheet={sheet} />
-      <SceneCurtain closed={!!curtainUi?.closed} title={curtainUi?.title ?? ''} pixel={pixel} zIndex={49} />
       {!playerReady && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: '#8b949e', flexDirection: 'column', gap: 16, padding: 24, fontFamily: 'system-ui,sans-serif', textAlign: 'center' }}>
           <Layers size={40} color="#21262d" />

@@ -62,7 +62,6 @@ src/
 │   │   ├── TokenFields     # Fitxa d'un token dins del menú del clic dret (resolveToken, camps, NameField)
 │   │   ├── SceneEnemiesPanel   # Tots els enemics de l'escena (biblioteca) en files primes
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
-│   │   ├── PlacesMenu      # Llocs de la missió (a dalt a l'esquerra del mapa): entrar a un lloc o sortir al poble
 │   │   ├── TopBar          # Barra superior: nom del mapa, Preparar·Jugar, pantalles, partida, ☰ (vista, app, ajuda); RightRail: Mostrar als jugadors i Història
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text / Diàleg del panell «Mostrar als jugadors»
@@ -84,7 +83,6 @@ src/
 │       ├── ScrollArea      # Zona amb scroll i barra pròpia, discreta i amagada en repòs
 │       ├── HoverTip        # Finestreta d'un botó (hover): nom, tecla i UNA línia
 │       ├── NoticeStack     # Avisos a dalt de l'escenari (errors de càrrega, desat que falla…)
-│       ├── SceneCurtain    # Fos a negre del canvi d'escena amb el nom del lloc (DM i jugador)
 │       ├── ConditionIcon   # Isotip d'un estat com a <svg> (mateixos paths que el canvas)
 │       ├── ConditionPicker # Estats del menú contextual: 2 files d'isotips (nom i traduccions al hover)
 │       └── EnemyGroups     # Agrupar enemics de la BD: barra «Agrupar per», capçalera i cos de grup plegables
@@ -99,7 +97,6 @@ src/
 │   ├── useTileMap.ts       # App Píxel: crear/editar/cuinar el mapa de caselles i regenerar-ne parets, portes i llums
 │   ├── useSpritePack.ts    # Estat del paquet de sprites per a la UI
 │   ├── useCinematic.ts     # Lògica cinematica boss reveal
-│   ├── useMissionScenes.ts # Llocs de les missions: canvi d'escena amb fos a negre, marques de les portes
 │   ├── useDialog.ts        # Diàlegs al DM: llançar, avançar, enrere, opcions, càmera, tecles, desats als tokens
 │   ├── useStory.ts         # Història: el que un mòdul fa sobre l'escena (llegir, col·locar enemics, diàlegs, sortides)
 │   ├── useJournalWatchers.ts # Anota al diari sales revelades, jugadors caiguts i mapes oberts
@@ -112,8 +109,6 @@ src/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
 │   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
 │   ├── relay.ts            # Pont del canal amb el tauler de missions de la wiki (postMessage, sense API)
-│   ├── missions.ts         # Missions preparades (MISSIONS, missionState): mapa + colla col·locada + ajust de color de les figuretes; llocs (sceneState, placeGeometry)
-│   ├── places/conyberry.ts # GENERAT: els llocs de Cony Cirera (mapa, porta al poble, parets, portes, sales)
 │   ├── token-menu.ts       # tokenMenuFor: estat del menú del clic dret d'un token (mapa i files del lateral)
 │   ├── dm-mode.ts          # Modes Preparar / Jugar del DM i a quin mode pertany cada eina (modeForTool)
 │   ├── undo.ts             # Registre del «Desfer» únic: ordre de les piles de traços, mapa i moviments
@@ -151,7 +146,6 @@ src/
 │   │   ├── zonefx.ts       # Zones màgiques a la pantalla del jugador (vora SDF + fotogrames clau fosos + arcs del llamp)
 │   │   ├── tokens.ts       # renderEnemyTokens, renderLibEnemyTokens, renderPlayerTokens (halos)
 │   │   ├── token-geom.ts   # centre, figureta (placeFigure), hit-test (tokenAt) i ventall dels apilats
-│   │   ├── places.ts       # Marques dels llocs de la missió al mapa del DM (portes i sortida)
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador) + pixelIntros.ts (les 10 de pixel art)
 │   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)

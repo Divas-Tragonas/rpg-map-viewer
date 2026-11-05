@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { C, FS, RADIUS, FONT_SERIF, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
-import { BookIcon, CheckIcon, ChevronDown, ChevronRight, DoorIcon, MapIcon, PlayIcon, SpeechIcon, SwordsIcon } from '@/components/icons';
+import { BookIcon, CheckIcon, ChevronDown, ChevronRight, PlayIcon, SpeechIcon, SwordsIcon } from '@/components/icons';
 import type { StoryActions } from '@/hooks/useStory';
 import { templateForFoe } from '@/hooks/useStory';
 import { STATUS_LABEL, type ModulesData, type StoredModule } from '@/lib/modules';
@@ -117,16 +117,6 @@ export function ModuleView({ mod, lib, story, onGoLibrary }: {
                 </Button>
               </div>
             ))}
-          </Section>
-        )}
-
-        {p.map && (
-          <Section title="Mapa">
-            <div style={row}>
-              <MapIcon size={13} style={{ color: C.dim }} />
-              <span style={{ flex: 1, fontSize: FS.md, color: C.text }}>{p.map.mission}{p.map.scene ? ` · ${p.map.scene}` : ''}</span>
-              <Button size="sm" onClick={() => void story.goMap(p.map!)}><DoorIcon size={11} /> Obrir</Button>
-            </div>
           </Section>
         )}
 

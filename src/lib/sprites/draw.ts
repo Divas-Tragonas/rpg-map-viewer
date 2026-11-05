@@ -2,7 +2,7 @@
  * Dibuix de sprites del paquet Oryx al canvas: retalls dels fulls, sempre amb el suavitzat
  * APAGAT (pixel art: escalat amb el veí més proper, sense desenfocar).
  */
-import { sheet, figureGradeKey, type SheetId } from './pack';
+import { sheet, type SheetId } from './pack';
 import { CREATURES, ITEMS, PORTRAIT_PARTS } from './manifest';
 import { CREATURE_VARIANTS } from './variants';
 import { isKit, kitSheet, parseKit } from './kit';
@@ -109,7 +109,7 @@ export function drawFace(ctx: CanvasRenderingContext2D, i: number, dx: number, d
 // `ctx.filter` no existeix a Safari (la pantalla de jugador sovint és un iPad).
 const _gray = new Map<string, HTMLCanvasElement>();
 export function grayCreature(sprite: string): HTMLCanvasElement | null {
-  const key = `${figureGradeKey()}|${sprite}`;
+  const key = sprite;
   const hit = _gray.get(key); if (hit) return hit;
   if (!hasCreature(sprite) || !sheetReady(sprite)) return null;
   const c = document.createElement('canvas'); c.width = TILE; c.height = TILE;
@@ -154,7 +154,7 @@ export function tintedRegion(id: SheetId, sx: number, sy: number, w: number, h: 
 /** Miniatura d'una criatura en un dataURL (per a la UI: selectors, files, rètol). */
 const _thumbs = new Map<string, string>();
 export function creatureThumb(sprite: string): string | null {
-  const key = `${figureGradeKey()}|${sprite}`;
+  const key = sprite;
   const hit = _thumbs.get(key); if (hit) return hit;
   if (!hasCreature(sprite) || !sheetReady(sprite)) return null;
   const c = document.createElement('canvas'); c.width = TILE; c.height = TILE;

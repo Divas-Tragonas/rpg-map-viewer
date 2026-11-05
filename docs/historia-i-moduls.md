@@ -19,7 +19,7 @@ l'estat. No hi ha cap editor de text de campanya dins l'app (decisió: seria dup
 ## On viu cada cosa (⚠️ fora de la partida)
 `lib/localStore.ts` (`createJsonStore` + `useJsonStore`) desa a `localStorage`, amb còpia en memòria i
 `useSyncExternalStore` (sense error d'hidratació). **No van dins de la partida** (`_buildSessionCore`)
-perquè una nit passa per diversos mapes, partides carregades i missions, i `applySessionState`
+perquè una nit passa per diversos mapes, partides carregades, i `applySessionState`
 substitueix tot l'estat de joc. Tampoc viatgen a les pantalles de jugador: és tot DM-only.
 
 | Clau de `localStorage` | Què | Mòdul |
@@ -34,8 +34,7 @@ tot funciona en memòria mentre la pàgina és oberta.
 ## Mòduls
 
 ### Format del paquet (`ModulePack`, `lib/modules.ts`)
-Un fitxer `.json` pot contenir un mòdul, una llista o `{ "modules": [...] }`. Exemple complet a
-[`public/modules/exemples.json`](../public/modules/exemples.json): dos mòduls encadenats (*Les runes de Cony Cirera* → *L'Àgata (exemple)*) que fan servir tots els camps. El botó **Exemples** de la pestanya Mòduls els importa (`fetch` amb `NEXT_PUBLIC_BASE_PATH`); l'`id` `l-agata` es substitueix en importar el real.
+Un fitxer `.json` pot contenir un mòdul, una llista o `{ "modules": [...] }`.
 
 | Camp | Tipus | De Notion (base MÒDULS) | Notes |
 |---|---|---|---|
@@ -53,9 +52,8 @@ Un fitxer `.json` pot contenir un mòdul, una llista o `{ "modules": [...] }`. E
 | `foes` | `{creature, count, name?, hp?, xp?, sprite?, note?}[]` | ⚔️ Estadístiques | Veure «Enemics» |
 | `npcs` | `{name, note?}[]` | NPCs i llocs | |
 | `dialogs` | `{id, title, script}[]` | — | `script` en **format teatre** de «Diàlegs de personatges» (`Nom: text`, `Narrador: …`) |
-| `exits` | `{id, label, text?, to?, map?}[]` | ↪️ Sortides | `to` = `id` d'un altre mòdul; `map` = `{mission, scene?}` |
+| `exits` | `{id, label, text?, to?}[]` | ↪️ Sortides | `to` = `id` d'un altre mòdul |
 | `dmNotes` | text | 🟦 Notes DM | Plegat per defecte |
-| `map` | `{mission, scene?}` | — | Missió de l'app (`conyberry`) i, si cal, un dels seus llocs (`scene`) |
 
 `parseModulePacks` és **tolerant**: ignora el que no entén, arrodoneix `count` a [1, 30], i només
 rebutja un mòdul sense `title`. Els errors surten sota el botó d'importar.
@@ -74,8 +72,7 @@ ha graella; entren a `rLibEnemies` com qualsevol altre (numeració, XP del comba
 | **Llegir** (text) | Obre «Mostrar als jugadors» → pestanya *Text* amb el text a l'editor. El DM el revela quan vol (no es mostra res sol) |
 | **Col·locar** (enemics) | Els afegeix a l'escena (un grup o tots) |
 | **Parlar** (diàleg) | `dlg.start` amb el repartiment de `matchCast` (cada nom del guió amb el token de l'escena que es diu igual) |
-| **Obrir** (mapa) | Si la missió és oberta, `goTo(scene)` (cortina); si no, `openMission` i després el lloc |
-| **Anar-hi** (sortida) | Marca el mòdul com a jugat, fa actiu el de destí (`to`) i, si la sortida té `map`, hi va |
+| **Anar-hi** (sortida) | Marca el mòdul com a jugat, fa actiu el de destí (`to`) |
 | **Marcar com a jugat** | `status = 'jugat'` |
 
 Obrir un mòdul de la biblioteca el posa **En joc** si era Preparat o Esborrany.
@@ -103,8 +100,7 @@ repeteix; màxim 1500 entrades (cauen primer les menys importants: les notes i l
 
 | `kind` | On s'anota |
 |---|---|
-| `map` | `openMission` (Missió: …) i `useJournalWatchers` (un mapa obert que no és d'una missió) |
-| `scene` | `useMissionScenes.goTo` (entrar/sortir d'un lloc) |
+| `map` | `useJournalWatchers` (un mapa obert) |
 | `room` | `useJournalWatchers`: una sala que passa de no revelada a revelada (no compara si el conjunt de sales ha canviat: escena nova) |
 | `combat` | `startTurnCombat` («Comença…») i `finishCombat` («Combat acabat · rondes · derrotats · a terra», amb `data.ended`) |
 | `xp` | `confirmXpAward` (repartiment confirmat) |

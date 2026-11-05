@@ -7,7 +7,6 @@ import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT
 import { clampToRange } from '@/lib/spellcast';
 import { tokenMenuFor } from '@/lib/token-menu';
 import { tokenAt, tokenBounds, updateTokenSpread, clearTokenSpread } from '@/lib/render/token-geom';
-import { placeMarkAt, lastPlaceView } from '@/lib/render/places';
 
 const AREA_TYPES = PERSISTENT_SPELLS;
 const AREA_SETTLED = (sp: import('@/types').Spell) => {
@@ -1022,13 +1021,6 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   // Double click on a grouped token selects every member of its group.
   const onDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (R.rDrawTool.current !== 'none' || R.rAreaSelectMode.current) return;
-    // Doble clic a la marca d'un lloc de la missió (porta o sortida): canviar d'escena.
-    if (R.rPlaceMarks.current.length) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const v = lastPlaceView();
-      const mk = v && placeMarkAt(R.rPlaceMarks.current, e.clientX - rect.left, e.clientY - rect.top, v.sc, v.ox, v.oy);
-      if (mk) { R.rPlaceEnter.current(mk.id); return; }
-    }
     const { mx, my, sc } = mc(e);
 
     const selectGroupOrSolo = (id: number | string) => {

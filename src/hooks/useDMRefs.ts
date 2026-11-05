@@ -7,8 +7,7 @@ import type {
   Wall, Room, Door, TurnState, CamRect, AppStyle, DialogSync, SavedDialog,
 } from '@/types';
 import type { TileMap } from '@/lib/tilemap/model';
-import type { MissionScenes, SceneCurtain, SheetShow } from '@/types';
-import type { PlaceMark } from '@/lib/render/places';
+import type { SheetShow } from '@/types';
 import type { TileLive } from '@/lib/tilemap/render';
 import type { TileBrush } from '@/lib/tilemap/editor';
 import { newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
@@ -216,17 +215,8 @@ export function useDMRefs() {
   // Pantalla del DM: vista del diàleg i objectiu de la càmera (veure `lib/dialog/host.ts`).
   const dialogHostRef        = useRef<DialogHost | null>(null);
 
-  // Escenes de la missió (veure `useMissionScenes`): on és la colla i l'estat de cada lloc on
-  // ha estat (es desa a la partida), la cortina del canvi d'escena (viatja dins del STATE),
-  // les marques de les portes al mapa del DM i el lloc que el menú ressalta.
-  const rMissionScenes       = useRef<MissionScenes | null>(null);
-  const rCurtain             = useRef<SceneCurtain | null>(null);
   // Fitxa d'un personatge a les pantalles de jugador (camp pesat `sheet` del STATE; null = cap).
   const rSheetShow           = useRef<SheetShow | null>(null);
-  const rPlaceMarks          = useRef<PlaceMark[]>([]);
-  const rPlaceHover          = useRef<string | null>(null);
-  // Doble clic a una marca de porta: entrar-hi (l'assigna `useMissionScenes`).
-  const rPlaceEnter          = useRef<(scene: string) => void>(() => {});
 
   return {
     stageRef, canvasRef, mediaRef,
@@ -250,7 +240,7 @@ export function useDMRefs() {
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
     rAppStyle, rPhosphor, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileRestore,
     rDialog, rDialogT0, rDialogs, dialogHostRef,
-    rMissionScenes, rCurtain, rSheetShow, rPlaceMarks, rPlaceHover, rPlaceEnter,
+    rSheetShow,
   };
 }
 

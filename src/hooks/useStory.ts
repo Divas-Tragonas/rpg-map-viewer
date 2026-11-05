@@ -2,7 +2,7 @@
 /**
  * La història dins la partida: el que un mòdul (`lib/modules.ts`) pot fer sobre l'escena.
  * Cada acció reutilitza un motor que ja existeix (Revelador de text, diàlegs, biblioteca
- * d'enemics, canvi d'escena de les missions) i anota al diari el que passa.
+ * d'enemics) i anota al diari el que passa.
  *
  * El hook no té estat de React propi: la biblioteca i el diari són magatzems externs
  * (`modulesStore`, `journalStore`) que els components llegeixen amb `useJsonStore`.
@@ -20,7 +20,7 @@ import { matchCast, norm, parseScript } from '@/lib/dialog/script';
 import { logJournal } from '@/lib/journal';
 import {
   modulesStore, setActiveModule, setModuleStatus, slugify,
-  type ModuleDialog, type ModuleExit, type ModuleFoe, type ModuleMapRef,
+  type ModuleDialog, type ModuleExit, type ModuleFoe,
 } from '@/lib/modules';
 
 interface Deps {
@@ -33,9 +33,6 @@ interface Deps {
   startDialog: (s: DialogStart) => boolean;
   /** Tokens de l'escena per relacionar-hi els noms del guió. */
   sceneTokens: { key: string; name: string }[];
-  /** Canvi d'escena d'una missió ja oberta (`useMissionScenes.goTo`) i obrir-ne una de nova. */
-  goTo: (scene: string) => Promise<void>;
-  openMission: (id: string) => Promise<void>;
 }
 
 /** La plantilla de la biblioteca que millor encaixa amb el que diu el paquet. */
@@ -132,15 +129,6 @@ export function useStory(R: DMRefs, deps: Deps) {
     if (!d.startDialog({ title: dlg.title, script: dlg.script, cast })) d.notify(`El diàleg «${dlg.title}» no té cap frase.`, 'warn');
   }, []);
 
-  /** Obre el mapa del mòdul: el canvi d'escena si la missió ja és oberta, si no la missió sencera. */
-  const goMap = useCallback(async (ref: ModuleMapRef) => {
-    const Rf = refs.current, d = dRef.current;
-    const sc = Rf.rMissionScenes.current;
-    if (sc?.mission === ref.mission) { await d.goTo(ref.scene ?? 'village'); return; }
-    await d.openMission(ref.mission);
-    if (ref.scene && ref.scene !== 'village') await d.goTo(ref.scene);
-  }, []);
-
   /** Una sortida: el mòdul s'acaba i, si apunta a un altre, aquest passa a ser l'actiu. */
   const takeExit = useCallback((fromId: string, ex: ModuleExit) => {
     const lib = modulesStore.get().library;
@@ -149,10 +137,9 @@ export function useStory(R: DMRefs, deps: Deps) {
     logJournal('module', `Sortida de «${from}»: ${ex.label}${to ? ` → ${to.pack.title}` : ''}`, { data: { id: fromId, exit: ex.id } });
     if (lib[fromId] && lib[fromId].status !== 'jugat') finish(fromId);
     if (to) open(to.pack.id);
-    if (ex.map) void goMap(ex.map);
-  }, [finish, open, goMap]);
+  }, [finish, open]);
 
-  return { note, open, finish, readAloud, placeFoes, playDialog, goMap, takeExit };
+  return { note, open, finish, readAloud, placeFoes, playDialog, takeExit };
 }
 
 export type StoryActions = ReturnType<typeof useStory>;

@@ -30,9 +30,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
 | `STATE.appStyle` / `STATE.tileLive` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat. Els sprites NO viatgen: cada pantalla els carrega de `public/sprites/` |
-| `STATE.figureGrade` / `STRUCT.figureGrade` | DM→Jugador | Ajust de color de les figuretes del mapa (`FigureGrade`, lleuger, sempre; `null` = cap). Veure «Missions» |
 | `STATE.phosphor` / `STRUCT.phosphor` | DM→Jugador | Mode Fòsfor (boolean, lleuger, sempre): la pantalla de jugador es veu com una TV de tub antiga. Veure «Mode Fòsfor» |
-| `STATE.curtain` / `STRUCT.curtain` | DM→Jugador | Fos a negre del canvi d'escena (`SceneCurtain`, lleuger, sempre; `null` = cap). Veure «Llocs de les missions» |
 | `STATE.dialog` / `STRUCT.dialog` | DM→Jugador | Diàleg en curs (`DialogSync`, camp lleuger, sempre; `null` = cap). Veure «Diàlegs de personatges» |
 | `STATE.sheet` / `STRUCT.sheet` | DM→Jugador | Fitxa d'un personatge a les pantalles (`SheetShow`, camp **pesat**: només quan canvia; `null` = amagada). Veure «Fitxes de personatge i experiència» |
 | `RESET_EXPLORED` | DM→Jugador | Reset de la memòria d'explorat d'una sala (torna a ser negra del tot). Porta el polígon `points`; DM i jugador criden `clearExploredAt(points)` a `darkrooms.ts` |

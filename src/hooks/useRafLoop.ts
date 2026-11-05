@@ -7,7 +7,6 @@ import { renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
-import { renderPlaceMarks } from '@/lib/render/places';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
 import { drawTileLive, drawTileDoorsOver } from '@/lib/tilemap/render';
 import { TILE } from '@/lib/tilemap/model';
@@ -271,8 +270,6 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
 
       renderGrid(ctx, fc);
       renderGridCalib(ctx, fc);
-      // Llocs de la missió: portes on es pot entrar (o la sortida). Només el DM les veu.
-      renderPlaceMarks(ctx, R.rPlaceMarks.current, R.rPlaceHover.current, sc, ox, oy);
 
       // Eina Caselles: casella sota el cursor i rectangle en curs (sala o Maj).
       if (tileTool && R.rTileMap.current) {

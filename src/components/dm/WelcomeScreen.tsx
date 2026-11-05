@@ -3,7 +3,6 @@ import React from 'react';
 import { Button } from '@/components/ui/Button';
 import { DieIcon, FolderOpen, MapIcon, PixelSwordIcon, RotateCcw, TilesIcon } from '@/components/icons';
 import { C, FS, FONT_SERIF, APP_VERSION } from '@/constants';
-import { MISSIONS } from '@/lib/missions';
 import { agoLabel, type AutosaveMeta } from '@/lib/autosave';
 
 const welcomeLink: React.CSSProperties = {
@@ -22,7 +21,6 @@ interface Props {
   onOpenSession: (f: File) => void;
   onOpenTmx: (f: File) => void;
   onOpenDemo: () => void;
-  onOpenMission: (id: string) => void;
   onCreateTileMap: () => void;
   onRecover: () => void;
   onDiscardAutosave: () => void;
@@ -72,15 +70,6 @@ export function WelcomeScreen(p: Props) {
             <DieIcon size={15} /> Provar la demo
           </Button>
         </div>
-
-        {/* Missions preparades: el mapa amb la colla ja col·locada (veure `lib/missions.ts`). */}
-        {MISSIONS.map(m => (
-          <div key={m.id} style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-            <Button variant="secondary" size="lg" onClick={() => p.onOpenMission(m.id)} title={m.subtitle} style={{ gap: 8, width: '100%', maxWidth: 348 }}>
-              <MapIcon size={15} /> Missió · {m.name}
-            </Button>
-          </div>
-        ))}
 
         {/* Recuperació del desat automàtic: l'única sortida després d'un F5 accidental. */}
         {p.autosaveMeta && (
