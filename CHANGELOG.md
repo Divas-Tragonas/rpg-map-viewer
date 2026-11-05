@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.97 — La mà de Jaume es mou i les parets només amb l'eina
+- **Jaume III**: el guant puja i baixa amb la destral, com la mà del bàrbar (abans la destral es movia i la mà no)
+- **Arreglat**: les línies daurades de les parets i els punts grocs dels vèrtexs es veien sempre al DM; ara només surten amb l'eina Parets (o col·locant una porta). Les portes es continuen veient per obrir-les i tancar-les jugant
+- Sense canvis a la API
+
 ### v4.96 — Destral animada, noms i vida iguals per a tothom i miniatures als enemics
 - **Jaume III**: la destral puja i baixa com la del bàrbar (abans es quedava quieta)
 - **Noms al mapa**: els enemics i aliats fan servir la mateixa lletra, mida i fons que les DIVAS (només canvia el color)

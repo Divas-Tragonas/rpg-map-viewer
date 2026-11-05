@@ -64,14 +64,33 @@ def templar_axe(sheet, f):
     #    templari no es mou, i el mànec hi llisca per dins, com al bàrbar).
     t0, b0 = frame(sheet, TEMPLAR, 0), frame(sheet, BARBARIAN, 0)
     dy = first_row(t0, SHAFT_X, HAND_T) - first_row(b0, SHAFT_X, (223, 223, 146))
+    # 3. El guant segueix la destral: el del templari no es movia (l'alabarda era clavada a terra),
+    #    però el bàrbar mou la mà amb el cos. Es treu el guant, es posa la destral i es torna a posar
+    #    el guant desplaçat el mateix que la mà del bàrbar respecte del fotograma 0.
+    hand_dy = first_row(b, SHAFT_X, (223, 223, 146)) - first_row(b0, SHAFT_X, (223, 223, 146))
+    hand = []
+    for r in range(15, 32):
+        for c in range(SHAFT_X - 2, SHAFT_X + 3):
+            p = t.getpixel((c, r))
+            if p[3] and p[:3] == HAND_T:
+                hand.append((c, r, p)); t.putpixel((c, r), (0, 0, 0, 0))
     for r in range(T):
         for c in range(SHAFT_X - 1, T):
             p = b.getpixel((c, r))
             if not p[3] or p[:3] not in AXE_B:
                 continue
             y = r + dy
-            if 0 <= y < T and t.getpixel((c, y))[:3] != HAND_T:
+            if 0 <= y < T:
                 t.putpixel((c, y), p)
+    for c, r, p in hand:
+        t.putpixel((c, r + hand_dy), p)
+    # El canell: si el guant ha baixat, s'omple el forat entre el braç i el guant amb el gris del braç.
+    if hand_dy > 0:
+        top = min(r for _, r, _ in hand)
+        for c in {c for c, _, _ in hand}:
+            for r in range(top, top + hand_dy):
+                if not t.getpixel((c, r))[3] and t.getpixel((c - 1, r))[3] == 255 and c < SHAFT_X:
+                    t.putpixel((c, r), t.getpixel((c - 1, r)))
     return t
 
 

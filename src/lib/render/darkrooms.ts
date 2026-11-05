@@ -797,11 +797,23 @@ function drawDoorMark(ctx: CanvasRenderingContext2D, d: { a: { x: number; y: num
  */
 export function renderWalls(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const rWalls = fc.rWalls; if (!rWalls) return;
-  // Les parets que genera el mapa de caselles ja es veuen (són les peces de paret pintades):
-  // el traç daurat només surt amb l'eina Parets, per veure on són de veritat.
+  // El traç daurat de les parets i els punts dels vèrtexs són d'editar: només surten amb l'eina
+  // Parets (o col·locant una porta, que s'enganxa a una paret). Amb qualsevol altra eina, el DM
+  // només veu les marques de les portes, que sí que fan falta per obrir-les i tancar-les jugant.
+  // Les parets que genera el mapa de caselles ja es veuen (són les peces de paret pintades).
   const showTile = fc.rDrawTool?.current === 'wall';
-  const allWalls = rWalls.current?.filter(w => showTile || !w.tile);
+  const editing = showTile || !!fc.rDoorPlacement?.current;
+  const allWalls = editing ? rWalls.current?.filter(w => showTile || !w.tile) : [];
   if (!allWalls || allWalls.length === 0) {
+    const doors = fc.rDoors?.current ?? [];
+    const hovDoor = fc.rHoveredDoorId?.current ?? null;
+    if (!editing) {
+      for (const d of doors) {
+        if (d.id.startsWith('td_') && d.id !== hovDoor) continue;
+        drawDoorMark(ctx, d, fc.sc, 1, d.open !== false, d.id === hovDoor);
+      }
+      return;
+    }
     const hd = fc.rHoveredDoorId?.current;
     const d = hd ? fc.rDoors?.current.find(x => x.id === hd) : null;
     if (d) drawDoorMark(ctx, d, fc.sc, 1, d.open !== false, true);
