@@ -21,6 +21,7 @@ import { useWheelZoom } from '@/hooks/useWheelZoom';
 import { useKeyboardHandlers } from '@/hooks/useKeyboardHandlers';
 import { createSyncSocket } from '@/lib/ws';
 import { computeReachableCells, segmentBlocked, buildMovePath } from '@/lib/rooms/pathing';
+import { tileBlocker } from '@/lib/tilemap/render';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
@@ -582,6 +583,9 @@ export function DMView() {
     const turn = R.rTurn.current;
     // Parets efectives: els trams de porta no bloquegen (per allà sí que es passa).
     const walls = effectiveWalls(R.rWalls.current, R.rDoors.current);
+    // Mapa de caselles: paret, buit i porta tancada són caselles on no es pot entrar (la
+    // mateixa regla que pinta el rang del jugador, `tileBlocker`).
+    const blocked = tileBlocker(R.rTileLive.current, R.rDoors.current);
     let consumedFt = 0;
     if (turn.active && sid !== String(turn.order[turn.turnIndex])) { bounceBack(); return; }  // no és el seu torn
     // Estats que limiten el moviment (Agafat, Retingut, Paralitzat… → 0; Tombat → meitat).
@@ -608,9 +612,9 @@ export function DMView() {
       // Parets: la casella de destí ha de tenir camí transitable des de l'origen (mateix
       // Dijkstra que el clamp/pintura del drag: no es travessa cap paret, cal una porta).
       // En combat, el cost passa a ser el del CAMÍ (vorejar una paret cobra el desvium).
-      if (walls.length > 0) {
+      if (walls.length > 0 || blocked) {
         const budgetFt = limit.ft;
-        const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy });
+        const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy }, blocked);
         if (reach) {
           const pathCost = reach.get(`${col(x) - col(cur.x)},${row(y) - row(cur.y)}`);
           if (pathCost === undefined) { bounceBack(); return; }
@@ -653,7 +657,7 @@ export function DMView() {
         const grid = gsA > 0
           ? { gs: gsA, gox: ((R.rGridOriginX.current % gsA) + gsA) % gsA, goy: ((R.rGridOriginY.current % gsA) + gsA) % gsA }
           : { gs: 0, gox: 0, goy: 0 };
-        const pts = buildMovePath(from, { x, y }, { walls, grid, R: Rv, straightFallback: true });
+        const pts = buildMovePath(from, { x, y }, { walls, grid, R: Rv, straightFallback: true, blocked });
         if (pts) {
           R.rMovePath.current[sid] = { pts, t: 0 };
           // Ancorar ja la posició visual a l'origen: `renderRooms` (que hi centra la llum)

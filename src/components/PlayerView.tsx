@@ -27,7 +27,7 @@ import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, setFigureGrade } from '@/lib/sprites/pack';
 import { DialogHost } from '@/lib/dialog/host';
-import { drawTileLive, drawTileDoorsOver, type TileLive } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver, tileBlocker, type TileLive } from '@/lib/tilemap/render';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
 // arribar al DM ensenyava exactament el mateix que un mòbil ben connectat esperant que
@@ -404,7 +404,8 @@ export function PlayerView() {
     const gs = rGridSize.current;
     if (gs <= 0) { delete rMovePath.current[id]; return; }
     const walls = effectiveWalls(rWalls.current, rDoors.current);
-    if (walls.length === 0) { delete rMovePath.current[id]; return; }
+    const blocked = tileBlocker(rTileLive.current, rDoors.current);
+    if (walls.length === 0 && !blocked) { delete rMovePath.current[id]; return; }
     const grid = {
       gs,
       gox: ((rGridOriginX.current % gs) + gs) % gs,
@@ -416,7 +417,7 @@ export function PlayerView() {
     // Mateixa casella (p. ex. l'eco del relay del propi token que ja s'ha mogut): no-op,
     // no esborrar un camí ja fixat en deixar anar.
     if (sCol === dCol && sRow === dRow) return;
-    const pts = buildMovePath(from, to, { walls, grid, R });
+    const pts = buildMovePath(from, to, { walls, grid, R, blocked });
     if (!pts) { delete rMovePath.current[id]; return; }
     rMovePath.current[id] = { pts, t: 0 };
   }, []);
@@ -502,6 +503,7 @@ export function PlayerView() {
     rDragPreview,
     rMovePath,
     rConditions,
+    rTileLive,
   );
   const tokenDragRef = tokenDrag.dragRef;
 

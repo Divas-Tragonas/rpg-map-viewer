@@ -7,7 +7,7 @@ import { sheet } from '@/lib/sprites/pack';
 import { blit, drawItem } from '@/lib/sprites/draw';
 import {
   TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX, THEME_BASE,
-  type TileMap, cellOf, isWall, inMap,
+  type TileMap, cellOf, isWall, isVoid, inMap,
 } from './model';
 import { WALL_BY_ID, objectDef, groundAnim, wallPiece } from './palette';
 import { t } from './model';
@@ -160,6 +160,12 @@ export interface TileLive {
    * la casella de la porta (`dy` 0) o a la de dalt (`dy` −1), on sobresurt l'art.
    */
   doors: { id: string; x: number; y: number; closed: DoorPiece[]; open: DoorPiece[] }[];
+  /**
+   * Caselles on un token NO es pot posar: paret o buit (sense terra). Una lletra per casella,
+   * fila a fila ('1' = sòlida). La porta no hi és: bloqueja segons si és oberta (veure
+   * `tileBlocker`). Viatja amb `tileLive` perquè la pantalla de jugador no té el mapa sencer.
+   */
+  solid?: { cols: number; rows: number; cells: string };
 }
 
 export function tileLiveOf(m: TileMap): TileLive {
@@ -200,7 +206,32 @@ export function tileLiveOf(m: TileMap): TileLive {
       open: h ? [...piece(11), { dy: 1, tile: W(11, 2), shadow: true }] : [sideEdge, ...piece(13)],
     });
   }
-  return { anims, doors };
+  let cells = '';
+  for (let i = 0; i < m.cols * m.rows; i++) {
+    const c = i % m.cols, r = Math.floor(i / m.cols);
+    cells += !(i in m.doors) && (isWall(m, c, r) || isVoid(m, i)) ? '1' : '0';
+  }
+  return { anims, doors, solid: { cols: m.cols, rows: m.rows, cells } };
+}
+
+/**
+ * Caselles prohibides per al moviment dels jugadors en un mapa de caselles: paret, buit, fora
+ * del mapa i la casella d'una porta TANCADA (no s'hi pot estar ni passar-hi). Rep un punt en
+ * coords de mapa (el centre d'una casella de moviment). `undefined` si no hi ha mapa de caselles.
+ */
+export function tileBlocker(live: TileLive | null | undefined, doors: { id: string; open?: boolean }[]): ((p: { x: number; y: number }) => boolean) | undefined {
+  const s = live?.solid;
+  if (!live || !s || s.cells.length !== s.cols * s.rows) return undefined;
+  const closed = new Set<number>();
+  for (const d of live.doors) {
+    if (doors.find(x => x.id === d.id)?.open === false) closed.add(Math.round(d.y / TILE) * s.cols + Math.round(d.x / TILE));
+  }
+  return p => {
+    const c = Math.floor(p.x / TILE), r = Math.floor(p.y / TILE);
+    if (c < 0 || r < 0 || c >= s.cols || r >= s.rows) return true;
+    const i = r * s.cols + c;
+    return s.cells.charCodeAt(i) === 49 || closed.has(i);
+  };
 }
 
 /**

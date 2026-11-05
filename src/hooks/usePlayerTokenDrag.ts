@@ -2,7 +2,8 @@
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
-import { computeReachableCells, buildMovePath, slideAgainstWalls } from '@/lib/rooms/pathing';
+import { computeReachableCells, buildMovePath, slideAgainstWalls, type CellBlocker } from '@/lib/rooms/pathing';
+import { tileBlocker, type TileLive } from '@/lib/tilemap/render';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { movementLimit } from '@/lib/rules/conditions';
 import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point, ConditionsMap } from '@/types';
@@ -41,6 +42,8 @@ interface DragState {
   last: Point;
   /** Parets efectives (amb els forats de porta retallats), fixades a l'inici del drag. */
   walls: Wall[];
+  /** Mapa de caselles: caselles prohibides (paret, buit, porta tancada). */
+  blocked?: CellBlocker;
 }
 
 function getMediaDimensions(media: HTMLElement | null): { mw: number; mh: number } {
@@ -126,6 +129,8 @@ export function usePlayerTokenDrag(
   // Estats dels tokens: Agafat, Retingut, Paralitzat… deixen la velocitat a 0 i Tombat
   // la parteix per la meitat (`lib/rules/conditions.ts`).
   rConditions: RefObject<ConditionsMap>,
+  // Parts vives del mapa de caselles: hi va la màscara de caselles sòlides (`tileBlocker`).
+  rTileLive?: RefObject<TileLive | null>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -169,6 +174,8 @@ export function usePlayerTokenDrag(
     let range: MoveRange | null = null;
     // Parets efectives: els trams de porta es retallen (per allà sí que es passa).
     const walls = effectiveWalls(rWalls.current, rDoors.current);
+    // Mapa de caselles: no es pot entrar a una paret, al buit ni a una porta tancada.
+    const blocked = tileBlocker(rTileLive?.current, rDoors.current);
     const gs = rGridSize.current;
     if (gs > 0) {
       const gox = ((rGridOriginX.current % gs) + gs) % gs;
@@ -182,12 +189,12 @@ export function usePlayerTokenDrag(
       };
       // Amb parets, la regió es restringeix a les caselles amb camí (les parets bloquegen;
       // les obertures/portes deixen passar i el desvium es cobra). Sense parets → null.
-      range.reach = computeReachableCells(walls, range.startCol, range.startRow, range.maxCells, { gs, gox, goy });
+      range.reach = computeReachableCells(walls, range.startCol, range.startRow, range.maxCells, { gs, gox, goy }, blocked);
     }
     dragRef.current = {
       id: hit.id, ox: hit.ox, oy: hit.oy, R: hit.R, range,
       last: { x: hit.startX + hit.R, y: hit.startY + hit.R },
-      walls,
+      walls, blocked,
     };
     pointerIdRef.current = e.pointerId;
     rSelectedToken.current = hit.id;
@@ -251,10 +258,11 @@ export function usePlayerTokenDrag(
       const range = dragRef.current.range;
       const walls = dragRef.current.walls;
       delete rMovePath.current[id];
-      if (origin && range && walls.length > 0) {
+      const blocked = dragRef.current.blocked;
+      if (origin && range && (walls.length > 0 || blocked)) {
         const { maxCells, gs, gox, goy } = range;
         const pts = buildMovePath(origin, { x: preview.x, y: preview.y },
-          { walls, grid: { gs, gox, goy }, R: dragRef.current.R, maxCells });
+          { walls, grid: { gs, gox, goy }, R: dragRef.current.R, maxCells, blocked });
         if (pts) rMovePath.current[id] = { pts, t: 0 };
       }
       rPos.current = { ...rPos.current, [id]: { x: preview.x, y: preview.y } };

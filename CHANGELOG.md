@@ -3,10 +3,17 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+<<<<<<< Updated upstream
 ### v4.90 — Halos: ordre de dins a fora i color més saturat
 - Els halos es pinten de dins a fora: estats, color i selecció, cadascun per sobre de l'anterior (abans l'anell dels estats tapava el de color); els isotips dels estats, damunt de tot
 - El halo de color del token té +15 % de saturació
 - Sense canvis a la API
+=======
+### v4.90 — Mapa de caselles: portes tancades i parets que no es travessen
+- Als mapes de caselles (Píxel), el jugador ja **no pot passar per una porta tancada ni quedar-se a sobre de la seva casella**, ni posar-se **a sobre d'una paret** o al buit (fora del terra). El rang groc ja no hi arriba i el DM rebutja el moviment amb la mateixa regla
+- Causa: el tram de la porta passa pel centre de la seva casella i el pas de casella a casella només el tocava a l'extrem (no comptava com a creuar-lo); i pel costat del buit les parets no tenen vora
+- Oberta, la porta es pot travessar i s'hi pot estar, com sempre
+>>>>>>> Stashed changes
 
 ### v4.89 — Sense fil negre al jugador, portes seguides i fora les portes dobles
 - **Fil negre arran de paret, del tot fora** a la pantalla de jugador: la llum del token s'aturava un píxel abans de la vora de la seva sala (per no vessar a la del costat) i aquell píxel quedava mig fosc. Ara la sala pròpia s'il·lumina sencera fins a la paret, sense tocar cap altra sala

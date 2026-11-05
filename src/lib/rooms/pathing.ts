@@ -10,6 +10,15 @@ export interface CellGridInfo {
   goy: number;
 }
 
+/**
+ * Casella on un token no pot entrar (rep el CENTRE de la casella en coords de mapa). Als mapes
+ * de caselles: paret, buit i porta tancada (`tileBlocker`). Les parets de segment no n'hi ha
+ * prou: el tram d'una porta passa pel CENTRE de la seva casella i el pas centre→centre
+ * només el toca a l'extrem (no compta com a encreuament): sense això, un jugador es podia
+ * posar a sobre d'una porta tancada i travessar-la.
+ */
+export type CellBlocker = (center: Point) => boolean;
+
 /** Cert si el segment AB creua (encreuament propi) alguna paret. */
 export function segmentBlocked(a: Point, b: Point, walls: Wall[]): boolean {
   for (const w of walls) {
@@ -52,8 +61,9 @@ export function computeReachableCells(
   startRow: number,
   maxCells: number,
   grid: CellGridInfo,
+  blocked?: CellBlocker,
 ): Map<string, number> | null {
-  if (walls.length === 0) return null;
+  if (walls.length === 0 && !blocked) return null;
   const mc = Math.min(Math.max(0, maxCells), MAX_CELLS_CAP);
   const budget = mc + 0.5;
   const { gs, gox, goy } = grid;
@@ -82,9 +92,10 @@ export function computeReachableCells(
     for (const w of nearby) if (segmentsIntersect(a, b, w.a, w.b)) return true;
     return false;
   };
-  // Pas d'una casella a una veïna: bloquejat si el tram centre→centre creua una paret.
+  // Pas d'una casella a una veïna: bloquejat si el tram centre→centre creua una paret o si
+  // la casella de destí és prohibida (paret/buit/porta tancada d'un mapa de caselles).
   const stepBlocked = (dc: number, dr: number, ndc: number, ndr: number): boolean =>
-    localBlocked(center(dc, dr), center(ndc, ndr), dc, dr);
+    (!!blocked && blocked(center(ndc, ndr))) || localBlocked(center(dc, dr), center(ndc, ndr), dc, dr);
 
   const SQRT2 = Math.SQRT2;
   const reach = new Map<string, number>([['0,0', 0]]);
@@ -178,15 +189,15 @@ export function cellOf(pos: Point, R: number, grid: CellGridInfo): [number, numb
 export function buildMovePath(
   from: Point,
   to: Point,
-  o: { walls: Wall[]; grid: CellGridInfo; R: number; maxCells?: number; straightFallback?: boolean },
+  o: { walls: Wall[]; grid: CellGridInfo; R: number; maxCells?: number; straightFallback?: boolean; blocked?: CellBlocker },
 ): Point[] | null {
-  const { walls, grid, R, maxCells = 260, straightFallback = false } = o;
+  const { walls, grid, R, maxCells = 260, straightFallback = false, blocked } = o;
   const straight = (): Point[] | null =>
     straightFallback && (from.x !== to.x || from.y !== to.y) ? [{ ...from }, { ...to }] : null;
-  if (grid.gs <= 0 || walls.length === 0) return straight();
+  if (grid.gs <= 0 || (walls.length === 0 && !blocked)) return straight();
   const [sCol, sRow] = cellOf(from, R, grid);
   const [dCol, dRow] = cellOf(to, R, grid);
-  const pts = computePath(walls, sCol, sRow, dCol, dRow, grid, maxCells);
+  const pts = computePath(walls, sCol, sRow, dCol, dRow, grid, maxCells, blocked);
   if (!pts || pts.length < 2) return straight();
   const wp = pts.map(p => ({ x: p.x - R, y: p.y - R }));
   wp[wp.length - 1] = { x: to.x, y: to.y };  // acabar exacte al destí
@@ -207,8 +218,9 @@ export function computePath(
   destCol: number, destRow: number,
   grid: CellGridInfo,
   maxCells: number,
+  blocked?: CellBlocker,
 ): Point[] | null {
-  if (walls.length === 0) return null;
+  if (walls.length === 0 && !blocked) return null;
   const ddc = destCol - startCol, ddr = destRow - startRow;
   if (ddc === 0 && ddr === 0) return null;
   const mc = Math.min(Math.max(0, maxCells), MAX_CELLS_CAP);
@@ -236,8 +248,10 @@ export function computePath(
     for (const w of nearby) if (segmentsIntersect(a, b, w.a, w.b)) return true;
     return false;
   };
+  // Pas d'una casella a una veïna: bloquejat si el tram centre→centre creua una paret o si
+  // la casella de destí és prohibida (paret/buit/porta tancada d'un mapa de caselles).
   const stepBlocked = (dc: number, dr: number, ndc: number, ndr: number): boolean =>
-    localBlocked(center(dc, dr), center(ndc, ndr), dc, dr);
+    (!!blocked && blocked(center(ndc, ndr))) || localBlocked(center(dc, dr), center(ndc, ndr), dc, dr);
 
   const SQRT2 = Math.SQRT2;
   const dist = new Map<string, number>([['0,0', 0]]);
