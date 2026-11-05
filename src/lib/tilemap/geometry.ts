@@ -7,7 +7,7 @@
 import type { Wall, Door, LightSource, Point } from '@/types';
 import { TILE, type TileMap, cellOf, isWall, isVoid, inMap } from './model';
 import { objectDef } from './palette';
-import { doorGroups } from './render';
+import { doorAxis } from './render';
 
 /**
  * Parets: una aresta a cada costat entre una casella de paret i una que no ho és. Les que
@@ -47,14 +47,13 @@ export function tileWalls(m: TileMap): { walls: Wall[]; doorSegs: Map<number, { 
   merge(hLines, true); merge(vLines, false);
 
   const doorSegs = new Map<number, { a: Point; b: Point }>();
-  // Una porta lateral doble (dues caselles) és una sola `Door` amb un tram de dues caselles.
-  for (const g of doorGroups(m)) {
-    const { c, r, n } = g;
-    const seg = g.axis === 'h'
+  for (const k of Object.keys(m.doors)) {
+    const i = +k, c = i % m.cols, r = Math.floor(i / m.cols);
+    const seg = doorAxis(m, c, r) === 'h'
       ? { a: { x: c * TILE, y: (r + 0.5) * TILE }, b: { x: (c + 1) * TILE, y: (r + 0.5) * TILE } }
-      : { a: { x: (c + 0.5) * TILE, y: r * TILE }, b: { x: (c + 0.5) * TILE, y: (r + n) * TILE } };
+      : { a: { x: (c + 0.5) * TILE, y: r * TILE }, b: { x: (c + 0.5) * TILE, y: (r + 1) * TILE } };
     walls.push(seg);
-    doorSegs.set(g.i, seg);
+    doorSegs.set(i, seg);
   }
   return { walls, doorSegs };
 }

@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.89 — Sense fil negre al jugador, portes seguides i fora les portes dobles
+- **Fil negre arran de paret, del tot fora** a la pantalla de jugador: la llum del token s'aturava un píxel abans de la vora de la seva sala (per no vessar a la del costat) i aquell píxel quedava mig fosc. Ara la sala pròpia s'il·lumina sencera fins a la paret, sense tocar cap altra sala
+- **Portes horitzontals seguides**: el tram de mur entre dues portes ja no surt com un pilar solt (més estret i amb una altra cara), sinó com la resta del mur
+- **Fora les portes laterals dobles** (v4.88): cada casella torna a ser una porta normal
+
 ### v4.88 — Portes Píxel sempre visibles, portes laterals dobles i sense vora negra
 - **Sense vora negra a la sala il·luminada**: la foscor de les sales ja no s'eixampla amb un contorn cap enfora; quedava un fil negre arran de paret encara que el token hi veiés. Ara totes les sales del mateix to es farceixen en un sol camí (tampoc no hi queda cap fil entre sales veïnes)
 - **Les portes del mapa de caselles es veuen sempre**, com les parets: es tornen a pintar per sobre de la foscor (abans la sala fosca en tapava mitja porta, o tota)

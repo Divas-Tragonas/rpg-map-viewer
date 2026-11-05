@@ -319,7 +319,7 @@ function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): b
 //  3. `_lightCanvas` només es neteja i es composita a la finestra que ocupen les llums.
 // Els `drawImage` són el que costa; els `fill` no surten ni al perfil (per això la màscara
 // es torna a traçar dues vegades en lloc de copiar-se amb un blit).
-function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSig: string): void {
+function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSig: string, rooms: Room[]): void {
   const off = octx.canvas;
   if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
   const lc = _lightCanvas;
@@ -414,6 +414,34 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     cvx.drawImage(tmp2, 0, 0, bw, bh, 0, -1, bw, bh);
     cvx.globalCompositeOperation = 'source-over';
     cvx.setTransform(T.a, T.b, T.c, T.d, T.e - bx, T.f - by);
+    // 1c) La SALA del token, sencera i 1px de pantalla cap enfora, però mai dins d'una ALTRA
+    //     sala. L'erosió d'abans també s'emportava la vora de la sala pròpia, i el píxel de
+    //     la vora (on l'antialiàsing de la foscor i el de la llum queden a mitges) quedava
+    //     mig fosc: un fil negre arran de paret encara que el token hi veiés. Retallat fora
+    //     de les altres sales, el mig píxel de més només cau a sobre de la paret (on l'única
+    //     foscor és la vora antialiàsada d'aquesta mateixa sala): no hi ha cap fuga.
+    if (roomPts && roomPts.length >= 3) {
+      const own = rooms.find(r => r.points === roomPts);
+      const ob = own?.bbox;
+      cvx.save();
+      cvx.beginPath();
+      cvx.rect(li.x - li.r - 4, li.y - li.r - 4, li.r * 2 + 8, li.r * 2 + 8);
+      for (const r of rooms) {
+        if (r.points === roomPts || r.points.length < 3) continue;
+        // Una sala que conté la pròpia (contorn exterior) no es pot treure: la buidaria.
+        if (ob && r.bbox.left <= ob.left && r.bbox.top <= ob.top && r.bbox.right >= ob.right && r.bbox.bottom >= ob.bottom) continue;
+        const b = r.bbox;
+        if (b.right < li.x - li.r || b.left > li.x + li.r || b.bottom < li.y - li.r || b.top > li.y + li.r) continue;
+        r.points.forEach((p, i) => i === 0 ? cvx.moveTo(p.x, p.y) : cvx.lineTo(p.x, p.y));
+        cvx.closePath();
+      }
+      cvx.clip('evenodd');
+      addPath(cvx, roomPts);
+      cvx.fillStyle = '#fff'; cvx.fill();
+      cvx.strokeStyle = '#fff'; cvx.lineJoin = 'round'; cvx.lineWidth = 2 / Math.abs(T.a || 1);
+      cvx.stroke();
+      cvx.restore();
+    }
     // 2) Aplicar el gradient radial UNA vegada sobre la unió (source-in).
     const g = cvx.createRadialGradient(li.x, li.y, 0, li.x, li.y, li.r);
     const iv = li.intensity;
@@ -591,7 +619,7 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       }
       for (const k of _visCache.keys()) if (!seenVis.has(k)) { _visCache.delete(k); anyRecomputed = true; }
       // Esborra la llum actual del tot: unió de la sala pròpia + vessament per portes.
-      carveLights(octx, polys, wallsSig);
+      carveLights(octx, polys, wallsSig, rooms);
 
       // Rectangle de pantalla que cobreixen les sales fosques visibles. Fora d'aquí `off`
       // no té alpha (no s'hi ha pintat cap sala), o sigui que ni el compòsit de la foscor

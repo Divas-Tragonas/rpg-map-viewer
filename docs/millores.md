@@ -353,8 +353,12 @@ Decisions de l'usuari: model aprovat + eliminar tokens també es desfà; «sala 
 ### Ronda 2 (v4.88, comentaris del DM)
 - [x] Fil negre arran de paret a la sala il·luminada: la foscor ja no s'eixampla amb un contorn (`fillDarkness`)
 - [x] Portes Píxel tallades per la foscor: es tornen a pintar per sobre (`drawTileDoorsOver`)
-- [x] Portes laterals dobles (dues portes = una sola porta doble), amb la fulla de baix que treu el cap
-- [ ] Aspecte de la doble lateral TANCADA: ara un muntant per fulla; pendent que el DM triï (veure resposta)
+- [x] ~~Portes laterals dobles~~ — tretes a la v4.89 a petició del DM (cada casella és una porta)
+
+### Ronda 3 (v4.89)
+- [x] Fil negre: al jugador ja no en queda cap (mesurat: el píxel de la vora passa de 74/57 a 174/133, el valor del terra)
+- [x] Portes horitzontals seguides: el mur entre portes ja no és un pilar solt
+- [x] Fora les portes dobles
 
 ### Fora d'abast (anotat, no tocat)
 - Afegir tokens (DIVAS, un enemic de la biblioteca) no es desfà: només eliminar-los.
