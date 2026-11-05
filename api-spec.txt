@@ -248,6 +248,9 @@ Tampoc no ha calgut cap canvi del WebSocket per a les fitxes (v4.67): el camp `s
 (SheetShow | null: foto de la fitxa amb les parts que tria el DM) viatja dins del STATE i del
 STRUCT, només quan canvia.
 
+Tampoc no ha calgut cap canvi per al mode Fòsfor (v4.92): el camp `phosphor` (boolean, lleuger)
+viatja dins del STATE i del STRUCT, que el servidor ja reenvia opacs.
+
 Tampoc no ha calgut cap canvi per als llocs de les missions (v4.59): el camp `curtain`
 (SceneCurtain | null: { closed, scene, title }) viatja dins del STATE i del STRUCT. És el fos a
 negre del canvi d'escena; el mapa nou arriba pel BG de sempre.

@@ -234,6 +234,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       spellPreview: rSpellPreview.current,
       // Estil de l'app (Clàssic / Píxel): lleuger, s'envia sempre.
       appStyle: R.rAppStyle.current,
+      // Mode Fòsfor de les pantalles de jugador: lleuger, s'envia sempre.
+      phosphor: R.rPhosphor.current,
       // Ajust de color de les figuretes del mapa (missions): lleuger, s'envia sempre.
       figureGrade: getFigureGrade(),
       // Diàleg en curs (lleuger, sempre): així qui es connecta o reconnecta a mitja
@@ -283,6 +285,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       turn: rTurn.current,
       spellPreview: rSpellPreview.current,
       appStyle: R.rAppStyle.current,
+      phosphor: R.rPhosphor.current,
       figureGrade: getFigureGrade(),
       tileLive: R.rTileLive.current,
       dialog: _dialogNow(),

@@ -160,6 +160,7 @@ src/
 │   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
 │   ├── spellcast.ts        # clampToRange: limita el destí d'una màgia al seu abast en peus
+│   ├── phosphor/screen.ts  # Mode Fòsfor: la pantalla de jugador com una TV de tub (paleta + CRT en WebGL)
 │   ├── textures/noise.ts   # Soroll de les zones màgiques (el de valor de la v4.33 + gradient 3D)
 │   ├── textures/fields.ts  # Camp de color de cada element de zona (texel, temps) → rgba
 │   └── enemy-images.ts     # ENEMY_IMAGES (imatges base64 enemics)

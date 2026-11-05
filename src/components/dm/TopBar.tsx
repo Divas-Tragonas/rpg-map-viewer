@@ -37,6 +37,8 @@ interface Props {
   /** Format (amplada/alçada) de l'enquadrament actual del DM; null si encara no n'hi ha. */
   camAr: number | null;
   onOpenPlayer: () => void;
+  /** Mode Fòsfor: les pantalles de jugador es veuen com una TV de tub antiga (`lib/phosphor`). */
+  phosphor: boolean; onTogglePhosphor: () => void;
   /** Obre el tauler de missions de la wiki, que hi rep la pantalla de jugador (veure `lib/relay.ts`). */
   onOpenBoard: () => void;
   autosaveEnabled: boolean; autosaveAt: number | null;
@@ -191,9 +193,10 @@ function CopyRow({ url }: { url: string }) {
  * no veu menys que el DM, però una de format diferent en veu MÉS als costats: el menú diu
  * quantes n'hi ha i quant en veuen de més. Sense cap, el botó surt en color d'avís.
  */
-function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlayer, onOpenBoard }: {
+function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlayer, onOpenBoard, phosphor, onTogglePhosphor }: {
   open: boolean; onToggle: () => void; onClose: () => void;
   playerScreens: Props['playerScreens']; camAr: Props['camAr']; onOpenPlayer: () => void; onOpenBoard: () => void;
+  phosphor: boolean; onTogglePhosphor: () => void;
 }) {
   const [urls, setUrls] = useState<string[]>([]);
   const ids = Object.keys(playerScreens);
@@ -231,6 +234,13 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
                 ))}
               </div>
             )}
+            {/* Mode Fòsfor: no tanca el menú, perquè es vegi l'interruptor canviar. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+              title="Les pantalles de jugador es veuen com una TV de tub antiga: píxels grossos, 16 colors i línies. Tu continues veient el mapa normal.">
+              <Monitor size={14} color={C.dim} />
+              <span style={{ flex: 1, fontSize: FS.md, fontWeight: 600, color: C.text }}>Mode Fòsfor</span>
+              <Switch on={phosphor} onChange={onTogglePhosphor} label="Mode Fòsfor" />
+            </div>
             <Button variant="primary" block onClick={() => { onOpenPlayer(); onClose(); }} style={{ gap: 6 }}>
               <Maximize2 size={12} /> Obrir-ne una en aquest dispositiu
             </Button>
@@ -555,7 +565,8 @@ export function TopBar(p: Props) {
           <RedoIcon size={14} />
         </Button>
         <ScreensMenu open={menu === 'screens'} onToggle={toggle('screens')} onClose={close}
-          playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} onOpenBoard={p.onOpenBoard} />
+          playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} onOpenBoard={p.onOpenBoard}
+          phosphor={p.phosphor} onTogglePhosphor={p.onTogglePhosphor} />
         <GameMenu open={menu === 'game'} onToggle={toggle('game')} onClose={close} hasMap={hasMap}
           autosaveEnabled={p.autosaveEnabled} autosaveAt={p.autosaveAt} autosaveFailing={p.autosaveFailing}
           onToggleAutosave={p.onToggleAutosave} onSaveNow={p.onSaveNow}

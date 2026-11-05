@@ -189,6 +189,8 @@ export function useDMRefs() {
 
   // Estil Píxel i mapa de caselles (veure `lib/sprites` i `lib/tilemap`).
   const rAppStyle      = useRef<AppStyle>('classic');
+  // Mode Fòsfor de les pantalles de jugador (TV de tub antiga): viatja dins de cada STATE.
+  const rPhosphor      = useRef(false);
   const rTileMap       = useRef<TileMap | null>(null);
   // Cuinat del mapa (part estàtica): es repinta per caselles mentre s'edita i passa a ser el fons.
   const rTileCanvas    = useRef<HTMLCanvasElement | null>(null);
@@ -246,7 +248,7 @@ export function useDMRefs() {
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicRef, cinematicCamRef,
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
-    rAppStyle, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileRestore,
+    rAppStyle, rPhosphor, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileRestore,
     rDialog, rDialogT0, rDialogs, dialogHostRef,
     rMissionScenes, rCurtain, rSheetShow, rPlaceMarks, rPlaceHover, rPlaceEnter,
   };

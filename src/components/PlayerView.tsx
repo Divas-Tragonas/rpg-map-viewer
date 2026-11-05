@@ -28,6 +28,7 @@ import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, setFigureGrade } from '@/lib/sprites/pack';
 import { DialogHost } from '@/lib/dialog/host';
 import { drawTileLive, drawTileDoorsOver, tileBlocker, type TileLive } from '@/lib/tilemap/render';
+import { PhosphorScreen, scanlinePx } from '@/lib/phosphor/screen';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
 // arribar al DM ensenyava exactament el mateix que un mòbil ben connectat esperant que
@@ -170,6 +171,18 @@ export function PlayerView() {
   const rAppStyle      = useRef<AppStyle>('classic');
   const rTileLive      = useRef<TileLive | null>(null);
   const [pixel, setPixel] = useState(false);
+  // Mode Fòsfor (TV de tub antiga, veure `lib/phosphor/screen.ts`). `phosphorRef` = el que es
+  // pinta ara; `phosphorTargetRef` = el que demana el DM (durant l'animació d'apagar i encendre
+  // poden ser diferents). `tubeRef` embolcalla tota la pantalla per a l'animació.
+  const phosphorRef       = useRef(false);
+  const phosphorTargetRef = useRef(false);
+  const phosphorBusyRef   = useRef(false);
+  const phosphorCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const phosphorScreenRef = useRef<PhosphorScreen | null>(null);
+  const phosphorGlassRef  = useRef<HTMLDivElement | null>(null);
+  const tubeRef           = useRef<HTMLDivElement | null>(null);
+  const flashRef          = useRef<HTMLDivElement | null>(null);
+  const [phosphor, setPhosphorUi] = useState(false);
 
   const rPanOffset    = useRef({ x: 0, y: 0 });
   // Enquadrament del DM en coordenades de MAPA. És l'autoritat de la càmera: cada frame
@@ -359,6 +372,38 @@ export function PlayerView() {
   // Cortina del canvi d'escena: es tanca de seguida i s'obre quan el fons nou s'ha carregat
   // (màx. 5 s). En obrir-se en una escena nova, s'oblida la boira explorada de l'anterior i
   // els tokens hi apareixen directament (sense lliscar des d'on eren).
+  // Mode Fòsfor: la TV s'apaga (la imatge s'aplana en una ratlla blanca), canvia de mode i
+  // s'encén. Si el DM el torna a tocar mentre dura, en acabar d'apagar-se s'aplica l'últim.
+  const _setPhosphor = useCallback((on: boolean) => {
+    if (phosphorTargetRef.current === on) return;
+    phosphorTargetRef.current = on;
+    if (phosphorBusyRef.current) return;
+    const apply = () => { phosphorRef.current = phosphorTargetRef.current; setPhosphorUi(phosphorTargetRef.current); };
+    const tube = tubeRef.current, flash = flashRef.current;
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!tube || !flash || calm || typeof tube.animate !== 'function') { apply(); return; }
+    const cycle = () => {
+      phosphorBusyRef.current = true;
+      const off = tube.animate([
+        { transform: 'scale(1, 1)' }, { transform: 'scale(1, 0.006)', offset: 0.6 }, { transform: 'scale(0, 0.006)' },
+      ], { duration: 340, easing: 'ease-in' });
+      flash.animate([{ opacity: 0 }, { opacity: 0.85, offset: 0.6 }, { opacity: 1 }], { duration: 340, easing: 'ease-in' });
+      off.onfinish = () => {
+        apply();
+        const up = tube.animate([
+          { transform: 'scale(0, 0.006)' }, { transform: 'scale(1, 0.006)', offset: 0.3 }, { transform: 'scale(1, 1)' },
+        ], { duration: 520, easing: 'ease-out' });
+        flash.animate([{ opacity: 1 }, { opacity: 0.8, offset: 0.3 }, { opacity: 0 }], { duration: 520, easing: 'ease-out' });
+        up.onfinish = () => {
+          phosphorBusyRef.current = false;
+          // El DM l'ha tornat a canviar mentre s'encenia: una altra volta.
+          if (phosphorTargetRef.current !== phosphorRef.current) cycle();
+        };
+      };
+    };
+    cycle();
+  }, []);
+
   const _applyCurtain = useCallback((c: SceneCurtainState | null) => {
     const key = c ? `${c.closed ? 1 : 0}|${c.scene}` : '';
     if (key === curtainKeyRef.current) return;
@@ -551,6 +596,8 @@ export function PlayerView() {
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        // Mode Fòsfor (lleuger, sempre). Absent → DM antic: no tocar res.
+        if (msg.phosphor !== undefined) _setPhosphor(!!msg.phosphor);
         // Ajust de color de les figuretes del mapa (missions). Absent → DM antic: no tocar res.
         if (msg.figureGrade !== undefined) setFigureGrade(msg.figureGrade);
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
@@ -642,6 +689,8 @@ export function PlayerView() {
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
         if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
+        // Mode Fòsfor (lleuger, sempre). Absent → DM antic: no tocar res.
+        if (msg.phosphor !== undefined) _setPhosphor(!!msg.phosphor);
         // Ajust de color de les figuretes del mapa (missions). Absent → DM antic: no tocar res.
         if (msg.figureGrade !== undefined) setFigureGrade(msg.figureGrade);
         if (msg.tileLive !== undefined) rTileLive.current = msg.tileLive;
@@ -904,9 +953,28 @@ export function PlayerView() {
     let prevBgEl: HTMLElement | null = null;
     let prevPixelated: boolean | null = null;
 
+    // Mode Fòsfor: es fa després de pintar l'escena (passi el que passi dins de `frame`).
+    let glassLine = 0;
+    const phosphorPass = () => {
+      const scr = phosphorScreenRef.current;
+      if (!scr) return;
+      if (!phosphorRef.current) { scr.hide(); glassLine = 0; return; }
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      if (!W || !H) return;
+      scr.draw(mediaRef.current as HTMLImageElement | HTMLVideoElement | null, canvas, W, H, performance.now());
+      // Les línies fines de damunt de tot, a la mateixa alçada que les del tub.
+      const g = phosphorGlassRef.current, lp = scanlinePx(H);
+      if (g && glassLine !== lp) { g.style.backgroundSize = `100% ${lp}px`; glassLine = lp; }
+    };
+
     const tick = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(tick);
+      frame();
+      phosphorPass();
+    };
+
+    const frame = () => {
       const W = canvas.clientWidth, H = canvas.clientHeight;
       if (!W || !H) return;
       if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; _ctx2dRef.current = null; }
@@ -1109,6 +1177,14 @@ export function PlayerView() {
     return () => { alive = false; cancelAnimationFrame(rafRef.current); };
   }, []);
 
+  // Mode Fòsfor: el llenç de WebGL es crea un sol cop (s'amaga quan el mode és apagat).
+  useEffect(() => {
+    const c = phosphorCanvasRef.current; if (!c) return;
+    const scr = new PhosphorScreen(c);
+    phosphorScreenRef.current = scr;
+    return () => { scr.dispose(); phosphorScreenRef.current = null; };
+  }, []);
+
   // Incrustada a la wiki: `?fit=1` comença amb el mapa sencer i la wiki diu quan cal seguir el DM
   // (`{ rpg: 'embed', fit }`). La pantalla li diu si ja té mapa i com va la connexió. Dins de
   // l'iframe el canal queda aïllat (el navegador el particiona per lloc), així que el canal també
@@ -1151,6 +1227,10 @@ export function PlayerView() {
 
   return (
     <div className="full-stage" style={{ background: '#000', position: 'relative', overflow: 'hidden' }}>
+      {/* El «tub»: tota la pantalla, perquè l'animació d'apagar i encendre del mode Fòsfor
+          l'aplani sencera (mapa, rètols, fitxes i diàlegs). Sense transform en repòs: no crea
+          cap context d'apilament i els zIndex de dins funcionen com sempre. */}
+      <div ref={tubeRef} style={{ position: 'absolute', inset: 0 }}>
       <div ref={stageRef} style={{ position: 'absolute', inset: 0 }} />
       <canvas
         ref={canvasRef}
@@ -1160,6 +1240,11 @@ export function PlayerView() {
         onPointerCancel={tokenDrag.onPointerUp}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'transparent', touchAction: 'none', cursor: 'grab' }}
       />
+      {/* Mode Fòsfor: damunt del mapa i del fons, sota de rètols, fitxes i diàlegs (zIndex ≥ 8).
+          Sense punter: el drag dels tokens continua anant al canvas de sota. */}
+      <canvas ref={phosphorCanvasRef}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, pointerEvents: 'none', display: 'none' }} />
+      {phosphor && <div ref={phosphorGlassRef} className="phosphor-glass" />}
       <div
         ref={bgTransitionRef}
         style={{ position: 'absolute', inset: 0, background: '#000', zIndex: 8, opacity: 0, transition: 'opacity 0.5s ease', pointerEvents: 'none' }}
@@ -1228,6 +1313,8 @@ export function PlayerView() {
             }}
           />
         </div>
+      </div>
+      <div ref={flashRef} style={{ position: 'absolute', inset: 0, zIndex: 90, background: '#fff', opacity: 0, pointerEvents: 'none' }} />
       </div>
     </div>
   );

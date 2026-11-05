@@ -36,3 +36,14 @@ input[type=color] { cursor: pointer; }
   .dm-root { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .dm-root input, .dm-root textarea, .dm-root [contenteditable] { -webkit-user-select: text; user-select: text; }
 }
+
+/* Mode Fòsfor (pantalla de jugador, v4.92): el vidre del tub, damunt de TOT (rètols, fitxes,
+   diàlegs, expositor). Línies fines (l'alçada la posa el tick, la mateixa que les del WebGL),
+   cantonades arrodonides en negre i vinyeta. Estàtic: res d'animar filtres ni ombres. */
+.phosphor-glass {
+  position: absolute; inset: 0; z-index: 70; pointer-events: none;
+  border-radius: 3.5% / 5%;
+  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.16) 100%);
+  background-size: 100% 4px;
+  box-shadow: 0 0 0 100vmax #000, inset 0 0 14vmin rgba(0, 0, 0, 0.6), inset 0 0 2vmin rgba(0, 0, 0, 0.5);
+}

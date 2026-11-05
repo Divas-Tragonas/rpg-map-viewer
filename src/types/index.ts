@@ -425,6 +425,8 @@ export interface BCStateMessage {
   spellPreview?: SpellPreview | null;
   // Estil Píxel (camp lleuger, sempre): les pantalles de jugador pinten sprites i el rètol píxel.
   appStyle?: AppStyle;
+  // Mode Fòsfor (lleuger, sempre): les pantalles de jugador es veuen com una TV de tub antiga.
+  phosphor?: boolean;
   // Parts vives del mapa de caselles (aigua, torxes, portes): camp pesat (per referència).
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   // Diàleg en curs (camp lleuger, sempre; `null` = cap). Absent → DM antic, no tocar res.
@@ -472,6 +474,7 @@ export interface BCStructMessage {
   turn?: TurnState;
   spellPreview?: SpellPreview | null;
   appStyle?: AppStyle;
+  phosphor?: boolean;
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   dialog?: DialogSync | null;
   figureGrade?: FigureGrade | null;

@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.92 — Mode Fòsfor: les pantalles de jugador com una TV de tub antiga
+- **Mode Fòsfor**: interruptor al menú **Pantalles** del DM. Totes les pantalles de jugador s'apaguen com una TV (la imatge s'aplana en una ratlla blanca) i s'engeguen amb l'aspecte d'un monitor de tub: paleta de 16 colors (buit negre, terra verd, parets crema i taronja, aigua blava), pantalla corbada, línies d'escombrat, punts de fòsfor RGB, halo dels colors brillants i un parpelleig lleuger
+- A la resolució real de la pantalla: **no es redueixen els píxels**, el detall del mapa i de les figuretes es conserva
+- Rètols, fitxes, diàlegs i l'Expositor queden «dins del vidre»: línies fines i cantonades fosques per sobre
+- El DM continua veient el mapa normal. El mateix interruptor el torna a apagar (amb la mateixa animació) i el navegador del DM el recorda
+- Sense canvis a la API: el camp `phosphor` viatja dins del STATE i del STRUCT, que ja es reenvien opacs
+
 ### v4.91 — Mapa de caselles: portes tancades i parets que no es travessen
 - Als mapes de caselles (Píxel), el jugador ja **no pot passar per una porta tancada ni quedar-se a sobre de la seva casella**, ni posar-se **a sobre d'una paret** o al buit (fora del terra). El rang groc ja no hi arriba i el DM rebutja el moviment amb la mateixa regla
 - Causa: el tram de la porta passa pel centre de la seva casella i el pas de casella a casella només el tocava a l'extrem (no comptava com a creuar-lo); i pel costat del buit les parets no tenen vora

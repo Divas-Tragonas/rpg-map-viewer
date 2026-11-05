@@ -147,6 +147,8 @@ export function DMView() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   // Quina «app»: Clàssica o Píxel (sprites del paquet Oryx i mapes de caselles). Es recorda.
   const [pixel, setPixel] = useStoredFlag('rpg_pixel', false);
+  // Mode Fòsfor: les pantalles de jugador es veuen com una TV de tub antiga (menú Pantalles).
+  const [phosphor, setPhosphor] = useStoredFlag('rpg_phosphor', false);
   const pack = useSpritePack();
   // Mapa de caselles obert (n'hi ha prou amb la mida per a la UI; el mapa viu a R.rTileMap).
   const [tileMapSize, setTileMapSize] = useState<{ cols: number; rows: number } | null>(null);
@@ -395,6 +397,12 @@ export function DMView() {
     // L'eina Caselles no existeix a l'app Clàssica.
     if (!pixel && R.rDrawTool.current === 'tiles') setDrawTool('none');
   }, [pixel, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mode Fòsfor: com l'estil, viatja dins de cada STATE (i del STRUCT, per a qui es connecta tard).
+  useEffect(() => {
+    R.rPhosphor.current = phosphor;
+    _broadcastState({});
+  }, [phosphor, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mapa de caselles ───────────────────────────────────────────────────────
   const setTileGrid = useCallback((gs: number) => {
@@ -1679,6 +1687,7 @@ export function DMView() {
         mode={mode} onModeChange={switchMode}
         undoLabel={undoNext.undo} onUndo={undo} redoLabel={undoNext.redo} onRedo={redo}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
+        phosphor={phosphor} onTogglePhosphor={() => setPhosphor(!phosphor)}
         onOpenBoard={() => { if (!openBoard()) notify("El navegador no ha deixat obrir el tauler de missions: permet les finestres emergents d'aquesta pàgina."); }}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt} autosaveFailing={autosaveFailing}
         onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
