@@ -48,6 +48,17 @@ a les pantalles de jugador. Una API anterior no les retorna: el visor fa servir 
 resistència.
 
 
+PROPOSTA PENDENT (v5 snapshot 6, encara NO a la API): bloc de 5e complet per als enemics de la
+BD, com el del bestiari de l'app (`lib/monsters.ts`). Camps nous, tots opcionals:
+  cr: string, ac: int 0–40, speedFt: int 0–200, move: string (màx. 80),
+  abilities: { str, dex, con, int, wis, cha: int 1–30 },
+  saves: { str?, dex?, con?, int?, wis?, cha?: int −5–20 },
+  nonMagicImmunities: DamageType[], conditionImmunities: ConditionId[],
+  attacks: [{ name, kind: 'melee'|'ranged'|'thrown', reachFt?, rangeFt?, longFt?, bonus?, damage?, damageType? }],
+  traits: string[]
+El frontend no els fa servir fins que la API els tingui desplegats.
+
+
 ## TIPUS Character (fitxa de personatge, v4.67)
 
 {

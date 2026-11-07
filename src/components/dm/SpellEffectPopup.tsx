@@ -12,6 +12,8 @@ export interface SpellTarget {
   key: string; name: string; hp: number; hpMax: number; defenses?: Defenses; conditions: string[];
   /** CA i modificador de DES de la fitxa (jugadors): per ensenyar el benefici d'Escut o Armadura de mag. */
   ac?: number; dexMod?: number;
+  /** Bonificació de la salvació que demana la màgia (fitxa o bloc del bestiari), per a la taula. */
+  saveBonus?: number | null;
 }
 
 /** Benefici d'una màgia de protecció per a un afectat (text curt). L'app no el desa enlloc. */
@@ -93,7 +95,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   const apply = () => {
     onApply(targets.filter(t => rows[t.key].include).map(t => ({
       key: t.key, delta: hasAmount ? outcomeOf(t).delta : 0,
-      addConditions: rows[t.key].conds.filter(c => !t.conditions.includes(c)),
+      addConditions: rows[t.key].conds.filter(c => !t.conditions.includes(c) && !t.defenses?.conditionImmunities?.includes(c)),
       ...(fx.buff ? { note: `${t.name}: ${buffText(fx.buff, t)}` } : {}),
     })));
   };
@@ -138,7 +140,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
                   <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.sm, color: row.saved ? C.ok : C.dim }}>
                     <input type="checkbox" checked={row.saved}
                       onChange={e => setRow(t.key, { saved: e.target.checked, conds: e.target.checked ? [] : [...(fx.conditions ?? [])] })} />
-                    supera
+                    supera{t.saveBonus !== undefined && t.saveBonus !== null ? ` (${t.saveBonus >= 0 ? '+' : ''}${t.saveBonus})` : ''}
                   </label>
                 )}
                 {hasAmount && t.hpMax > 0 && (
@@ -151,15 +153,17 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
                 <div style={{ display: 'flex', gap: 4, marginTop: 4, marginLeft: 20, flexWrap: 'wrap' }}>
                   {fx.conditions!.map(cid => {
                     const c = CONDITIONS_BY_ID.get(cid);
-                    const on = row.conds.includes(cid), already = t.conditions.includes(cid);
+                    const immune = !!t.defenses?.conditionImmunities?.includes(cid);
+                    const on = !immune && row.conds.includes(cid), already = t.conditions.includes(cid);
                     return (
-                      <button key={cid} type="button" disabled={already}
+                      <button key={cid} type="button" disabled={already || immune}
                         onClick={() => setRow(t.key, { conds: on ? row.conds.filter(x => x !== cid) : [...row.conds, cid] })}
-                        title={already ? 'Ja el té' : on ? 'Se li posarà en aplicar' : 'No se li posarà'}
+                        title={immune ? 'Hi és immune: no se li posarà' : already ? 'Ja el té' : on ? 'Se li posarà en aplicar' : 'No se li posarà'}
                         style={{ fontSize: FS.xs, padding: '2px 7px', borderRadius: 10, cursor: already ? 'default' : 'pointer',
+                          textDecoration: immune ? 'line-through' : undefined,
                           border: `1px solid ${on || already ? c?.color ?? C.accent : C.border}`,
                           background: on || already ? `${c?.color ?? C.accent}33` : 'transparent', color: on || already ? C.bright : C.dim }}>
-                        {c?.label ?? cid}{already ? ' ✓' : ''}
+                        {c?.label ?? cid}{already ? ' ✓' : immune ? ' · immune' : ''}
                       </button>
                     );
                   })}

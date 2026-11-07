@@ -74,7 +74,10 @@ import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, STATS_PART, sheetOf, abilityMod } from '@/lib/characters';
+import { buildSheetShow, characterFor, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
+import { enemyDefenses } from '@/lib/rules/damage';
+import { monsterForTemplate } from '@/lib/bestiary';
+import { monsterSave } from '@/lib/monsters';
 import { creatureStats } from '@/lib/bestiary';
 import { RightRail } from '@/components/dm/RightRail';
 import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
@@ -2181,13 +2184,19 @@ export function DMView() {
         for (const k of spellPrompt.keys) {
           const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;
           const en = k.startsWith('lib_') ? libEnemies.find(e => `lib_${e.id}` === k) : undefined;
+          const saveAb = SPELL_EFFECTS[spellPrompt.type]?.save;
           if (pl) {
             const ch = characterFor(pl, chars.characters);
             const dex = ch ? sheetOf(ch).abilities?.dex : undefined;
             targets.push({ key: k, name: pl.name, hp: pl.hp, hpMax: pl.hpMax, conditions: conditions[k] ?? [],
-              ac: ch?.ac, dexMod: dex !== undefined ? abilityMod(dex) : undefined });
+              ac: ch?.ac, dexMod: dex !== undefined ? abilityMod(dex) : undefined,
+              saveBonus: saveAb && ch ? sheetSave(sheetOf(ch), saveAb, ch.level) : null });
           }
-          else if (en) targets.push({ key: k, name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: en.defenses, conditions: conditions[k] ?? [] });
+          else if (en) {
+            const mo = monsterForTemplate(en.templateId);
+            targets.push({ key: k, name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en), conditions: conditions[k] ?? [],
+              saveBonus: saveAb && mo ? monsterSave(mo, saveAb) : null });
+          }
         }
         if (targets.length === 0) return null;
         return (
@@ -2229,7 +2238,7 @@ export function DMView() {
         const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;
         const en = k.startsWith('lib_') ? libEnemies.find(e => `lib_${e.id}` === k) : undefined;
         const tgt = pl ? { name: pl.name, hp: pl.hp, hpMax: pl.hpMax }
-          : en ? { name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: en.defenses } : null;
+          : en ? { name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en) } : null;
         if (!tgt) return null;
         return (
           <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}

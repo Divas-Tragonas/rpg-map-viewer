@@ -8,6 +8,7 @@
  * servir el més semblant: el DM ho pot canviar al menú del token.
  */
 import { PARTY_CREATURES } from '@/lib/sprites/manifest';
+import { MONSTERS, type Monster } from '@/lib/monsters';
 
 /** XP per valor de desafiament (Manual del DM, taula «Experience Points by Challenge Rating»). */
 export const XP_BY_CR: Record<string, number> = {
@@ -17,156 +18,160 @@ export const XP_BY_CR: Record<string, number> = {
   '21': 33000, '22': 41000, '23': 50000, '24': 62000,
 };
 
-/** Monstre oficial amb què es juga, VD i vida mitjana. */
-type Stat = readonly [as: string, cr: string, hp: number];
-
-const S: Record<string, Stat> = {
+/** Monstre (`MONSTERS`) amb què es juga cada figureta del paquet Oryx. */
+const S: Record<string, string> = {
   // Gent
-  wizard: ['Mag malvat (LMoP)', '1', 22],
-  cultist: ['Sectari', '1/8', 9],
-  knight: ['Cavaller', '3', 52],
-  archer: ['Explorador', '1/2', 16],
-  priest: ['Sacerdot', '2', 27],
-  barbarian_m: ['Berserker', '2', 67],
-  barbarian_f: ['Berserker', '2', 67],
-  thief: ['Bandit', '1/8', 11],
-  druid: ['Druida (Reidoth, LMoP)', '2', 27],
-  helion: ['Sacerdot', '2', 27],
-  necromancer: ['Mag malvat (Hamun Kost, LMoP)', '1', 22],
-  warrior_m: ['Guàrdia', '1/8', 11],
-  warrior_f: ['Guàrdia', '1/8', 11],
-  minstrel_m: ['Plebeu', '0', 4],
-  minstrel_f: ['Plebeu', '0', 4],
-  paladin: ['Cavaller', '3', 52],
-  dknight: ['Cavaller', '3', 52],
-  templar: ['Veterà', '3', 58],
-  witch: ['Bruixa verda', '3', 82],
-  monk: ['Adepte d\'arts marcials', '3', 60],
-  warden: ['Brètol', '1/2', 32],
-  prisoner_a: ['Plebeu', '0', 4],
-  prisoner_b: ['Plebeu', '0', 4],
-  prisoner_c: ['Plebeu', '0', 4],
-  elf: ['Explorador', '1/2', 16],
-  elf_wizard: ['Aprenent de mag', '1/4', 9],
-  elf_bowman: ['Explorador', '1/2', 16],
-  drow: ['Drow', '1/4', 13],
-  drow_wizard: ['Nezznar, l\'Aranya Negra (LMoP)', '2', 27],
-  drow_bowman: ['Drow', '1/4', 13],
-  dwarf: ['Guàrdia', '1/8', 11],
-  dwarf_cleric: ['Sacerdot', '2', 27],
-  dwarf_mage: ['Aprenent de mag', '1/4', 9],
-  halfling_thief: ['Bandit', '1/8', 11],
-  halfling_sling: ['Bandit', '1/8', 11],
-  halfling_fighter: ['Guàrdia', '1/8', 11],
-  halfling_wizard: ['Aprenent de mag', '1/4', 9],
-  valkyrie_a: ['Gladiador', '5', 112],
-  valkyrie_b: ['Gladiador', '5', 112],
-  lord_a: ['Noble', '1/8', 9],
-  lady_a: ['Noble', '1/8', 9],
-  lord_b: ['Noble', '1/8', 9],
-  lady_b: ['Noble', '1/8', 9],
-  merchant_a: ['Plebeu', '0', 4],
-  merchant_b: ['Plebeu', '0', 4],
+  wizard: 'evil_mage',
+  cultist: 'cultist',
+  knight: 'knight',
+  archer: 'scout',
+  priest: 'priest',
+  barbarian_m: 'berserker',
+  barbarian_f: 'berserker',
+  thief: 'bandit',
+  druid: 'druid',
+  helion: 'priest',
+  necromancer: 'evil_mage',
+  warrior_m: 'guard',
+  warrior_f: 'guard',
+  minstrel_m: 'commoner',
+  minstrel_f: 'commoner',
+  paladin: 'knight',
+  dknight: 'knight',
+  templar: 'veteran',
+  witch: 'green_hag',
+  monk: 'martial_adept',
+  warden: 'thug',
+  prisoner_a: 'commoner',
+  prisoner_b: 'commoner',
+  prisoner_c: 'commoner',
+  elf: 'scout',
+  elf_wizard: 'apprentice',
+  elf_bowman: 'scout',
+  drow: 'drow',
+  drow_wizard: 'nezznar',
+  drow_bowman: 'drow',
+  dwarf: 'guard',
+  dwarf_cleric: 'priest',
+  dwarf_mage: 'apprentice',
+  halfling_thief: 'bandit',
+  halfling_sling: 'bandit',
+  halfling_fighter: 'guard',
+  halfling_wizard: 'apprentice',
+  valkyrie_a: 'gladiator',
+  valkyrie_b: 'gladiator',
+  lord_a: 'noble',
+  lady_a: 'noble',
+  lord_b: 'noble',
+  lady_b: 'noble',
+  merchant_a: 'commoner',
+  merchant_b: 'commoner',
   // Goblinoides, orcs i gegants
-  goblin: ['Goblin', '1/4', 7],
-  goblin_warrior: ['Hobgoblin', '1/2', 11],
-  goblin_shaman: ['Cap goblin', '1', 21],
-  troll: ['Trol', '5', 84],
-  ogre: ['Ogre', '2', 59],
-  ogre_mystic: ['Oni', '7', 110],
-  minotaur: ['Minotaure', '3', 76],
-  lizardman_green: ['Home llangardaix', '1/2', 22],
-  lizardman_green_spear: ['Home llangardaix', '1/2', 22],
-  lizardman_green_shaman: ['Xaman home llangardaix', '2', 27],
-  lizardman_blue: ['Home llangardaix', '1/2', 22],
-  lizardman_blue_spear: ['Home llangardaix', '1/2', 22],
-  lizardman_blue_shaman: ['Xaman home llangardaix', '2', 27],
+  goblin: 'goblin',
+  goblin_warrior: 'hobgoblin',
+  goblin_shaman: 'goblin_boss',
+  troll: 'troll',
+  ogre: 'ogre',
+  ogre_mystic: 'oni',
+  minotaur: 'minotaur',
+  lizardman_green: 'lizardfolk',
+  lizardman_green_spear: 'lizardfolk',
+  lizardman_green_shaman: 'lizardfolk_shaman',
+  lizardman_blue: 'lizardfolk',
+  lizardman_blue_spear: 'lizardfolk',
+  lizardman_blue_shaman: 'lizardfolk_shaman',
   // Morts vivents
-  skeleton: ['Esquelet', '1/4', 13],
-  skeleton_warrior: ['Esquelet', '1/4', 13],
-  skeleton_mage: ['Esquelet', '1/4', 13],
-  skeleton_archer: ['Esquelet', '1/4', 13],
-  zombie_a: ['Zombi', '1/4', 22],
-  zombie_b: ['Zombi', '1/4', 22],
-  banshee: ['Banshee', '4', 58],
-  vampire: ['Engendrament vampíric', '5', 82],
-  vampire_lord: ['Vampir', '13', 144],
-  lich: ['Lich', '21', 135],
-  wraith_a: ['Espectre (Mormesk, LMoP)', '5', 67],
-  wraith_b: ['Espectre menor', '1', 22],
-  wraith_c: ['Ombra', '1/2', 16],
-  mummy: ['Mòmia', '3', 58],
-  mummy_pharoah: ['Senyor mòmia', '15', 97],
-  spirit: ['Espectre menor', '1', 22],
-  spirit_greater: ['Fantasma', '4', 45],
+  skeleton: 'skeleton',
+  skeleton_warrior: 'skeleton',
+  skeleton_mage: 'skeleton',
+  skeleton_archer: 'skeleton',
+  zombie_a: 'zombie',
+  zombie_b: 'zombie',
+  banshee: 'banshee',
+  vampire: 'vampire_spawn',
+  vampire_lord: 'vampire',
+  lich: 'lich',
+  wraith_a: 'wraith',
+  wraith_b: 'specter',
+  wraith_c: 'shadow',
+  mummy: 'mummy',
+  mummy_pharoah: 'mummy_lord',
+  spirit: 'specter',
+  spirit_greater: 'ghost',
   // Bèsties
-  bat_giant: ['Ratpenat gegant', '1/4', 22],
-  bat: ['Ratpenat', '0', 1],
-  spider_brown_giant: ['Aranya llop gegant', '1/4', 11],
-  spider_brown: ['Aranya', '0', 1],
-  spider_black_giant: ['Aranya gegant', '1', 26],
-  spider_black: ['Aranya', '0', 1],
-  rat: ['Rata', '0', 1],
-  rat_giant: ['Rata gegant', '1/8', 7],
-  snake_giant: ['Serp verinosa gegant', '1/4', 11],
-  snake: ['Serp verinosa', '1/8', 2],
-  wolf_black: ['Llop', '1/4', 11],
-  wolf_red: ['Llop terrible', '1', 37],
-  bird_dove: ['Corb', '0', 1],
-  bird_hawk: ['Falcó', '0', 1],
-  bird_crow: ['Corb', '0', 1],
-  beetle_giant: ['Escarabat de foc gegant', '0', 4],
-  beetle_fire_giant: ['Escarabat de foc gegant', '0', 4],
-  beetle: ['Escarabat', '0', 1],
-  beetle_fire: ['Escarabat', '0', 1],
-  moth_white: ['Estirge (LMoP)', '1/8', 2],
-  moth_red: ['Estirge (LMoP)', '1/8', 2],
-  moth_black: ['Estirge (LMoP)', '1/8', 2],
-  toad_green: ['Granota gegant', '1/4', 18],
-  toad_blue: ['Granota gegant', '1/4', 18],
-  toad_horned: ['Gripau gegant', '1', 39],
-  flies: ['Eixam d\'insectes', '1/2', 22],
-  worm: ['Grick', '2', 27],
-  worm_giant: ['Cuc porpra', '15', 247],
+  bat_giant: 'giant_bat',
+  bat: 'bat',
+  spider_brown_giant: 'giant_wolf_spider',
+  spider_brown: 'spider',
+  spider_black_giant: 'giant_spider',
+  spider_black: 'spider',
+  rat: 'rat',
+  rat_giant: 'giant_rat',
+  snake_giant: 'giant_poisonous_snake',
+  snake: 'poisonous_snake',
+  wolf_black: 'wolf',
+  wolf_red: 'dire_wolf',
+  bird_dove: 'raven',
+  bird_hawk: 'hawk',
+  bird_crow: 'raven',
+  beetle_giant: 'giant_fire_beetle',
+  beetle_fire_giant: 'giant_fire_beetle',
+  beetle: 'beetle',
+  beetle_fire: 'beetle',
+  moth_white: 'stirge',
+  moth_red: 'stirge',
+  moth_black: 'stirge',
+  toad_green: 'giant_frog',
+  toad_blue: 'giant_frog',
+  toad_horned: 'giant_toad',
+  flies: 'insect_swarm',
+  worm: 'grick',
+  worm_giant: 'purple_worm',
   // Aberracions, llimes i altres
-  beholder: ['Espectador (LMoP)', '3', 39],
-  beholder_deep: ['Contemplador', '13', 180],
-  slime_green: ['Llim gris', '1/2', 22],
-  slime_purple: ['Púding negre', '4', 85],
-  slime_red: ['Gelatina ocre (LMoP)', '2', 45],
-  mimic: ['Mímic', '2', 58],
-  pixie_a: ['Fada', '1/4', 1],
-  pixie_b: ['Fada', '1/4', 1],
-  wisp_ancient: ['Foc follet', '2', 22],
-  wisp: ['Foc follet', '2', 22],
-  demon_red: ['Vrock', '6', 104],
-  demon_blue: ['Hezrou', '8', 136],
-  demon_green: ['Glabrezu', '9', 157],
+  beholder: 'spectator',
+  beholder_deep: 'beholder',
+  slime_green: 'gray_ooze',
+  slime_purple: 'black_pudding',
+  slime_red: 'ochre_jelly',
+  mimic: 'mimic',
+  pixie_a: 'pixie',
+  pixie_b: 'pixie',
+  wisp_ancient: 'will_o_wisp',
+  wisp: 'will_o_wisp',
+  demon_red: 'vrock',
+  demon_blue: 'hezrou',
+  demon_green: 'glabrezu',
   // Dracs (joves)
-  dragon_shadow: ['Drac negre jove', '7', 127],
-  dragon_red: ['Drac vermell jove', '10', 178],
-  dragon_blue: ['Drac blau jove', '9', 152],
-  dragon_green: ['Drac verd jove (Venomfang, LMoP)', '8', 136],
+  dragon_shadow: 'young_black_dragon',
+  dragon_red: 'young_red_dragon',
+  dragon_blue: 'young_blue_dragon',
+  dragon_green: 'young_green_dragon',
   // Gòlems i elementals
-  golem_stone: ['Gòlem de pedra', '10', 178],
-  golem_fire: ['Elemental de foc', '5', 102],
-  golem_mud: ['Gòlem d\'argila', '9', 133],
-  golem_ice: ['Gòlem de carn', '5', 93],
-  golem_metal: ['Gòlem de ferro', '16', 210],
-  elemental_vorpal: ['Caçador invisible', '6', 104],
-  elemental_water: ['Elemental d\'aigua', '5', 114],
-  elemental_fire: ['Elemental de foc', '5', 102],
-  elemental_air: ['Elemental d\'aire', '5', 90],
-  elemental_earth: ['Elemental de terra', '5', 126],
+  golem_stone: 'stone_golem',
+  golem_fire: 'fire_elemental',
+  golem_mud: 'clay_golem',
+  golem_ice: 'flesh_golem',
+  golem_metal: 'iron_golem',
+  elemental_vorpal: 'invisible_stalker',
+  elemental_water: 'water_elemental',
+  elemental_fire: 'fire_elemental',
+  elemental_air: 'air_elemental',
+  elemental_earth: 'earth_elemental',
 };
 
 export interface CreatureStats { as: string; cr: string; xp: number; hp: number }
 
+/** Bloc del monstre amb què es juga una criatura del paquet (pel nom, sense la variant de color). */
+export function creatureMonster(name: string): Monster | null {
+  const id = S[name.split('~')[0]];
+  return id ? MONSTERS[id] ?? null : null;
+}
+
 /** Estadístiques d'una criatura del paquet (pel nom, sense la variant de color). Null si no en té. */
 export function creatureStats(name: string): CreatureStats | null {
-  const s = S[name.split('~')[0]];
-  if (!s) return null;
-  return { as: s[0], cr: s[1], xp: XP_BY_CR[s[1]] ?? 0, hp: s[2] };
+  const mo = creatureMonster(name);
+  if (!mo) return null;
+  return { as: mo.name, cr: mo.cr, xp: XP_BY_CR[mo.cr] ?? 0, hp: mo.hp };
 }
 
 // ─── Catàleg unificat: plantilles + Bestiari Oryx ───────────────────────────────────────────
@@ -188,45 +193,47 @@ export interface EnemyTemplate {
   ally?: boolean;
   /** Text curt per al títol del botó (monstre 5e amb què es juga, notes). */
   detail?: string;
+  /** Bloc d'estadístiques de 5e amb què es juga (`MONSTERS`). */
+  monster?: string;
 }
 
 const T = (id: string, name: string, color: string, hpMax: number, R: number, sm: number, sprite: string, xp: number,
-  group: EnemyTemplate['group'] = 'Bestiari', detail?: string, ally?: boolean): EnemyTemplate =>
-  ({ id, name, color, hpMax, R, sm, sprite, xp, group, detail, ...(ally ? { ally: true } : {}) });
+  group: EnemyTemplate['group'] = 'Bestiari', detail?: string, ally?: boolean, monster?: string): EnemyTemplate =>
+  ({ id, name, color, hpMax, R, sm, sprite, xp, group, detail, ...(ally ? { ally: true } : {}), ...(monster ? { monster } : {}) });
 
 /** Plantilles genèriques (les de sempre): en un sol bloc amb el Bestiari Oryx, que no repeteix la seva figureta. */
 const GENERIC: EnemyTemplate[] = [
-  T('goblin',   'Goblin',   '#3a8a3a', 7,   25, 0.70, 'goblin', 50),
-  T('wolf',     'Llop',     '#8a7060', 11,  28, 0.80, 'wolf_black', 50),
-  T('bear',     'Ós',       '#8B5E3C', 34,  39, 1.10, 'minotaur', 200),
-  T('zombie',   'Zombi',    '#4a7a4a', 22,  33, 0.95, 'zombie_a', 50),
-  T('skeleton', 'Esquelet', '#c8b87a', 13,  26, 0.75, 'skeleton', 50),
-  T('orc',      'Orc',      '#5a7a2a', 15,  35, 1.00, 'goblin_warrior', 100),
-  T('troll',    'Trol',     '#3a6030', 84,  53, 1.50, 'troll', 1800),
-  T('rat',      'Rata',     '#7a6060', 2,   14, 0.40, 'rat_giant', 25),
-  T('bandit',   'Bandit',   '#6a5a4a', 11,  35, 1.00, 'thief', 25),
-  T('spider',   'Aranya',   '#3a3a5a', 4,   16, 0.45, 'spider_black_giant', 10),
-  T('dragon',   'Drac',     '#c0392b', 178, 70, 2.00, 'dragon_red', 5900),
+  T('goblin',   'Goblin',   '#3a8a3a', 7,   25, 0.70, 'goblin', 50, 'Bestiari', undefined, undefined, 'goblin'),
+  T('wolf',     'Llop',     '#8a7060', 11,  28, 0.80, 'wolf_black', 50, 'Bestiari', undefined, undefined, 'wolf'),
+  T('bear',     'Ós',       '#8B5E3C', 34,  39, 1.10, 'minotaur', 200, 'Bestiari', undefined, undefined, 'brown_bear'),
+  T('zombie',   'Zombi',    '#4a7a4a', 22,  33, 0.95, 'zombie_a', 50, 'Bestiari', undefined, undefined, 'zombie'),
+  T('skeleton', 'Esquelet', '#c8b87a', 13,  26, 0.75, 'skeleton', 50, 'Bestiari', undefined, undefined, 'skeleton'),
+  T('orc',      'Orc',      '#5a7a2a', 15,  35, 1.00, 'goblin_warrior', 100, 'Bestiari', undefined, undefined, 'orc'),
+  T('troll',    'Trol',     '#3a6030', 84,  53, 1.50, 'troll', 1800, 'Bestiari', undefined, undefined, 'troll'),
+  T('rat',      'Rata',     '#7a6060', 2,   14, 0.40, 'rat_giant', 25, 'Bestiari', undefined, undefined, 'giant_rat'),
+  T('bandit',   'Bandit',   '#6a5a4a', 11,  35, 1.00, 'thief', 25, 'Bestiari', undefined, undefined, 'bandit'),
+  T('spider',   'Aranya',   '#3a3a5a', 4,   16, 0.45, 'spider_black_giant', 10, 'Bestiari', undefined, undefined, 'spider'),
+  T('dragon',   'Drac',     '#c0392b', 178, 70, 2.00, 'dragon_red', 5900, 'Bestiari', undefined, undefined, 'young_red_dragon'),
 ];
 
 /** Castell de la Fumarola (Cragmaw Castle): habitants per zones i jefes (Notion: base de dades de campanya). */
 const CASTLE: EnemyTemplate[] = [
-  T('fum_goblin',   'Goblin Bocapeñasco', '#3a8a3a', 7,  25, 0.70, 'goblin', 50, 'Castell de la Fumarola', 'Centinelles, arquers i barracons (zones 1, 3, 4, 7, 9) · VD 1/4'),
-  T('fum_hobgoblin','Hobgoblin',          '#8a3a2a', 11, 33, 0.95, 'goblin_warrior', 100, 'Castell de la Fumarola', 'Quarter hobgoblin (zona 6) · VD 1/2'),
-  T('fum_yegg',     'Yegg',               '#5a8a3a', 12, 30, 0.85, 'goblin_warrior', 50, 'Castell de la Fumarola', 'Cuiner gras i cascarrabias, saló de banquets (zona 7) · VD 1/4'),
-  T('fum_lhupo',    'Lhupo',              '#6a9a3a', 12, 26, 0.75, 'goblin_shaman', 100, 'Castell de la Fumarola', 'Xaman de Maglubiyet, santuari (zona 9) · VD 1/2'),
-  T('fum_grick',    'Grick',              '#7a6a8a', 27, 33, 0.95, 'worm', 450, 'Castell de la Fumarola', 'Mascota de Lhupo, vestíbul fosc (zona 8) · VD 2'),
-  T('fum_owlbear',  'Os mussol captiu',   '#8B5E3C', 59, 45, 1.30, 'minotaur', 700, 'Castell de la Fumarola', 'Torre (zona 13) · VD 3'),
-  T('fum_snarl',    'Snarl',              '#8a7060', 18, 28, 0.80, 'wolf_red', 50, 'Castell de la Fumarola', 'Llop del rei Jalil (zona 14) · VD 1/4'),
-  T('fum_jalil',    'Rei Jalil',          '#7a4a2a', 65, 48, 1.35, 'ogre', 700, 'Castell de la Fumarola', 'Osgo vell, cap dels Bocapeñasco (King Grol, zona 14) · jefe'),
-  T('fum_vyerith',  'Vyerith',            '#8a4aa0', 52, 35, 1.00, 'drow_wizard', 700, 'Castell de la Fumarola', 'Doppelganger disfressat de drow, emissari dels Germans (zona 14) · VD 3 · jefe'),
+  T('fum_goblin',   'Goblin Bocapeñasco', '#3a8a3a', 7,  25, 0.70, 'goblin', 50, 'Castell de la Fumarola', 'Centinelles, arquers i barracons (zones 1, 3, 4, 7, 9) · VD 1/4', undefined, 'goblin'),
+  T('fum_hobgoblin','Hobgoblin',          '#8a3a2a', 11, 33, 0.95, 'goblin_warrior', 100, 'Castell de la Fumarola', 'Quarter hobgoblin (zona 6) · VD 1/2', undefined, 'hobgoblin'),
+  T('fum_yegg',     'Yegg',               '#5a8a3a', 12, 30, 0.85, 'goblin_warrior', 50, 'Castell de la Fumarola', 'Cuiner gras i cascarrabias, saló de banquets (zona 7) · VD 1/4', undefined, 'goblin'),
+  T('fum_lhupo',    'Lhupo',              '#6a9a3a', 12, 26, 0.75, 'goblin_shaman', 100, 'Castell de la Fumarola', 'Xaman de Maglubiyet, santuari (zona 9) · VD 1/2', undefined, 'goblin'),
+  T('fum_grick',    'Grick',              '#7a6a8a', 27, 33, 0.95, 'worm', 450, 'Castell de la Fumarola', 'Mascota de Lhupo, vestíbul fosc (zona 8) · VD 2', undefined, 'grick'),
+  T('fum_owlbear',  'Os mussol captiu',   '#8B5E3C', 59, 45, 1.30, 'minotaur', 700, 'Castell de la Fumarola', 'Torre (zona 13) · VD 3', undefined, 'owlbear'),
+  T('fum_snarl',    'Snarl',              '#8a7060', 18, 28, 0.80, 'wolf_red', 50, 'Castell de la Fumarola', 'Llop del rei Jalil (zona 14) · VD 1/4', undefined, 'wolf'),
+  T('fum_jalil',    'Rei Jalil',          '#7a4a2a', 65, 48, 1.35, 'ogre', 700, 'Castell de la Fumarola', 'Osgo vell, cap dels Bocapeñasco (King Grol, zona 14) · jefe', undefined, 'bugbear_chief'),
+  T('fum_vyerith',  'Vyerith',            '#8a4aa0', 52, 35, 1.00, 'drow_wizard', 700, 'Castell de la Fumarola', 'Doppelganger disfressat de drow, emissari dels Germans (zona 14) · VD 3 · jefe', undefined, 'doppelganger'),
 ];
 
 /** Aliats i NPCs de la campanya (XP 0). */
 const ALLIES: EnemyTemplate[] = [
-  T('npc_sildar', 'Sildar Flocdeneu',  '#5a8ac0', 52, 35, 1.00, 'knight', 0, 'Bestiari', 'Sildar Hallwinter, guerrer de l\'Aliança dels Lords · es juga com a Cavaller (VD 3)', true),
-  T('npc_gota',   'Gota',              '#7ab07a', 7,  22, 0.65, 'goblin', 0, 'Bestiari', 'Droop, goblin petit i espantadís · stats de goblin', true),
-  T('npc_roc',    'Roc Cercarocs',     '#b0905a', 11, 28, 0.80, 'dwarf', 0, 'Bestiari', 'Gundren Buscarrocas, nan presoner · es juga com a Guàrdia', true),
+  T('npc_sildar', 'Sildar Flocdeneu',  '#5a8ac0', 52, 35, 1.00, 'knight', 0, 'Bestiari', 'Sildar Hallwinter, guerrer de l\'Aliança dels Lords · es juga com a Cavaller (VD 3)', true, 'knight'),
+  T('npc_gota',   'Gota',              '#7ab07a', 7,  22, 0.65, 'goblin', 0, 'Bestiari', 'Droop, goblin petit i espantadís · stats de goblin', true, 'goblin'),
+  T('npc_roc',    'Roc Cercarocs',     '#b0905a', 11, 28, 0.80, 'dwarf', 0, 'Bestiari', 'Gundren Buscarrocas, nan presoner · es juga com a Guàrdia', true, 'guard'),
 ];
 
 /** Totes les plantilles amb nom propi (la Biblioteca i la mida automàtica les fan servir). */
@@ -238,7 +245,8 @@ export function creatureTemplate(name: string): EnemyTemplate {
   const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
   return {
     id: `oryx_${name}`, name: nice, color: '#f85149', hpMax: st?.hp ?? 10, R: 22, sm: 0.9, sprite: name, xp: st?.xp ?? 0,
-    group: 'Bestiari', detail: st ? `${st.as} · VD ${st.cr} · ${st.xp} XP` : undefined,
+    group: 'Bestiari', detail: st ? `${st.as} · VD ${st.cr} · CA ${creatureMonster(name)?.ac} · ${st.xp} XP` : undefined,
+    monster: S[name.split('~')[0]],
   };
 }
 
@@ -255,4 +263,11 @@ export function findTemplate(id: string): EnemyTemplate | undefined {
 export function extraCreatures(all: string[]): string[] {
   const used = new Set([...GENERIC.filter(t => t.id !== 'bear').map(t => t.sprite), ...PARTY_CREATURES]);
   return all.filter(n => !used.has(n));
+}
+
+/** Bloc de 5e d'una plantilla pel seu `templateId` (pròpia o d'Oryx). Null si no en té (BD, forja…). */
+export function monsterForTemplate(templateId: string | undefined): Monster | null {
+  if (!templateId) return null;
+  const id = findTemplate(templateId)?.monster;
+  return id ? MONSTERS[id] ?? null : null;
 }

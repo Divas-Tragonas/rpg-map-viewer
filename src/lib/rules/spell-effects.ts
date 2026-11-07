@@ -90,7 +90,8 @@ export function spellCells(type: string, points: Point[], g: Grid): Cell[] {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
   // Con: si s'ha apuntat més lluny del que arriba (fora d'abast, decisió del DM), s'allarga fins al punt.
-  const len = Math.max(ft(fx.sizeFt ?? 15, g.gs), fx.shape === 'cone' ? Math.hypot(end.x - start.x, end.y - start.y) : 0);
+  // (mitja casella de marge: el punt és el centre de l'objectiu, i la casella s'ha de cobrir sencera).
+  const len = Math.max(ft(fx.sizeFt ?? 15, g.gs), fx.shape === 'cone' ? Math.hypot(end.x - start.x, end.y - start.y) + g.gs / 2 : 0);
   if (fx.shape === 'cone') { x0 = start.x - len; x1 = start.x + len; y0 = start.y - len; y1 = start.y + len; }
   const out: Cell[] = [];
   const own = cellKeyOf(cellOfPoint(start, g));

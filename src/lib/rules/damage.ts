@@ -1,6 +1,8 @@
 import { DAMAGE_TYPES, type DamageType } from '@/lib/characters';
 import type { ApiEnemy } from '@/lib/api';
 import type { LibEnemy } from '@/types';
+import type { Monster } from '@/lib/monsters';
+import { monsterForTemplate } from '@/lib/bestiary';
 
 /**
  * Defenses d'un enemic (camps de la API `/enemies`, v5): abast cos a cos i com li afecta
@@ -13,13 +15,18 @@ export interface Defenses {
   immunities?: DamageType[];
   /** Resistent només si l'atac NO és màgic (armes normals). */
   nonMagicResistances?: DamageType[];
+  /** Immune només si l'atac NO és màgic (gòlems, lich, senyor mòmia). Només del bestiari de l'app. */
+  nonMagicImmunities?: DamageType[];
+  /** Estats als quals és immune (ids de `CONDITIONS`). Només del bestiari de l'app. */
+  conditionImmunities?: string[];
 }
 
 export const damageLabel = (t: DamageType | undefined) => DAMAGE_TYPES.find(d => d.id === t)?.label ?? '';
 
 /** Té alguna defensa de dany (per decidir si cal copiar-les o ensenyar-les). */
 export function hasDefenses(d: Defenses | undefined): boolean {
-  return !!d && !!((d.resistances?.length) || (d.vulnerabilities?.length) || (d.immunities?.length) || (d.nonMagicResistances?.length) || (d.reachFt !== undefined && d.reachFt !== 5));
+  return !!d && !!((d.resistances?.length) || (d.vulnerabilities?.length) || (d.immunities?.length) || (d.nonMagicResistances?.length)
+    || (d.nonMagicImmunities?.length) || (d.conditionImmunities?.length) || (d.reachFt !== undefined && d.reachFt !== 5));
 }
 
 /**
@@ -36,6 +43,7 @@ export function applyDefenses(
   if (!type || !d) return { final: base, reasons: [] };
   const name = damageLabel(type);
   if (d.immunities?.includes(type)) return { final: 0, reasons: [`Immune a ${name}`] };
+  if (!magic && d.nonMagicImmunities?.includes(type)) return { final: 0, reasons: [`Immune a ${name} d'armes no màgiques`] };
   const resNormal = !!d.resistances?.includes(type);
   const resNonMagic = !magic && !!d.nonMagicResistances?.includes(type);
   const res = resNormal || resNonMagic;
@@ -66,4 +74,26 @@ export function libEnemiesForPlayers(list: LibEnemy[]): LibEnemy[] {
     const { defenses: _d, ...rest } = e; void _d;
     return rest;
   });
+}
+
+const BPS: DamageType[] = ['bludgeoning', 'piercing', 'slashing'];
+
+/** Defenses d'un bloc del bestiari de l'app. */
+export function monsterDefenses(mo: Monster): Defenses {
+  const reach = Math.max(5, ...mo.attacks.filter(a => a.kind !== 'ranged').map(a => a.reachFt ?? 5));
+  return {
+    reachFt: reach, resistances: mo.res, vulnerabilities: mo.vul, immunities: mo.imm,
+    nonMagicResistances: mo.nmRes ? BPS : undefined, nonMagicImmunities: mo.nmImm ? BPS : undefined,
+    conditionImmunities: mo.cimm,
+  };
+}
+
+/**
+ * Defenses d'un enemic al mapa: les de la BD (copiades en afegir-lo) o, si no en té, les del bloc
+ * de 5e de la seva plantilla (bestiari de l'app; així també les tenen els tokens que ja eren al mapa).
+ */
+export function enemyDefenses(en: Pick<LibEnemy, 'defenses' | 'templateId'>): Defenses | undefined {
+  if (en.defenses) return en.defenses;
+  const mo = monsterForTemplate(en.templateId);
+  return mo ? monsterDefenses(mo) : undefined;
 }

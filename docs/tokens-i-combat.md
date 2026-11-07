@@ -108,6 +108,14 @@
 - **Pintura** (`render/spells.ts`): l'abast és la regió de caselles a l'abast (farciment suau i perímetre esglaonat, com el rang de moviment; `rangePaths` la cacheja per origen i abast); l'abast llarg, només la vora de guions. Més de 80 caselles (400 ft) no es pinta (seria massa per frame). L'àrea d'un conjur (`area_place`) són les caselles amb el centre dins del radi (`circleCells`), amb el color de la màgia.
 - **Qui toca un conjur** (`spellCells` + `spellTargets`): àrea = caselles amb el centre dins del radi; línia = caselles amb el centre a menys de mitja casella del traç; con = caselles amb el centre dins del con; un sol objectiu = el token que ocupa la casella del punt final. Un token és afectat si alguna de les seves caselles hi és.
 
+## Bestiari de 5e de l'app (`lib/monsters.ts` + `lib/bestiary.ts`, v5 snapshot 6)
+- **`MONSTERS`**: un bloc per monstre oficial (Manual de monstres / SRD, LMoP, VGtM): VD, PV, CA, velocitat, característiques, salvacions amb competència, vulnerabilitats, resistències, immunitats, `nmRes`/`nmImm` (B/P/S d'armes no màgiques), immunitats a estats (`cimm`), atacs (`SheetAttack`, amb abast i tipus de dany; el dany extra va al nom: «+2d8 verí») i trets curts.
+- **Enllaç**: cada figureta d'Oryx té el seu monstre (`S` a `bestiary.ts`: `creatureMonster`) i cada plantilla pròpia el seu `monster` (`ENEMY_TEMPLATES`). `monsterForTemplate(templateId)` el troba per a qualsevol token (també els que ja eren al mapa: no es copia res al token ni viatja als jugadors).
+- **On es fa servir**: `enemyDefenses(en)` (`rules/damage.ts`) = les de la BD si en té, si no les del bloc (`monsterDefenses`, amb `nonMagicImmunities` i `conditionImmunities`); els pop-ups de dany i de conjurs (immunitats, resistències, salvació de l'objectiu amb `monsterSave`); el menú d'atacs dels enemics (els del bloc); i la **«Fitxa 5e»** plegable del menú del token (`MonsterBlock`).
+- **Immunitats a estats**: al pop-up dels conjurs, l'estat surt ratllat amb «immune» i no s'aplica.
+- **Aproximacions** (figuretes sense monstre exacte): Gòlem de gel = Gòlem de carn; Escarabat = cranc; arnes = estirges. Es poden canviar a `S`.
+- ⚠️ Els enemics de la **BD** (back office) només tenen defenses i abast: la resta del bloc (CA, característiques, atacs, immunitats a estats…) necessita camps nous a la API.
+
 ## Dany amb resistències (`lib/rules/damage.ts` + `DamagePopup`, v5)
 - **Defenses dels enemics** (API `/enemies`, v5): `reachFt`, `resistances`, `vulnerabilities`, `immunities`, `nonMagicResistances`. Es copien al token en afegir-lo de la BD (`defensesOf` → `LibEnemy.defenses`, com la XP): funcionen sense connexió i es desen amb la partida. Un enemic afegit abans de la v5 (o del bestiari del codi) no en té: cal tornar-lo a afegir. S'editen al back office d'enemics (`DefensesEditor`: abast i botons per tipus de dany).
 - ⚠️ **No viatgen als jugadors**: `libEnemiesForPlayers` les treu al `STATE` (després de l'`extra`) i al `STRUCT`. Des de la consola es veurien les debilitats.
@@ -117,7 +125,7 @@
 
 ## Conjurs en combat (`lib/rules/spell-effects.ts` + `SpellEffectPopup`, v5 snapshot 2)
 - **Només les màgies de la taula** obren el pop-up (`effectFor`, v5 snapshot 5): les que no fan dany ni posen estats (Mà de mag, Llum, Prestidigitació, Taumatúrgia, Detectar màgia) es llancen i prou. Amb el dany buit, Enter només llança l'efecte (i els estats marcats).
-- **Fora d'abast el con s'allarga** fins al punt clicat (Mans ardents a 25 ft toca el que hi ha fins allà): l'avís vermell no impedeix actuar.
+- **Fora d'abast el con s'allarga** fins al punt clicat, amb mitja casella de marge (Mans ardents a 25 ft toca el que hi ha fins allà): l'avís vermell no impedeix actuar. Una màgia direccional clicada sobre un token (o la seva figureta, que a l'app Píxel és per sobre de la seva casella) **apunta al seu centre** (clic de destí a `useMouseHandlers`): abans, clicar la figura deixava el punt fora de la casella del token i el con no el tocava.
 - **Protecció** (`buff`): Escut (`self`, el llançador), Armadura de mag i Beneir mostren el benefici al pop-up (Escut: «CA 12 → 17 fins al principi del seu proper torn», amb la CA de la fitxa; Armadura: 13 + DES) i un avís en aplicar, i **es marquen al token** amb un estat de benefici (`shielded`, `blessed`, `mage_armored` a `CONDITIONS`, amb `buff: true` i isotip propi): surten a l'anell i al selector d'estats com la resta.
 
 ## Durades en combat (`lib/rules/timed-effects.ts`, v5 snapshot 5)

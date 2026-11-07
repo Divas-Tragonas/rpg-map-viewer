@@ -3,6 +3,16 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 6 — Bestiari de 5e complet i Mans ardents fora d'abast
+- **Arreglat: Mans ardents fora d'abast**. En clicar la figureta d'un token (a l'app Píxel és per sobre de la seva casella), el con apuntava massa curt i no el tocava. Ara una màgia direccional clicada sobre un token apunta al seu centre
+- **Bestiari de l'app amb tots els blocs de 5e** (Manual de monstres, Phandelver, Volo): CA, característiques, salvacions, velocitat, resistències, immunitats, vulnerabilitats, immunitats a estats, atacs i trets de cada monstre. Abans només hi havia VD, vida i XP
+- **El dany ho té en compte**: l'Elemental de foc és immune al foc (Mans ardents: 0), l'esquelet és vulnerable al contundent, els gòlems són immunes a les armes no màgiques, etc. També els enemics que ja eren al mapa
+- **Immunitats a estats**: al pop-up d'un conjur, un estat al qual l'objectiu és immune surt ratllat i no s'aplica (l'Elemental de foc no es pot adormir)
+- **Salvació de l'objectiu** al pop-up dels conjurs (enemics del bestiari i jugadors amb fitxa): «supera (+3)»
+- **Atacs dels enemics** del bestiari al menú del token, amb el seu abast (urpes, mossegades, arcs…)
+- **Fitxa 5e** plegable al menú del token dels enemics: el bloc sencer per consultar-lo en partida
+- Sense canvis a la API (els enemics de la BD continuen tenint només defenses i abast)
+
 ### v5 snapshot 5 — Durades de 5e en combat, beneficis al token i Supr
 - **Mà de mag, Llum, Prestidigitació, Taumatúrgia i Detectar màgia** ja no obren el pop-up de dany: no en fan. Només hi surten les màgies que fan dany, curen, posen estats o donen un benefici
 - **Durades en combat** (regles de 5e, comptant els torns de qui l'ha llançat): Escut fins al principi del seu proper torn; Dormir, Riure horrible i Beneir 1 minut (10 rondes). En acabar-se, l'estat es treu sol i surt un avís. **Dormir s'acaba si l'adormit rep dany**. Encisar (1 hora), Greix (fins que s'aixequi) i Armadura de mag (8 hores) no caduquen dins del combat

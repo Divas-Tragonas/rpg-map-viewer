@@ -236,10 +236,16 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // centre de l'àrea o punta del raig, limitat a l'abast. Amb qualsevol eina: la màgia
     // del grimori es llança sense haver de canviar a l'eina Màgies.
     if (e.button === 0 && R.rAreaPlacementPending.current && !e.shiftKey && !e.altKey && !e.ctrlKey) {
-      const { mx: pmx, my: pmy } = mc(e);
-      const { type, origin } = R.rAreaPlacementPending.current;
+      const { mx: pmx, my: pmy, sc: psc } = mc(e);
+      const { type, origin, mode } = R.rAreaPlacementPending.current;
       // L'abast és un avís (vermell al cursor): el clic fixa el destí allà on és, fora d'abast també.
-      const target = { x: pmx, y: pmy };
+      // Una màgia direccional clicada sobre un token (o la seva figureta, que a l'app Píxel queda per
+      // sobre de la seva casella) apunta al centre del token: si no, el con o el raig podien no tocar-lo.
+      let target = { x: pmx, y: pmy };
+      if (mode === 'line') {
+        const hit = tokenAt(R, pmx, pmy, psc);
+        if (hit && Math.hypot(hit.x - origin.x, hit.y - origin.y) > hit.R) target = { x: hit.x, y: hit.y };
+      }
       // En combat, si toca algun token: primer el pop-up (dany, salvacions, estats) i, en
       // confirmar-lo, l'animació. Si no, es llança ja.
       if (S.onSpellCast(type, [origin, target])) {

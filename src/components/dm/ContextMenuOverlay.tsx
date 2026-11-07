@@ -9,6 +9,9 @@ import { CharacterSection, type CharacterMenuProps } from '@/components/dm/Chara
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog, AttackPending } from '@/types';
 import { attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
+import { monsterForTemplate } from '@/lib/bestiary';
+import { enemyDefenses } from '@/lib/rules/damage';
+import { MonsterBlock } from '@/components/dm/MonsterBlock';
 
 /** Posició d'un menú flotant, en píxels de la finestra (cantonada de dalt a l'esquerra). */
 export interface MenuPos { x: number; y: number }
@@ -504,9 +507,12 @@ export function ContextMenuOverlay({
 
       {contextMenu.canAttack && (() => {
         const ch = pl ? characterFor(pl, characters.characters) : null;
-        const own = ch ? attacksOf(sheetOf(ch)) : [];
-        // Enemics: el seu abast de la BD (`defenses.reachFt`, 5 ft si no en té).
-        const generic = lib?.defenses?.reachFt !== undefined ? { ...GENERIC_MELEE, reachFt: lib.defenses.reachFt } : GENERIC_MELEE;
+        // Enemics: els atacs del seu bloc de 5e (bestiari de l'app) o, si no en té, un cos a cos amb
+        // l'abast de la BD (`defenses.reachFt`, 5 ft si no en té).
+        const mo = lib ? monsterForTemplate(lib.templateId) : null;
+        const own = ch ? attacksOf(sheetOf(ch)) : mo ? mo.attacks.filter(a => a.damage) : [];
+        const reach = lib ? enemyDefenses(lib)?.reachFt : undefined;
+        const generic = reach !== undefined ? { ...GENERIC_MELEE, reachFt: reach } : GENERIC_MELEE;
         const list = own.length > 0 ? own : [generic];
         return <AttackList attacks={list} onPick={a => {
           const { normalFt, longFt } = attackRanges(a);
@@ -519,6 +525,8 @@ export function ContextMenuOverlay({
         const origin = contextMenu.casterPos;
         return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
       })()}
+
+      {lib && <MonsterBlock monster={monsterForTemplate(lib.templateId)} defenses={enemyDefenses(lib)} />}
 
       <ConditionPicker
         active={conditions[id] || []}

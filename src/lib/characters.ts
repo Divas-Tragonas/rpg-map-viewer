@@ -230,3 +230,11 @@ export function boldParts(line: string): { text: string; bold: boolean }[] {
   return line.split(/(\*\*[^*]+\*\*)/).filter(Boolean).map(t =>
     t.startsWith('**') && t.endsWith('**') ? { text: t.slice(2, -2), bold: true } : { text: t, bold: false });
 }
+
+/** Bonificació de salvació d'una fitxa: modificador + competència si la té marcada. Null sense dades. */
+export function sheetSave(sheet: CharacterSheet, ab: AbilityId, level: number): number | null {
+  const score = sheet.abilities?.[ab];
+  if (score === undefined) return null;
+  const prof = parseInt((sheet.profBonus ?? '').replace(/[^-\d]/g, '')) || (2 + Math.floor((Math.max(1, level) - 1) / 4));
+  return abilityMod(score) + (sheet.saves?.includes(ab) ? prof : 0);
+}
