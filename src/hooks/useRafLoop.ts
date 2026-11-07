@@ -263,8 +263,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       {
         const isDragging = !!R.dragRef.current;
         const measuring = R.rDrawTool.current === 'pointer' || R.rDrawTool.current === 'wall' || R.rDrawTool.current === 'terrain';
-        // Mapa de caselles: la graella encesa es veu sempre també al DM (és la quadrícula del mapa).
-        const tgt = (R.rGridVisible.current && (isDragging || R.rGridCalibrating.current || !!R.rTileMap.current)) || measuring ? 1 : 0;
+        const tgt = (R.rGridVisible.current && (isDragging || R.rGridCalibrating.current)) || measuring ? 1 : 0;
         R.rGridDmAlpha.current += (tgt - R.rGridDmAlpha.current) * 0.25;
         if (Math.abs(tgt - R.rGridDmAlpha.current) < 0.004) R.rGridDmAlpha.current = tgt;
       }

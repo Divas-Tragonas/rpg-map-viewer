@@ -1,4 +1,5 @@
 import type { Point } from '@/types';
+import { AREA_SPELL_DATA, LINE_SPELL_RANGE_FT } from '@/constants';
 import type { AbilityId, DamageType } from '@/lib/characters';
 import type { TokenSlot } from '@/lib/render/token-geom';
 import { cellCenter, cellKeyOf, cellOfPoint, circleCells, tokenCells, type Cell, type Grid } from '@/lib/rules/cells';
@@ -17,7 +18,8 @@ import { cellCenter, cellKeyOf, cellOfPoint, circleCells, tokenCells, type Cell,
  * Les que no hi són (Beneir, Mà de mag, Llum…) no obren cap pop-up.
  */
 export interface SpellEffect {
-  shape: 'circle' | 'line' | 'cone' | 'single';
+  /** `self`: només el llançador (Escut, Armadura de mag): el pop-up en mostra el benefici. */
+  shape: 'circle' | 'line' | 'cone' | 'single' | 'self';
   sizeFt?: number;
   damageType?: DamageType;
   save?: AbilityId;
@@ -26,6 +28,10 @@ export interface SpellEffect {
   heal?: boolean;
   /** Segons des del llançament fins a l'impacte de l'animació: el dany i els estats s'apliquen llavors. */
   impactS?: number;
+  /** Benefici que dona (es mostra al pop-up; l'app no el porta a cap número). */
+  buff?: 'shield' | 'mage_armor' | 'bless';
+  /** Màgia sense efecte de dany a la taula: el pop-up hi deixa posar dany a mà igualment. */
+  generic?: boolean;
 }
 
 export const SPELL_EFFECTS: Record<string, SpellEffect> = {
@@ -41,8 +47,28 @@ export const SPELL_EFFECTS: Record<string, SpellEffect> = {
   charm_person:     { shape: 'single', save: 'wis', conditions: ['charmed'], impactS: 0.8 },
   sleep:            { shape: 'circle', sizeFt: 20, conditions: ['unconscious'], impactS: 0.6 },
   grease:           { shape: 'circle', sizeFt: 10, save: 'dex', conditions: ['prone'], impactS: 0.6 },
+  shield:           { shape: 'self', buff: 'shield' },
+  mage_armor:       { shape: 'single', buff: 'mage_armor' },
+  bless:            { shape: 'single', buff: 'bless' },
   cure_wounds:      { shape: 'single', heal: true, impactS: 0.5 },
 };
+
+/**
+ * Efecte d'una màgia: el de la taula o, si no hi és, un de genèric segons el seu gest (àrea del
+ * seu radi o un sol objectiu), perquè el DM hi pugui posar dany igualment. Les personals que no
+ * són a la taula (Detectar màgia…) no en tenen.
+ */
+export function effectFor(type: string): SpellEffect | null {
+  const fx = SPELL_EFFECTS[type];
+  if (fx) return fx;
+  const area = AREA_SPELL_DATA[type];
+  if (area) {
+    if (area.rangeFt === 0) return null;
+    return area.aoeRadiusFt > 2.5 ? { shape: 'circle', sizeFt: area.aoeRadiusFt, generic: true } : { shape: 'single', generic: true };
+  }
+  if (LINE_SPELL_RANGE_FT[type] !== undefined) return { shape: 'single', generic: true };
+  return null;
+}
 
 export const SAVE_LABEL: Record<AbilityId, string> = { str: 'FUE', dex: 'DES', con: 'CON', int: 'INT', wis: 'SAB', cha: 'CAR' };
 
@@ -60,14 +86,15 @@ function distToSegment(p: Point, a: Point, b: Point): number {
  * centre dins del con (sense la del llançador); un sol objectiu = la casella del punt final.
  */
 export function spellCells(type: string, points: Point[], g: Grid): Cell[] {
-  const fx = SPELL_EFFECTS[type];
+  const fx = effectFor(type);
   if (!fx || points.length === 0) return [];
   const start = points[0], end = points[points.length - 1];
   if (fx.shape === 'circle') return circleCells(end, fx.sizeFt ?? 5, g);
-  if (fx.shape === 'single') return [cellOfPoint(end, g)];
+  if (fx.shape === 'single' || fx.shape === 'self') return [cellOfPoint(end, g)];
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
-  const len = ft(fx.sizeFt ?? 15, g.gs);
+  // Con: si s'ha apuntat més lluny del que arriba (fora d'abast, decisió del DM), s'allarga fins al punt.
+  const len = Math.max(ft(fx.sizeFt ?? 15, g.gs), fx.shape === 'cone' ? Math.hypot(end.x - start.x, end.y - start.y) : 0);
   if (fx.shape === 'cone') { x0 = start.x - len; x1 = start.x + len; y0 = start.y - len; y1 = start.y + len; }
   const out: Cell[] = [];
   const own = cellKeyOf(cellOfPoint(start, g));
@@ -97,23 +124,30 @@ export function spellCells(type: string, points: Point[], g: Grid): Cell[] {
  * Sense graella no hi ha peus: retorna [].
  */
 export function spellTargets(type: string, points: Point[], slots: TokenSlot[], grid: Grid | null): string[] {
-  const fx = SPELL_EFFECTS[type];
-  if (!fx || !grid || points.length === 0) return [];
+  const fx = effectFor(type);
+  if (!fx || points.length === 0) return [];
   const start = points[0], end = points[points.length - 1];
   const caster = slots.find(s => Math.hypot(s.x - start.x, s.y - start.y) <= s.R);
+  if (fx.shape === 'self') return caster ? [caster.key] : [];
   const pool = fx.shape === 'circle' ? slots : slots.filter(s => s !== caster);
   if (fx.shape === 'single') {
-    // El token que ocupa la casella del punt final; si no n'hi ha, el més proper a mitja casella.
-    const endKey = cellKeyOf(cellOfPoint(end, grid));
-    const on = pool.find(s => tokenCells(s, s.R, grid).some(c => cellKeyOf(c) === endKey));
-    if (on) return [on.key];
+    // El token que ocupa la casella del punt final; si no n'hi ha (o no hi ha graella), el que hi
+    // és a sobre o el més proper a mitja casella.
+    if (grid) {
+      const endKey = cellKeyOf(cellOfPoint(end, grid));
+      const on = pool.find(s => tokenCells(s, s.R, grid).some(c => cellKeyOf(c) === endKey));
+      if (on) return [on.key];
+    }
+    const slack = grid ? grid.gs / 2 : 0;
     let best: TokenSlot | null = null, bestD = Infinity;
     for (const s of pool) {
       const d = Math.hypot(s.x - end.x, s.y - end.y) - s.R;
-      if (d <= grid.gs / 2 && d < bestD) { best = s; bestD = d; }
+      if (d <= slack && d < bestD) { best = s; bestD = d; }
     }
     return best ? [best.key] : [];
   }
+  // Àrees, línies i cons es mesuren en caselles: sense graella no hi ha peus.
+  if (!grid) return [];
   const hit = new Set(spellCells(type, points, grid).map(cellKeyOf));
   return pool.filter(s => tokenCells(s, s.R, grid).some(c => hit.has(cellKeyOf(c)))).map(s => s.key);
 }

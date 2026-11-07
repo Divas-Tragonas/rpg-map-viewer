@@ -1,3 +1,4 @@
+import { TILE } from '@/lib/tilemap/model';
 import type { FrameContext } from './types';
 import type { MoveRange } from '@/hooks/usePlayerTokenDrag';
 
@@ -48,6 +49,32 @@ export function renderMoveRange(ctx: CanvasRenderingContext2D, range: MoveRange,
   ctx.restore();
 }
 
+/** Opacitat de les línies de la graella (subtil: és una referència, no el protagonista). */
+const GRID_ALPHA = 0.14;
+
+/**
+ * Graella d'un mapa de caselles: només sobre el terra de les sales (ni al buit negre ni a les
+ * parets), a partir de la màscara `solid` del `tileLive`. Camí cachejat per màscara.
+ */
+let _floorKey: string | null = null, _floorPath: Path2D | null = null;
+function floorGridPath(solid: { cols: number; rows: number; cells: string }, gs: number): Path2D {
+  const key = `${solid.cols}x${solid.rows}|${gs}|${solid.cells}`;
+  if (_floorPath && _floorKey === key) return _floorPath;
+  const floor = (c: number, r: number) => c >= 0 && r >= 0 && c < solid.cols && r < solid.rows && solid.cells.charCodeAt(r * solid.cols + c) !== 49;
+  const p = new Path2D();
+  for (let r = 0; r < solid.rows; r++) for (let c = 0; c < solid.cols; c++) {
+    if (!floor(c, r)) continue;
+    const x = c * gs, y = r * gs;
+    // Cada aresta un cop: la de dalt i l'esquerra sempre; la de baix i la dreta si el veí no és terra.
+    p.moveTo(x, y); p.lineTo(x + gs, y);
+    p.moveTo(x, y); p.lineTo(x, y + gs);
+    if (!floor(c + 1, r)) { p.moveTo(x + gs, y); p.lineTo(x + gs, y + gs); }
+    if (!floor(c, r + 1)) { p.moveTo(x, y + gs); p.lineTo(x + gs, y + gs); }
+  }
+  _floorKey = key; _floorPath = p;
+  return p;
+}
+
 export function renderGrid(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const { sc, ox, oy, mw, mh, isDM, rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY, rGridDmAlpha, rGridCalibrating, rDrawTool } = fc;
   // The DM gets the grid as a reference while measuring (tool 4), even if it's not
@@ -59,11 +86,19 @@ export function renderGrid(ctx: CanvasRenderingContext2D, fc: FrameContext): voi
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
     ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
-    ctx.strokeStyle = `rgba(255,255,255,${0.30 * _gridAlpha})`;
+    ctx.strokeStyle = `rgba(255,255,255,${GRID_ALPHA * _gridAlpha})`;
     ctx.lineWidth = Math.max(0.5 / sc, lw / sc);
+    // Mapa de caselles amb la graella de les caselles: només al terra de les sales.
+    const solid = fc.rTileLive?.current?.solid;
+    if (solid && gs === TILE && gox === 0 && goy === 0 && solid.cells.length === solid.cols * solid.rows) {
+      ctx.stroke(floorGridPath(solid, gs));
+      ctx.restore();
+      return;
+    }
+    // Mapa d'imatge o vídeo: per tot el fons, començant per la primera línia (encara que quedi a fora).
     ctx.beginPath();
-    for (let x = gox; x <= mw; x += gs) { ctx.moveTo(x, 0); ctx.lineTo(x, mh); }
-    for (let y = goy; y <= mh; y += gs) { ctx.moveTo(0, y); ctx.lineTo(mw, y); }
+    for (let x = gox - (gox > 0 ? gs : 0); x <= mw; x += gs) { if (x >= 0) { ctx.moveTo(x, 0); ctx.lineTo(x, mh); } }
+    for (let y = goy - (goy > 0 ? gs : 0); y <= mh; y += gs) { if (y >= 0) { ctx.moveTo(0, y); ctx.lineTo(mw, y); } }
     ctx.stroke(); ctx.restore();
   }
 }

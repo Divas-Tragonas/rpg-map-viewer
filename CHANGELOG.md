@@ -3,6 +3,15 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 4 — Graella subtil i només al terra, conjurs fora de combat i Escut
+- **Graella més subtil**. Als mapes de caselles només es veu al **terra de les sales** (ni al buit negre ni a les parets); als mapes d'imatge o vídeo, per tot el fons
+- **Al DM la graella torna a sortir només mentre mous un token** (la v5 snapshot 2 la deixava sempre encesa als mapes de caselles)
+- **Pop-up del conjur també fora de combat**: es pot fer el dany sense iniciar els torns
+- **Tots els conjurs que toquen un token obren el pop-up** (Mà de mag, Llum…: dany a mà si cal). Amb el dany buit, Enter només llança l'efecte
+- **Fora d'abast**: el con de Mans ardents s'allarga fins on cliques, i toca el que hi ha fins allà
+- **Escut** mostra el benefici («CA 12 → 17 fins al principi del seu proper torn», amb la CA de la fitxa) i en deixa un avís en aplicar-lo. També Armadura de mag (13 + DES) i Beneir (+1d4)
+- Sense canvis a la API
+
 ### v5 snapshot 3 — Primer el dany, després l'animació; abasts per caselles; app Píxel per defecte
 - **App Píxel per defecte**: l'app arrenca a la Píxel (també qui tenia triada la Clàssica, una vegada); a partir d'aquí es recorda el que triïs
 - **Conjurs en combat: primer es decideix i després es veu**. En clicar el destí surt el pop-up i el conjur encara no es llança; en aplicar, surt l'animació i el dany i els estats arriben quan l'efecte toca. «Només l'efecte» la llança sense aplicar res; Cancel·lar/Esc no llança res

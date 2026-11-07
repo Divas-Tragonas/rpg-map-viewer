@@ -73,7 +73,7 @@ import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, STATS_PART } from '@/lib/characters';
+import { buildSheetShow, characterFor, STATS_PART, sheetOf, abilityMod } from '@/lib/characters';
 import { creatureStats } from '@/lib/bestiary';
 import { RightRail } from '@/components/dm/RightRail';
 import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
@@ -921,10 +921,9 @@ export function DMView() {
   useWheelZoom(R, setZoom, setDmPrivateActive, _broadcastState);
 
   // ── Mouse handlers ────────────────────────────────────────────────────────
-  // ── Conjurs en combat: qui toca i pop-up per confirmar dany, salvacions i estats ──────
-  // Només amb els torns actius (fora de combat les màgies són només l'efecte visual).
+  // ── Conjurs: qui toca i pop-up per confirmar dany, salvacions i estats (abans de l'animació) ──
+  // També fora de combat: el DM pot voler el dany sense començar els torns.
   const onSpellCast = useCallback((type: string, points: import('@/types').Point[]): boolean => {
-    if (!R.rTurn.current.active) return false;
     const slots = tokenSlots(R, false);
     const keys = spellTargets(type, points, slots, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current));
     if (keys.length === 0) return false;
@@ -979,14 +978,15 @@ export function DMView() {
   // mou la punta del raig o el centre de l'àrea, limitats a l'abast en peus.
   const castFromToken = useCallback((type: import('@/types').SpellType, origin: { x: number; y: number }) => {
     const area = AREA_SPELL_DATA[type];
-    if (area && area.rangeFt === 0) { addSpell(type, [origin, origin], () => {}); return; }
+    // Personals: les de protecció (Escut) obren el pop-up amb el benefici; la resta surten ja.
+    if (area && area.rangeFt === 0) { if (!onSpellCast(type, [origin, origin])) addSpell(type, [origin, origin], () => {}); return; }
     const mode = area ? 'area' as const : 'line' as const;
     R.rAttackPending.current = null;
     R.rAreaPlacementPending.current = { type, origin, mode };
     R.rSpellPreview.current = mode === 'area'
       ? { mode: 'area_place', origin, center: origin, spellType: type }
       : { mode: 'line', start: origin, end: origin, rangeFt: spellRangeFt(type) };
-  }, [addSpell]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [addSpell, onSpellCast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Atacs del menú d'un token: el ratolí apunta l'objectiu (abast vora a vora, només avís) ──
   const attackFromToken = useCallback((p: import('@/types').AttackPending) => {
@@ -2124,7 +2124,12 @@ export function DMView() {
         for (const k of spellPrompt.keys) {
           const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;
           const en = k.startsWith('lib_') ? libEnemies.find(e => `lib_${e.id}` === k) : undefined;
-          if (pl) targets.push({ key: k, name: pl.name, hp: pl.hp, hpMax: pl.hpMax, conditions: conditions[k] ?? [] });
+          if (pl) {
+            const ch = characterFor(pl, chars.characters);
+            const dex = ch ? sheetOf(ch).abilities?.dex : undefined;
+            targets.push({ key: k, name: pl.name, hp: pl.hp, hpMax: pl.hpMax, conditions: conditions[k] ?? [],
+              ac: ch?.ac, dexMod: dex !== undefined ? abilityMod(dex) : undefined });
+          }
           else if (en) targets.push({ key: k, name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: en.defenses, conditions: conditions[k] ?? [] });
         }
         if (targets.length === 0) return null;
@@ -2144,6 +2149,7 @@ export function DMView() {
                     else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta, 'spell');
                   }
                   for (const c of o.addConditions) toggleCondition(o.key, c);
+                  if (o.note) notify(o.note, 'info');
                 }
               }, spellImpactS(st, pts, R.rGridSize.current, R.rAppStyle.current === 'pixel', SPELL_EFFECTS[st]?.impactS ?? 0.4) * 1000);
             }} />

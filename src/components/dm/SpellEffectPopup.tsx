@@ -6,12 +6,27 @@ import { C, FS, RADIUS, CONDITIONS_BY_ID, SPELL_BY_TYPE } from '@/constants';
 import { anchoredBox } from '@/components/dm/ContextMenuOverlay';
 import { DAMAGE_TYPES, type DamageType } from '@/lib/characters';
 import { applyDefenses, type Defenses } from '@/lib/rules/damage';
-import { SAVE_LABEL, SPELL_EFFECTS } from '@/lib/rules/spell-effects';
+import { SAVE_LABEL, effectFor } from '@/lib/rules/spell-effects';
 
-export interface SpellTarget { key: string; name: string; hp: number; hpMax: number; defenses?: Defenses; conditions: string[] }
+export interface SpellTarget {
+  key: string; name: string; hp: number; hpMax: number; defenses?: Defenses; conditions: string[];
+  /** CA i modificador de DES de la fitxa (jugadors): per ensenyar el benefici d'Escut o Armadura de mag. */
+  ac?: number; dexMod?: number;
+}
+
+/** Benefici d'una màgia de protecció per a un afectat (text curt). L'app no el desa enlloc. */
+function buffText(buff: 'shield' | 'mage_armor' | 'bless', t: SpellTarget): string {
+  if (buff === 'shield') return t.ac !== undefined
+    ? `CA ${t.ac} → ${t.ac + 5} fins al principi del seu proper torn · cap dany de Projectil màgic`
+    : '+5 a la CA fins al principi del seu proper torn · cap dany de Projectil màgic';
+  if (buff === 'mage_armor') return t.dexMod !== undefined
+    ? `CA ${13 + t.dexMod} (13 + DES) durant 8 hores, si no porta armadura`
+    : 'CA 13 + DES durant 8 hores, si no porta armadura';
+  return '+1d4 als atacs i a les salvacions durant 1 minut (concentració)';
+}
 
 /** Resultat confirmat per a un token: dany (negatiu = cura) i estats a afegir. */
-export interface SpellOutcome { key: string; delta: number; addConditions: string[] }
+export interface SpellOutcome { key: string; delta: number; addConditions: string[]; /** Benefici (Escut…) per avisar-ne. */ note?: string }
 
 interface Row { include: boolean; saved: boolean; conds: string[] }
 
@@ -47,9 +62,10 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   /** Cancel·la el conjur: no es llança res. */
   onClose: () => void;
 }) {
-  const fx = SPELL_EFFECTS[spellType];
+  const fx = effectFor(spellType);
   const meta = SPELL_BY_TYPE.get(spellType);
-  const hasAmount = !!fx?.damageType || !!fx?.heal;
+  // Dany o cura (els genèrics també: el DM hi pot posar dany a mà). Les de protecció, no.
+  const hasAmount = !!fx?.damageType || !!fx?.heal || !!fx?.generic;
   const [raw, setRaw] = useState('');
   const [type, setType] = useState<DamageType | ''>(fx?.damageType ?? '');
   const [rows, setRows] = useState<Record<string, Row>>(() =>
@@ -69,15 +85,16 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   const outcomeOf = (t: SpellTarget) => {
     const row = rows[t.key];
     if (fx.heal) return { delta: -amount, reasons: [] as string[] };
-    if (!fx.damageType) return { delta: 0, reasons: [] as string[] };
+    if (!fx.damageType && !fx.generic) return { delta: 0, reasons: [] as string[] };
     const r = spellDamageFor(amount, type || undefined, row.saved, !!fx.half, t.defenses);
     return { delta: r.final, reasons: r.reasons };
   };
+  // Sense número = només l'efecte i els estats (Enter sempre fa alguna cosa).
   const apply = () => {
-    if (hasAmount && raw.trim() === '' && !fx.conditions?.length) return;
     onApply(targets.filter(t => rows[t.key].include).map(t => ({
       key: t.key, delta: hasAmount ? outcomeOf(t).delta : 0,
       addConditions: rows[t.key].conds.filter(c => !t.conditions.includes(c)),
+      ...(fx.buff ? { note: `${t.name}: ${buffText(fx.buff, t)}` } : {}),
     })));
   };
   const saveText = fx.save ? `Salvació ${SAVE_LABEL[fx.save]}${fx.damageType ? (fx.half ? ' · meitat si la supera' : ' · res si la supera') : ''}` : null;
@@ -148,6 +165,9 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
                   })}
                 </div>
               )}
+              {fx.buff && row.include && (
+                <div style={{ marginLeft: 20, marginTop: 3, fontSize: FS.sm, color: C.ok }}>{buffText(fx.buff, t)}</div>
+              )}
               {o.reasons.length > 0 && row.include && (
                 <div style={{ marginLeft: 20, marginTop: 2, fontSize: FS.xs, color: C.warn }}>{o.reasons.join(' · ')}</div>
               )}
@@ -157,7 +177,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <Button variant="primary" onClick={apply} style={{ flex: 1 }}
-          disabled={hasAmount && raw.trim() === '' && !fx.conditions?.length}>Aplicar ↵</Button>
+>Aplicar ↵</Button>
         <Button variant="secondary" onClick={onCastOnly} title="Llança l'efecte sense tocar vida ni estats">Només l'efecte</Button>
         <Button variant="ghost" onClick={onClose} title="No es llança el conjur (Esc)">Cancel·lar</Button>
       </div>
