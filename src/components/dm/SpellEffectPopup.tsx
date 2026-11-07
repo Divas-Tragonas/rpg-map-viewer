@@ -58,8 +58,12 @@ export function spellDamageFor(amount: number, type: DamageType | undefined, sav
  * llança i aplica el dany i els estats quan l'efecte arriba; «Només l'efecte» la llança sense aplicar
  * res; Esc o Cancel·lar no llancen el conjur.
  */
-export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose }: {
+export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose, fxOverride, title, info }: {
   spellType: string;
+  /** Poder d'una criatura: el seu efecte (en lloc del de la taula), el seu nom i la CD / daus. */
+  fxOverride?: import('@/lib/rules/spell-effects').SpellEffect | null;
+  title?: string;
+  info?: string;
   anchor: { l: number; r: number; t: number; b: number };
   targets: SpellTarget[];
   onApply: (out: SpellOutcome[]) => void;
@@ -68,7 +72,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   /** Cancel·la el conjur: no es llança res. */
   onClose: () => void;
 }) {
-  const fx = effectFor(spellType);
+  const fx = fxOverride !== undefined ? fxOverride : effectFor(spellType);
   const meta = SPELL_BY_TYPE.get(spellType);
   // Dany o cura. Les de protecció i les d'estats, no.
   const hasAmount = !!fx?.damageType || !!fx?.heal;
@@ -112,11 +116,11 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
       style={{ ...anchoredBox(anchor, 120 + targets.length * 58), padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ flex: 1, minWidth: 0, fontSize: FS.md, color: C.bright, fontWeight: 700 }}>
-          {meta?.emoji} {meta?.title ?? spellType} <span style={{ color: C.dim, fontWeight: 400 }}>· {targets.length} {targets.length === 1 ? 'afectat' : 'afectats'}</span>
+          {meta?.emoji} {title ?? meta?.title ?? spellType} <span style={{ color: C.dim, fontWeight: 400 }}>· {targets.length} {targets.length === 1 ? 'afectat' : 'afectats'}</span>
         </span>
         <Button size="sm" variant="ghost" title="Cancel·lar (Esc)" onClick={onClose}><X size={12} /></Button>
       </div>
-      {saveText && <div style={{ fontSize: FS.sm, color: C.dim }}>{saveText}</div>}
+      {(saveText || info) && <div style={{ fontSize: FS.sm, color: C.dim }}>{[info, saveText].filter(Boolean).join(' · ')}</div>}
       {hasAmount && (
         <div style={{ display: 'flex', gap: 6 }}>
           <input autoFocus inputMode="numeric" placeholder={fx.heal ? 'Cura' : 'Dany'} value={raw}

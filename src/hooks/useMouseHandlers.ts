@@ -5,7 +5,7 @@ import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
 import { aimSpell, aimAttack } from '@/lib/spellcast';
-import { gridOf } from '@/lib/rules/cells';
+import { gridOf, snapTokenCenter } from '@/lib/rules/cells';
 import { cellAt, cellKey, paintCell } from '@/lib/rules/terrain';
 import { tokenMenuFor } from '@/lib/token-menu';
 import { tokenAt, tokenBounds, updateTokenSpread, clearTokenSpread } from '@/lib/render/token-geom';
@@ -85,7 +85,7 @@ interface MouseHandlerSetters {
    * Conjur a punt de llançar-se: en combat, si toca tokens, obre el pop-up (`SpellEffectPopup`) i
    * retorna `true` (l'animació es llança en confirmar-lo). `false` = llançar-lo ara.
    */
-  onSpellCast: (type: string, points: import('@/types').Point[]) => boolean;
+  onSpellCast: (type: string, points: import('@/types').Point[], power?: import('@/types').CastPower) => boolean;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -237,7 +237,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // del grimori es llança sense haver de canviar a l'eina Màgies.
     if (e.button === 0 && R.rAreaPlacementPending.current && !e.shiftKey && !e.altKey && !e.ctrlKey) {
       const { mx: pmx, my: pmy, sc: psc } = mc(e);
-      const { type, origin, mode } = R.rAreaPlacementPending.current;
+      const { type, origin, mode, power } = R.rAreaPlacementPending.current;
       // L'abast és un avís (vermell al cursor): el clic fixa el destí allà on és, fora d'abast també.
       // Una màgia direccional clicada sobre un token (o la seva figureta, que a l'app Píxel queda per
       // sobre de la seva casella) apunta al centre del token: si no, el con o el raig podien no tocar-lo.
@@ -246,13 +246,19 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         const hit = tokenAt(R, pmx, pmy, psc);
         if (hit && Math.hypot(hit.x - origin.x, hit.y - origin.y) > hit.R) target = { x: hit.x, y: hit.y };
       }
+      // Alè (con o línia de longitud fixa): surt del llançador cap on s'ha clicat, amb la seva llargada.
+      const gsz = R.rGridSize.current;
+      if (power?.lineFt && gsz > 0) {
+        const dx = target.x - origin.x, dy = target.y - origin.y, d = Math.hypot(dx, dy);
+        if (d > 0) { const L = (power.lineFt / 5) * gsz; target = { x: origin.x + dx / d * L, y: origin.y + dy / d * L }; }
+      }
       // En combat, si toca algun token: primer el pop-up (dany, salvacions, estats) i, en
       // confirmar-lo, l'animació. Si no, es llança ja.
-      if (S.onSpellCast(type, [origin, target])) {
+      if (S.onSpellCast(type, [origin, target], power)) {
         R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
         e.preventDefault(); return;
       }
-      const sp = { id: Date.now().toString(), type, points: [origin, target], startTime: performance.now() };
+      const sp = { id: Date.now().toString(), type, points: [origin, target], startTime: performance.now(), ...(power?.aoeFt ? { aoeFt: power.aoeFt } : {}) };
       const ns = [...R.rActiveSpells.current, sp];
       R.rActiveSpells.current = ns; S.setActiveSpells(ns);
       R.bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
@@ -564,7 +570,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
     if (R.rAreaPlacementPending.current) {
       const pend = R.rAreaPlacementPending.current;
-      R.rSpellPreview.current = aimSpell(R, pend, { x: mx, y: my }, spellRangeFt(pend.type), gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), sc);
+      R.rSpellPreview.current = aimSpell(R, pend, { x: mx, y: my }, pend.power ? pend.power.rangeFt : spellRangeFt(pend.type), gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), sc);
       return;
     }
 
@@ -777,12 +783,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const gs = R.rGridSize.current;
       const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
       const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
-      const snapCC = (v: number, origin: number) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
+      // Centre de casella o vèrtex segons quantes caselles ocupa (una criatura gran, 2×2, va al vèrtex).
       if (String(tid).startsWith('pl_')) {
         const Rv = R.rTokenSizeOverride.current[tid] ?? 22;
-        return { x: snapCC(p.x + Rv, gox) - Rv, y: snapCC(p.y + Rv, goy) - Rv };
+        return { x: snapTokenCenter(p.x + Rv, gox, gs, Rv) - Rv, y: snapTokenCenter(p.y + Rv, goy, gs, Rv) - Rv };
       }
-      return { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
+      const en = R.rLibEnemies.current.find(e => `lib_${e.id}` === String(tid));
+      const Rl = R.rTokenSizeOverride.current[String(tid)] ?? en?.R ?? 22;
+      return { x: snapTokenCenter(p.x, gox, gs, Rl), y: snapTokenCenter(p.y, goy, gs, Rl) };
     };
     const np = snapTokenPos({ x: mx - ox, y: my - oy }, id);
     const nextPos = { ...R.rPos.current, [id]: np };

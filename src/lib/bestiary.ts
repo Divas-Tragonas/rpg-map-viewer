@@ -174,6 +174,18 @@ export function creatureStats(name: string): CreatureStats | null {
   return { as: mo.name, cr: mo.cr, xp: XP_BY_CR[mo.cr] ?? 0, hp: mo.hp };
 }
 
+// ─── Mida de 5e → mida del token ───────────────────────────────────────────────────────────
+
+/**
+ * Mida del token segons la mida de 5e (v5 snapshot 9): `sm` = diàmetre respecte de la casella (amb la
+ * mida automàtica de la graella) i `R` = radi sense graella. Diminuta i petita, una casella (com a la
+ * taula); gran 2×2, enorme 3×3, gegantina 4×4. El DM la pot canviar al menú del token.
+ */
+export const SIZE_TOKEN: Record<NonNullable<Monster['size']>, { sm: number; R: number; label: string }> = {
+  T: { sm: 0.55, R: 14, label: 'Diminuta' }, S: { sm: 0.8, R: 20, label: 'Petita' }, M: { sm: 0.9, R: 22, label: 'Mitjana' },
+  L: { sm: 1.9, R: 46, label: 'Gran (2×2)' }, H: { sm: 2.85, R: 68, label: 'Enorme (3×3)' }, G: { sm: 3.8, R: 90, label: 'Gegantina (4×4)' },
+};
+
 // ─── Catàleg unificat: plantilles + Bestiari Oryx ───────────────────────────────────────────
 
 /** Una entrada de la Biblioteca d'enemics (plantilla pròpia o criatura del paquet Oryx). */
@@ -238,15 +250,26 @@ const ALLIES: EnemyTemplate[] = [
   T('npc_roc',    'Roc Cercarocs',     '#b0905a', 11, 28, 0.80, 'dwarf', 0, 'Bestiari', 'Gundren Buscarrocas, nan presoner · es juga com a Guàrdia', true, 'guard'),
 ];
 
+/**
+ * Les plantilles d'una criatura gran o més prenen la mida de 5e del seu monstre (abans el Drac i el
+ * Trol sortien a 1,5–2 caselles). Les mitjanes i petites conserven la que tenien.
+ */
+const sized = (t: EnemyTemplate): EnemyTemplate => {
+  const z = t.monster ? MONSTERS[t.monster]?.size : undefined;
+  return z && (z === 'L' || z === 'H' || z === 'G') ? { ...t, R: SIZE_TOKEN[z].R, sm: SIZE_TOKEN[z].sm } : t;
+};
+
 /** Totes les plantilles amb nom propi (la Biblioteca i la mida automàtica les fan servir). */
-export const ENEMY_TEMPLATES: readonly EnemyTemplate[] = [...GENERIC, ...CASTLE, ...ALLIES];
+export const ENEMY_TEMPLATES: readonly EnemyTemplate[] = [...GENERIC, ...CASTLE, ...ALLIES].map(sized);
 
 /** Criatura del paquet Oryx com a plantilla (id `oryx_<nom>`, igual que els tokens d'un `.tmx`). */
 export function creatureTemplate(name: string): EnemyTemplate {
   const st = creatureStats(name);
   const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
   return {
-    id: `oryx_${name}`, name: nice, color: '#f85149', hpMax: st?.hp ?? 10, R: 22, sm: 0.9, sprite: name, xp: st?.xp ?? 0,
+    id: `oryx_${name}`, name: nice, color: '#f85149', hpMax: st?.hp ?? 10,
+    ...(() => { const z = SIZE_TOKEN[creatureMonster(name)?.size ?? 'M']; return { R: z.R, sm: z.sm }; })(),
+    sprite: name, xp: st?.xp ?? 0,
     group: 'Bestiari', detail: st ? `${st.as} · VD ${st.cr} · CA ${creatureMonster(name)?.ac} · ${st.xp} XP` : undefined,
     monster: S[name.split('~')[0]],
   };

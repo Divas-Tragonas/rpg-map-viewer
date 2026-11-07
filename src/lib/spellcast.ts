@@ -2,6 +2,7 @@ import type { Point, SpellPreview, ReachHover, ReachZone, AttackPending } from '
 import { edgeDistanceFt, isOutOfRange } from '@/lib/rules/reach';
 import { tokenAt, tokenSlots, type TokenRefs } from '@/lib/render/token-geom';
 import { cellOfPoint, cellsDistFt, tokenCells, type Grid } from '@/lib/rules/cells';
+import { SPELL_BY_TYPE } from '@/constants';
 
 /**
  * Previsualització d'una màgia que espera el destí. L'abast és un AVÍS: el destí és
@@ -12,7 +13,7 @@ import { cellOfPoint, cellsDistFt, tokenCells, type Grid } from '@/lib/rules/cel
  *  - Àrea (`area`): l'abast és fins al centre de l'àrea (el cursor).
  */
 export function aimSpell(
-  refs: TokenRefs, pend: { mode?: 'line' | 'area'; origin: Point; type: string },
+  refs: TokenRefs, pend: { mode?: 'line' | 'area'; origin: Point; type: string; power?: { rangeFt: number; aoeFt?: number; lineFt?: number; fx?: { shape: string } | null } },
   cursor: Point, rangeFt: number | undefined, grid: Grid | null, sc: number,
 ): SpellPreview {
   const slot = tokenAt(refs, cursor.x, cursor.y, sc);
@@ -29,10 +30,17 @@ export function aimSpell(
   if (pend.mode === 'line') {
     const ft = hover ? hoverFt : distTo(cursor, 0);
     const out = hover ? hover.out : isOutOfRange(ft, rangeFt);
+    // Alè (con o línia de llargada fixa): es pinta la forma, que sempre arriba on diu el llibre.
+    const shape = pend.power?.fx?.shape;
+    if (pend.power?.lineFt && (shape === 'cone' || shape === 'line')) {
+      return { mode: 'line', start: pend.origin, end: cursor, rangeFt, outOfRange: false, hover: hover ? { ...hover, out: false } : undefined, ft,
+        breath: { shape, lengthFt: pend.power.lineFt, color: SPELL_BY_TYPE.get(pend.type)?.color ?? '#84cc16' } };
+    }
     return { mode: 'line', start: pend.origin, end: cursor, rangeFt, outOfRange: out, hover, ft };
   }
   const out = isOutOfRange(distTo(cursor, 0), rangeFt);
-  return { mode: 'area_place', origin: pend.origin, center: cursor, spellType: pend.type, outOfRange: out, hover };
+  return { mode: 'area_place', origin: pend.origin, center: cursor, spellType: pend.type, outOfRange: out, hover,
+    ...(pend.power ? { aoeFt: pend.power.aoeFt ?? 2.5, rangeFt: pend.power.rangeFt } : {}) };
 }
 
 /** El que veuen les pantalles de jugador: sense el ressaltat del token (podria delatar un enemic amagat). */

@@ -83,6 +83,22 @@ const DEFS: Record<string, PixelSpellDef> = {
   bless:            { seal: 'stars' },
   cure_wounds:      { burst: 'potion', seal: 'heal' },
   charm_person:     { proj: 'arcane', burst: 'charm', seal: 'arcane' },
+  // Efectes de les criatures (v5 snapshot 9).
+  breath_fire:      { proj: 'fire', cone: true, burst: 'fire' },
+  breath_cold:      { proj: 'ice', cone: true, burst: 'ice' },
+  breath_poison:    { proj: 'poison', cone: true, burst: 'poison' },
+  breath_acid:      { proj: 'poison', burst: 'poison', seal: 'drip' },
+  fire_bolt:        { proj: 'fire', burst: 'fire' },
+  necrotic_ray:     { proj: 'shadow', burst: 'grey', seal: 'drip' },
+  eye_ray:          { proj: 'arcane', burst: 'arcane', seal: 'target' },
+  hold:             { proj: 'arcane', burst: 'charm', seal: 'target' },
+  dread:            { burst: 'charm', seal: 'bang', onCaster: true },
+  cloud:            { burst: 'poison', seal: 'drip' },
+  vanish:           { seal: 'sparkle', onCaster: true },
+  thunder:          { burst: 'storm', seal: 'bang', onCaster: true },
+  entangle:         { burst: 'grey', seal: 'target' },
+  radiant_bolt:     { proj: 'arcane', burst: 'radiant', seal: 'light' },
+  acid_arrow:       { proj: 'poison', burst: 'poison', seal: 'drip' },
 };
 
 export const hasPixelSpell = (type: string) => type in DEFS;
@@ -128,7 +144,7 @@ const fx = (ctx: CanvasRenderingContext2D, col: number, row: number, cx: number,
  * (`FX_SIZE` de la casella, com els procedurals): amb la casella sencera, cada dard del projectil màgic
  * era tan gros com una figureta.
  */
-export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts: Point[], e: number, dur: number, sc: number, gridSize: number, seed: number) {
+export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts: Point[], e: number, dur: number, sc: number, gridSize: number, seed: number, aoeFt?: number) {
   const def = DEFS[type]; if (!def || pts.length === 0) return;
   const grid = fxCell(sc, gridSize), cell = grid * FX_SIZE;
   const from = pts[0], to = pts[pts.length - 1];
@@ -177,7 +193,7 @@ export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts:
     const k = e - t0;
     const at = def.onCaster ? from : to;
     // Mida de l'esclat: l'àrea de reglament si en té (bola de foc 15 ft, casella sencera); si no, la de l'efecte.
-    const areaFt = type === 'fireball' ? 15 : (AREA_SPELL_DATA[type]?.aoeRadiusFt ?? 0);
+    const areaFt = aoeFt ?? (type === 'fireball' ? 15 : (AREA_SPELL_DATA[type]?.aoeRadiusFt ?? 0));
     const radius = areaFt >= 5 ? (areaFt / 5) * grid : cell * 0.75;
     if (def.burst) {
       const frame = Math.min(4, Math.floor(k / 0.07));

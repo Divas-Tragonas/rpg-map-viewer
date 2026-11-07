@@ -7,6 +7,7 @@ import { tokenMenuFor } from '@/lib/token-menu';
 import { DamagePopup } from '@/components/dm/DamagePopup';
 import { SpellEffectPopup, type SpellTarget } from '@/components/dm/SpellEffectPopup';
 import { spellTargets, SPELL_EFFECTS } from '@/lib/rules/spell-effects';
+import { powerDef, powerName, type MonsterPower } from '@/lib/monster-powers';
 import { spellImpactS } from '@/lib/render/spells';
 import { tickTurnStart, onDamaged, type TimedEffect } from '@/lib/rules/timed-effects';
 import { gridOf } from '@/lib/rules/cells';
@@ -109,7 +110,7 @@ export function DMView() {
   // Pop-up de dany d'un atac (v5): s'obre en clicar l'objectiu mentre s'apunta un atac del menú.
   const [damagePrompt, setDamagePrompt] = useState<import('@/types').DamagePrompt | null>(null);
   // Pop-up d'un conjur llançat en combat (v5): afectats, dany/cura i estats proposats.
-  const [spellPrompt, setSpellPrompt] = useState<{ type: string; points: import('@/types').Point[]; keys: string[]; caster?: string; outOfRange?: boolean; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
+  const [spellPrompt, setSpellPrompt] = useState<{ type: string; points: import('@/types').Point[]; keys: string[]; caster?: string; outOfRange?: boolean; power?: import('@/types').CastPower; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
@@ -968,6 +969,8 @@ export function DMView() {
   const lastTurnSig = useRef('');
   useEffect(() => {
     if (!turn.active) {
+      // Fora de combat els poders no es gasten: en acabar, tots tornen a estar a punt.
+      if (Object.keys(rPowerSpent.current).length) setSpent({});
       if (lastTurnSig.current) setCombatLog(l => [...l, { id: ++logIdRef.current, round: l.length ? l[l.length - 1].round : 1, text: 'Fi del combat', tone: 'info' }]);
       lastTurnSig.current = '';
       const all = R.rTimedEffects.current;
@@ -988,16 +991,55 @@ export function DMView() {
       setCombatLog([{ id: ++logIdRef.current, round: turn.round, text: `Comença el combat: ${names}`, tone: 'info' }]);
       return;
     }
-    const { ended, left } = tickTurnStart(R.rTimedEffects.current, String(turn.order[turn.turnIndex]));
+    const startKey = String(turn.order[turn.turnIndex]);
+    const { ended, left } = tickTurnStart(R.rTimedEffects.current, startKey);
     if (ended.length) endEffects(ended, left); else R.rTimedEffects.current = left;
-  }, [turn, R, endEffects, toggleCondition]);
+    // Recàrrega dels poders gastats d'aquesta criatura: el d6 es tira sol a l'inici del seu torn.
+    const spent = rPowerSpent.current[startKey];
+    if (spent && Object.keys(spent).length) {
+      const en = R.rLibEnemies.current.find(e => `lib_${e.id}` === startKey);
+      const powers = en ? monsterForEnemy(en)?.powers ?? [] : [];
+      const still: Record<string, number> = {};
+      for (const [pid, need] of Object.entries(spent)) {
+        const roll = 1 + Math.floor(Math.random() * 6);
+        const p = powers.find(x => x.id === pid);
+        const nm = p ? powerName(p) : pid;
+        if (roll >= need) {
+          logCombat(`${tokNameOf(startKey)}: ${nm} es recarrega (d6: ${roll})`, 'effect');
+          notify(`${tokNameOf(startKey)} torna a tenir ${nm} (d6: ${roll})`, 'info');
+        } else {
+          still[pid] = need;
+          logCombat(`${tokNameOf(startKey)}: ${nm} no es recarrega (d6: ${roll}, cal ${need}–6)`, 'effect');
+        }
+      }
+      const next = { ...rPowerSpent.current };
+      if (Object.keys(still).length) next[startKey] = still; else delete next[startKey];
+      setSpent(next);
+    }
+  }, [turn, R, endEffects, toggleCondition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Conjurs: qui toca i pop-up per confirmar dany, salvacions i estats (abans de l'animació) ──
   // També fora de combat: el DM pot voler el dany sense començar els torns.
-  const onSpellCast = useCallback((type: string, points: import('@/types').Point[]): boolean => {
+  // ── Poders de les criatures: recàrrega en combat (v5 snapshot 9) ───────────────────────────
+  // Un poder amb recàrrega (alè de drac, 5–6) queda gastat en fer-lo servir **en combat**; a l'inici
+  // del torn de la criatura es tira el d6 sol i, si arriba, es recarrega. Fora de combat no es gasta.
+  const [powerSpent, setPowerSpent] = useState<Record<string, Record<string, number>>>({});
+  const rPowerSpent = useRef(powerSpent);
+  const setSpent = useCallback((next: Record<string, Record<string, number>>) => { rPowerSpent.current = next; setPowerSpent(next); }, []);
+  const markPowerUsed = useCallback((p: import('@/types').CastPower | undefined) => {
+    if (!p?.recharge || !R.rTurn.current.active) return;
+    const cur = rPowerSpent.current;
+    setSpent({ ...cur, [p.key]: { ...(cur[p.key] ?? {}), [p.powerId]: p.recharge } });
+  }, [R, setSpent]);
+
+  // També fora de combat: el DM pot voler el dany sense començar els torns.
+  const onSpellCast = useCallback((type: string, points: import('@/types').Point[], power?: import('@/types').CastPower): boolean => {
     const slots = tokenSlots(R, false);
-    const keys = spellTargets(type, points, slots, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current));
-    if (keys.length === 0) return false;
+    // Poder d'una criatura: el seu efecte (o cap: només l'animació).
+    const fx = power ? power.fx : undefined;
+    if (power && !fx) { markPowerUsed(power); return false; }
+    const keys = spellTargets(type, points, slots, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), fx);
+    if (keys.length === 0) { markPowerUsed(power); return false; }
     let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
     for (const k of keys) {
       const s = slots.find(x => x.key === k); if (!s) continue;
@@ -1005,15 +1047,42 @@ export function DMView() {
       if (!a || !z) continue;
       l = Math.min(l, a.x); t = Math.min(t, a.y); r = Math.max(r, z.x); b = Math.max(b, z.y);
     }
-    if (!Number.isFinite(l)) return false;
+    if (!Number.isFinite(l)) { markPowerUsed(power); return false; }
     setDamagePrompt(null);
     const p0 = points[0];
-    const caster = p0 ? slots.find(x => Math.hypot(x.x - p0.x, x.y - p0.y) <= x.R)?.key : undefined;
+    const caster = power?.key ?? (p0 ? slots.find(x => Math.hypot(x.x - p0.x, x.y - p0.y) <= x.R)?.key : undefined);
     const pv = R.rSpellPreview.current;
     const outOfRange = !!pv && pv.mode !== 'attack' && !!pv.outOfRange;
-    setSpellPrompt({ type, points, keys, caster, outOfRange, anchor: { l, r, t, b } });
+    setSpellPrompt({ type, points, keys, caster, outOfRange, power, anchor: { l, r, t, b } });
     return true;
-  }, [R]);
+  }, [R, markPowerUsed]);
+
+  /**
+   * Llança un poder del menú d'una criatura: personals ja (amb el pop-up si afecta algú); la resta
+   * esperen el clic de destí, com el grimori dels jugadors.
+   */
+  const castPower = useCallback((key: string, mp: MonsterPower) => {
+    const def = powerDef(mp);
+    if (!def) return;
+    const me = tokenSlots(R, false).find(s => s.key === key);
+    if (!me) return;
+    const origin = { x: me.x, y: me.y };
+    const cast: import('@/types').CastPower = {
+      key, powerId: mp.id, title: powerName(mp), fx: def.fx, rangeFt: def.rangeFt, aoeFt: def.aoeFt, lineFt: def.lineFt,
+      dc: mp.dc, attack: mp.attack, dice: def.dice, recharge: mp.recharge,
+    };
+    R.rAttackPending.current = null;
+    if (def.mode === 'self') {
+      R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
+      if (!onSpellCast(def.anim, [origin, origin], cast)) addSpell(def.anim, [origin, origin], () => {}, def.aoeFt);
+      return;
+    }
+    const mode = def.mode === 'area' ? 'area' as const : 'line' as const;
+    R.rAreaPlacementPending.current = { type: def.anim, origin, mode, power: cast };
+    R.rSpellPreview.current = mode === 'area'
+      ? { mode: 'area_place', origin, center: origin, spellType: def.anim, aoeFt: def.aoeFt ?? 2.5, rangeFt: def.rangeFt }
+      : { mode: 'line', start: origin, end: origin, rangeFt: def.rangeFt };
+  }, [R, onSpellCast, addSpell]);
 
   const mouseSetters = useMemo(() => ({
     setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
@@ -2210,7 +2279,7 @@ export function DMView() {
         for (const k of spellPrompt.keys) {
           const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;
           const en = k.startsWith('lib_') ? libEnemies.find(e => `lib_${e.id}` === k) : undefined;
-          const saveAb = SPELL_EFFECTS[spellPrompt.type]?.save;
+          const saveAb = (spellPrompt.power ? spellPrompt.power.fx : SPELL_EFFECTS[spellPrompt.type])?.save;
           if (pl) {
             const ch = characterFor(pl, chars.characters);
             const dex = ch ? sheetOf(ch).abilities?.dex : undefined;
@@ -2227,16 +2296,20 @@ export function DMView() {
         if (targets.length === 0) return null;
         return (
           <SpellEffectPopup key={`${spellPrompt.type}:${spellPrompt.keys.join(',')}`} spellType={spellPrompt.type}
+            fxOverride={spellPrompt.power ? spellPrompt.power.fx : undefined}
+            title={spellPrompt.power ? `${spellPrompt.power.title} · ${tokNameOf(spellPrompt.power.key)}` : undefined}
+            info={spellPrompt.power ? [spellPrompt.power.dc ? `CD ${spellPrompt.power.dc}` : '', spellPrompt.power.attack !== undefined ? `atac +${spellPrompt.power.attack}` : '', spellPrompt.power.dice ?? ''].filter(Boolean).join(' · ') : undefined}
             anchor={spellPrompt.anchor} targets={targets} onClose={() => setSpellPrompt(null)}
-            onCastOnly={() => { addSpell(spellPrompt.type, spellPrompt.points, () => {}); setSpellPrompt(null); }}
+            onCastOnly={() => { addSpell(spellPrompt.type, spellPrompt.points, () => {}, spellPrompt.power?.aoeFt); markPowerUsed(spellPrompt.power); setSpellPrompt(null); }}
             onApply={outs => {
               // Ara sí: l'animació, i el dany i els estats quan l'efecte arriba als afectats.
               const { type: st, points: pts } = spellPrompt;
-              addSpell(st, pts, () => {});
+              addSpell(st, pts, () => {}, spellPrompt.power?.aoeFt);
+              markPowerUsed(spellPrompt.power);
               setSpellPrompt(null);
-              const fx = SPELL_EFFECTS[st];
+              const fx = spellPrompt.power ? spellPrompt.power.fx : SPELL_EFFECTS[st];
               const caster = spellPrompt.caster;
-              const title = SPELL_BY_TYPE.get(st)?.title ?? st;
+              const title = spellPrompt.power?.title ?? SPELL_BY_TYPE.get(st)?.title ?? st;
               // Historial: una línia per conjur amb cada afectat.
               const parts = outs.map(o => {
                 const nm = tokNameOf(o.key);
@@ -2269,7 +2342,7 @@ export function DMView() {
                     }];
                   }
                 }
-              }, spellImpactS(st, pts, R.rGridSize.current, R.rAppStyle.current === 'pixel', SPELL_EFFECTS[st]?.impactS ?? 0.4) * 1000);
+              }, spellImpactS(st, pts, R.rGridSize.current, R.rAppStyle.current === 'pixel', fx?.impactS ?? 0.4) * 1000);
             }} />
         );
       })()}
@@ -2324,6 +2397,7 @@ export function DMView() {
         onResetExplored={onResetExplored}
         onCastSpell={castFromToken}
         onAttack={attackFromToken}
+        onCastPower={castPower} powerSpent={powerSpent}
         dialogs={dlg.dialogs}
         onSpeak={dlg.speak}
         onPlayDialog={dlg.playSaved}

@@ -12,6 +12,7 @@ import { attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type Shee
 import { monsterForEnemy } from '@/lib/db-enemies';
 import { enemyDefenses } from '@/lib/rules/damage';
 import { MonsterBlock } from '@/components/dm/MonsterBlock';
+import { powerDef, powerName, type MonsterPower } from '@/lib/monster-powers';
 
 /** Posició d'un menú flotant, en píxels de la finestra (cantonada de dalt a l'esquerra). */
 export interface MenuPos { x: number; y: number }
@@ -57,6 +58,10 @@ interface Props {
   onCastSpell: (type: import('@/types').SpellType, origin: import('@/types').Point) => void;
   /** Tria un atac del menú: el ratolí apunta l'objectiu amb l'abast al mapa (`aimAttack`). */
   onAttack: (p: AttackPending) => void;
+  /** Llança un poder d'una criatura (encanteri o acció especial). */
+  onCastPower: (tokenKey: string, power: MonsterPower) => void;
+  /** Poders gastats en combat per token (id → recàrrega que cal al d6). */
+  powerSpent: Record<string, Record<string, number>>;
   /** Diàlegs preparats de cada token (veure `useDialog`). */
   dialogs: Record<string, SavedDialog[]>;
   /** Frase improvisada: globus sobre el token (combat) o escena (barres i càmera). */
@@ -229,6 +234,53 @@ function AttackList({ attacks, onPick }: { attacks: SheetAttack[]; onPick: (a: S
 }
 
 /**
+ * Poders d'una criatura (v5 snapshot 9): els seus encanteris i accions especials, com el grimori dels
+ * jugadors. Agrupats: accions (alès, mirades…), a voluntat i trucs, per nivell i per dia. Un poder amb
+ * recàrrega gastat en combat surt apagat amb la recàrrega que cal; es pot fer servir igualment.
+ */
+function PowerList({ powers, spent, onCast }: { powers: MonsterPower[]; spent: Record<string, number>; onCast: (p: MonsterPower) => void }) {
+  const groupOf = (p: MonsterPower) => p.def ? 'Accions' : p.atWill ? 'A voluntat' : p.perDay ? `${p.perDay}/dia` : p.level === 0 ? 'Trucs' : `Nivell ${p.level}`;
+  const groups: { g: string; list: MonsterPower[] }[] = [];
+  for (const p of powers) {
+    if (!powerDef(p)) continue;
+    const g = groupOf(p);
+    const e = groups.find(x => x.g === g);
+    if (e) e.list.push(p); else groups.push({ g, list: [p] });
+  }
+  if (!groups.length) return null;
+  return (
+    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SparklesIcon size={11} /> Poders i conjurs</div>
+      {groups.map(({ g, list }) => (
+        <div key={g} style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: FS.xs, color: C.dim, margin: '2px 0 3px' }}>{g}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {list.map(p => {
+              const d = powerDef(p)!;
+              const meta = SPELL_BY_TYPE.get(d.anim);
+              const used = spent[p.id];
+              const reach = d.mode === 'self' ? (d.aoeFt ? `${d.aoeFt} ft al voltant` : 'personal') : d.lineFt ? `${d.lineFt} ft` : `${d.rangeFt} ft`;
+              const tags = [p.dc ? `CD ${p.dc}` : '', p.attack !== undefined ? `+${p.attack}` : '', d.dice ?? '', p.recharge ? `recàrrega ${p.recharge === 6 ? '6' : `${p.recharge}–6`}` : '', d.fx ? '' : 'sense efecte de joc'].filter(Boolean).join(' · ');
+              return (
+                <Button key={p.id} size="sm" variant="tint" color={meta?.color ?? C.magic}
+                  title={`${powerName(p)} · ${reach}${tags ? ` · ${tags}` : ''}${used ? `\nGastat: es recarrega amb ${used}–6 a l'inici del seu torn` : ''}\n${d.mode === 'self' ? 'Surt de la criatura' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
+                  onMouseDown={e => { e.stopPropagation(); onCast(p); }}
+                  style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15, opacity: used ? 0.45 : 1 }}>
+                  <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>
+                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{powerName(p)}</span>
+                  {used ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{used}–6</span>
+                    : p.recharge ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>⟳</span> : null}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Grimori del jugador (conjurs de la seva fitxa al Notion, `SPELLBOOKS`) agrupat pel gest
  * de l'app: direccionals, a un punt dins d'abast i personals. Triar-ne un tanca el menú i
  * deixa la màgia pendent del clic de destí (les personals surten a l'instant).
@@ -282,7 +334,7 @@ export function ContextMenuOverlay({
   setDefeated, setConditions,
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell, onAttack,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell, onAttack, onCastPower, powerSpent,
   dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat, characters,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
@@ -519,6 +571,11 @@ export function ContextMenuOverlay({
           onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind });
           onClose();
         }} />;
+      })()}
+
+      {lib && (() => {
+        const mo = monsterForEnemy(lib);
+        return mo?.powers?.length ? <PowerList powers={mo.powers} spent={powerSpent[t.key] ?? {}} onCast={p => { onCastPower(t.key, p); onClose(); }} /> : null;
       })()}
 
       {contextMenu.casterPos && (() => {

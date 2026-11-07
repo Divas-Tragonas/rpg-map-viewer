@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 9 — Poders i conjurs de les criatures, recàrrega i mides de 5e
+- **Poders i conjurs al menú dels enemics i aliats**: tots els encanteris i accions especials del seu bloc (dades de 5e.tools), com el grimori de Liriandor: alès dels dracs, el Rostre horrorós i el Lament de la banshee, les mirades de les mòmies, els raigs oculars de l'espectador i el contemplador, el Xiscle i les Espores del vrock, i els encanteris del Mag malvat, Nezznar, el Sacerdot, el Druida, el Lich… amb la seva CD i el seu bonus d'atac
+- **Cada poder té animació i efecte**: les màgies que ja existien i 15 animacions noves (alès de foc, fred, verí i àcid, rajos necròtics, raigs oculars, immobilitzar, terror, núvols, ones de tro, desaparèixer…). El pop-up de sempre amb els afectats, la salvació, els estats i el dany, amb «CD 14 · 12d6» a la capçalera. Els que no tenen efecte de joc (Druidisme, Passa boirosa…) només fan l'animació
+- **Alès**: el con o la línia surten de la criatura amb la seva llargada; mentre apuntes es veuen les caselles que cobreixen
+- **Recàrrega automàtica en combat**: un poder com l'alè de drac queda gastat en usar-lo; a l'inici del torn de la criatura es tira el d6 sol i ho diu l'historial (i un avís si es recarrega). Fora de combat no es gasta mai
+- **Mides de 5e**: en col·locar una criatura gran (drac jove, trol, ós, gòlems, elementals…) surt de 2×2, les enormes de 3×3 i les gegantines de 4×4; les diminutes, més petites. Les de 2×2 s'encaixen a la graella pel vèrtex
+- Sense canvis a la API
+
 ### v5 snapshot 8 — Bestiari revisat amb les dades de 5e.tools
 - **Tots els blocs del bestiari de l'app tornats a generar a partir de 5e.tools** (Manual de monstres, La mina perduda de Phandelver i Volo): CA, vida, velocitat, característiques, salvacions, resistències, immunitats, immunitats a estats, **tots els atacs** amb abast i dany extra, accions especials (alès, teranyina…), trets, encanteris per nivell i reaccions
 - Correccions respecte d'abans: el **Mag malvat** (bastó 1d8−1 i els seus encanteris reals: light, mage hand, shocking grasp, charm person, magic missile, hold person, misty step), **Mormesk** (VD 3, 45 PV, Drenar vida +5 3d8+3), el **Rei Grol** (CA 17, estrella del matí +5 2d8+3 i javelina), **Nezznar** (DES 13, SAV 14), el **Druida** (bastó +2 1d6; +4 1d8 amb shillelagh), el **Cuc porpra** (+14), el **Sacerdot** (30 ft), l'**Explorador** (arc llarg 150/600) i el **Foc follet** (pot quedar petrificat)

@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v5 snapshot 8';
+export const APP_VERSION = 'v5 snapshot 9';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -104,7 +104,7 @@ export { ENEMY_IMAGES } from '@/lib/enemy-images';
  * es llancen des del grimori d'un token (toc o personal: sense llançador no tenen sentit),
  * així no omplen les rodes dels gestos.
  */
-export const SPELL_TYPES: readonly { type: SpellType; emoji: string; color: string; title: string; mode: 'path' | 'line' | 'area' | 'self'; tokenOnly?: boolean }[] = [
+export const SPELL_TYPES: readonly { type: SpellType; emoji: string; color: string; title: string; mode: 'path' | 'line' | 'area' | 'self'; tokenOnly?: boolean; monster?: boolean }[] = [
   { type: 'fireball',          emoji: '🔥', color: '#ff8800', title: 'Bola de foc',     mode: 'path' },
   { type: 'lightning',         emoji: '⚡', color: '#ffd200', title: 'Raig elèctric',   mode: 'path' },
   { type: 'magic_beam',        emoji: '✨', color: '#9988ff', title: 'Raig màgic',      mode: 'path' },
@@ -126,6 +126,22 @@ export const SPELL_TYPES: readonly { type: SpellType; emoji: string; color: stri
   { type: 'light',             emoji: '💡', color: '#fef08a', title: 'Llum',            mode: 'area', tokenOnly: true },
   { type: 'shield',            emoji: '🔰', color: '#c084fc', title: 'Escut',           mode: 'self', tokenOnly: true },
   { type: 'detect_magic',      emoji: '👁️', color: '#d8b4fe', title: 'Detectar màgia',  mode: 'self', tokenOnly: true },
+  // Efectes de les criatures (v5 snapshot 9): només des del menú d'un enemic o aliat (`monster`).
+  { type: 'breath_fire',  emoji: '🐉', color: '#f97316', title: 'Alè de foc',     mode: 'line', tokenOnly: true, monster: true },
+  { type: 'breath_cold',  emoji: '🥶', color: '#7dd3fc', title: 'Alè gelat',      mode: 'line', tokenOnly: true, monster: true },
+  { type: 'breath_poison',emoji: '☠️', color: '#84cc16', title: 'Alè verinós',    mode: 'line', tokenOnly: true, monster: true },
+  { type: 'breath_acid',  emoji: '🧪', color: '#a3e635', title: 'Alè d\'àcid',    mode: 'line', tokenOnly: true, monster: true },
+  { type: 'fire_bolt',    emoji: '🔥', color: '#fb923c', title: 'Raig de foc',    mode: 'line', tokenOnly: true, monster: true },
+  { type: 'necrotic_ray', emoji: '💀', color: '#6b7280', title: 'Raig necròtic',  mode: 'line', tokenOnly: true, monster: true },
+  { type: 'eye_ray',      emoji: '👁️', color: '#c084fc', title: 'Raig ocular',    mode: 'line', tokenOnly: true, monster: true },
+  { type: 'hold',         emoji: '⛓️', color: '#ec4899', title: 'Domini',         mode: 'line', tokenOnly: true, monster: true },
+  { type: 'dread',        emoji: '😱', color: '#a855f7', title: 'Terror',         mode: 'self', tokenOnly: true, monster: true },
+  { type: 'cloud',        emoji: '🌫️', color: '#65a30d', title: 'Núvol',          mode: 'area', tokenOnly: true, monster: true },
+  { type: 'vanish',       emoji: '💨', color: '#e9d5ff', title: 'Desaparèixer',   mode: 'self', tokenOnly: true, monster: true },
+  { type: 'thunder',      emoji: '🌪️', color: '#93c5fd', title: 'Ona de tro',     mode: 'self', tokenOnly: true, monster: true },
+  { type: 'entangle',     emoji: '🌿', color: '#4d7c0f', title: 'Enredar',        mode: 'area', tokenOnly: true, monster: true },
+  { type: 'radiant_bolt', emoji: '✴️', color: '#fde047', title: 'Llum sagrada',   mode: 'line', tokenOnly: true, monster: true },
+  { type: 'acid_arrow',   emoji: '🏹', color: '#bef264', title: 'Fletxa d\'àcid', mode: 'line', tokenOnly: true, monster: true },
 ];
 
 export const SPELL_BY_TYPE = new Map<string, typeof SPELL_TYPES[number]>(SPELL_TYPES.map(s => [s.type, s]));

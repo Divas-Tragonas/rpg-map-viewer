@@ -1,7 +1,7 @@
 import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
 import { cellOfPoint, cellsPaths, circleCells, gridOf, rangePaths, tokenCells, type Grid } from '@/lib/rules/cells';
-import { AREA_SPELL_DATA, PERSISTENT_SPELLS } from '@/constants';
+import { AREA_SPELL_DATA, PERSISTENT_SPELLS, SPELL_BY_TYPE } from '@/constants';
 import { drawSpellFireball, drawFireballGround, fireballShake, FIREBALL_DUR } from './fireball';
 import { drawSpellLightning, drawLightningGround, pruneLightningFx, lightningShake, LIGHTNING_DUR, LIGHTNING_FIRST_STRIKE } from './lightning';
 import { drawSpellMagicBeam, MAGIC_BEAM_DUR } from './magicbeam';
@@ -11,6 +11,8 @@ import {
 } from './minorspells';
 import { drawSpellSleep, drawSpellGrease } from './areaspells';
 import { drawPixelSpell, hasPixelSpell, pixelTravelS } from './pixelspells';
+import { drawMonsterFx, MONSTER_FX, MONSTER_FX_DUR } from './monsterfx';
+import { spellCells } from '@/lib/rules/spell-effects';
 import { sheet } from '@/lib/sprites/pack';
 import {
   drawSpellRayOfFrost, drawSpellShockingGrasp, drawSpellMageHand, drawSpellPrestidigitation, drawSpellMageArmor,
@@ -76,6 +78,7 @@ const SPELL_DURATIONS: Record<string, number> = {
   bless:            BLESS_DUR,
   cure_wounds:      CURE_WOUNDS_DUR,
   charm_person:     CHARM_PERSON_DUR,
+  ...Object.fromEntries(Object.keys(MONSTER_FX).map(k => [k, MONSTER_FX_DUR])),
 };
 
 type SpellDraw = (ctx: CanvasRenderingContext2D, pts: Point[], e: number, dur: number, sc: number, gridSize: number, seed: number) => void;
@@ -195,6 +198,21 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
   // Fora d'abast: tot en vermell (avís; el clic funciona igualment).
   const hot = preview.outOfRange ? OUT_RED : '#ffd200';
 
+  if (preview.mode === 'line' && preview.breath && grid) {
+    // Alè: les caselles que cobreix el con o la línia, de la llargada del llibre cap al cursor.
+    const { start, end, breath } = preview;
+    const d = Math.hypot(end.x - start.x, end.y - start.y);
+    if (d > 0) {
+      const L = (breath.lengthFt / 5) * grid.gs;
+      const tip = { x: start.x + (end.x - start.x) / d * L, y: start.y + (end.y - start.y) / d * L };
+      const cells = spellCells('', [start, tip], grid, { shape: breath.shape, sizeFt: breath.lengthFt });
+      drawCells(ctx, cellsPaths(cells, grid), breath.color, 0.3, 0.9, sc);
+    }
+    if (preview.hover) drawReachHover(ctx, preview.hover, sc);
+    ctx.globalAlpha = 1; ctx.restore();
+    return;
+  }
+
   if (preview.mode === 'line') {
     const { start, end } = preview;
     // Abast màxim (llançat des d'un token): cercle blanc de guions, com el de les àrees
@@ -236,11 +254,15 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
 
   } else if (preview.mode === 'area_place') {
     const { origin, center, spellType } = preview;
-    const data = AREA_SPELL_DATA[spellType];
+    // Poders de criatures: el seu radi i abast (no són a AREA_SPELL_DATA).
+    const base = AREA_SPELL_DATA[spellType];
+    const data = preview.aoeFt !== undefined || preview.rangeFt !== undefined
+      ? { rangeFt: preview.rangeFt ?? base?.rangeFt ?? 30, aoeRadiusFt: preview.aoeFt ?? base?.aoeRadiusFt ?? 2.5, color: base?.color ?? SPELL_BY_TYPE.get(spellType)?.color ?? '#c084fc' }
+      : base;
     if (!data) { ctx.restore(); return; }
     const rangeWorld = ftToWorld(data.rangeFt, gridSize);
     const aoeWorld   = ftToWorld(data.aoeRadiusFt, gridSize);
-    const isOval     = data.aoeRadiusFt === 10;
+    const isOval     = data.aoeRadiusFt === 10 && !preview.aoeFt;
 
     // Range limit — amb graella, les caselles a l'abast; sense, la circumferència de guions
     if (grid) drawRange(ctx, [cellOfPoint(origin, grid)], data.rangeFt, grid, preview.outOfRange ? OUT_RED : '#ffffff', sc);
@@ -327,7 +349,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     const seed = hash32(sp.id);
     // App Píxel: els efectes del paquet Oryx (les àrees persistents es queden com sempre).
     if (pixel && !isArea && hasPixelSpell(sp.type)) {
-      if (layer === 'air') drawPixelSpell(ctx, sp.type, sp.points, elapsed, dur, sc, gridSize, seed);
+      if (layer === 'air') drawPixelSpell(ctx, sp.type, sp.points, elapsed, dur, sc, gridSize, seed, sp.aoeFt);
       continue;
     }
     // La bola de foc deixa un socarrim a terra: aquesta part va a la passada 'ground'
@@ -346,6 +368,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     else if (sp.type === 'burning_hands')    drawSpellBurningHands(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
     else if (sp.type === 'sleep')            drawSpellSleep(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
     else if (sp.type === 'grease')           drawSpellGrease(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
+    else if (MONSTER_FX[sp.type])           drawMonsterFx(ctx, sp.type, sp.points, renderElapsed, dur, sc, gridSize, seed, sp.aoeFt);
     else BOOK_SPELLS[sp.type]?.(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
   }
   if (alive.length !== rActiveSpells.current.length) {

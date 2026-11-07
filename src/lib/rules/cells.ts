@@ -21,17 +21,29 @@ export const cellOfPoint = (p: Point, g: Grid): Cell => [Math.floor((p.x - g.gox
 export const cellCenter = (c: Cell, g: Grid): Point => ({ x: g.gox + (c[0] + 0.5) * g.gs, y: g.goy + (c[1] + 0.5) * g.gs });
 export const cellKeyOf = (c: Cell) => `${c[0]},${c[1]}`;
 
-/** Caselles que ocupa un token (centre i radi en coords de mapa). */
+/**
+ * Caselles de costat que ocupa un token pel seu radi (v5 snapshot 9): mitjana o més petita = 1,
+ * gran = 2, enorme = 3, gegantina = 4 (el diàmetre arrodonit a caselles).
+ */
+export const tokenSpan = (R: number, gs: number) => Math.max(1, Math.round((2 * R) / gs));
+
+/** Caselles que ocupa un token (centre i radi en coords de mapa): un bloc de `tokenSpan`×`tokenSpan`. */
 export function tokenCells(p: Point, R: number, g: Grid): Cell[] {
+  const n = tokenSpan(R, g.gs);
+  const c0 = Math.round((p.x - g.gox) / g.gs - n / 2), r0 = Math.round((p.y - g.goy) / g.gs - n / 2);
   const out: Cell[] = [];
-  const lim = R * 0.9;
-  const c0 = Math.floor((p.x - R - g.gox) / g.gs), c1 = Math.floor((p.x + R - g.gox) / g.gs);
-  const r0 = Math.floor((p.y - R - g.goy) / g.gs), r1 = Math.floor((p.y + R - g.goy) / g.gs);
-  for (let c = c0; c <= c1; c++) for (let r = r0; r <= r1; r++) {
-    const m = cellCenter([c, r], g);
-    if (Math.hypot(m.x - p.x, m.y - p.y) <= lim) out.push([c, r]);
-  }
-  return out.length ? out : [cellOfPoint(p, g)];
+  for (let c = c0; c < c0 + n; c++) for (let r = r0; r < r0 + n; r++) out.push([c, r]);
+  return out;
+}
+
+/**
+ * Encaixa el centre d'un token a la graella: al centre d'una casella si ocupa un nombre senar de
+ * caselles (1, 3) i a un vèrtex si és parell (2×2, 4×4), perquè el bloc caigui sobre caselles senceres.
+ */
+export function snapTokenCenter(v: number, origin: number, gs: number, R: number): number {
+  return tokenSpan(R, gs) % 2 === 0
+    ? Math.round((v - origin) / gs) * gs + origin
+    : Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
 }
 
 /** Caselles entre dues caselles (mètrica del moviment). */

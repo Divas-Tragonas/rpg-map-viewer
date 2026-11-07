@@ -124,13 +124,18 @@ export type SpellType =
   | 'fireball' | 'lightning' | 'magic_beam' | 'magic_missile' | 'hideous_laughter' | 'burning_hands' | 'sleep' | 'grease'
   // Grimoris dels personatges (Notion): veure `SPELLBOOKS` a constants
   | 'ray_of_frost' | 'shocking_grasp' | 'mage_hand' | 'prestidigitation' | 'mage_armor' | 'shield' | 'detect_magic'
-  | 'light' | 'sacred_flame' | 'thaumaturgy' | 'bless' | 'cure_wounds' | 'charm_person';
+  | 'light' | 'sacred_flame' | 'thaumaturgy' | 'bless' | 'cure_wounds' | 'charm_person'
+  // Efectes de les criatures (v5 snapshot 9): alès, rajos, mirades… (veure `lib/monster-powers.ts`).
+  | 'breath_fire' | 'breath_cold' | 'breath_poison' | 'breath_acid' | 'fire_bolt' | 'necrotic_ray' | 'eye_ray'
+  | 'hold' | 'dread' | 'cloud' | 'vanish' | 'thunder' | 'entangle' | 'radiant_bolt' | 'acid_arrow';
 
 export interface Spell {
   id: string;
   type: SpellType;
   points: Point[];
   startTime: number;
+  /** Radi de l'àrea en peus (poders de les criatures: un núvol de 15 ft, un xiscle de 20…). */
+  aoeFt?: number;
 }
 
 /** Token que el cursor assenyala mentre s'apunta una acció: només el veu el DM (no viatja). */
@@ -144,8 +149,9 @@ export type SpellPreview =
    * `rangeFt`: abast màxim (es pinta un cercle d'abast al voltant de `start`). `outOfRange`:
    * el cursor és fora de l'abast → tot es pinta en vermell, però el clic s'accepta igualment.
    */
-  | { mode: 'line'; start: Point; end: Point; rangeFt?: number; outOfRange?: boolean; hover?: ReachHover; /** Peus mesurats (per caselles si hi ha graella). */ ft?: number | null }
-  | { mode: 'area_place'; origin: Point; center: Point; spellType: string; outOfRange?: boolean; hover?: ReachHover }
+  | { mode: 'line'; start: Point; end: Point; rangeFt?: number; outOfRange?: boolean; hover?: ReachHover; /** Peus mesurats (per caselles si hi ha graella). */ ft?: number | null;
+      /** Alè d'una criatura: la forma que es pinta (con o línia de llargada fixa cap al cursor). */ breath?: { shape: 'cone' | 'line'; lengthFt: number; color: string } }
+  | { mode: 'area_place'; origin: Point; center: Point; spellType: string; outOfRange?: boolean; hover?: ReachHover; /** Poders de criatures: radi i abast propis. */ aoeFt?: number; rangeFt?: number }
   /**
    * Atac d'un token (menú «Atacs»): línia de la vora del token al cursor, anell de l'abast i,
    * si en té, de l'abast llarg. Distàncies vora a vora. Només avís: el clic s'accepta sempre.
@@ -186,6 +192,25 @@ export interface AreaSpellPending {
   type: SpellType;
   origin: Point;
   mode?: 'line' | 'area';
+  /** Poder d'una criatura (encanteri o acció): el seu abast, àrea i efecte manen sobre els del tipus. */
+  power?: CastPower;
+}
+
+/** Poder d'una criatura a punt de llançar-se (v5 snapshot 9): `lib/monster-powers.ts`. */
+export interface CastPower {
+  /** Token que el llança i id del poder (per a la recàrrega). */
+  key: string;
+  powerId: string;
+  title: string;
+  fx: import('@/lib/rules/spell-effects').SpellEffect | null;
+  rangeFt: number;
+  aoeFt?: number;
+  /** Con o línia de longitud fixa que surt del llançador (alès). */
+  lineFt?: number;
+  dc?: number;
+  attack?: number;
+  dice?: string;
+  recharge?: number;
 }
 
 export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light' | 'tiles' | 'terrain';

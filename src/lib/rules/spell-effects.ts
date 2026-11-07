@@ -18,7 +18,8 @@ import { cellCenter, cellKeyOf, cellOfPoint, circleCells, tokenCells, type Cell,
  */
 export interface SpellEffect {
   /** `self`: només el llançador (Escut, Armadura de mag): el pop-up en mostra el benefici. */
-  shape: 'circle' | 'line' | 'cone' | 'single' | 'self';
+  /** `aura`: àrea al voltant del llançador, sense ell (ona atronadora, xiscles, presència terrible). */
+  shape: 'circle' | 'line' | 'cone' | 'single' | 'self' | 'aura';
   sizeFt?: number;
   damageType?: DamageType;
   save?: AbilityId;
@@ -81,11 +82,12 @@ function distToSegment(p: Point, a: Point, b: Point): number {
  * del radi; línia = caselles amb el centre a menys de mitja casella del traç; con = caselles amb el
  * centre dins del con (sense la del llançador); un sol objectiu = la casella del punt final.
  */
-export function spellCells(type: string, points: Point[], g: Grid): Cell[] {
-  const fx = effectFor(type);
+export function spellCells(type: string, points: Point[], g: Grid, fxOverride?: SpellEffect | null): Cell[] {
+  const fx = fxOverride ?? effectFor(type);
   if (!fx || points.length === 0) return [];
   const start = points[0], end = points[points.length - 1];
   if (fx.shape === 'circle') return circleCells(end, fx.sizeFt ?? 5, g);
+  if (fx.shape === 'aura') return circleCells(start, (fx.sizeFt ?? 10) + 2.5, g);
   if (fx.shape === 'single' || fx.shape === 'self') return [cellOfPoint(end, g)];
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
@@ -120,8 +122,8 @@ export function spellCells(type: string, points: Point[], g: Grid): Cell[] {
  * que conté el primer punt) no compta a les línies, cons i d'un sol objectiu; a les àrees sí, si hi és.
  * Sense graella no hi ha peus: retorna [].
  */
-export function spellTargets(type: string, points: Point[], slots: TokenSlot[], grid: Grid | null): string[] {
-  const fx = effectFor(type);
+export function spellTargets(type: string, points: Point[], slots: TokenSlot[], grid: Grid | null, fxOverride?: SpellEffect | null): string[] {
+  const fx = fxOverride ?? effectFor(type);
   if (!fx || points.length === 0) return [];
   const start = points[0], end = points[points.length - 1];
   const caster = slots.find(s => Math.hypot(s.x - start.x, s.y - start.y) <= s.R);
@@ -145,6 +147,6 @@ export function spellTargets(type: string, points: Point[], slots: TokenSlot[], 
   }
   // Àrees, línies i cons es mesuren en caselles: sense graella no hi ha peus.
   if (!grid) return [];
-  const hit = new Set(spellCells(type, points, grid).map(cellKeyOf));
+  const hit = new Set(spellCells(type, points, grid, fx).map(cellKeyOf));
   return pool.filter(s => tokenCells(s, s.R, grid).some(c => hit.has(cellKeyOf(c)))).map(s => s.key);
 }

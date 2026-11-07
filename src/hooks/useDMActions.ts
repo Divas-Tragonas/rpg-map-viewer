@@ -19,6 +19,7 @@ import type { DMRefs } from './useDMRefs';
 import { previewForPlayers } from '@/lib/spellcast';
 import { defensesOf, libEnemiesForPlayers } from '@/lib/rules/damage';
 import { monsterFromApi } from '@/lib/db-enemies';
+import { snapTokenCenter } from '@/lib/rules/cells';
 import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
 
 interface Setters {
@@ -613,14 +614,14 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const gs = rGridSize.current; if (gs <= 0) return;
     const gox = ((rGridOriginX.current % gs) + gs) % gs;
     const goy = ((rGridOriginY.current % gs) + gs) % gs;
-    const snapCC = (v: number, origin: number) => Math.round((v - origin - gs / 2) / gs) * gs + origin + gs / 2;
     const newPos = { ...rPos.current };
     for (const [id, p] of Object.entries(newPos)) {
       if (String(id).startsWith('pl_')) {
         const Rv = rTokenSizeOverride.current[id] ?? 22;
-        newPos[id] = { x: snapCC(p.x + Rv, gox) - Rv, y: snapCC(p.y + Rv, goy) - Rv };
+        newPos[id] = { x: snapTokenCenter(p.x + Rv, gox, gs, Rv) - Rv, y: snapTokenCenter(p.y + Rv, goy, gs, Rv) - Rv };
       } else {
-        newPos[id] = { x: snapCC(p.x, gox), y: snapCC(p.y, goy) };
+        const Rl = rTokenSizeOverride.current[id] ?? rLibEnemies.current.find(e => `lib_${e.id}` === id)?.R ?? 22;
+        newPos[id] = { x: snapTokenCenter(p.x, gox, gs, Rl), y: snapTokenCenter(p.y, goy, gs, Rl) };
       }
     }
     rPos.current = newPos; S.setPos(newPos); _broadcastState({});
@@ -1016,8 +1017,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     await applySessionState(session.data);
   }, [applySessionState]);
 
-  const addSpell = useCallback((type: string, points: { x: number; y: number }[], setSpellMenu: (v: null) => void) => {
-    const sp = { id: Date.now().toString(), type: type as import('@/types').Spell['type'], points, startTime: performance.now() };
+  const addSpell = useCallback((type: string, points: { x: number; y: number }[], setSpellMenu: (v: null) => void, aoeFt?: number) => {
+    const sp = { id: Date.now().toString(), type: type as import('@/types').Spell['type'], points, startTime: performance.now(), ...(aoeFt ? { aoeFt } : {}) };
     const ns = [...rActiveSpells.current, sp];
     rActiveSpells.current = ns; S.setActiveSpells(ns);
     bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
