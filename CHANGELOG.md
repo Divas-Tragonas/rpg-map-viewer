@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 10 — L'animació d'atac la fa qui ataca
+- **Arreglat**: l'envestida de l'atac (app Píxel) la feia sempre el token que tenia el torn. Ara la fa el token des del qual s'ha triat l'atac: si al torn de Liriandor el guerrer ataca una rata, s'hi llança el guerrer
+- **Fora de combat també hi ha animació d'atac** (abans no en sortia cap perquè no hi havia torn)
+- Els conjurs i els poders de les criatures fan l'impacte des del llançador (sense envestida)
+- Sense canvis a la API
+
 ### v5 snapshot 9 — Poders i conjurs de les criatures, recàrrega i mides de 5e
 - **Poders i conjurs al menú dels enemics i aliats**: tots els encanteris i accions especials del seu bloc (dades de 5e.tools), com el grimori de Liriandor: alès dels dracs, el Rostre horrorós i el Lament de la banshee, les mirades de les mòmies, els raigs oculars de l'espectador i el contemplador, el Xiscle i les Espores del vrock, i els encanteris del Mag malvat, Nezznar, el Sacerdot, el Druida, el Lich… amb la seva CD i el seu bonus d'atac
 - **Cada poder té animació i efecte**: les màgies que ja existien i 15 animacions noves (alès de foc, fred, verí i àcid, rajos necròtics, raigs oculars, immobilitzar, terror, núvols, ones de tro, desaparèixer…). El pop-up de sempre amb els afectats, la salvació, els estats i el dany, amb «CD 14 · 12d6» a la capçalera. Els que no tenen efecte de joc (Druidisme, Passa boirosa…) només fan l'animació

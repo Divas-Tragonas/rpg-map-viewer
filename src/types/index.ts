@@ -15,7 +15,8 @@ export interface MapSize {
  * l'envestida del token del torn; un conjur o un atac a distància no l'ha de fer.
  */
 export type HitKind = 'melee' | 'ranged' | 'spell';
-export interface HpHit { d: number; n: number; k?: HitKind }
+/** `a`: qui ha fet el cop (clau del token). Mana sobre el token del torn per a l'animació (v5 snapshot 10). */
+export interface HpHit { d: number; n: number; k?: HitKind; a?: string }
 
 export interface Player {
   id: number;
