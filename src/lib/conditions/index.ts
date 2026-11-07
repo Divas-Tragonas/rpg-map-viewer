@@ -51,16 +51,9 @@ export function drawConditionIcon(
   ctx.restore();
 }
 
-// ── Distintiu dels estats damunt del token ───────────────────────────────────
+// ── Distintiu dels estats al token ───────────────────────────────────────────
 
 const TAU = Math.PI * 2;
-/** Arc màxim (en radians) que poden ocupar els badges abans d'haver-los d'encongir. */
-const MAX_SPAN = TAU * 0.94;
-
-/** Separació angular mínima entre dos badges de radi `br` sobre una circumferència `Rb`. */
-function stepFor(br: number, Rb: number): number {
-  return 2 * Math.asin(Math.min(0.999, (br * 1.1) / Rb));
-}
 
 /**
  * Anell segmentat: un tram de circumferència per estat, amb el seu color.
@@ -93,29 +86,18 @@ function drawConditionRing(
 }
 
 /**
- * Distintius dels estats d'un token.
- *
- * Repartits en un **arc simètric respecte del capdamunt** del token (i no en una
- * fila recta com abans): amb pocs estats queden centrats sobre el cap, i a mesura
- * que se n'acumulen s'obren cap als costats fins a envoltar-lo. Si l'arc s'omple,
- * els badges s'encongeixen fins a un mínim llegible i, només si encara no hi caben,
- * l'últim es converteix en un «+N».
- *
- * A sota hi va l'**anell segmentat** de colors (`drawConditionRing`), que és el que
- * permet intuir els estats encara que els isotips quedin petits.
+ * Distintiu dels estats d'un token: només l'**anell segmentat** de colors (`drawConditionRing`).
+ * Les bombolles amb l'isotip sobre el cap es van treure a la v5 snapshot 12 (decisió del propietari):
+ * tapaven les animacions dels estats (estrelles, cors, verí…) i amb l'anell n'hi ha prou. Els isotips
+ * continuen al menú (`ConditionPicker`) i a la barra de torns.
  */
-export function drawConditionBadges(
+export function drawConditionRingFor(
   ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, condIds: string[], sc: number,
   /**
-   * App Píxel: l'anell va als peus (`footY`), aplanat (`flat`), i els badges sobre el cap. `rx, ry`:
+   * App Píxel: l'anell va als peus (`footY`), aplanat (`flat`). `rx, ry`:
    * semieixos de l'anell (els dona `render/tokens.ts` perquè quedi a la mateixa distància de l'ombra).
    */
   foot?: { footY: number; flat: number; rx?: number; ry?: number },
-  /**
-   * Quina part pintar (per defecte totes dues). A l'app Píxel l'anell va SOTA la figureta i els
-   * badges a sobre, i per això `render/tokens.ts` les pinta en dos moments.
-   */
-  parts: { ring?: boolean; badges?: boolean } = {},
 ): void {
   if (!condIds || condIds.length === 0) return;
   const list: Condition[] = [];
@@ -126,65 +108,6 @@ export function drawConditionBadges(
   // el torn i el ressaltar enemics) i el blau de selecció, i s'hi trepitjarien.
   const ringW = Math.max(3 / sc, R * 0.11);
   const Rring = Math.max(ringW, R - ringW / 2);
-  if (parts.ring !== false) {
-    if (foot) drawConditionRing(ctx, cx, foot.footY, foot.rx ?? R * 0.98, list, ringW * 0.9, foot.flat, foot.ry);
-    else drawConditionRing(ctx, cx, cy, Rring, list, ringW);
-  }
-  if (parts.badges === false) return;
-  // La figureta fa més d'alt que el disc: els badges pugen fins sobre el cap.
-  if (foot) cy -= R * 0.55;
-
-  // Mida del badge: la ideal es va reduint fins que tots caben dins de l'arc.
-  const brIdeal = Math.max(9 / sc, R * 0.32);
-  const brMin   = Math.max(7 / sc, R * 0.19);
-  const orbit = (b: number) => R + b + 4 / sc;
-  let br = brIdeal;
-  let Rb = orbit(br);
-  let step = stepFor(br, Rb);
-  while (list.length * step > MAX_SPAN && br > brMin) {
-    br = Math.max(brMin, br * 0.93);
-    Rb = orbit(br);
-    step = stepFor(br, Rb);
-  }
-
-  // Si ni encongits hi caben tots (només passaria amb un token diminut), l'últim
-  // lloc mostra quants n'han quedat fora.
-  const capacity = Math.max(1, Math.floor(MAX_SPAN / step));
-  const overflow = list.length > capacity ? list.length - capacity + 1 : 0;
-  const shown = overflow > 0 ? list.slice(0, capacity - 1) : list;
-  const slots = shown.length + (overflow > 0 ? 1 : 0);
-
-  const iconSize = br * 1.42;
-  const a0 = -Math.PI / 2 - ((slots - 1) * step) / 2;
-
-  ctx.save();
-  for (let i = 0; i < slots; i++) {
-    const a = a0 + i * step;
-    const bx = cx + Math.cos(a) * Rb;
-    const by = cy + Math.sin(a) * Rb;
-    const cond = i < shown.length ? shown[i] : null;
-
-    // Ombra: desenganxa el badge del mapa, sigui quin sigui el terreny de sota.
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.beginPath(); ctx.arc(bx, by + 1.2 / sc, br * 1.06, 0, TAU); ctx.fill();
-
-    ctx.fillStyle = cond ? cond.color : '#1f2530';
-    ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.fill();
-
-    if (cond) {
-      drawConditionIcon(ctx, bx, by, iconSize, cond.id, conditionInk(cond.color), cond.color);
-    } else {
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${br * 1.05}px system-ui, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(`+${overflow}`, bx, by);
-      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
-    }
-
-    ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 1.6 / sc;
-    ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.9 / sc;
-    ctx.beginPath(); ctx.arc(bx, by, br - 1.2 / sc, 0, TAU); ctx.stroke();
-  }
-  ctx.restore();
+  if (foot) drawConditionRing(ctx, cx, foot.footY, foot.rx ?? R * 0.98, list, ringW * 0.9, foot.flat, foot.ry);
+  else drawConditionRing(ctx, cx, cy, Rring, list, ringW);
 }

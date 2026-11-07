@@ -2,6 +2,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { X } from '@/components/icons';
+import { PixelIcon } from '@/components/ui/PixelIcon';
+import { isUiIcon } from '@/lib/sprites/uiicon';
 import { C, FS, RADIUS, CONDITIONS_BY_ID, SPELL_BY_TYPE } from '@/constants';
 import { anchoredBox } from '@/components/dm/ContextMenuOverlay';
 import { DAMAGE_TYPES, type DamageType } from '@/lib/characters';
@@ -115,8 +117,9 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); apply(); } }}
       style={{ ...anchoredBox(anchor, 120 + targets.length * 58), padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {isUiIcon(spellType) && <PixelIcon name={spellType} size={32} />}
         <span style={{ flex: 1, minWidth: 0, fontSize: FS.md, color: C.bright, fontWeight: 700 }}>
-          {meta?.emoji} {title ?? meta?.title ?? spellType} <span style={{ color: C.dim, fontWeight: 400 }}>· {targets.length} {targets.length === 1 ? 'afectat' : 'afectats'}</span>
+          {isUiIcon(spellType) ? null : meta?.emoji} {title ?? meta?.title ?? spellType} <span style={{ color: C.dim, fontWeight: 400 }}>· {targets.length} {targets.length === 1 ? 'afectat' : 'afectats'}</span>
         </span>
         <Button size="sm" variant="ghost" title="Cancel·lar (Esc)" onClick={onClose}><X size={12} /></Button>
       </div>

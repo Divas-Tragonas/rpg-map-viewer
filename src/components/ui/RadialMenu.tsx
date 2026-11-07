@@ -1,10 +1,14 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { C, FS, tint } from '@/constants';
+import { SvgPixelIcon } from '@/components/ui/PixelIcon';
+import type { UiIconId } from '@/lib/sprites/uiicon';
 
 export interface RadialItem {
   id: string;
   icon: React.ReactNode;
+  /** Icona de pixel art (`ui_icons.png`): si n'hi ha, es pinta en lloc d'`icon`. */
+  pixel?: UiIconId | null;
   label: string;
   color: string;
   /** Línia de detall que surt al centre en passar-hi el cursor (p. ex. radi i abast). */
@@ -118,10 +122,12 @@ export function RadialMenu({ x, y, title, subtitle, items, onPick, onClose }: Pr
                 fill={tint(it.color, isHov ? 0.3 : 0.1)}
                 stroke={isHov ? it.color : tint(it.color, 0.5)} strokeWidth={isHov ? 2 : 1.25}
                 style={{ transition: 'fill .12s, stroke .12s', filter: isHov ? `drop-shadow(0 0 8px ${tint(it.color, 0.6)})` : 'none' }} />
-              <text x={tx} y={ty - 7} textAnchor="middle" dominantBaseline="middle" fontSize={isHov ? 25 : 22}
-                style={{ pointerEvents: 'none', userSelect: 'none', transition: 'font-size .12s' }}>
-                {it.icon}
-              </text>
+              {it.pixel ? <SvgPixelIcon name={it.pixel} x={tx} y={ty - 7} size={32} /> : (
+                <text x={tx} y={ty - 7} textAnchor="middle" dominantBaseline="middle" fontSize={isHov ? 25 : 22}
+                  style={{ pointerEvents: 'none', userSelect: 'none', transition: 'font-size .12s' }}>
+                  {it.icon}
+                </text>
+              )}
               <text x={tx} y={ty + 16} textAnchor="middle" dominantBaseline="middle"
                 fontSize={FS.xs} fontWeight={isHov ? 700 : 600} fill={isHov ? C.bright : C.text}
                 style={{ pointerEvents: 'none', userSelect: 'none' }}>

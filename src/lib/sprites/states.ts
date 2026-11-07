@@ -1,5 +1,5 @@
 /**
- * Estats (condicions) damunt de la figureta de l'app Píxel. Els badges i l'anell continuen dient
+ * Estats (condicions) damunt de la figureta de l'app Píxel. L'anell de colors dels peus continua dient
  * QUINS estats té el token; això fa que la figura també ho expliqui d'un cop d'ull:
  *
  *   Tombat, Inconscient, Morint        → estirada a terra (Inconscient i Morint, quieta)
@@ -27,7 +27,7 @@ export interface FigureLook {
 const FREEZE = ['petrified', 'paralyzed', 'unconscious', 'dying', 'restrained', 'grappled', 'incapacitated'];
 const condColor = (id: string) => CONDITIONS.find(c => c.id === id)?.color ?? '#ffffff';
 
-/** La figura és estirada a terra? (també ho fa servir el render per baixar-hi els badges dels estats) */
+/** La figura és estirada a terra? */
 export const isLying = (conds: readonly string[]) => conds.includes('prone') || conds.includes('unconscious') || conds.includes('dying');
 
 export function figureLook(conds: readonly string[]): FigureLook {

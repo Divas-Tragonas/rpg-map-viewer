@@ -3,6 +3,7 @@ import React from 'react';
 import { ELEMENTS, SPELL_MODES } from '@/constants';
 import { RadialMenu } from '@/components/ui/RadialMenu';
 import type { ShapeMenuState } from '@/types';
+import { elementIcon } from '@/lib/sprites/uiicon';
 
 interface Props {
   shapeMenu: ShapeMenuState | null;
@@ -16,7 +17,7 @@ export function ShapeMenuOverlay({ shapeMenu, onClose, onAddZone }: Props) {
   const meta = SPELL_MODES.zone;
   return (
     <RadialMenu x={shapeMenu.cx} y={shapeMenu.cy} title={meta.title} subtitle={meta.subtitle}
-      items={ELEMENTS.map(el => ({ id: el.id, icon: el.emoji, label: el.label, color: el.color }))}
+      items={ELEMENTS.map(el => ({ id: el.id, icon: el.emoji, pixel: elementIcon(el.id), label: el.label, color: el.color }))}
       onPick={onAddZone} onClose={onClose} />
   );
 }

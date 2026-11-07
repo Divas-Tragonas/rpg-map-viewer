@@ -3,6 +3,7 @@ import React from 'react';
 import { SPELL_TYPES, SPELL_MODES, AREA_SPELL_DATA } from '@/constants';
 import { RadialMenu } from '@/components/ui/RadialMenu';
 import type { SpellMenuState } from '@/types';
+import { isUiIcon } from '@/lib/sprites/uiicon';
 
 interface Props {
   spellMenu: SpellMenuState | null;
@@ -22,7 +23,7 @@ export function SpellMenuOverlay({ spellMenu, onClose, onAddSpell }: Props) {
   const items = SPELL_TYPES.filter(s => s.mode === mode && !s.tokenOnly).map(s => {
     const area = AREA_SPELL_DATA[s.type];
     return {
-      id: s.type, icon: s.emoji, label: s.title, color: s.color,
+      id: s.type, icon: s.emoji, pixel: isUiIcon(s.type) ? s.type : null, label: s.title, color: s.color,
       detail: area ? `Radi ${area.aoeRadiusFt} ft · abast ${area.rangeFt} ft` : undefined,
     };
   });

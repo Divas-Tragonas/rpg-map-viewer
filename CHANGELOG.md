@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 12 — Icones de pixel art i estats sense bombolles
+- **Paquet d'icones «UPSCALE» separat i net**: les quatre captures borroses (armes, equipament, objectes i conjurs) convertides en **1.686 icones soltes de 16×16 amb el fons transparent**, a `assets/icon-packs/` amb un catàleg i fulls numerats. En lloc d'ampliar-les més, se n'ha recuperat la resolució original (estaven ampliades ×1,9 amb suavitzat) i es pinten ampliades sense suavitzar: nítides a qualsevol mida
+- **Icones noves a la interfície** en lloc dels emojis: roda de màgies, roda de zones, grimori dels jugadors, poders de les criatures, pop-up dels conjurs i l'icona de les zones del DM. Els **atacs** tenen la icona de la seva arma (espasa, arc, ballesta, daga, destral, maça, llança, bastó, mossegada, urpa…)
+- **Estats sense bombolles**: fora les bombolles amb l'isotip sobre el cap dels tokens, que tapaven les animacions (marejat, enverinat…). L'estat es veu a l'anell de colors dels peus i a l'animació. El nom ja no puja sobre el cap si hi ha una animació
+- Sense canvis a la API
+
 ### v5 snapshot 11 — L'animació d'atac la fa qui ataca
 - **Arreglat**: l'envestida de l'atac (app Píxel) la feia sempre el token que tenia el torn. Ara la fa el token des del qual s'ha triat l'atac: si al torn de Liriandor el guerrer ataca una rata, s'hi llança el guerrer
 - **Fora de combat també hi ha animació d'atac** (abans no en sortia cap perquè no hi havia torn)

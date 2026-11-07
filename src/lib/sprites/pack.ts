@@ -19,6 +19,8 @@ export const SHEET_FILES = {
   impact: 'uf_FX_impact.png',
   // Animacions d'efectes dels paquets nous (`scripts/fx-atlas.py` a partir de `assets/fx-packs/`).
   anims: 'fx_anims.png',
+  // Icones de la interfície (`scripts/ui-icons.py`): també es pinten al canvas (zones del DM).
+  icons: 'ui_icons.png',
   portraits: 'uf_portraits.png',
   faces: 'uf_portraits_example.png',
   skills: 'uf_skills.png',

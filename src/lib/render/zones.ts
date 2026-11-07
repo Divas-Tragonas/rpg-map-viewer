@@ -1,6 +1,8 @@
 import type { FrameContext } from './types';
 import type { PaintedZone } from '@/types';
 import { ELEMENTS_BY_ID } from '@/constants';
+import { blit } from '@/lib/sprites/draw';
+import { elementIcon, uiIconCell } from '@/lib/sprites/uiicon';
 import { drawZoneFx } from './zonefx';
 import { drawZonePixelAccents } from './zonepixel';
 import { reducedMotion } from '@/lib/sprites/states';
@@ -32,7 +34,13 @@ export function drawFlatZone(ctx: CanvasRenderingContext2D, zone: PaintedZone): 
     const { cx, cy, w, h } = zone.bbox;
     const fontSize = Math.max(12, Math.min(w, h) * 0.18);
     ctx.font = `${fontSize}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.globalAlpha = 0.7; ctx.fillText(el.emoji, cx, cy); ctx.globalAlpha = 1;
+    ctx.globalAlpha = 0.85;
+    // Icona de pixel art de l'element (múltiple de 16 px); l'emoji només si el full no hi és.
+    const ic = elementIcon(el.id);
+    const s = Math.max(16, Math.round(fontSize * 1.4 / 16) * 16);
+    const cell = ic ? uiIconCell(ic) : null;
+    if (!cell || !blit(ctx, 'icons', cell.col * 16, cell.row * 16, 16, 16, cx - s / 2, cy - s / 2, s, s)) ctx.fillText(el.emoji, cx, cy);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }

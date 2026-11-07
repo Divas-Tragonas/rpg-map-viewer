@@ -1,6 +1,6 @@
 /**
  * Animacions dels estats damunt de la figureta (app Píxel, v5 snapshot 10). Complementen
- * `states.ts` (postura, pell, moviment i contorn) i els badges: els badges diuen QUINS estats té
+ * `states.ts` (postura, pell, moviment i contorn) i l'anell de colors dels peus: l'anell diu QUINS estats té
  * el token; això fa que es vegi d'un cop d'ull què li passa.
  *
  *   Atordit      → estrelles que giren sobre el cap
@@ -13,7 +13,7 @@
  *
  * Tot va a l'escala de píxel de la figura (`S / 48`) i és funció del temps: totes les pantalles
  * veuen el mateix. Amb `prefers-reduced-motion` es queden en un fotograma fix. No es pinten a
- * les figures derrotades ni a les invisibles (al jugador, els badges d'aquestes tampoc surten).
+ * les figures derrotades ni a les invisibles (al jugador, el seu anell d'estats tampoc surt).
  */
 import { PAL } from '@/lib/render/fxsprites';
 import { animFrame, drawAnim, FX_ANIMS, type FxAnimId } from './fxanim';

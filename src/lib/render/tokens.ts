@@ -1,9 +1,9 @@
 import type { FrameContext } from './types';
 import type { HpHit } from '@/types';
 import { TOKEN_LERP, C } from '@/constants';
-import { drawConditionBadges } from '@/lib/conditions';
+import { drawConditionRingFor } from '@/lib/conditions';
 import { drawCreature, grayCreature } from '@/lib/sprites/draw';
-import { drawFigureState, figureLook, isLying, reducedMotion } from '@/lib/sprites/states';
+import { drawFigureState, figureLook, reducedMotion } from '@/lib/sprites/states';
 import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
 import { drawStatusFx, hasStatusFx } from '@/lib/sprites/statusfx';
 import { pointInPolygon } from '@/lib/geometry';
@@ -29,13 +29,13 @@ function ringPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, d: numb
 // ── Halos ─────────────────────────────────────────────────────────────────────
 // Tots són anells concèntrics a la base, cadascun al seu carril (distància fixa a la base, en px de
 // pantalla), de dins a fora (veure docs/tokens-i-combat.md, «Halos»):
-//   1. Estats    — anell SEGMENTAT de colors (`drawConditionBadges`): disc, per dins de la vora;
+//   1. Estats    — anell SEGMENTAT de colors (`drawConditionRingFor`): disc, per dins de la vora;
 //                  Píxel, tocant l'ombra per fora.
 //   2. Color     — línia CONTÍNUA fina amb un fil fosc de contrast. És també el halo del TORN i del
 //                  RESSALTAR ENEMICS: llavors fa un doble resplendor del color del token que respira.
 //   3. Selecció  — blau DISCONTINU que parpelleja (el de sempre).
 interface HaloSlots { state: number; color: number; sel: number }
-/** Gruix de l'anell dels estats, igual que a `drawConditionBadges` (Píxel: ×0,9; el fons fosc fa ×1,7). */
+/** Gruix de l'anell dels estats, igual que a `drawConditionRingFor` (Píxel: ×0,9; el fons fosc fa ×1,7). */
 const stateLw = (R: number, sc: number, foot: boolean) => Math.max(3 / sc, R * 0.11) * (foot ? 0.9 : 1);
 function haloSlots(R: number, sc: number, foot: boolean): HaloSlots {
   const lw = stateLw(R, sc, foot);
@@ -130,12 +130,12 @@ const nameUnit = (fc: FrameContext) => (fc.labelScale ?? 1) / fc.sc;
 
 /**
  * Nom sota un token. `cx, cy, r`: centre i radi del token (px de mapa); `fig`: figureta (estil Píxel);
- * `badges`: té estats (els seus badges van sobre el cap). Mides en px de pantalla a escala 1 (`size` de
+ * `head`: té una animació d'estat sobre el cap (estrelles, cors…): el nom no hi pot pujar. Mides en px de pantalla a escala 1 (`size` de
  * la lletra, sempre en negreta; `gap` des de la vora de baix del token, `boxH` del fons). `pri`: 0 jugadors,
  * 1 enemics.
  */
 export interface NameTag {
-  key: string; text: string; cx: number; cy: number; r: number; fig: boolean; badges: boolean;
+  key: string; text: string; cx: number; cy: number; r: number; fig: boolean; head: boolean;
   size: number; gap: number; boxH: number;
   color: string; bg: string; alpha: number; pri: number;
 }
@@ -216,7 +216,7 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
     // Llocs (slot): 0..NAME_ROWS-1 a sota, -1 i -2 a sobre del cap.
     const cands: { slot: number; top: number; cost: number }[] = [];
     for (let k = 0; k < NAME_ROWS; k++) cands.push({ slot: k, top: t.cy + t.r + t.gap * u + k * line, cost: k * line });
-    if (!t.badges) for (let k = 0; k < 2; k++) cands.push({ slot: -1 - k, top: it.body.t - t.gap * u - h - k * line, cost: (k + 1) * line });
+    if (!t.head) for (let k = 0; k < 2; k++) cands.push({ slot: -1 - k, top: it.body.t - t.gap * u - h - k * line, cost: (k + 1) * line });
     const last = _nameSlot.get(t.key);
     let best = { x: t.cx, top: cands[0].top, slot: 0, cost: Infinity };
     for (const c of cands) {
@@ -252,13 +252,6 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
   ctx.restore();
 }
 
-/**
- * Centre per als badges dels estats. Amb figureta, sobre el cap (`drawConditionBadges` els puja 0,55·R
- * més des d'aquí); estirada, baixen fins a ella.
- */
-const FIG_BADGE_LIFT = 0.62;
-const badgeY = (cy: number, R: number, sprite: string | null, conds: readonly string[]) =>
-  !sprite ? cy : isLying(conds) ? footOf(cy, R) + R * (1.4 - FIG_BADGE_LIFT) : footOf(cy, R) - R * FIG_BADGE_LIFT;
 
 /** El token es pinta com a figureta? (estil Píxel, paquet carregat i criatura coneguda). */
 const pixelSprite = (fc: FrameContext, sprite: string | undefined) => pixelSpriteOf(fc.rAppStyle?.current, sprite);
@@ -538,16 +531,12 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     ctx.textBaseline = 'alphabetic';
     if (showStates) {
       // Mateixa lletra, mida i fons que el nom de les DIVAS (només canvia el color).
-      nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, badges: enCondIds.length > 0, size: 10, gap: 3, boxH: 12,
+      nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, head: !!libSprite && hasStatusFx(enCondIds), size: 10, gap: 3, boxH: 12,
         color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.8)', alpha: enAlpha, pri: 1 });
     }
     ctx.globalAlpha = 1;
-    const badges = (parts?: { ring?: boolean; badges?: boolean }) => {
-      if (showStates) drawConditionBadges(ctx, ep.x, badgeY(ep.y, R, libSprite, enCondIds), R, enCondIds, sc, libSprite ? footRing(ep.y, R, sc) : undefined, parts);
-    };
     // Halos de dins a fora, i cada un per sobre de l'anterior: estats, color i (més avall) selecció.
-    // Els badges (isotips), al final, damunt de tot.
-    badges({ badges: false });
+    if (showStates) drawConditionRingFor(ctx, ep.x, ep.y, R, enCondIds, sc, libSprite ? footRing(ep.y, R, sc) : undefined);
     ctx.globalAlpha = enAlpha;
     drawColorHalo(ctx, ep.x, ep.y, R, sc, en.color, !!libSprite, isInvis, glow, phase);
     ctx.globalAlpha = 1;
@@ -576,9 +565,8 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 
     selectionFor(ctx, fc, `lib_${en.id}`, ep.x, ep.y, R, !!libSprite);
 
-    // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
+    // Amb figureta: la figura damunt de tots els aros dels peus, i la creu a sobre.
     if (fig) { fig(); ctx.globalAlpha = 1; }
-    badges({ ring: false });  // isotips dels estats, damunt de tot
     if (fig) drawCross();
 
     ctx.globalAlpha = 1;
@@ -722,13 +710,11 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
       ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
     }
     ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
-    nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, badges: plCondIds.length > 0, size: 10, gap: 3, boxH: 12,
+    nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, head: !!plSprite && hasStatusFx(plCondIds), size: 10, gap: 3, boxH: 12,
       color: pl.color, bg: 'rgba(8,12,18,.8)', alpha: 1, pri: 0 });
     ctx.textAlign = 'left';
-    const badges = (parts?: { ring?: boolean; badges?: boolean }) =>
-      drawConditionBadges(ctx, ppos.x + R, badgeY(ppos.y + R, R, plSprite, plCondIds), R, plCondIds, sc, plSprite ? footRing(ppos.y + R, R, sc) : undefined, parts);
     // Halos de dins a fora, i cada un per sobre de l'anterior: estats, color i (més avall) selecció.
-    badges({ badges: false });
+    drawConditionRingFor(ctx, ppos.x + R, ppos.y + R, R, plCondIds, sc, plSprite ? footRing(ppos.y + R, R, sc) : undefined);
     drawColorHalo(ctx, ppos.x + R, ppos.y + R, R, sc, pl.color, !!plSprite, isInvis, glow);
 
     if (isDM && pl.hpMax > 0) drawHpBar(ctx, ppos.x + R, ppos.y + R, R, sc, pl.hp ?? pl.hpMax, pl.hpMax);
@@ -755,9 +741,8 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
 
     selectionFor(ctx, fc, `pl_${pl.id}`, ppos.x + R, ppos.y + R, R, !!plSprite);
 
-    // Amb figureta: la figura damunt de tots els aros dels peus, i els badges i la creu a sobre.
+    // Amb figureta: la figura damunt de tots els aros dels peus, i la creu a sobre.
     if (fig) { fig(); ctx.globalAlpha = 1; }
-    badges({ ring: false });  // isotips dels estats, damunt de tot
     if (fig) drawCross();
   });
 }

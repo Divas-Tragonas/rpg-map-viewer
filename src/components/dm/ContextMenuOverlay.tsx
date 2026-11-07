@@ -2,6 +2,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { X, GripIcon, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon, SwordsIcon } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
+import { PixelIcon } from '@/components/ui/PixelIcon';
+import { attackIcon, isUiIcon } from '@/lib/sprites/uiicon';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
 import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/components/dm/TokenFields';
@@ -223,6 +225,7 @@ function AttackList({ attacks, onPick }: { attacks: SheetAttack[]; onPick: (a: S
               title={`${a.name} · ${kind} · ${rangeText(a)} ft${a.bonus ? ` · ${a.bonus}` : ''}${a.damage ? ` · ${a.damage}` : ''}${dmg ? ` ${dmg}` : ''}\nClic al mapa (o al token objectiu) · Esc o clic dret cancel·la`}
               onMouseDown={e => { e.stopPropagation(); onPick(a); }}
               style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
+              <PixelIcon name={attackIcon(a.name, a.kind)} />
               <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{a.name}</span>
               <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{rangeText(a)}</span>
             </Button>
@@ -266,7 +269,7 @@ function PowerList({ powers, spent, onCast }: { powers: MonsterPower[]; spent: R
                   title={`${powerName(p)} · ${reach}${tags ? ` · ${tags}` : ''}${used ? `\nGastat: es recarrega amb ${used}–6 a l'inici del seu torn` : ''}\n${d.mode === 'self' ? 'Surt de la criatura' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
                   onMouseDown={e => { e.stopPropagation(); onCast(p); }}
                   style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15, opacity: used ? 0.45 : 1 }}>
-                  <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>
+                  {isUiIcon(d.anim) ? <PixelIcon name={d.anim} /> : <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>}
                   <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{powerName(p)}</span>
                   {used ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{used}–6</span>
                     : p.recharge ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>⟳</span> : null}
@@ -313,7 +316,7 @@ function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: 
                   title={`${meta?.title ?? b.name} · ${b.level === 0 ? 'truc' : 'nivell 1'}${b.item ? ' · per un objecte' : ''}${reach ? ` · ${reach}` : ''}\n${g === 'self' ? 'Surt del token' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
                   onMouseDown={e => { e.stopPropagation(); onCast(b.type); }}
                   style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
-                  <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>
+                  {isUiIcon(b.type) ? <PixelIcon name={b.type} /> : <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>}
                   {/* Els noms del Notion són llargs («Contacto electrizante»): dues línies abans que tallar-los */}
                   <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{b.name}</span>
                   {g !== 'self' && <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{range === 5 ? 'toc' : range}</span>}
