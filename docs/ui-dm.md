@@ -140,7 +140,7 @@
 ## Avisos a la pantalla (`src/components/ui/NoticeStack.tsx`)
 - **Problema que resolia**: tot el que fallava en carregar (fons il·legible, `.json` de partida corrupte, demo inabastable, desat automàtic sense espai) només deixava rastre a `console.error`. Des de fora es veia exactament igual que «no passa res»: l'usuari tornava a clicar sense cap pista.
 - **Model**: `Notice {id, kind: 'error'|'warn'|'info', text}` a `types/index.ts`. `DMView` en té la pila (`notices`) i passa `notify(text, kind?)` dins de l'objecte `Setters` de `useDMActions` — o sigui que **qualsevol acció del DM pot avisar sense arrossegar props**. `useAutosave` el rep per l'opció `onError`.
-- **Comportament**: es pinten a dalt al centre del `stageRef`, amb icona vectorial i colors de la paleta. Un **error no marxa sol** (si s'esvaís, es perdria justament el missatge que explica per què no hi ha mapa); els avisos i les informacions sí. Un text repetit no s'apila (es dedupliquen) i se'n mostren com a molt 3.
+- **Comportament** (v5 snapshot 7: a baix, a sobre de la barra de combat; veure «Historial del combat i avisos» a `tokens-i-combat.md`): es pinten al centre del `stageRef`, amb icona vectorial i colors de la paleta. Un **error no marxa sol** (si s'esvaís, es perdria justament el missatge que explica per què no hi ha mapa); els avisos i les informacions sí. Un text repetit no s'apila (es dedupliquen) i se'n mostren com a molt 3.
 - **Regla**: si afegeixes un camí que pot fallar de cara a l'usuari, ha de passar per `notify`, no per `console.error` tot sol.
 
 ## Dreceres de teclat i modificadors (`useKeyboardHandlers`)

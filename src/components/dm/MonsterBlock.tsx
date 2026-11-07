@@ -33,12 +33,12 @@ export function MonsterBlock({ monster, defenses }: { monster: Monster | null; d
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 5 }}>
           {monster && <div style={{ fontSize: FS.xs, color: C.bright, fontWeight: 700 }}>{monster.name}</div>}
-          {monster && (
+          {monster?.abilities && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 2, textAlign: 'center' }}>
               {ABILITIES.map((a, i) => (
                 <div key={a.id} style={{ fontSize: FS.xs, color: C.dim }}>
-                  {a.label}<div style={{ color: C.text }}>{monster.abilities[i]} ({signed(mod(monster.abilities[i]))})</div>
-                  <div title="Salvació" style={{ color: monster.saves?.[a.id] !== undefined ? C.bright : C.dim }}>s {signed(monsterSave(monster, a.id))}</div>
+                  {a.label}<div style={{ color: C.text }}>{monster.abilities![i]} ({signed(mod(monster.abilities![i]))})</div>
+                  <div title="Salvació" style={{ color: monster.saves?.[a.id] !== undefined ? C.bright : C.dim }}>s {signed(monsterSave(monster, a.id) ?? 0)}</div>
                 </div>
               ))}
             </div>

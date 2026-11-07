@@ -19,8 +19,8 @@ export interface Monster {
   /** Velocitat en peus (caminar) i altres moviments en text («vol 60»). */
   speed: number;
   move?: string;
-  /** FUE DES CON INT SAV CAR. */
-  abilities: readonly [number, number, number, number, number, number];
+  /** FUE DES CON INT SAV CAR (pot faltar en un enemic de la BD sense omplir). */
+  abilities?: readonly [number, number, number, number, number, number];
   /** Bonificació total de les salvacions amb competència (si no hi és, el modificador). */
   saves?: Partial<Record<AbilityId, number>>;
   res?: DamageType[];
@@ -300,6 +300,10 @@ const mod = (score: number) => Math.floor((score - 10) / 2);
 const ORDER: AbilityId[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 
 /** Bonificació de salvació d'un monstre (la del bloc si en té competència; si no, el modificador). */
-export function monsterSave(mo: Monster, ab: AbilityId): number {
-  return mo.saves?.[ab] ?? mod(mo.abilities[ORDER.indexOf(ab)]);
+export function monsterSave(mo: Monster, ab: AbilityId): number | null {
+  if (mo.saves?.[ab] !== undefined) return mo.saves[ab]!;
+  return mo.abilities ? mod(mo.abilities[ORDER.indexOf(ab)]) : null;
 }
+
+/** Les sis característiques en l'ordre del bloc (per omplir formularis). */
+export const ABILITY_ORDER = ORDER;

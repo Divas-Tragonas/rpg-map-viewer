@@ -13,7 +13,7 @@ const STYLE: Record<Notice['kind'], { color: string; Icon: typeof X }> = {
 
 /** Quant dura un avís a la pantalla. Un error no marxa sol: si no, es perd justament el
  *  missatge que explica per què no s'ha carregat res. */
-const AUTO_HIDE_MS: Record<Notice['kind'], number | null> = { error: null, warn: 9000, info: 5000 };
+const AUTO_HIDE_MS: Record<Notice['kind'], number | null> = { error: null, warn: 14000, info: 10000 };
 
 function NoticeRow({ notice, onClose }: { notice: Notice; onClose: (id: number) => void }) {
   const st = STYLE[notice.kind];
@@ -51,22 +51,23 @@ function NoticeRow({ notice, onClose }: { notice: Notice; onClose: (id: number) 
 }
 
 /**
- * Pila d'avisos del DM, a dalt al centre del canvas. Fins ara els fracassos de càrrega
+ * Pila d'avisos del DM, a baix al centre del canvas (v5 snapshot 7): just a sobre de la barra de
+ * combat si n'hi ha (`bottom`) i, si no, arran de la vora de baix. El més nou, el de més avall. Fins ara els fracassos de càrrega
  * (fons il·legible, partida corrupta, desat automàtic sense espai) només deixaven rastre
  * a la consola i des de fora es veien com "no passa res".
  */
-export function NoticeStack({ notices, onClose }: { notices: Notice[]; onClose: (id: number) => void }) {
+export function NoticeStack({ notices, onClose, bottom = 16 }: { notices: Notice[]; onClose: (id: number) => void; bottom?: number }) {
   if (notices.length === 0) return null;
   return (
     <div
       aria-live="polite"
       style={{
-        position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',
+        position: 'absolute', bottom, left: '50%', transform: 'translateX(-50%)',
         zIndex: 60, display: 'flex', flexDirection: 'column', gap: 8,
         pointerEvents: 'none', width: 'max-content', maxWidth: 'min(90%, 520px)',
       }}
     >
-      <style>{'@keyframes noticeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}'}</style>
+      <style>{'@keyframes noticeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}'}</style>
       {notices.map(n => <NoticeRow key={n.id} notice={n} onClose={onClose} />)}
     </div>
   );

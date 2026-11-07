@@ -26,7 +26,8 @@ const field: React.CSSProperties = {
 export function DamagePopup({ prompt, target, onApply, onClose }: {
   prompt: DamagePrompt;
   target: { name: string; hp: number; hpMax: number; defenses?: Defenses };
-  onApply: (amount: number) => void;
+  /** Dany final, el tirat i el perquè del canvi (per a l'historial). */
+  onApply: (amount: number, info: { rolled: number; reasons: string[]; type?: DamageType }) => void;
   onClose: () => void;
 }) {
   const [raw, setRaw] = useState('');
@@ -34,7 +35,7 @@ export function DamagePopup({ prompt, target, onApply, onClose }: {
   const amount = Math.max(0, parseInt(raw) || 0);
   const { final, reasons } = applyDefenses(amount, type || undefined, target.defenses, false);
   const hpAfter = Math.max(0, target.hp - final);
-  const apply = () => { if (raw.trim() !== '') onApply(final); };
+  const apply = () => { if (raw.trim() !== '') onApply(final, { rolled: amount, reasons, type: type || undefined }); };
   // Esc tanca també si el focus ja no és al pop-up (el DM ha clicat el mapa).
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });

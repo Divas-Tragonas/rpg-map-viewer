@@ -3,8 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
-import { StepForward, SwordsIcon, RotateCcw, GearIcon, CheckIcon, FastForwardIcon, X, BanIcon } from '@/components/icons';
-import type { Player, LibEnemy, TurnState, DefeatedMap, ConditionsMap } from '@/types';
+import { StepForward, SwordsIcon, RotateCcw, GearIcon, CheckIcon, FastForwardIcon, X, BanIcon, ScrollIcon } from '@/components/icons';
+import type { Player, LibEnemy, TurnState, DefeatedMap, ConditionsMap, CombatLogEntry } from '@/types';
 import { movementLimit, type MovementLimit } from '@/lib/rules/conditions';
 import { budgetFor } from '@/lib/turn';
 import { creatureThumb } from '@/lib/sprites/draw';
@@ -27,6 +27,8 @@ interface Props {
   onReorder: (newOrder: (number | string)[]) => void;
   /** App Píxel: avatars amb la figureta del token. */
   pixel?: boolean;
+  /** Historial del combat (botó petit a la dreta de la barra). */
+  log?: CombatLogEntry[];
 }
 
 interface TokenInfo { name: string; color: string; img: string | null }
@@ -103,7 +105,7 @@ function moveItem<T>(arr: readonly T[], from: number, to: number): T[] {
   return a;
 }
 
-type Pop = null | 'round' | 'end' | { recover: number | string };
+type Pop = null | 'round' | 'end' | 'log' | { recover: number | string };
 
 /** El que es pinta d'un arrossegament: on és el clon (coords de la barra) i on cauria. */
 interface DragView { from: number; to: number; x: number; y: number; settling: boolean }
@@ -128,7 +130,7 @@ interface DragSession {
 
 export function TurnTracker({
   turn, players, libEnemies, defeated, conditions, tokenGroupsRef,
-  onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder, pixel,
+  onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder, pixel, log = [],
 }: Props) {
   const [selecting, setSelecting] = useState(false);
   const [selEnemies, setSelEnemies] = useState<Set<string>>(new Set());
@@ -241,6 +243,8 @@ export function TurnTracker({
     // molts tokens a la cua, els xips fan scroll en lloc d'eixamplar la barra.
     zIndex: 12, width: 'max-content', maxWidth: 'calc(100% - 150px)',
   };
+  // Historial obert: per sobre dels avisos (`NoticeStack`, z 60), que surten just a sobre de la barra.
+  if (pop === 'log') wrap.zIndex = 61;
 
   if (!turn.active) {
     return (
@@ -594,7 +598,56 @@ export function TurnTracker({
           }}>
           <X size={15} />
         </button>
+
+        {/* Historial del combat: botó petit enganxat a la dreta de la barra (fora d'ella) */}
+        <LogButton log={log} open={pop === 'log'} onToggle={() => setPop(p => (p === 'log' ? null : 'log'))} />
       </div>
+    </div>
+  );
+}
+
+const TONE: Record<CombatLogEntry['tone'], string> = { hit: '#f0883e', spell: '#a371f7', effect: '#58a6ff', heal: '#3fb950', info: '#8b949e' };
+
+/**
+ * Botó d'historial (fora de la barra, a la dreta) i, obert, la llista del que ha passat al combat:
+ * per rondes, l'últim a baix (s'hi desplaça sol). No en surt cap avís: només es consulta.
+ */
+function LogButton({ log, open, onToggle }: { log: CombatLogEntry[]; open: boolean; onToggle: () => void }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (open && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [open, log.length]);
+  return (
+    <div data-tt-pop style={{ position: 'absolute', left: 'calc(100% + 8px)', bottom: 0, top: 0, display: 'flex', alignItems: 'center' }}>
+      <button onClick={onToggle} title="Historial del combat" aria-label="Historial del combat"
+        style={{
+          width: 34, height: 34, borderRadius: RADIUS.lg, cursor: 'pointer', position: 'relative',
+          border: `1px solid ${open ? C.accent : C.border}`, background: open ? tint(C.accent, 0.13) : 'rgba(13,17,23,0.97)',
+          color: open ? C.accent : C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 28px rgba(0,0,0,0.65)',
+        }}>
+        <ScrollIcon size={15} />
+        {log.length > 0 && <span style={{ position: 'absolute', top: -5, right: -5, minWidth: 16, height: 16, padding: '0 4px', boxSizing: 'border-box', borderRadius: 8, background: C.panel, border: `1px solid ${C.border}`, color: C.text, fontSize: 9, lineHeight: '14px', textAlign: 'center' }}>{log.length}</span>}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 10px)', right: 0, width: 380, maxWidth: '80vw', zIndex: 3,
+          background: 'rgba(13,17,23,0.99)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.menu, padding: '8px 4px 8px 10px',
+        }}>
+          <div style={{ fontSize: FS.xs, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Historial del combat</div>
+          <div ref={listRef} style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {log.length === 0 && <div style={{ fontSize: FS.sm, color: C.dim }}>Encara no ha passat res.</div>}
+            {log.map((e, i) => (
+              <React.Fragment key={e.id}>
+                {(i === 0 || log[i - 1].round !== e.round) && (
+                  <div style={{ fontSize: FS.xs, color: C.dim, marginTop: i ? 4 : 0, borderTop: i ? `1px solid ${C.border}` : 'none', paddingTop: i ? 4 : 0 }}>Ronda {e.round}</div>
+                )}
+                <div style={{ display: 'flex', gap: 6, fontSize: FS.sm, color: C.text, lineHeight: 1.4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 3, background: TONE[e.tone], flexShrink: 0, marginTop: 6 }} />
+                  <span>{e.text}</span>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

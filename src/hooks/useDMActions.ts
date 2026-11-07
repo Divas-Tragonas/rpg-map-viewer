@@ -18,6 +18,7 @@ import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 import { previewForPlayers } from '@/lib/spellcast';
 import { defensesOf, libEnemiesForPlayers } from '@/lib/rules/damage';
+import { monsterFromApi } from '@/lib/db-enemies';
 import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
 
 interface Setters {
@@ -1112,7 +1113,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const _sm = enemy.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : enemy.R;
     const newEn: LibEnemy = { id: Date.now(), templateId: enemy.id, name: enemy.name, color: enemy.color, hpMax: enemy.hpMax, hp: enemy.hpMax, R: _libR, visible: true, imageData: enemy.imageData ?? null, xp: enemy.xp ?? 0,
-      ...(defensesOf(enemy) ? { defenses: defensesOf(enemy) } : {}) };
+      ...(defensesOf(enemy) ? { defenses: defensesOf(enemy) } : {}),
+      ...(monsterFromApi(enemy) ? { block: monsterFromApi(enemy)! } : {}) };
     const ns = addEnemyNumbered(rLibEnemies.current, newEn);
     rLibEnemies.current = ns; S.setLibEnemies(ns);
     const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };

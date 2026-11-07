@@ -48,15 +48,21 @@ a les pantalles de jugador. Una API anterior no les retorna: el visor fa servir 
 resistència.
 
 
-PROPOSTA PENDENT (v5 snapshot 6, encara NO a la API): bloc de 5e complet per als enemics de la
-BD, com el del bestiari de l'app (`lib/monsters.ts`). Camps nous, tots opcionals:
-  cr: string, ac: int 0–40, speedFt: int 0–200, move: string (màx. 80),
-  abilities: { str, dex, con, int, wis, cha: int 1–30 },
-  saves: { str?, dex?, con?, int?, wis?, cha?: int −5–20 },
-  nonMagicImmunities: DamageType[], conditionImmunities: ConditionId[],
-  attacks: [{ name, kind: 'melee'|'ranged'|'thrown', reachFt?, rangeFt?, longFt?, bonus?, damage?, damageType? }],
-  traits: string[]
-El frontend no els fa servir fins que la API els tingui desplegats.
+Bloc de 5e (v5 snapshot 7, desplegat): camps opcionals de l'Enemy
+  cr: string ('' o '0','1/8','1/4','1/2','1'…'30'; '' per defecte)
+  ac?: int 0–40, speedFt?: int 0–200, move?: string (màx. 80)
+  abilities?: { str, dex, con, int, wis, cha: int 1–30 }   (sencer o absent)
+  saves?: { str?, dex?, con?, int?, wis?, cha?: int −5–20 }  (bonificació total)
+  nonMagicImmunities: DamageType[]  ([] per defecte)
+  conditionImmunities: ConditionId[] ([] per defecte; blinded, charmed, deafened, exhaustion,
+                       frightened, grappled, incapacitated, invisible, paralyzed, petrified,
+                       poisoned, prone, restrained, stunned, unconscious)
+  attacks: [{ name (1–80), kind: 'melee'|'ranged'|'thrown', reachFt?, rangeFt?, longFt?,
+              bonus? (màx. 10), damage? (màx. 40), damageType? }]  ([] per defecte)
+  traits: string[] (cada un màx. 300; [] per defecte)
+GET els retorna sempre (defaults als documents antics); POST opcionals; PUT només toca els que
+vénen. El back office els edita (`StatBlockEditor`, amb «Omplir des del bestiari») i el visor els
+copia al token (`LibEnemy.block`) i els refresca de la llista de la BD (`lib/db-enemies.ts`).
 
 
 ## TIPUS Character (fitxa de personatge, v4.67)

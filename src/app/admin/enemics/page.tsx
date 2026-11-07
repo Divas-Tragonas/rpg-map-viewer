@@ -8,7 +8,10 @@ import { EnemyGroupToolbar, GroupHeader } from '@/components/ui/EnemyGroups';
 import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
 import { apiSupportsGroups, distinctValues, groupEnemies, groupKey } from '@/lib/enemy-groups';
 import type { EnemyGroupField } from '@/lib/enemy-groups';
-import { DAMAGE_TYPES, type DamageType } from '@/lib/characters';
+import { DAMAGE_TYPES, type DamageType, type SheetAttack, type AttackKind } from '@/lib/characters';
+import { MONSTERS, ABILITY_ORDER, type Monster } from '@/lib/monsters';
+import { XP_BY_CR } from '@/lib/bestiary';
+import { CONDITIONS } from '@/constants';
 
 const EMPTY_FORM: Omit<ApiEnemy, 'id'> = {
   name: '',
@@ -132,9 +135,10 @@ export default function EnemicsPage() {
     if (!modal) return;
     setSaving(true);
     try {
+      const data = cleanBlock(modal.data);
       const saved = modal.mode === 'create'
-        ? await api.enemies.create(modal.data)
-        : await api.enemies.update(modal.id!, modal.data);
+        ? await api.enemies.create(data)
+        : await api.enemies.update(modal.id!, data);
       setEnemies(prev => modal.mode === 'create' ? [...prev, saved] : prev.map(e => e.id === modal.id ? saved : e));
       // Si va a parar a un grup plegat, es desplega: si no, semblaria que no s'ha desat.
       if (grouping.by !== 'none') {
@@ -533,6 +537,8 @@ export default function EnemicsPage() {
                 </Field>
               </div>
 
+              <StatBlockEditor data={modal.data} onFill={patch => setModal(m => m ? { ...m, data: { ...m.data, ...patch } } : m)} onChange={(k, v) => updateField(k, v)} />
+
               <DefensesEditor data={modal.data} onChange={(k, v) => updateField(k, v)} />
 
               <Field label="Previsualització al grid">
@@ -847,12 +853,13 @@ function drawPreviewToken(
   ctx.restore();
 }
 
-type DefenseKey = 'resistances' | 'vulnerabilities' | 'immunities' | 'nonMagicResistances';
+type DefenseKey = 'resistances' | 'vulnerabilities' | 'immunities' | 'nonMagicResistances' | 'nonMagicImmunities';
 const DEFENSE_ROWS: { key: DefenseKey; label: string; color: string; hint: string }[] = [
   { key: 'resistances', label: 'Resistències', color: '#58a6ff', hint: 'Meitat de dany' },
   { key: 'nonMagicResistances', label: 'Resistències a armes no màgiques', color: '#8b949e', hint: 'Meitat de dany si l\'atac no és màgic' },
   { key: 'vulnerabilities', label: 'Vulnerabilitats', color: '#f0883e', hint: 'Doble de dany' },
   { key: 'immunities', label: 'Immunitats', color: '#e05555', hint: 'Cap dany' },
+  { key: 'nonMagicImmunities', label: 'Immunitats a armes no màgiques', color: '#b62324', hint: 'Cap dany si l\'atac no és màgic (gòlems, lich)' },
 ];
 
 /**
@@ -894,6 +901,139 @@ function DefensesEditor({ data, onChange }: {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Bloc de 5e (v5 snapshot 7) ─────────────────────────────────────────────────────────────
+
+type EnemyData = Omit<ApiEnemy, 'id'>;
+const CR_LIST = ['0', '1/8', '1/4', '1/2', ...Array.from({ length: 30 }, (_, i) => String(i + 1))];
+const AB_LABEL: Record<string, string> = { str: 'FUE', dex: 'DES', con: 'CON', int: 'INT', wis: 'SAV', cha: 'CAR' };
+const KIND_LABEL: Record<AttackKind, string> = { melee: 'Cos a cos', ranged: 'A distància', thrown: 'Llançadís' };
+const STATE_IDS = CONDITIONS.filter(c => !c.buff && c.id !== 'dying').map(c => c.id);
+const small: React.CSSProperties = { ...inputStyle, padding: '5px 7px' };
+const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.1em' };
+
+/** El que la API accepta: característiques senceres o res, atacs amb nom, enters on toca. */
+function cleanBlock(d: EnemyData): EnemyData {
+  const out: EnemyData = { ...d };
+  const ab = d.abilities;
+  if (!ab || !ABILITY_ORDER.every(k => typeof ab[k] === 'number')) delete out.abilities;
+  if (d.saves) {
+    const sv = Object.fromEntries(Object.entries(d.saves).filter(([, v]) => typeof v === 'number' && Number.isFinite(v)));
+    out.saves = sv;
+  }
+  if (d.attacks) out.attacks = d.attacks.filter(a => a.name.trim()).map(a => ({ ...a, name: a.name.trim() }));
+  if (d.traits) out.traits = d.traits.map(t => t.trim()).filter(Boolean);
+  for (const k of ['ac', 'speedFt'] as const) if (out[k] === undefined || Number.isNaN(out[k])) delete out[k];
+  return out;
+}
+
+/** Bloc de l'app → camps de la BD (per omplir-lo d'un cop). */
+function fromMonster(mo: Monster): Partial<EnemyData> {
+  const reach = Math.max(5, ...mo.attacks.filter(a => a.kind !== 'ranged').map(a => a.reachFt ?? 5));
+  return {
+    cr: mo.cr, ac: mo.ac, speedFt: mo.speed, move: mo.move ?? '', hpMax: mo.hp, xp: XP_BY_CR[mo.cr] ?? 0,
+    abilities: mo.abilities ? Object.fromEntries(ABILITY_ORDER.map((k, i) => [k, mo.abilities![i]])) : undefined,
+    saves: { ...(mo.saves ?? {}) }, reachFt: reach,
+    resistances: mo.res ?? [], vulnerabilities: mo.vul ?? [], immunities: mo.imm ?? [],
+    nonMagicResistances: mo.nmRes ? ['bludgeoning', 'piercing', 'slashing'] : [],
+    nonMagicImmunities: mo.nmImm ? ['bludgeoning', 'piercing', 'slashing'] : [],
+    conditionImmunities: mo.cimm ?? [], attacks: mo.attacks.map(a => ({ ...a })), traits: [...(mo.traits ?? [])],
+  };
+}
+
+/**
+ * Bloc de 5e d'un enemic de la BD: VD, CA, velocitat, característiques i salvacions, immunitats a
+ * estats, atacs i trets. «Omplir des del bestiari» copia el bloc d'un monstre de l'app (vida, XP i
+ * defenses incloses) per retocar-lo. El joc el fa servir als pop-ups i a la fitxa del menú del token.
+ */
+function StatBlockEditor({ data, onChange, onFill }: {
+  data: EnemyData;
+  onChange: <K extends keyof EnemyData>(k: K, v: EnemyData[K]) => void;
+  onFill: (patch: Partial<EnemyData>) => void;
+}) {
+  const ab = data.abilities ?? {};
+  const attacks = data.attacks ?? [];
+  const num = (v: string) => { const n = parseInt(v); return Number.isFinite(n) ? n : undefined; };
+  const setAttack = (i: number, patch: Partial<SheetAttack>) => onChange('attacks', attacks.map((a, j) => j === i ? { ...a, ...patch } : a));
+  const cimm = data.conditionImmunities ?? [];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ ...sectionLabel, flex: 1 }}>Bloc de 5e</span>
+        <select value="" onChange={e => { const mo = MONSTERS[e.target.value]; if (mo) onFill(fromMonster(mo)); }} style={{ ...small, width: 260 }}>
+          <option value="">Omplir des del bestiari…</option>
+          {Object.entries(MONSTERS).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, mo]) => <option key={id} value={id}>{mo.name} · VD {mo.cr}</option>)}
+        </select>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: 10 }}>
+        <Field label="VD">
+          <select value={data.cr ?? ''} onChange={e => onChange('cr', e.target.value)} style={small}>
+            <option value="">—</option>{CR_LIST.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="CA"><input type="number" min={0} max={40} value={data.ac ?? ''} onChange={e => onChange('ac', num(e.target.value))} style={small} /></Field>
+        <Field label="Velocitat ft"><input type="number" min={0} max={200} step={5} value={data.speedFt ?? ''} onChange={e => onChange('speedFt', num(e.target.value))} style={small} /></Field>
+        <Field label="Altres moviments"><input value={data.move ?? ''} maxLength={80} placeholder="vol 60, nedar 30" onChange={e => onChange('move', e.target.value)} style={small} /></Field>
+      </div>
+      <div>
+        <span style={sectionLabel}>Característiques · salvació (només si en té competència)</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginTop: 5 }}>
+          {ABILITY_ORDER.map(k => (
+            <div key={k} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, padding: 6, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: C.dim, fontWeight: 700 }}>{AB_LABEL[k]}</div>
+              <input type="number" min={1} max={30} value={ab[k] ?? ''} placeholder="10"
+                onChange={e => onChange('abilities', { ...ab, [k]: num(e.target.value) })} style={{ ...small, textAlign: 'center', marginTop: 3 }} />
+              <input type="number" min={-5} max={20} value={data.saves?.[k] ?? ''} placeholder="salv."
+                title="Bonificació total de la salvació (buit = el modificador)"
+                onChange={e => onChange('saves', { ...(data.saves ?? {}), [k]: num(e.target.value) })} style={{ ...small, textAlign: 'center', marginTop: 3 }} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <span style={sectionLabel}>Immune a estats</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
+          {STATE_IDS.map(id => {
+            const c = CONDITIONS.find(x => x.id === id)!;
+            const on = cimm.includes(id);
+            return (
+              <button key={id} type="button" onClick={() => onChange('conditionImmunities', on ? cimm.filter(x => x !== id) : [...cimm, id])}
+                style={{ padding: '3px 9px', borderRadius: 12, fontSize: 12, cursor: 'pointer', border: `1px solid ${on ? c.color : C.border}`,
+                  background: on ? tint(c.color, 0.22) : 'transparent', color: on ? C.bright : C.dim }}>{c.label}</button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionLabel}>Atacs (surten al menú del token, amb l&apos;abast)</span>
+        {attacks.map((a, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 1fr 1.1fr auto', gap: 5, alignItems: 'center' }}>
+            <input value={a.name} placeholder="Nom" maxLength={80} onChange={e => setAttack(i, { name: e.target.value })} style={small} />
+            <select value={a.kind} onChange={e => setAttack(i, { kind: e.target.value as AttackKind })} style={small}>
+              {(Object.keys(KIND_LABEL) as AttackKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+            </select>
+            <input type="number" title="Abast cos a cos (ft)" placeholder="abast" disabled={a.kind === 'ranged'} value={a.kind === 'ranged' ? '' : a.reachFt ?? 5} onChange={e => setAttack(i, { reachFt: num(e.target.value) })} style={small} />
+            <input type="number" title="Distància normal (ft)" placeholder="dist." disabled={a.kind === 'melee'} value={a.kind === 'melee' ? '' : a.rangeFt ?? ''} onChange={e => setAttack(i, { rangeFt: num(e.target.value) })} style={small} />
+            <input type="number" title="Distància llarga (ft)" placeholder="llarg" disabled={a.kind === 'melee'} value={a.kind === 'melee' ? '' : a.longFt ?? ''} onChange={e => setAttack(i, { longFt: num(e.target.value) })} style={small} />
+            <input value={a.bonus ?? ''} placeholder="+5" maxLength={10} onChange={e => setAttack(i, { bonus: e.target.value || undefined })} style={small} />
+            <input value={a.damage ?? ''} placeholder="2d6+3" maxLength={40} onChange={e => setAttack(i, { damage: e.target.value || undefined })} style={small} />
+            <select value={a.damageType ?? ''} onChange={e => setAttack(i, { damageType: (e.target.value || undefined) as DamageType | undefined })} style={small}>
+              <option value="">—</option>{DAMAGE_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </select>
+            <button type="button" onClick={() => onChange('attacks', attacks.filter((_, j) => j !== i))} title="Treure l'atac"
+              style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', fontSize: 16 }}>×</button>
+          </div>
+        ))}
+        <div><button type="button" onClick={() => onChange('attacks', [...attacks, { name: '', kind: 'melee', reachFt: 5 }])}
+          style={{ padding: '5px 12px', border: `1px solid ${C.border}`, borderRadius: 6, background: 'transparent', color: C.text, fontSize: 12, cursor: 'pointer' }}>Afegir un atac</button></div>
+      </div>
+      <Field label="Trets i poders (un per línia)">
+        <textarea rows={3} value={(data.traits ?? []).join('\n')} onChange={e => onChange('traits', e.target.value.split('\n'))}
+          placeholder="Regeneració: 10 PV per torn si no rep foc ni àcid" style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.45 }} />
+      </Field>
     </div>
   );
 }

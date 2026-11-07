@@ -22,6 +22,20 @@ export type ApiEnemy = {
   vulnerabilities?: DamageType[];
   immunities?: DamageType[];
   nonMagicResistances?: DamageType[];
+  /**
+   * Bloc de 5e (v5 snapshot 7): opcionals; una API anterior no els retorna. `cr` '' = sense VD.
+   * `abilities` ve sencer o no ve (Mongo no desa l'objecte buit).
+   */
+  cr?: string;
+  ac?: number;
+  speedFt?: number;
+  move?: string;
+  abilities?: Partial<Record<'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha', number>>;
+  saves?: Partial<Record<'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha', number>>;
+  nonMagicImmunities?: DamageType[];
+  conditionImmunities?: string[];
+  attacks?: import('@/lib/characters').SheetAttack[];
+  traits?: string[];
 };
 
 /** Entrada de l'historial d'experiència d'un personatge (els 200 últims, els nous al final). */

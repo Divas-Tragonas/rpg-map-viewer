@@ -16,7 +16,7 @@ import type {
   PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
   ContextMenuState, SceneConfigMenuState, SpellMenuState, ShapeMenuState, Point,
-  LibEnemy, Wall, Room, Door, LightSource, TurnState, Notice, Notify,
+  LibEnemy, Wall, Room, Door, LightSource, TurnState, Notice, Notify, CombatLogEntry,
 } from '@/types';
 import { clearExploredAt } from '@/lib/render/darkrooms';
 import { useDMRefs } from '@/hooks/useDMRefs';
@@ -53,7 +53,7 @@ import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { ImageIcon, CheckIcon, PlayIcon } from '@/components/icons';
-import { isApiConfigured } from '@/lib/api';
+import { api, isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
 import { terrainCost } from '@/lib/rules/terrain';
@@ -75,8 +75,8 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
 import { buildSheetShow, characterFor, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
-import { enemyDefenses } from '@/lib/rules/damage';
-import { monsterForTemplate } from '@/lib/bestiary';
+import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
+import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
 import { creatureStats } from '@/lib/bestiary';
 import { RightRail } from '@/components/dm/RightRail';
@@ -109,7 +109,7 @@ export function DMView() {
   // Pop-up de dany d'un atac (v5): s'obre en clicar l'objectiu mentre s'apunta un atac del menú.
   const [damagePrompt, setDamagePrompt] = useState<import('@/types').DamagePrompt | null>(null);
   // Pop-up d'un conjur llançat en combat (v5): afectats, dany/cura i estats proposats.
-  const [spellPrompt, setSpellPrompt] = useState<{ type: string; points: import('@/types').Point[]; keys: string[]; caster?: string; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
+  const [spellPrompt, setSpellPrompt] = useState<{ type: string; points: import('@/types').Point[]; keys: string[]; caster?: string; outOfRange?: boolean; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
@@ -396,6 +396,12 @@ export function DMView() {
   // ── App Píxel ──────────────────────────────────────────────────────────────
   // Els fulls del paquet de sprites són a `public/sprites/`: cada pantalla els carrega sola.
   useEffect(() => { void ensurePack(); }, []);
+  // Enemics de la BD: el seu bloc de 5e i defenses actualitzats per als tokens que ja són al mapa
+  // (si el DM n'edita un al back office, el pop-up de dany ja ho té en compte). Sense API, res.
+  useEffect(() => {
+    if (!isApiConfigured()) return;
+    api.enemies.list().then(rememberDbEnemies).catch(() => {});
+  }, []);
   // L'estil viatja dins de cada STATE: canviar d'app ho canvia també a les pantalles de jugador.
   useEffect(() => {
     R.rAppStyle.current = pixel ? 'pixel' : 'classic';
@@ -926,6 +932,17 @@ export function DMView() {
 
   // ── Mouse handlers ────────────────────────────────────────────────────────
   // ── Durades en combat (Dormir, Riure horrible, Escut, Beneir…) ────────────────────────────
+  // ── Historial del combat (botó a la dreta de la barra de torns) ────────────────────────────
+  // Què hi va: inici i fi, atacs i conjurs aplicats (amb el dany final i el perquè), estats que
+  // posen, beneficis i efectes que s'acaben, i qui cau a 0. Què NO: cada torn, els ± de vida a mà,
+  // els moviments. Els avisos (pop-ups) són a part: només el que s'ha de veure en aquell moment.
+  const [combatLog, setCombatLog] = useState<CombatLogEntry[]>([]);
+  const logIdRef = useRef(0);
+  const logCombat = useCallback((text: string, tone: CombatLogEntry['tone']) => {
+    const t = R.rTurn.current;
+    if (!t.active) return;
+    setCombatLog(l => [...l.slice(-299), { id: ++logIdRef.current, round: t.round, text, tone }]);
+  }, [R]);
   const tokNameOf = (k: string) => (k.startsWith('pl_')
     ? R.rPlayers.current.find(p => `pl_${p.id}` === k)?.name
     : R.rLibEnemies.current.find(e => `lib_${e.id}` === k)?.name) ?? '?';
@@ -938,8 +955,9 @@ export function DMView() {
         if (!still && (R.rConditions.current[e.target] ?? []).includes(c)) toggleCondition(e.target, c);
       }
       notify(`S'acaba: ${e.label}`, 'info');
+      logCombat(`S'acaba ${e.label}`, 'effect');
     }
-  }, [R, toggleCondition, notify]);
+  }, [R, toggleCondition, notify, logCombat]);
   /** Un token ha rebut dany: s'acaben els efectes que ho diuen (Dormir). */
   const effectsOnDamage = useCallback((key: string) => {
     const { ended, left } = onDamaged(R.rTimedEffects.current, key);
@@ -950,6 +968,7 @@ export function DMView() {
   const lastTurnSig = useRef('');
   useEffect(() => {
     if (!turn.active) {
+      if (lastTurnSig.current) setCombatLog(l => [...l, { id: ++logIdRef.current, round: l.length ? l[l.length - 1].round : 1, text: 'Fi del combat', tone: 'info' }]);
       lastTurnSig.current = '';
       const all = R.rTimedEffects.current;
       if (!all.length) return;
@@ -964,7 +983,11 @@ export function DMView() {
     if (sig === lastTurnSig.current) return;
     const first = lastTurnSig.current === '';
     lastTurnSig.current = sig;
-    if (first) return;
+    if (first) {
+      const names = turn.order.map(id => tokNameOf(String(id))).join(', ');
+      setCombatLog([{ id: ++logIdRef.current, round: turn.round, text: `Comença el combat: ${names}`, tone: 'info' }]);
+      return;
+    }
     const { ended, left } = tickTurnStart(R.rTimedEffects.current, String(turn.order[turn.turnIndex]));
     if (ended.length) endEffects(ended, left); else R.rTimedEffects.current = left;
   }, [turn, R, endEffects, toggleCondition]);
@@ -986,7 +1009,9 @@ export function DMView() {
     setDamagePrompt(null);
     const p0 = points[0];
     const caster = p0 ? slots.find(x => Math.hypot(x.x - p0.x, x.y - p0.y) <= x.R)?.key : undefined;
-    setSpellPrompt({ type, points, keys, caster, anchor: { l, r, t, b } });
+    const pv = R.rSpellPreview.current;
+    const outOfRange = !!pv && pv.mode !== 'attack' && !!pv.outOfRange;
+    setSpellPrompt({ type, points, keys, caster, outOfRange, anchor: { l, r, t, b } });
     return true;
   }, [R]);
 
@@ -1852,7 +1877,7 @@ export function DMView() {
       <div ref={R.stageRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}
         onDragEnter={onStageDragEnter} onDragLeave={onStageDragLeave}
         onDragOver={e => { if (isFileDrag(e)) e.preventDefault(); }} onDrop={onStageDrop}>
-        <NoticeStack notices={notices} onClose={dismissNotice} />
+        <NoticeStack notices={notices} onClose={dismissNotice} bottom={bgLoaded && mode === 'jugar' ? (turn.active ? 104 : 80) : 16} />
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
@@ -1909,6 +1934,7 @@ export function DMView() {
           onAdvanceRound={advanceRound}
           onRecoverTurn={recoverTurn}
           onReorder={reorderTurn}
+          log={combatLog}
           pixel={pixel}
         />}
         {/* Expositor floating panel */}
@@ -2193,7 +2219,7 @@ export function DMView() {
               saveBonus: saveAb && ch ? sheetSave(sheetOf(ch), saveAb, ch.level) : null });
           }
           else if (en) {
-            const mo = monsterForTemplate(en.templateId);
+            const mo = monsterForEnemy(en);
             targets.push({ key: k, name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en), conditions: conditions[k] ?? [],
               saveBonus: saveAb && mo ? monsterSave(mo, saveAb) : null });
           }
@@ -2211,6 +2237,20 @@ export function DMView() {
               const fx = SPELL_EFFECTS[st];
               const caster = spellPrompt.caster;
               const title = SPELL_BY_TYPE.get(st)?.title ?? st;
+              // Historial: una línia per conjur amb cada afectat.
+              const parts = outs.map(o => {
+                const nm = tokNameOf(o.key);
+                const bits: string[] = [];
+                if (o.delta > 0) bits.push(`${o.delta}${o.type ? ` ${damageLabel(o.type)}` : ''}`);
+                else if (o.delta < 0) bits.push(`+${-o.delta} PV`);
+                else if (fx?.damageType) bits.push('0');
+                if (o.saved) bits.push('supera');
+                const rs = (o.reasons ?? []).filter(x => !x.startsWith('Supera'));
+                if (rs.length) bits.push(rs.join(', ').toLowerCase());
+                if (o.addConditions.length) bits.push(o.addConditions.map(c => CONDITIONS_BY_ID.get(c)?.label ?? c).join(' i '));
+                return `${nm}${bits.length ? ` (${bits.join(' · ')})` : ''}`;
+              });
+              logCombat(`${caster ? tokNameOf(caster) : 'Algú'} llança ${title}${spellPrompt.outOfRange ? " (fora d'abast)" : ''}: ${parts.join('; ') || 'ningú'}`, fx?.heal ? 'heal' : 'spell');
               window.setTimeout(() => {
                 for (const o of outs) {
                   if (o.delta !== 0) {
@@ -2242,12 +2282,18 @@ export function DMView() {
         if (!tgt) return null;
         return (
           <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}
-            onApply={amount => {
+            onApply={(amount, info) => {
               if (amount > 0) {
                 if (pl) adjustPlayerHp(pl.id, -amount, damagePrompt.hitKind);
                 else if (en) adjustLibEnemyHp(en.id, -amount, damagePrompt.hitKind);
                 effectsOnDamage(k);
               }
+              const who = damagePrompt.attackerKey ? tokNameOf(damagePrompt.attackerKey) : 'Algú';
+              const dt = info.type ? ` ${damageLabel(info.type)}` : '';
+              const why = info.reasons.length ? ` (${info.rolled} tirat · ${info.reasons.join(', ').toLowerCase()})` : '';
+              const out = damagePrompt.outOfRange ? " · fora d'abast" : '';
+              const falls = tgt.hp > 0 && tgt.hp - amount <= 0 ? ` · ${tgt.name} cau` : '';
+              logCombat(`${who} ataca ${tgt.name} amb ${damagePrompt.label}: ${amount}${dt}${why}${out}${falls}`, 'hit');
               setDamagePrompt(null);
             }} />
         );

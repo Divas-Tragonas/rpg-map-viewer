@@ -172,6 +172,9 @@ export interface DamagePrompt {
   anchor: { l: number; r: number; t: number; b: number };
   /** Cos a cos (el token del torn fa l'envestida) o a distància (sense envestida). */
   hitKind?: HitKind;
+  /** Qui ataca i si era fora d'abast (per a l'historial del combat). */
+  attackerKey?: string;
+  outOfRange?: boolean;
 }
 
 /**
@@ -230,6 +233,8 @@ export interface LibEnemy {
    * (`libEnemiesForPlayers`): delatarien les debilitats de l'enemic.
    */
   defenses?: import('@/lib/rules/damage').Defenses;
+  /** Bloc de 5e de la BD copiat en afegir-lo (v5 snapshot 7). Com `defenses`, NO viatja als jugadors. */
+  block?: import('@/lib/monsters').Monster;
 }
 
 export interface ContextMenuState {
@@ -546,3 +551,9 @@ export interface Notice {
 
 /** Publica un avís a la pantalla del DM. `kind` per defecte: 'error'. */
 export type Notify = (text: string, kind?: Notice['kind']) => void;
+
+/**
+ * Línia de l'historial del combat (v5 snapshot 7): el que ha passat (atacs, conjurs, estats, rondes).
+ * `tone` en tria el color. No és un avís: només es veu al botó d'historial de la barra de torns.
+ */
+export interface CombatLogEntry { id: number; round: number; text: string; tone: 'hit' | 'spell' | 'effect' | 'heal' | 'info' }

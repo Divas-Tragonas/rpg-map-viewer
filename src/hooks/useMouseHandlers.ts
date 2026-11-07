@@ -227,7 +227,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
         const pv = aimAttack(R, pend, { x: amx, y: amy }, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), asc);
         const near = pv?.mode === 'attack' && (pv.ft === null || pv.ft <= 5);
         const hitKind = pend.kind === 'ranged' ? 'ranged' as const : pend.kind === 'thrown' && !near ? 'ranged' as const : 'melee' as const;
-        S.openDamage({ targetKey: target.key, label: pend.label, damageType: pend.damageType, hitKind,
+        S.openDamage({ targetKey: target.key, label: pend.label, damageType: pend.damageType, hitKind, attackerKey: pend.key, outOfRange: pv?.mode === 'attack' && pv.zone === 'out',
           anchor: { l: toX(b.l), r: toX(b.r), t: toY(b.t), b: toY(b.b) } });
       }
       e.preventDefault(); return;

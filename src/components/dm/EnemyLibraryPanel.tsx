@@ -8,6 +8,7 @@ import { api, isApiConfigured } from '@/lib/api';
 import { creatureThumb, creatureNames } from '@/lib/sprites/draw';
 import { isKit } from '@/lib/sprites/kit';
 import { useSpritePack } from '@/hooks/useSpritePack';
+import { rememberDbEnemies } from '@/lib/db-enemies';
 import type { ApiEnemy } from '@/lib/api';
 import { groupKey } from '@/lib/enemy-groups';
 import type { LibEnemy } from '@/types';
@@ -85,7 +86,7 @@ export function EnemyLibraryPanel({ libEnemies, onAddEnemy, onAddDbEnemy, pixel 
   useEffect(() => {
     if (!isApiConfigured()) return;
     api.enemies.list()
-      .then(setDbEnemies)
+      .then(list => { rememberDbEnemies(list); setDbEnemies(list); })
       .catch(() => {})   // sense connexió: el bestiari queda només amb les plantilles del codi
       .finally(() => setDbLoading(false));
   }, []);

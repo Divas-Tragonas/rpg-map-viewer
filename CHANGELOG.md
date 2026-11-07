@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 7 — Historial del combat, avisos a baix i bloc de 5e als enemics de la BD
+- **Historial del combat**: botó petit a la dreta de la barra de torns amb el que ha passat, per rondes: inici i fi, cada atac (qui, a qui, amb què, el dany final i el perquè, si era fora d'abast i si cau), cada conjur amb els afectats (dany, salvació, resistències, estats) i els efectes que s'acaben. No hi surten els torns ni els ± de vida a mà
+- **Avisos a baix**, just a sobre de la barra de combat (o arran de baix si no n'hi ha), i duren més (10 s). Només surten com a avís les coses del moment (Escut aplicat, un efecte que s'acaba); el dany i els estats van a l'historial
+- **Enemics de la BD amb bloc de 5e**: al back office, VD, CA, velocitat, característiques i salvacions, immunitats a estats i a armes no màgiques, atacs i trets, amb «Omplir des del bestiari» per copiar el bloc d'un monstre de l'app i retocar-lo
+- Al joc, els enemics de la BD fan servir el seu bloc com els del bestiari: atacs al menú, fitxa 5e, immunitats als pop-ups i salvació de l'objectiu. Els que ja són al mapa agafen els canvis del back office en recarregar
+- **Canvis a la API**: bloc de 5e als enemics (`cr`, `ac`, `speedFt`, `move`, `abilities`, `saves`, `nonMagicImmunities`, `conditionImmunities`, `attacks`, `traits`). Veure `api-spec.txt`
+
 ### v5 snapshot 6 — Bestiari de 5e complet i Mans ardents fora d'abast
 - **Arreglat: Mans ardents fora d'abast**. En clicar la figureta d'un token (a l'app Píxel és per sobre de la seva casella), el con apuntava massa curt i no el tocava. Ara una màgia direccional clicada sobre un token apunta al seu centre
 - **Bestiari de l'app amb tots els blocs de 5e** (Manual de monstres, Phandelver, Volo): CA, característiques, salvacions, velocitat, resistències, immunitats, vulnerabilitats, immunitats a estats, atacs i trets de cada monstre. Abans només hi havia VD, vida i XP

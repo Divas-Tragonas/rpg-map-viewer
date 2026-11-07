@@ -28,7 +28,11 @@ function buffText(buff: 'shield' | 'mage_armor' | 'bless', t: SpellTarget): stri
 }
 
 /** Resultat confirmat per a un token: dany (negatiu = cura) i estats a afegir. */
-export interface SpellOutcome { key: string; delta: number; addConditions: string[]; /** Benefici (Escut…) per avisar-ne. */ note?: string }
+export interface SpellOutcome {
+  key: string; delta: number; addConditions: string[]; /** Benefici (Escut…) per avisar-ne. */ note?: string;
+  /** Per a l'historial: si ha superat la salvació, el perquè del canvi de dany i el tipus. */
+  saved?: boolean; reasons?: string[]; type?: DamageType;
+}
 
 interface Row { include: boolean; saved: boolean; conds: string[] }
 
@@ -97,6 +101,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
       key: t.key, delta: hasAmount ? outcomeOf(t).delta : 0,
       addConditions: rows[t.key].conds.filter(c => !t.conditions.includes(c) && !t.defenses?.conditionImmunities?.includes(c)),
       ...(fx.buff ? { note: `${t.name}: ${buffText(fx.buff, t)}` } : {}),
+      saved: rows[t.key].saved, reasons: outcomeOf(t).reasons, type: type || undefined,
     })));
   };
   const saveText = fx.save ? `Salvació ${SAVE_LABEL[fx.save]}${fx.damageType ? (fx.half ? ' · meitat si la supera' : ' · res si la supera') : ''}` : null;

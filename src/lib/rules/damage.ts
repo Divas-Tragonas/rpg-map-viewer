@@ -3,6 +3,7 @@ import type { ApiEnemy } from '@/lib/api';
 import type { LibEnemy } from '@/types';
 import type { Monster } from '@/lib/monsters';
 import { monsterForTemplate } from '@/lib/bestiary';
+import { dbEnemy } from '@/lib/db-enemies';
 
 /**
  * Defenses d'un enemic (camps de la API `/enemies`, v5): abast cos a cos i com li afecta
@@ -59,6 +60,7 @@ export function defensesOf(e: ApiEnemy): Defenses | undefined {
   const d: Defenses = {
     reachFt: e.reachFt, resistances: e.resistances, vulnerabilities: e.vulnerabilities,
     immunities: e.immunities, nonMagicResistances: e.nonMagicResistances,
+    nonMagicImmunities: e.nonMagicImmunities, conditionImmunities: e.conditionImmunities,
   };
   return hasDefenses(d) ? d : undefined;
 }
@@ -68,10 +70,10 @@ export function defensesOf(e: ApiEnemy): Defenses | undefined {
  * veurien les debilitats). Si cap no en té, retorna la mateixa llista (sense còpia).
  */
 export function libEnemiesForPlayers(list: LibEnemy[]): LibEnemy[] {
-  if (!list.some(e => e.defenses)) return list;
+  if (!list.some(e => e.defenses || e.block)) return list;
   return list.map(e => {
-    if (!e.defenses) return e;
-    const { defenses: _d, ...rest } = e; void _d;
+    if (!e.defenses && !e.block) return e;
+    const { defenses: _d, block: _b, ...rest } = e; void _d; void _b;
     return rest;
   });
 }
@@ -93,6 +95,9 @@ export function monsterDefenses(mo: Monster): Defenses {
  * de 5e de la seva plantilla (bestiari de l'app; així també les tenen els tokens que ja eren al mapa).
  */
 export function enemyDefenses(en: Pick<LibEnemy, 'defenses' | 'templateId'>): Defenses | undefined {
+  // La BD carregada ara mana (si el DM l'ha editat, el token ho veu); si no, la còpia del token.
+  const db = dbEnemy(en.templateId);
+  if (db) return defensesOf(db) ?? { reachFt: db.reachFt ?? 5 };
   if (en.defenses) return en.defenses;
   const mo = monsterForTemplate(en.templateId);
   return mo ? monsterDefenses(mo) : undefined;
