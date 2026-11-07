@@ -134,10 +134,11 @@ export const CREATURES: Record<string, readonly [number, number]> = {
   mimic: [1344, 576],
   merchant_a: [1536, 576],
   merchant_b: [1728, 576],
-  // Figuretes pròpies de la colla (fila afegida per `scripts/party-figures.py`, no pel paquet).
+  // Figuretes pròpies (fila afegida per `scripts/party-figures.py`, no pel paquet): la colla i l'ós.
   // Si es regenera aquest fitxer amb `oryx-manifest.py`, cal tornar-les a posar.
   templar_axe: [0, 624],
   warrior_green: [192, 624],
+  bear: [384, 624],
 };
 
 /** Les figuretes de la colla (no surten al bestiari, sí al selector de figureta). */

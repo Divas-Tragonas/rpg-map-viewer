@@ -958,7 +958,12 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.gridOriginY !== undefined)  { rGridOriginY.current = state.gridOriginY; S.setGridOriginY(state.gridOriginY); }
       if (state.gridAutoSize !== undefined) { rGridAutoSize.current = !!state.gridAutoSize; S.setGridAutoSize(!!state.gridAutoSize); }
       if (state.tokenSizeOverride) { rTokenSizeOverride.current = state.tokenSizeOverride; S.setTokenSizeOverride(state.tokenSizeOverride); }
-      if (state.libEnemies)    { rLibEnemies.current = state.libEnemies; S.setLibEnemies(state.libEnemies); }
+      if (state.libEnemies) {
+        // Fins a la v5 snapshot 9, l'Ós feia servir la figureta del minotaure: les partides d'abans passen a la
+        // de l'ós (si el DM n'havia triat una altra, es respecta).
+        const libs = (state.libEnemies as import('@/types').LibEnemy[]).map(e => e.templateId === 'bear' && e.sprite === 'minotaur' ? { ...e, sprite: 'bear' } : e);
+        rLibEnemies.current = libs; S.setLibEnemies(libs);
+      }
       if (state.walls)         { rWalls.current = state.walls; S.setWalls(state.walls); }
       if (state.rooms)         { rRooms.current = state.rooms; S.setRooms(state.rooms); }
       if (state.doors)         { rDoors.current = state.doors; S.setDoors(state.doors); }

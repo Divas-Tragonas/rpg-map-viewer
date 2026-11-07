@@ -111,6 +111,7 @@ const S: Record<string, string> = {
   snake: 'poisonous_snake',
   wolf_black: 'wolf',
   wolf_red: 'dire_wolf',
+  bear: 'brown_bear',
   bird_dove: 'raven',
   bird_hawk: 'hawk',
   bird_crow: 'raven',
@@ -217,7 +218,7 @@ const T = (id: string, name: string, color: string, hpMax: number, R: number, sm
 const GENERIC: EnemyTemplate[] = [
   T('goblin',   'Goblin',   '#3a8a3a', 7,   25, 0.70, 'goblin', 50, 'Bestiari', undefined, undefined, 'goblin'),
   T('wolf',     'Llop',     '#8a7060', 11,  28, 0.80, 'wolf_black', 50, 'Bestiari', undefined, undefined, 'wolf'),
-  T('bear',     'Ós',       '#8B5E3C', 34,  39, 1.10, 'minotaur', 200, 'Bestiari', undefined, undefined, 'brown_bear'),
+  T('bear',     'Ós',       '#8B5E3C', 34,  39, 1.10, 'bear', 200, 'Bestiari', undefined, undefined, 'brown_bear'),
   T('zombie',   'Zombi',    '#4a7a4a', 22,  33, 0.95, 'zombie_a', 50, 'Bestiari', undefined, undefined, 'zombie'),
   T('skeleton', 'Esquelet', '#c8b87a', 13,  26, 0.75, 'skeleton', 50, 'Bestiari', undefined, undefined, 'skeleton'),
   T('orc',      'Orc',      '#5a7a2a', 15,  35, 1.00, 'goblin_warrior', 100, 'Bestiari', undefined, undefined, 'orc'),
@@ -282,11 +283,10 @@ export function findTemplate(id: string): EnemyTemplate | undefined {
 
 /**
  * Criatures Oryx que NO repeteixen una plantilla genèrica (mateixa figureta: el Drac és el
- * `dragon_red`, la Rata el `rat_giant`…). Així la Biblioteca té un sol bloc sense duplicats.
- * L'Ós fa servir el minotaure només de figureta, per això no l'amaga.
+ * `dragon_red`, la Rata el `rat_giant`, l'Ós el `bear`…). Així la Biblioteca té un sol bloc sense duplicats.
  */
 export function extraCreatures(all: string[]): string[] {
-  const used = new Set([...GENERIC.filter(t => t.id !== 'bear').map(t => t.sprite), ...PARTY_CREATURES]);
+  const used = new Set([...GENERIC.map(t => t.sprite), ...PARTY_CREATURES]);
   return all.filter(n => !used.has(n));
 }
 

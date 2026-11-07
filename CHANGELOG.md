@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 10 — Figureta pròpia per a l'Ós
+- **L'Ós té figureta nova a l'app Píxel**, dibuixada a l'estil del paquet (de cara i a quatre potes, com el llop, amb urpes blanques, ombra al terra i respiració de 4 fotogrames). Fins ara feia servir la del minotaure
+- Surt al bestiari (plantilla «Ós») i al selector de figureta (`bear`); els cops que fa són d'urpada
+- Les partides desades amb l'Ós amb la figureta del minotaure passen a la nova en carregar-se (si el DM n'havia triat una altra, es respecta)
+- La fa `scripts/party-figures.py`, a la mateixa fila de figuretes pròpies que les de la colla
+- Sense canvis a la API
+
 ### v5 snapshot 9 — Poders i conjurs de les criatures, recàrrega i mides de 5e
 - **Poders i conjurs al menú dels enemics i aliats**: tots els encanteris i accions especials del seu bloc (dades de 5e.tools), com el grimori de Liriandor: alès dels dracs, el Rostre horrorós i el Lament de la banshee, les mirades de les mòmies, els raigs oculars de l'espectador i el contemplador, el Xiscle i les Espores del vrock, i els encanteris del Mag malvat, Nezznar, el Sacerdot, el Druida, el Lich… amb la seva CD i el seu bonus d'atac
 - **Cada poder té animació i efecte**: les màgies que ja existien i 15 animacions noves (alès de foc, fred, verí i àcid, rajos necròtics, raigs oculars, immobilitzar, terror, núvols, ones de tro, desaparèixer…). El pop-up de sempre amb els afectats, la salvació, els estats i el dany, amb «CD 14 · 12d6» a la capçalera. Els que no tenen efecte de joc (Druidisme, Passa boirosa…) només fan l'animació

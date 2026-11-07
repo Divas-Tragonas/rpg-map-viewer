@@ -64,7 +64,7 @@ const _pos = new Map<string, { x: number; y: number; sprite: string }>();
 const _hits = new Map<string, Hit>();
 const _lunges = new Map<string, { t0: number; tx: number; ty: number; reach: number }>();
 
-const CLAW = /^(bat|spider|rat|wolf|bird|snake|beetle|moth|toad|worm|flies|dragon|demon|beholder|lizardman|minotaur|troll|ogre|vampire|wraith|banshee|zombie|mimic)/;
+const CLAW = /^(bat|spider|rat|wolf|bear|bird|snake|beetle|moth|toad|worm|flies|dragon|demon|beholder|lizardman|minotaur|troll|ogre|vampire|wraith|banshee|zombie|mimic)/;
 const BLUNT = /^(golem|elemental|slime|wisp|spirit|pixie)/;
 
 function styleOf(attacker: string | null): ImpactStyle {

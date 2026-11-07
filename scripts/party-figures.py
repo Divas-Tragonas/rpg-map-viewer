@@ -7,7 +7,7 @@ Figuretes pròpies de la colla (DIVAS), fetes a partir del paquet Oryx:
 
 Afegeix UNA fila (y = 624) al final de `public/sprites/uf_heroes.png` (i una fila buida als fulls de
 variants, perquè els tres fulls tinguin la mateixa mida). Les coordenades surten a
-`src/lib/sprites/manifest.ts` (`templar_axe`, `warrior_green`). És idempotent: parteix sempre de
+`src/lib/sprites/manifest.ts` (`templar_axe`, `warrior_green`, `bear`). És idempotent: parteix sempre de
 les 624 primeres files (el full original) i torna a escriure la fila.
 
   - `templar_axe` (Jaume III): el templari vermell amb la destral del bàrbar (`barbarian_m`) en lloc
@@ -16,6 +16,8 @@ les 624 primeres files (el full original) i torna a escriure la fila.
     mànec dins del guant): la destral es mou com la del bàrbar.
   - `warrior_green` (Espardeny): el guerrer (`warrior_m`) amb la roba blava tenyida del verd del
     seu halo (#52b86e): es gira el to dels píxels blaus i es conserva la rampa de llum.
+  - `bear` (l'Ós del bestiari, que abans feia servir el minotaure): dibuixat píxel a píxel (vegeu
+    `BEAR` més avall), a l'estil de les bèsties del paquet (llop, rata gegant).
 """
 import colorsys, os, sys
 from PIL import Image
@@ -112,7 +114,85 @@ def warrior_green(sheet, f):
     return w
 
 
-FIGURES = [('templar_axe', templar_axe, TEMPLAR), ('warrior_green', warrior_green, WARRIOR)]
+# --- Ós (`bear`): dibuixat de zero, amb la paleta i les proporcions de les bèsties del paquet ---------
+# De cara, a quatre potes, com el llop (`wolf_red`): sense contorn negre (el marró més fosc fa de vora),
+# llum de dalt, urpes blanques i grises com les de la rata gegant, i la mateixa ombra al terra.
+# Cada fila és la MEITAT ESQUERRA (24 columnes); la dreta és el mirall. Respira com el llop: als
+# fotogrames 1 i 2 el cap i les espatlles (fins a la fila 29) baixen 1 px; les potes no es mouen.
+BEAR_PAL = {
+ 'O': (60, 36, 16, 255),   # contorn / ombra fosca
+ 'D': (78, 46, 20, 255),
+ 'M': (108, 66, 30, 255),
+ 'L': (140, 90, 42, 255),
+ 'H': (170, 116, 58, 255),
+ 'i': (150, 96, 70, 255),  # dins l'orella
+ 'n': (156, 118, 72, 255), # morro ombra
+ 'm': (196, 158, 104, 255),# morro
+ 'N': (28, 18, 12, 255),   # nas
+ 'E': (20, 12, 8, 255),    # ull
+ 'w': (255, 255, 255, 255),# urpa
+ 'c': (162, 162, 162, 255),
+ 'r': (150, 40, 40, 255),  # boca
+ 's': (1, 1, 1, 38), 'S': (0, 0, 0, 102), 't': (0, 0, 0, 37),
+}
+BEAR = {
+11: "..............OOO.......",
+12: ".............OMMMO......",
+13: ".............OMiiDO.OOOO",
+14: "...........OOOMiiDMOMMLL",
+15: ".........OODMMODDMMMLLHH",
+16: "........ODMMLLLOMLLLHHHH",
+17: ".......ODMMLHLLOMLLHHHHH",
+18: ".......ODMLLLHLOMLEEHHHH",
+19: "......ODMMLLLLLOMLEHHHnn",
+20: "......ODMLHLLLLOMLLHHnmm",
+21: "......ODMLLLHLLODMLHnmNN",
+22: ".....ODMMLLLLLLODMLHnmNN",
+23: ".....ODMLLHLLLLLODMLnmmN",
+24: ".....ODMLLLLLMLLODMnnmmm",
+25: ".....ODMLLLMMMMLLODDnnnO",
+26: ".....ODMLLMMDMMMLLODDMMM",
+27: ".....ODMLMMDDMMMLLLMMMDD",
+28: ".....ODMMMDDDMMLLLLLMMDD",
+29: ".....ODMMDDODMMLHLLLMODD",
+30: ".....ODMDDOODMMLLLLLMODD",
+31: ".....ODDDOOODMMLLHLLMODO",
+32: ".....ODDMOOODMLLLLLLMOOD",
+33: ".....ODMMDOODMLLLLLLMODD",
+34: ".....ODMMDOODMLLLLLLMOOD",
+35: ".....ODMMDOODMMLLLLLMODO",
+36: ".....ODDMDOODMMMLLLMMODO",
+37: ".....ODDDOOODDMMMMMMMDOO",
+38: ".....OwcwO.ODMDMMMMDMDO.",
+39: "......w.w...wcOwcOwcOw..",
+}
+BEAR_SHADOW = {
+38: "...........ssssSSSSSSSSS",
+39: "........tttsSSSSSSSSSSSS",
+40: "...........ssssSSSSSSSSS",
+41: "...............sssssssss",
+}
+
+
+def _mirror(half):
+    assert len(half) == T // 2, half
+    return half + half[::-1]
+
+
+def bear(_sheet, f):
+    img = Image.new('RGBA', (T, T), (0, 0, 0, 0))
+    bob = 1 if f in (1, 2) else 0
+    for layer, top in ((BEAR_SHADOW, -1), (BEAR, 29)):
+        for y, half in layer.items():
+            dy = bob if y <= top else 0
+            for x, ch in enumerate(_mirror(half)):
+                if ch != '.':
+                    img.putpixel((x, y + dy), BEAR_PAL[ch])
+    return img
+
+
+# (nom, funció, figura original o None si és dibuixada de zero)
+FIGURES = [('templar_axe', templar_axe, TEMPLAR), ('warrior_green', warrior_green, WARRIOR), ('bear', bear, None)]
 
 
 def main():
@@ -143,7 +223,8 @@ def main():
         dst = sys.argv[sys.argv.index('--sheet') + 1]
         rev = Image.new('RGBA', (T * FRAMES * 2, T * len(FIGURES)), (60, 60, 60, 255))
         for i, (_, _, orig) in enumerate(FIGURES):
-            rev.alpha_composite(base.crop((orig[0], orig[1], orig[0] + T * FRAMES, orig[1] + T)), (0, i * T))
+            if orig:
+                rev.alpha_composite(base.crop((orig[0], orig[1], orig[0] + T * FRAMES, orig[1] + T)), (0, i * T))
             rev.alpha_composite(out.crop((i * T * FRAMES, ROW_Y, (i + 1) * T * FRAMES, ROW_Y + T)), (T * FRAMES, i * T))
         rev.resize((rev.width * 4, rev.height * 4), Image.NEAREST).save(dst)
 
