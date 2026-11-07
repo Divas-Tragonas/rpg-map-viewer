@@ -1,3 +1,4 @@
+import type { DamageType } from '@/lib/characters';
 export type ApiEnemy = {
   id: string;
   name: string;
@@ -12,6 +13,15 @@ export type ApiEnemy = {
   category?: string;
   /** XP que dona en ser derrotat (0 = cap). Opcional: una API anterior no el retorna. */
   xp?: number;
+  /**
+   * Defenses (v5): abast cos a cos en peus (5 per defecte) i tipus de dany. Opcionals: una API
+   * anterior no els retorna (llavors: 5 ft i cap resistència).
+   */
+  reachFt?: number;
+  resistances?: DamageType[];
+  vulnerabilities?: DamageType[];
+  immunities?: DamageType[];
+  nonMagicResistances?: DamageType[];
 };
 
 /** Entrada de l'historial d'experiència d'un personatge (els 200 últims, els nous al final). */

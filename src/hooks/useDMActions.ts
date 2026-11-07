@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 import { previewForPlayers } from '@/lib/spellcast';
+import { defensesOf, libEnemiesForPlayers } from '@/lib/rules/damage';
 import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
 
 interface Setters {
@@ -248,6 +249,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
     }
     Object.assign(msg, extra);
+    if (Array.isArray(msg.libEnemies)) msg.libEnemies = libEnemiesForPlayers(msg.libEnemies as LibEnemy[]);
     bcRef.current?.postMessage(msg);
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
@@ -266,7 +268,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       gridLineWidth: rGridLineWidth.current, enemyHighlight: rEnemyHighlight.current,
       highlightLocked: rHighlightLocked.current,
       tokenSizeOverride: rTokenSizeOverride.current,
-      libEnemies: rLibEnemies.current,
+      libEnemies: libEnemiesForPlayers(rLibEnemies.current),
       rooms: rRooms.current,
       walls: rWalls.current,
       doors: rDoors.current,
@@ -1106,7 +1108,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     }
     const _sm = enemy.sm || 0.90;
     const _libR = rGridAutoSize.current && rGridSize.current > 0 ? Math.max(8, Math.round(rGridSize.current * _sm / 2)) : enemy.R;
-    const newEn: LibEnemy = { id: Date.now(), templateId: enemy.id, name: enemy.name, color: enemy.color, hpMax: enemy.hpMax, hp: enemy.hpMax, R: _libR, visible: true, imageData: enemy.imageData ?? null, xp: enemy.xp ?? 0 };
+    const newEn: LibEnemy = { id: Date.now(), templateId: enemy.id, name: enemy.name, color: enemy.color, hpMax: enemy.hpMax, hp: enemy.hpMax, R: _libR, visible: true, imageData: enemy.imageData ?? null, xp: enemy.xp ?? 0,
+      ...(defensesOf(enemy) ? { defenses: defensesOf(enemy) } : {}) };
     const ns = addEnemyNumbered(rLibEnemies.current, newEn);
     rLibEnemies.current = ns; S.setLibEnemies(ns);
     const np = { ...rPos.current, [`lib_${newEn.id}`]: { x: cx, y: cy } };

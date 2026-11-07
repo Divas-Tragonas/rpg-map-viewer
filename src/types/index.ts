@@ -152,6 +152,17 @@ export interface AttackPending {
   /** Token que ataca (`pl_*`/`lib_*`): la posició es llegeix a cada moviment (el menú flotant pot ser vell). */
   key: string;
   label: string; normalFt: number; longFt?: number;
+  /** Tipus de dany de l'arma: el pop-up de dany el proposa. */
+  damageType?: import('@/lib/characters').DamageType;
+}
+
+/** Pop-up de dany obert al costat del token objectiu (`DamagePopup`). */
+export interface DamagePrompt {
+  targetKey: string;
+  label: string;
+  damageType?: import('@/lib/characters').DamageType;
+  /** Capsa del token objectiu a la finestra (px de client), per col·locar-lo al costat. */
+  anchor: { l: number; r: number; t: number; b: number };
 }
 
 /**
@@ -205,6 +216,11 @@ export interface LibEnemy {
   sprite?: string;
   /** Aliat/NPC: surt a «Aliats» de l'escena i el «ressaltar enemics» no el marca. */
   ally?: boolean;
+  /**
+   * Abast i defenses de dany (de la BD, v5). Copiades en afegir-lo; NO viatgen als jugadors
+   * (`libEnemiesForPlayers`): delatarien les debilitats de l'enemic.
+   */
+  defenses?: import('@/lib/rules/damage').Defenses;
 }
 
 export interface ContextMenuState {

@@ -18,7 +18,15 @@ WS BASE : substituir http per ws → ws://[host]:3000
   project: string     // text lliure (trim, màx. 60); '' = sense projecte
   category: string    // text lliure (trim, màx. 60); '' = sense categoria
   xp: number          // enter >= 0: XP que dona en ser derrotat (0 als documents antics)
+  reachFt: number     // v5: abast cos a cos en peus, enter 0–300 (5 per defecte i als documents antics)
+  resistances: DamageType[]          // v5: meitat de dany ([] per defecte)
+  vulnerabilities: DamageType[]      // v5: doble de dany
+  immunities: DamageType[]           // v5: cap dany
+  nonMagicResistances: DamageType[]  // v5: meitat de dany només si l'atac NO és màgic
 }
+
+DamageType = 'acid' | 'bludgeoning' | 'cold' | 'fire' | 'force' | 'lightning' | 'necrotic'
+           | 'piercing' | 'poison' | 'psychic' | 'radiant' | 'slashing' | 'thunder'
 
 `project` i `category` serveixen per agrupar els enemics al back office i a la
 Biblioteca del DM (`src/lib/enemy-groups.ts`). No hi ha cap col·lecció de grups:
@@ -31,6 +39,13 @@ només els toca si venen al body (`category: ''` la buida). Més de 60 caràcter
 
 `xp` (v4.67): GET el retorna sempre; POST l'accepta opcional (0); PUT només el toca si ve
 al body. El visor el copia al token en afegir l'enemic i el reparteix en acabar el combat.
+
+
+Defenses (v5): GET les retorna sempre (amb els valors per defecte als documents antics);
+POST les accepta opcionals; PUT només toca les que vénen al body. Un tipus fora de la llista
+→ 400. El visor les copia al token en afegir l'enemic (`LibEnemy.defenses`) i no les envia mai
+a les pantalles de jugador. Una API anterior no les retorna: el visor fa servir 5 ft i cap
+resistència.
 
 
 ## TIPUS Character (fitxa de personatge, v4.67)

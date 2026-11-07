@@ -4,6 +4,7 @@ import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, 
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
+import { DamagePopup } from '@/components/dm/DamagePopup';
 import type {
   PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -95,6 +96,8 @@ export function DMView() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [, setDoors] = useState<Door[]>([]);
   const [lights, setLights] = useState<LightSource[]>([]);
+  // Pop-up de dany d'un atac (v5): s'obre en clicar l'objectiu mentre s'apunta un atac del menú.
+  const [damagePrompt, setDamagePrompt] = useState<import('@/types').DamagePrompt | null>(null);
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
@@ -913,7 +916,7 @@ export function DMView() {
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
     setRoomRevealed, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
     tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave },
-    notify,
+    notify, openDamage: setDamagePrompt,
   }), [notify, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
@@ -2081,6 +2084,24 @@ export function DMView() {
         shapeMenu={shapeMenu} onClose={() => setShapeMenu(null)}
         onAddZone={(element) => addPaintedZone(element, shapeMenu, setShapeMenu)}
       />
+      {damagePrompt && (() => {
+        const k = damagePrompt.targetKey;
+        const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;
+        const en = k.startsWith('lib_') ? libEnemies.find(e => `lib_${e.id}` === k) : undefined;
+        const tgt = pl ? { name: pl.name, hp: pl.hp, hpMax: pl.hpMax }
+          : en ? { name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: en.defenses } : null;
+        if (!tgt) return null;
+        return (
+          <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}
+            onApply={amount => {
+              if (amount > 0) {
+                if (pl) adjustPlayerHp(pl.id, -amount);
+                else if (en) adjustLibEnemyHp(en.id, -amount);
+              }
+              setDamagePrompt(null);
+            }} />
+        );
+      })()}
       <ContextMenuOverlay
         contextMenu={contextMenu} conditions={conditions} defeated={defeated}
         rDefeated={R.rDefeated} defeatedAnimRef={R.defeatedAnimRef}

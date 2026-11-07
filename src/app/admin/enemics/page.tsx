@@ -8,6 +8,7 @@ import { EnemyGroupToolbar, GroupHeader } from '@/components/ui/EnemyGroups';
 import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
 import { apiSupportsGroups, distinctValues, groupEnemies, groupKey } from '@/lib/enemy-groups';
 import type { EnemyGroupField } from '@/lib/enemy-groups';
+import { DAMAGE_TYPES, type DamageType } from '@/lib/characters';
 
 const EMPTY_FORM: Omit<ApiEnemy, 'id'> = {
   name: '',
@@ -532,6 +533,8 @@ export default function EnemicsPage() {
                 </Field>
               </div>
 
+              <DefensesEditor data={modal.data} onChange={(k, v) => updateField(k, v)} />
+
               <Field label="Previsualització al grid">
                 <GridTokenPreview
                   color={modal.data.color}
@@ -842,4 +845,55 @@ function drawPreviewToken(
   ctx.lineWidth = Math.max(1.5, r * 0.07);
   ctx.stroke();
   ctx.restore();
+}
+
+type DefenseKey = 'resistances' | 'vulnerabilities' | 'immunities' | 'nonMagicResistances';
+const DEFENSE_ROWS: { key: DefenseKey; label: string; color: string; hint: string }[] = [
+  { key: 'resistances', label: 'Resistències', color: '#58a6ff', hint: 'Meitat de dany' },
+  { key: 'nonMagicResistances', label: 'Resistències a armes no màgiques', color: '#8b949e', hint: 'Meitat de dany si l\'atac no és màgic' },
+  { key: 'vulnerabilities', label: 'Vulnerabilitats', color: '#f0883e', hint: 'Doble de dany' },
+  { key: 'immunities', label: 'Immunitats', color: '#e05555', hint: 'Cap dany' },
+];
+
+/**
+ * Abast i defenses de dany de l'enemic (v5). El mapa en treu l'anell d'abast del seu atac i
+ * la previsualització del dany final al pop-up de dany del DM.
+ */
+function DefensesEditor({ data, onChange }: {
+  data: Omit<ApiEnemy, 'id'>;
+  onChange: <K extends keyof Omit<ApiEnemy, 'id'>>(k: K, v: Omit<ApiEnemy, 'id'>[K]) => void;
+}) {
+  const toggle = (key: DefenseKey, t: DamageType) => {
+    const cur = data[key] ?? [];
+    onChange(key, cur.includes(t) ? cur.filter(x => x !== t) : [...cur, t]);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <Field label="Abast cos a cos — peus" style={{ width: 180 }}>
+        <input type="number" min={0} max={300} step={5} value={data.reachFt ?? 5}
+          onChange={e => onChange('reachFt', Math.max(0, Math.min(300, parseInt(e.target.value) || 0)))}
+          style={inputStyle} />
+      </Field>
+      {DEFENSE_ROWS.map(row => (
+        <div key={row.key}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>
+            {row.label} <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>· {row.hint}</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {DAMAGE_TYPES.map(d => {
+              const on = !!data[row.key]?.includes(d.id);
+              return (
+                <button key={d.id} type="button" onClick={() => toggle(row.key, d.id)}
+                  style={{
+                    padding: '3px 9px', borderRadius: 12, fontSize: 12, cursor: 'pointer',
+                    border: `1px solid ${on ? row.color : C.border}`,
+                    background: on ? tint(row.color, 0.22) : 'transparent', color: on ? C.bright : C.dim,
+                  }}>{d.label}</button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

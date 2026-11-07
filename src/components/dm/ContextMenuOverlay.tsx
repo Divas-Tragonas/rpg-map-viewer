@@ -125,7 +125,7 @@ const SIDE_GAP = 14;
  * (a la dreta; si no hi cap, a l'esquerra), centrat verticalment respecte d'ell i sempre dins de la
  * finestra. Abans s'obria sota el cursor i tapava el token que s'estava editant. `h`: alçada mesurada.
  */
-const anchoredBox = (a: NonNullable<ContextMenuState['anchor']>, h: number): React.CSSProperties => {
+export const anchoredBox = (a: NonNullable<ContextMenuState['anchor']>, h: number): React.CSSProperties => {
   const W = window.innerWidth, H = window.innerHeight;
   let left = a.r + SIDE_GAP;
   if (left + MENU_W > W - 8) left = a.l - SIDE_GAP - MENU_W;
@@ -189,7 +189,7 @@ function MenuHeader({ title, children, onClose, onDrag, floating }: {
   );
 }
 
-/** Atac genèric dels tokens sense atacs a la fitxa (enemics, jugadors sense fitxa). */
+/** Atac genèric dels tokens sense atacs a la fitxa (enemics, amb el seu abast; jugadors sense fitxa). */
 const GENERIC_MELEE: SheetAttack = { name: 'Cos a cos', kind: 'melee', reachFt: 5 };
 
 const rangeText = (a: SheetAttack) => {
@@ -505,10 +505,12 @@ export function ContextMenuOverlay({
       {contextMenu.canAttack && (() => {
         const ch = pl ? characterFor(pl, characters.characters) : null;
         const own = ch ? attacksOf(sheetOf(ch)) : [];
-        const list = own.length > 0 ? own : [GENERIC_MELEE];
+        // Enemics: el seu abast de la BD (`defenses.reachFt`, 5 ft si no en té).
+        const generic = lib?.defenses?.reachFt !== undefined ? { ...GENERIC_MELEE, reachFt: lib.defenses.reachFt } : GENERIC_MELEE;
+        const list = own.length > 0 ? own : [generic];
         return <AttackList attacks={list} onPick={a => {
           const { normalFt, longFt } = attackRanges(a);
-          onAttack({ key: t.key, label: a.name, normalFt, longFt });
+          onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType });
           onClose();
         }} />;
       })()}

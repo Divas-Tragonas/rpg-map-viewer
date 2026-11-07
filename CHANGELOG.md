@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 1 — Dany amb resistències (combat amb regles de 5e, versió no definitiva)
+- **Pop-up de dany**: atacant des del menú del token, clicar l'objectiu obre un pop-up al seu costat (sense tapar-lo). Hi escrius el dany que han tret els daus i veus el **dany final** segons les defenses de l'enemic, amb el perquè («Resistent a tallant (arma no màgica): la meitat») i els PV que li quedaran. **Enter** aplica (es pot desfer), **Esc** cancel·la
+- **Defenses dels enemics** al back office: abast cos a cos en peus, resistències, resistències a armes no màgiques, vulnerabilitats i immunitats (botons per tipus de dany). Immune → 0, resistent → la meitat, vulnerable → el doble; resistent i vulnerable alhora es compensen
+- L'atac dels enemics al mapa fa servir el seu abast de la BD
+- Les defenses no s'envien a les pantalles de jugador
+- Els enemics que ja eren al mapa abans d'aquesta versió no tenen defenses: cal tornar-los a afegir de la biblioteca
+- **Canvis a la API**: camps nous a `/enemies` (`reachFt`, `resistances`, `vulnerabilities`, `immunities`, `nonMagicResistances`). Veure `api-spec.txt`
+
 ### v4.99 — Terreny difícil i atacs amb abast al menú del token
 - **Terreny difícil** (eina nova al mode Preparar, tecla `8`): pinta caselles de la graella amb el clic (el dret esborra), també sobre mapes d'imatge. Es veuen ratllades a totes les pantalles i costen el **doble** de moviment: el rang groc del jugador i la validació del DM ho tenen en compte. Es desa amb la partida
 - **Atacs al menú del token**: secció «Atacs» amb les armes de la fitxa (es llegeixen soles del text «Atacs», o s'editen al back office). En triar-ne una, el mapa mostra l'anell de l'abast (i de l'abast llarg) i la distància de **vora a vora** fins al token sota el cursor: verd dins, ambre a l'abast llarg (desavantatge), vermell fora. Només avisa: el clic sempre s'accepta

@@ -78,6 +78,8 @@ interface MouseHandlerSetters {
     leave: () => void;
   };
   notify: import('@/types').Notify;
+  /** Obre el pop-up de dany al costat del token objectiu d'un atac. */
+  openDamage: (p: import('@/types').DamagePrompt) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -208,7 +210,16 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // Atac triat al menú d'un token: el clic tria l'objectiu i tanca l'apuntat (dins o fora
     // d'abast: és només un avís). Amb qualsevol eina, com les màgies del grimori.
     if (e.button === 0 && R.rAttackPending.current) {
+      const pend = R.rAttackPending.current;
+      const { mx: amx, my: amy, sc: asc } = mc(e);
+      const target = tokenAt(R, amx, amy, asc);
       cancelPendingSpell(R);
+      // Clic sobre un altre token: pop-up de dany al seu costat (el DM hi posa el que han tret els daus).
+      if (target && target.key !== pend.key) {
+        const b = tokenBounds(target), toX = (x: number) => e.clientX + (x - amx) * asc, toY = (y: number) => e.clientY + (y - amy) * asc;
+        S.openDamage({ targetKey: target.key, label: pend.label, damageType: pend.damageType,
+          anchor: { l: toX(b.l), r: toX(b.r), t: toY(b.t), b: toY(b.b) } });
+      }
       e.preventDefault(); return;
     }
     // Clic que fixa el destí d'una màgia triada (a la roda o al grimori d'un token):
