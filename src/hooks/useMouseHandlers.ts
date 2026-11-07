@@ -4,7 +4,8 @@ import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from 
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
-import { aimSpell } from '@/lib/spellcast';
+import { aimSpell, aimAttack } from '@/lib/spellcast';
+import { cellAt, cellKey, paintCell } from '@/lib/rules/terrain';
 import { tokenMenuFor } from '@/lib/token-menu';
 import { tokenAt, tokenBounds, updateTokenSpread, clearTokenSpread } from '@/lib/render/token-geom';
 
@@ -16,9 +17,24 @@ const AREA_SETTLED = (sp: import('@/types').Spell) => {
 import type { ContextMenuState, PosMap, Wall, StrokeData } from '@/types';
 import type { DMRefs } from './useDMRefs';
 
+/**
+ * Eina Terreny: marca (o esborra) com a terreny difícil la casella de la graella sota el
+ * cursor. Retorna si ha canviat res (per enviar el STATE només llavors).
+ */
+function paintTerrainAt(R: DMRefs, mx: number, my: number, erase: boolean): boolean {
+  const gs = R.rGridSize.current;
+  if (gs <= 0) return false;
+  const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
+  const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
+  const next = paintCell(R.rDifficult.current, cellKey(...cellAt({ x: mx, y: my }, gs, gox, goy)), erase);
+  if (next === R.rDifficult.current) return false;
+  R.rDifficult.current = next;
+  return true;
+}
+
 /** Treu la màgia que esperava el clic de destí (i la seva previsualització). */
 function cancelPendingSpell(R: DMRefs): void {
-  R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
+  R.rAreaPlacementPending.current = null; R.rAttackPending.current = null; R.rSpellPreview.current = null;
 }
 
 interface MouseHandlerSetters {
@@ -61,6 +77,7 @@ interface MouseHandlerSetters {
     up: () => boolean;
     leave: () => void;
   };
+  notify: import('@/types').Notify;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -188,6 +205,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       S.setSpellMenu({ points: [{ x: amx, y: amy }], cx: e.clientX, cy: e.clientY, mode: 'area' });
       e.preventDefault(); return;
     }
+    // Atac triat al menú d'un token: el clic tria l'objectiu i tanca l'apuntat (dins o fora
+    // d'abast: és només un avís). Amb qualsevol eina, com les màgies del grimori.
+    if (e.button === 0 && R.rAttackPending.current) {
+      cancelPendingSpell(R);
+      e.preventDefault(); return;
+    }
     // Clic que fixa el destí d'una màgia triada (a la roda o al grimori d'un token):
     // centre de l'àrea o punta del raig, limitat a l'abast. Amb qualsevol eina: la màgia
     // del grimori es llança sense haver de canviar a l'eina Màgies.
@@ -203,6 +226,16 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.wsRef.current?.send(JSON.stringify({ type: 'SPELL', spell: { ...sp, startTime: 0 } }));
       R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
       e.preventDefault(); return;
+    }
+    // Eina Terreny: botó esquerre marca terreny difícil, el dret l'esborra (arrossegant).
+    if (R.rDrawTool.current === 'terrain' && (e.button === 0 || e.button === 2)) {
+      e.preventDefault();
+      if (R.rGridSize.current <= 0) { S.notify('El terreny difícil va per caselles: primer cal configurar la graella.', 'warn'); return; }
+      const { mx: tmx, my: tmy } = mc(e);
+      const erase = e.button === 2;
+      R.rTerrainDrag.current = { erase };
+      if (paintTerrainAt(R, tmx, tmy, erase)) _broadcastState({});
+      return;
     }
     // Eina Caselles: botó esquerre pinta, el dret esborra (arrossegant o en rectangle amb Maj).
     if (R.rDrawTool.current === 'tiles' && S.tileTool && (e.button === 0 || e.button === 2)) {
@@ -483,9 +516,19 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     const { mx, my, sc } = mc(e);
 
     if (R.rDrawTool.current === 'tiles' && S.tileTool) { S.tileTool.move(mx, my); return; }
+    if (R.rTerrainDrag.current) {
+      if (paintTerrainAt(R, mx, my, R.rTerrainDrag.current.erase)) _broadcastState({});
+      return;
+    }
 
     // Màgia triada esperant el destí: centre de l'àrea o punta del raig; fora d'abast = avís en vermell, no es talla.
     // Abans de les branques de cada eina: la del grimori es pot llançar amb qualsevol eina.
+    if (R.rAttackPending.current) {
+      const pv = aimAttack(R, R.rAttackPending.current, { x: mx, y: my }, R.rGridSize.current, sc);
+      if (!pv) { cancelPendingSpell(R); return; }   // l'atacant ja no hi és
+      R.rSpellPreview.current = pv;
+      return;
+    }
     if (R.rAreaPlacementPending.current) {
       const pend = R.rAreaPlacementPending.current;
       R.rSpellPreview.current = aimSpell(R, pend, { x: mx, y: my }, spellRangeFt(pend.type), R.rGridSize.current, sc);
@@ -738,6 +781,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       else _broadcastState({});  // posició final exacta (durant el drag anava throttled)
       return;
     }
+    if (R.rTerrainDrag.current) { R.rTerrainDrag.current = null; return; }
     if (S.tileTool?.up()) return;
 
     // Final del moviment d'un vèrtex: ara sí que es re-detecten les sales (durant el drag
@@ -902,6 +946,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
   const onMouseLeaveCanvas = useCallback(() => {
     if (S.tileTool) { S.tileTool.up(); S.tileTool.leave(); }
+    R.rTerrainDrag.current = null;
     if (R.panDragRef.current) {
       if (R.panDragRef.current.moved) _broadcastState({});
       R.panDragRef.current = null; S.setPanning(false);
@@ -925,9 +970,9 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     // L'eina Caselles fa servir el clic dret per esborrar (a onMouseDown): cap menú.
-    if (R.rDrawTool.current === 'tiles') return;
+    if (R.rDrawTool.current === 'tiles' || R.rDrawTool.current === 'terrain') return;
     // Clic dret amb una màgia per col·locar: la cancel·la (com Esc)
-    if (R.rAreaPlacementPending.current) { cancelPendingSpell(R); return; }
+    if (R.rAreaPlacementPending.current || R.rAttackPending.current) { cancelPendingSpell(R); return; }
     const { mx, my, sc } = mc(e);
     // Eina Parets: clic dret sobre una porta l'elimina (la paret es tanca de nou).
     if (R.rDrawTool.current === 'wall') {

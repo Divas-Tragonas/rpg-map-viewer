@@ -99,13 +99,15 @@ function hash32(s: string): number {
 const OUT_RED = '#ff4d4d';
 
 /** Anell damunt el token assenyalat amb la distància fins a la seva vora (només DM). */
+const IN_GREEN = '#7dffa0', LONG_AMBER = '#ffb347';
+
 function drawReachHover(ctx: CanvasRenderingContext2D, h: NonNullable<SpellPreview['hover']>, sc: number): void {
-  const col = h.out ? OUT_RED : '#7dffa0';
+  const col = h.out ? OUT_RED : h.long ? LONG_AMBER : IN_GREEN;
   ctx.save();
   ctx.globalAlpha = 0.95; ctx.strokeStyle = col; ctx.lineWidth = 2.5 / sc;
   ctx.beginPath(); ctx.arc(h.x, h.y, h.R + 6 / sc, 0, Math.PI * 2); ctx.stroke();
   if (h.ft !== null) {
-    const text = `${h.ft}ft${h.out ? ' · fora' : ''}`;
+    const text = `${h.ft}ft${h.out ? ' · fora' : h.long ? ' · desavantatge' : ''}`;
     ctx.font = `bold ${12 / sc}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const tw = ctx.measureText(text).width, ty = h.y - h.R - 18 / sc;
     ctx.fillStyle = 'rgba(10,13,18,0.85)';
@@ -115,7 +117,51 @@ function drawReachHover(ctx: CanvasRenderingContext2D, h: NonNullable<SpellPrevi
   ctx.restore();
 }
 
+/**
+ * Atac del menú d'un token: anell de l'abast (i de l'abast llarg, més tènue) mesurat des de la
+ * VORA del token, línia fins a l'objectiu i etiqueta amb el nom i els peus. Verd dins, ambre a
+ * l'abast llarg (desavantatge), vermell fora: només avís, el DM decideix.
+ */
+function renderAttackPreview(ctx: CanvasRenderingContext2D, p: Extract<SpellPreview, { mode: 'attack' }>, sc: number, gridSize: number): void {
+  const col = p.zone === 'out' ? OUT_RED : p.zone === 'long' ? LONG_AMBER : IN_GREEN;
+  const { start, startR, end } = p;
+  ctx.save();
+  if (gridSize > 0) {
+    ctx.lineWidth = 1.5 / sc; ctx.setLineDash([8 / sc, 6 / sc]);
+    ctx.globalAlpha = 0.75; ctx.strokeStyle = p.zone === 'out' ? OUT_RED : '#ffffff';
+    ctx.beginPath(); ctx.arc(start.x, start.y, startR + ftToWorld(p.normalFt, gridSize), 0, Math.PI * 2); ctx.stroke();
+    if (p.longFt) {
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath(); ctx.arc(start.x, start.y, startR + ftToWorld(p.longFt, gridSize), 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  const d = Math.hypot(end.x - start.x, end.y - start.y);
+  if (d > startR) {
+    const sx = start.x + (end.x - start.x) / d * startR, sy = start.y + (end.y - start.y) / d * startR;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.25; ctx.strokeStyle = col; ctx.lineWidth = 8 / sc;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(end.x, end.y); ctx.stroke();
+    ctx.globalAlpha = 0.9; ctx.lineWidth = 2 / sc; ctx.setLineDash([10 / sc, 6 / sc]);
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(end.x, end.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(end.x, end.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
+    // Etiqueta al mig: nom de l'atac i peus (només si no hi ha token assenyalat, que ja en porta).
+    const extra = p.zone === 'out' ? " · fora d'abast" : p.zone === 'long' ? ' · desavantatge' : '';
+    const text = `⚔ ${p.label}${p.ft !== null && !p.hover ? ` · ${p.ft}ft` : ''}${p.hover ? '' : extra}`;
+    const lmx = (sx + end.x) / 2, lmy = (sy + end.y) / 2;
+    ctx.globalAlpha = 0.95; ctx.font = `bold ${12 / sc}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = 'rgba(10,13,18,0.85)';
+    ctx.fillRect(lmx - tw / 2 - 5 / sc, lmy - 17 / sc, tw + 10 / sc, 14 / sc);
+    ctx.fillStyle = col; ctx.fillText(text, lmx, lmy - 10 / sc);
+  }
+  ctx.restore();
+  if (p.hover) drawReachHover(ctx, p.hover, sc);
+}
+
 export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: SpellPreview, sc: number, gridSize: number): void {
+  if (preview.mode === 'attack') { renderAttackPreview(ctx, preview, sc, gridSize); return; }
   ctx.save();
   // Fora d'abast: tot en vermell (avís; el clic funciona igualment).
   const hot = preview.outOfRange ? OUT_RED : '#ffd200';

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { C, tint } from '@/constants';
 import { api, isApiConfigured, type ApiCharacter, type ApiCharacterInput } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import { ABILITIES, DEFAULT_SECTIONS, abilityMod, levelUpTo, sameCharacter, sheetOf, signed, xpProgress, type AbilityId, type CharacterSheet } from '@/lib/characters';
+import { ABILITIES, DEFAULT_SECTIONS, DAMAGE_TYPES, abilityMod, attacksOf, levelUpTo, parseAttacks, sameCharacter, sheetOf, signed, xpProgress, type AbilityId, type AttackKind, type CharacterSheet, type DamageType, type SheetAttack } from '@/lib/characters';
 import { CHARACTER_SEED } from '@/lib/characters-seed';
 
 type Form = ApiCharacterInput & { sheet: CharacterSheet };
@@ -277,6 +277,8 @@ function CharacterForm({ modal, saving, onChange, onSave, onClose }: {
           </div>
         </div>
 
+        <AttacksEditor sheet={sh} onChange={attacks => setSheet({ attacks })} />
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Seccions · una línia amb «- » és una llista i **text** va en negreta
@@ -301,6 +303,64 @@ function CharacterForm({ modal, saving, onChange, onSave, onClose }: {
           <Button variant="primary" disabled={saving || !d.name.trim()} onClick={onSave}>{saving ? 'Desant…' : 'Desar'}</Button>
         </div>
         <div style={{ fontSize: 11, color: C.dim }}>L&apos;experiència no es canvia aquí: es dona amb el botó «Experiència» (queda a l&apos;historial).</div>
+      </div>
+    </div>
+  );
+}
+
+const KIND_LABEL: Record<AttackKind, string> = { melee: 'Cos a cos', ranged: 'A distància', thrown: 'Llançadissa' };
+const small: React.CSSProperties = { ...inputStyle, padding: '6px 8px' };
+
+/**
+ * Atacs del menú del token al mapa (nom, tipus, abast i dany). Si la fitxa no en té de desats,
+ * el mapa els llegeix del text de la secció «Atacs»: aquí es veuen i es poden passar a editables.
+ * `undefined` = tornar a llegir-los del text.
+ */
+function AttacksEditor({ sheet, onChange }: { sheet: CharacterSheet; onChange: (a: SheetAttack[] | undefined) => void }) {
+  const own = sheet.attacks;
+  const list = own ?? attacksOf(sheet);
+  const fromText = () => parseAttacks(sheet.sections?.find(s => s.title.trim().toLowerCase() === 'atacs')?.text ?? '');
+  const setRow = (i: number, patch: Partial<SheetAttack>) => onChange((own ?? []).map((a, j) => j === i ? { ...a, ...patch } : a));
+  const numOrU = (v: string) => { const n = parseInt(v); return Number.isFinite(n) && n > 0 ? n : undefined; };
+  const label: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.1em' };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span style={label}>Atacs · surten al menú del token al mapa, amb l&apos;abast (els daus es tiren a la taula)</span>
+      {!own && (
+        <div style={{ fontSize: 12, color: C.dim }}>
+          {list.length > 0 ? 'Llegits del text de la secció «Atacs»:' : 'Cap atac: el menú del mapa oferirà un «Cos a cos» de 5 ft.'}
+          {list.map((a, i) => <div key={i} style={{ color: C.text }}>· {a.name} — {KIND_LABEL[a.kind]}, {a.kind === 'ranged' ? `${a.rangeFt}/${a.longFt}` : a.kind === 'thrown' ? `${a.reachFt ?? 5} · ${a.rangeFt}/${a.longFt}` : a.reachFt ?? 5} ft{a.damage ? `, ${a.damage}` : ''} {DAMAGE_TYPES.find(d => d.id === a.damageType)?.label ?? ''}</div>)}
+        </div>
+      )}
+      {own?.map((a, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr 1.2fr auto', gap: 6, alignItems: 'end' }}>
+          <Field label="Nom"><input value={a.name} onChange={e => setRow(i, { name: e.target.value })} style={small} /></Field>
+          <Field label="Tipus">
+            <select value={a.kind} onChange={e => setRow(i, { kind: e.target.value as AttackKind })} style={small}>
+              {(Object.keys(KIND_LABEL) as AttackKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+            </select>
+          </Field>
+          <Field label="Abast ft"><input type="number" min={0} step={5} disabled={a.kind === 'ranged'} value={a.kind === 'ranged' ? '' : a.reachFt ?? 5} onChange={e => setRow(i, { reachFt: numOrU(e.target.value) })} style={small} /></Field>
+          <Field label="Dist. ft"><input type="number" min={0} step={5} disabled={a.kind === 'melee'} value={a.kind === 'melee' ? '' : a.rangeFt ?? ''} onChange={e => setRow(i, { rangeFt: numOrU(e.target.value) })} style={small} /></Field>
+          <Field label="Llarg ft"><input type="number" min={0} step={5} disabled={a.kind === 'melee'} value={a.kind === 'melee' ? '' : a.longFt ?? ''} onChange={e => setRow(i, { longFt: numOrU(e.target.value) })} style={small} /></Field>
+          <Field label="Bonus"><input value={a.bonus ?? ''} placeholder="+5" onChange={e => setRow(i, { bonus: e.target.value || undefined })} style={small} /></Field>
+          <Field label="Dany"><input value={a.damage ?? ''} placeholder="1d8+3" onChange={e => setRow(i, { damage: e.target.value || undefined })} style={small} /></Field>
+          <Field label="Tipus de dany">
+            <select value={a.damageType ?? ''} onChange={e => setRow(i, { damageType: (e.target.value || undefined) as DamageType | undefined })} style={small}>
+              <option value="">—</option>
+              {DAMAGE_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </select>
+          </Field>
+          <Button variant="ghost" onClick={() => onChange(own.filter((_, j) => j !== i))} title="Treure l'atac">Treure</Button>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {own
+          ? <>
+              <Button variant="secondary" onClick={() => onChange([...own, { name: 'Atac nou', kind: 'melee', reachFt: 5 }])}>Afegir un atac</Button>
+              <Button variant="ghost" onClick={() => onChange(undefined)} title="Esborra els atacs editats i el mapa els torna a llegir del text «Atacs»">Tornar a llegir del text</Button>
+            </>
+          : <Button variant="secondary" onClick={() => onChange(list.length ? list : fromText())}>{list.length ? 'Editar aquests atacs' : 'Afegir atacs'}</Button>}
       </div>
     </div>
   );

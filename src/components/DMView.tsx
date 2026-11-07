@@ -48,6 +48,7 @@ import { ImageIcon, CheckIcon, PlayIcon } from '@/components/icons';
 import { isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
+import { terrainCost } from '@/lib/rules/terrain';
 import { useAutosave } from '@/hooks/useAutosave';
 import { useStoredFlag } from '@/hooks/useStoredFlag';
 import { clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
@@ -302,7 +303,7 @@ export function DMView() {
       if (prev === 'wall' && next !== 'wall') { R.rWallPenLast.current = null; R.rWallChain.current = []; R.rWallCursor.current = null; R.rHoveredRoomId.current = null; }
       if (prev === 'light' && next !== 'light') { R.rLightSelected.current = null; setLightSelectedId(null); R.rLightDrag.current = null; }
       if (next === 'shape') setCanvasCursor(WAND_CURSOR);
-      else if (next === 'wall' || next === 'light' || next === 'tiles') setCanvasCursor('crosshair');
+      else if (next === 'wall' || next === 'light' || next === 'tiles' || next === 'terrain') setCanvasCursor('crosshair');
       else if (next === 'none') setCanvasCursor('default');
       return next;
     });
@@ -608,9 +609,11 @@ export function DMView() {
       // Parets: la casella de destí ha de tenir camí transitable des de l'origen (mateix
       // Dijkstra que el clamp/pintura del drag: no es travessa cap paret, cal una porta).
       // En combat, el cost passa a ser el del CAMÍ (vorejar una paret cobra el desvium).
-      if (walls.length > 0 || blocked) {
+      // Terreny difícil (cost doble): mateixa font que el drag del jugador (`terrainCost`).
+      const cost = terrainCost(R.rDifficult.current, gs, gox, goy);
+      if (walls.length > 0 || blocked || cost) {
         const budgetFt = limit.ft;
-        const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy }, blocked);
+        const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy }, blocked, cost);
         if (reach) {
           const pathCost = reach.get(`${col(x) - col(cur.x)},${row(y) - row(cur.y)}`);
           if (pathCost === undefined) { bounceBack(); return; }
@@ -910,7 +913,8 @@ export function DMView() {
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
     setRoomRevealed, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
     tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave },
-  }), [redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
+    notify,
+  }), [notify, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState, commitStroke);
@@ -941,11 +945,20 @@ export function DMView() {
     const area = AREA_SPELL_DATA[type];
     if (area && area.rangeFt === 0) { addSpell(type, [origin, origin], () => {}); return; }
     const mode = area ? 'area' as const : 'line' as const;
+    R.rAttackPending.current = null;
     R.rAreaPlacementPending.current = { type, origin, mode };
     R.rSpellPreview.current = mode === 'area'
       ? { mode: 'area_place', origin, center: origin, spellType: type }
       : { mode: 'line', start: origin, end: origin, rangeFt: spellRangeFt(type) };
   }, [addSpell]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Atacs del menú d'un token: el ratolí apunta l'objectiu (abast vora a vora, només avís) ──
+  const attackFromToken = useCallback((p: import('@/types').AttackPending) => {
+    R.rAreaPlacementPending.current = null;
+    R.rAttackPending.current = p;
+    // Sense previsualització fins que el ratolí es mogui (el menú es tanca i el cursor ja és al mapa).
+    R.rSpellPreview.current = null;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Token groups (double-click a member to select the whole group) ─────────
   const onCreateGroup = useCallback((ids: (number | string)[]) => {
@@ -2053,6 +2066,7 @@ export function DMView() {
         onAddSpell={(type) => {
           if (AREA_SPELL_DATA[type] && spellMenu?.points?.[0]) {
             const origin = spellMenu.points[0];
+            R.rAttackPending.current = null;
             R.rAreaPlacementPending.current = { type: type as import('@/types').SpellType, origin };
             R.rSpellPreview.current = { mode: 'area_place', origin, center: origin, spellType: type };
             setSpellMenu(null);
@@ -2092,6 +2106,7 @@ export function DMView() {
         onAddDoor={handleAddDoorToRoom}
         onResetExplored={onResetExplored}
         onCastSpell={castFromToken}
+        onAttack={attackFromToken}
         dialogs={dlg.dialogs}
         onSpeak={dlg.speak}
         onPlayDialog={dlg.playSaved}

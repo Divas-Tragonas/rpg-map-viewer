@@ -29,6 +29,94 @@ export interface CharacterSheet {
   /** Tirades de salvació amb competència. */
   saves?: AbilityId[];
   sections?: SheetSection[];
+  /**
+   * Atacs estructurats (menú «Atacs» del token, amb l'abast al mapa). Absent = es llegeixen
+   * del text de la secció «Atacs» (`parseAttacks`); l'editor del back office els desa aquí.
+   */
+  attacks?: SheetAttack[];
+}
+
+// ── Atacs (només informació: l'app mesura l'abast, els daus es tiren a la taula) ──────────
+
+export type DamageType =
+  | 'acid' | 'bludgeoning' | 'cold' | 'fire' | 'force' | 'lightning' | 'necrotic'
+  | 'piercing' | 'poison' | 'psychic' | 'radiant' | 'slashing' | 'thunder';
+
+export const DAMAGE_TYPES: readonly { id: DamageType; label: string }[] = [
+  { id: 'slashing', label: 'tallant' }, { id: 'piercing', label: 'perforant' }, { id: 'bludgeoning', label: 'contundent' },
+  { id: 'fire', label: 'foc' }, { id: 'cold', label: 'fred' }, { id: 'lightning', label: 'llamp' },
+  { id: 'thunder', label: 'tro' }, { id: 'acid', label: 'àcid' }, { id: 'poison', label: 'verí' },
+  { id: 'necrotic', label: 'necròtic' }, { id: 'radiant', label: 'radiant' }, { id: 'force', label: 'força' },
+  { id: 'psychic', label: 'psíquic' },
+];
+
+/** Cos a cos (abast), a distància (abast normal/llarg) o arma llançadissa (les dues coses). */
+export type AttackKind = 'melee' | 'ranged' | 'thrown';
+
+export interface SheetAttack {
+  name: string;
+  kind: AttackKind;
+  /** Abast cos a cos en peus (cos a cos i llançadisses). Per defecte 5. */
+  reachFt?: number;
+  /** Abast normal i llarg en peus (a distància i llançadisses). Entre tots dos: desavantatge. */
+  rangeFt?: number;
+  longFt?: number;
+  /** Text lliure per recordar-ho a la taula: «+5», «1d8+3». */
+  bonus?: string;
+  damage?: string;
+  damageType?: DamageType;
+}
+
+/** Abast «bo» (sense desavantatge) i llarg d'un atac, en peus. */
+export function attackRanges(a: SheetAttack): { normalFt: number; longFt?: number } {
+  const reach = a.kind === 'ranged' ? 0 : (a.reachFt ?? 5);
+  const range = a.kind === 'melee' ? 0 : (a.rangeFt ?? 0);
+  const normalFt = Math.max(reach, range) || 5;
+  const longFt = a.kind !== 'melee' && a.longFt && a.longFt > normalFt ? a.longFt : undefined;
+  return { normalFt, longFt };
+}
+
+const DAMAGE_WORDS: Record<string, DamageType> = Object.fromEntries(
+  DAMAGE_TYPES.map(d => [d.label, d.id] as [string, DamageType])
+    .concat([['llamp', 'lightning'], ['elèctric', 'lightning'], ['electric', 'lightning'], ['àcid', 'acid'], ['acid', 'acid'], ['verí', 'poison'], ['veri', 'poison']]),
+);
+
+/**
+ * Llegeix els atacs del text de la secció «Atacs» (format de les fitxes del Notion):
+ * «- **Arc llarg** +7 · 1d8+3 perforant (abast 150/600 peus)». Les línies sense daus de dany
+ * («Conjurs d'atac», «Atac furtiu») no són atacs i se salten. «llançament a/b» = llançadissa,
+ * «abast a/b» = a distància; la resta, cos a cos a 5 ft.
+ */
+export function parseAttacks(text: string): SheetAttack[] {
+  const out: SheetAttack[] = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim().replace(/^[-•*]\s*/, '');
+    const m = /^\*\*(.+?)\*\*\s*([+-]\s*\d+)?\s*[·:,-]?\s*(\d+d\d+(?:\s*[+-]\s*\d+)?)\s*([\p{L}]+)?(.*)$/u.exec(line);
+    if (!m) continue;
+    const name = m[1].replace(/[:：]\s*$/, '').trim();
+    const dmgWord = (m[4] ?? '').toLowerCase();
+    const rest = m[5] ?? '';
+    const rng = /(llançament|abast|alcance|range)\s*(\d+)\s*\/\s*(\d+)/i.exec(rest);
+    const atk: SheetAttack = {
+      name, kind: 'melee', reachFt: 5,
+      bonus: m[2]?.replace(/\s+/g, ''), damage: m[3].replace(/\s+/g, ''),
+      damageType: DAMAGE_WORDS[dmgWord],
+    };
+    if (rng) {
+      atk.rangeFt = parseInt(rng[2]); atk.longFt = parseInt(rng[3]);
+      if (/llançament/i.test(rng[1])) atk.kind = 'thrown';
+      else { atk.kind = 'ranged'; delete atk.reachFt; }
+    }
+    out.push(atk);
+  }
+  return out;
+}
+
+/** Atacs d'una fitxa: els estructurats si n'hi ha, si no els que es llegeixen del text «Atacs». */
+export function attacksOf(sheet: CharacterSheet): SheetAttack[] {
+  if (sheet.attacks) return sheet.attacks;
+  const sec = sheet.sections?.find(s => s.title.trim().toLowerCase() === 'atacs');
+  return sec ? parseAttacks(sec.text) : [];
 }
 
 /** Seccions que s'ofereixen en una fitxa nova (el DM en pot afegir o treure). */

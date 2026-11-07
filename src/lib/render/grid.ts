@@ -175,3 +175,32 @@ export function renderDMPointer(ctx: CanvasRenderingContext2D, fc: FrameContext)
   ctx.beginPath(); ctx.moveTo(ptr.x - ch, ptr.y); ctx.lineTo(ptr.x + ch, ptr.y); ctx.moveTo(ptr.x, ptr.y - ch); ctx.lineTo(ptr.x, ptr.y + ch); ctx.stroke();
   ctx.restore();
 }
+
+/**
+ * Terreny difícil: les caselles marcades es pinten amb una trama de ratlles diagonals ocre
+ * (es veu damunt de qualsevol mapa, també sense graella visible). Es veu a les dues pantalles.
+ */
+export function renderDifficult(ctx: CanvasRenderingContext2D, cells: readonly string[], fc: FrameContext): void {
+  const { sc, ox, oy, mw, mh, rGridSize, rGridOriginX, rGridOriginY } = fc;
+  const gs = rGridSize.current;
+  if (!cells.length || gs <= 0) return;
+  const gox = ((rGridOriginX.current % gs) + gs) % gs;
+  const goy = ((rGridOriginY.current % gs) + gs) % gs;
+  ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+  ctx.beginPath(); ctx.rect(0, 0, mw, mh); ctx.clip();
+  for (const k of cells) {
+    const [c, r] = k.split(',').map(Number);
+    if (!Number.isFinite(c) || !Number.isFinite(r)) continue;
+    const x = gox + c * gs, y = goy + r * gs;
+    ctx.fillStyle = 'rgba(176,122,58,0.22)';
+    ctx.fillRect(x, y, gs, gs);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, gs, gs); ctx.clip();
+    ctx.strokeStyle = 'rgba(214,160,84,0.65)'; ctx.lineWidth = 1.5 / sc;
+    ctx.beginPath();
+    for (let t = -gs; t < gs; t += gs / 4) { ctx.moveTo(x + t, y + gs); ctx.lineTo(x + t + gs, y); }
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}

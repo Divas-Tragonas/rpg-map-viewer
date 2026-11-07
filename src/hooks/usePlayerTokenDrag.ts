@@ -3,6 +3,7 @@ import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
 import { computeReachableCells, buildMovePath, slideAgainstWalls, type CellBlocker } from '@/lib/rooms/pathing';
+import { terrainCost } from '@/lib/rules/terrain';
 import { tileBlocker, type TileLive } from '@/lib/tilemap/render';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { movementLimit } from '@/lib/rules/conditions';
@@ -148,6 +149,8 @@ export function usePlayerTokenDrag(
   rTileLive?: RefObject<TileLive | null>,
   // Estil (Píxel o Clàssic): per al hit-test de les figuretes del ventall.
   rAppStyle?: RefObject<string>,
+  // Terreny difícil: caselles que costen el doble (`lib/rules/terrain.ts`).
+  rDifficult?: RefObject<readonly string[]>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -255,7 +258,8 @@ export function usePlayerTokenDrag(
       };
       // Amb parets, la regió es restringeix a les caselles amb camí (les parets bloquegen;
       // les obertures/portes deixen passar i el desvium es cobra). Sense parets → null.
-      range.reach = computeReachableCells(walls, range.startCol, range.startRow, range.maxCells, { gs, gox, goy }, blocked);
+      range.reach = computeReachableCells(walls, range.startCol, range.startRow, range.maxCells, { gs, gox, goy }, blocked,
+        terrainCost(rDifficult?.current, gs, gox, goy));
     }
     dragRef.current = {
       id: hit.id, ox: hit.ox, oy: hit.oy, R: hit.R, range,

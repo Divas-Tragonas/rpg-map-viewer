@@ -169,7 +169,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
-      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
+      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current, difficult: R.rDifficult.current,
       activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
       sheet: R.rSheetShow.current,
     };
@@ -240,7 +240,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       players: rPlayers.current, conditions: rConditions.current, defeated: rDefeated.current,
       paintedZones: rPaintedZones.current, tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
-      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current,
+      rooms: rRooms.current, walls: rWalls.current, doors: rDoors.current, lights: rLights.current, difficult: R.rDifficult.current,
       activeSpells: rActiveSpells.current, tileLive: R.rTileLive.current,
       sheet: R.rSheetShow.current,
     };
@@ -271,6 +271,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       walls: rWalls.current,
       doors: rDoors.current,
       lights: rLights.current,
+      difficult: R.rDifficult.current,
       activeSpells: rActiveSpells.current,
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
@@ -844,6 +845,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       tokenSizeOverride: rTokenSizeOverride.current,
       libEnemies: rLibEnemies.current,
       walls: rWalls.current, rooms: rRooms.current, doors: rDoors.current, lights: rLights.current,
+      difficult: R.rDifficult.current,
       turn: rTurn.current,
       // Els grups de tokens són efímers dins d'una sessió, però perdre'ls en tornar a
       // carregar una partida desada és una sorpresa, no una decisió de l'usuari. Com a
@@ -955,6 +957,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.rooms)         { rRooms.current = state.rooms; S.setRooms(state.rooms); }
       if (state.doors)         { rDoors.current = state.doors; S.setDoors(state.doors); }
       if (state.lights)        { rLights.current = state.lights; S.setLights(state.lights); }
+      R.rDifficult.current = Array.isArray(state.difficult) ? state.difficult : [];
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (Array.isArray(state.tokenGroups)) R.rTokenGroups.current = new Map(state.tokenGroups);
       R.rDialogs.current = state.dialogs && typeof state.dialogs === 'object' ? state.dialogs : {};

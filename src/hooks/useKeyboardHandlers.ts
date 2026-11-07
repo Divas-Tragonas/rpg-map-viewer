@@ -138,8 +138,8 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       }
       if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); R.wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO_SKIP' })); skipBossIntro(); return; }
       // Màgia triada que espera el destí (roda o grimori d'un token): Esc la cancel·la.
-      if (e.key === 'Escape' && R.rAreaPlacementPending.current) {
-        R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
+      if (e.key === 'Escape' && (R.rAreaPlacementPending.current || R.rAttackPending.current)) {
+        R.rAreaPlacementPending.current = null; R.rAttackPending.current = null; R.rSpellPreview.current = null;
         return;
       }
       if (e.key === 'Escape' && (R.rAreaSelectMode.current || R.rAreaSelectRect.current)) {
@@ -202,6 +202,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       });
       else if (e.key === '5') setDrawTool(t => t === 'wall' ? 'none' : 'wall');
       else if (e.key === '6') setDrawTool(t => t === 'light' ? 'none' : 'light');
+      else if (e.key === '8') setDrawTool(t => t === 'terrain' ? 'none' : 'terrain');
       // Caselles (estil Píxel): només si hi ha mapa de caselles (si no, l'eina no fa res).
       else if (e.key === '7' && R.rAppStyle.current === 'pixel' && R.rTileMap.current) setDrawTool(t => t === 'tiles' ? 'none' : 'tiles');
     };

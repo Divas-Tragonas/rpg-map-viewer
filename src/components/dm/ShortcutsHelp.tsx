@@ -12,7 +12,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     rows: [
       ['V · Esc', 'Selecció (tornar-hi des de qualsevol eina)'],
       ['1 · 2', 'Dibuix: ploma · goma (Jugar)'], ['3', 'Màgies (Jugar)'], ['4', 'Senyal i regla (Jugar)'],
-      ['5', 'Parets i portes (Preparar)'], ['6', 'Llums (Preparar)'], ['7', 'Caselles (Preparar, app Píxel)'],
+      ['5', 'Parets i portes (Preparar)'], ['6', 'Llums (Preparar)'], ['7', 'Caselles (Preparar, app Píxel)'], ['8', 'Terreny difícil (Preparar)'],
       ['A', 'Selecció múltiple (rectangle)'],
     ],
   },

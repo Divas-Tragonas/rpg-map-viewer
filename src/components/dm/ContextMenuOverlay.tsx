@@ -1,13 +1,14 @@
 'use client';
 import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { X, GripIcon, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon } from '@/components/icons';
+import { X, GripIcon, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon, SwordsIcon } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
 import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/components/dm/TokenFields';
 import { CharacterSection, type CharacterMenuProps } from '@/components/dm/CharacterSection';
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
-import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog } from '@/types';
+import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog, AttackPending } from '@/types';
+import { attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
 
 /** Posició d'un menú flotant, en píxels de la finestra (cantonada de dalt a l'esquerra). */
 export interface MenuPos { x: number; y: number }
@@ -51,6 +52,8 @@ interface Props {
   onResetExplored: (id: string) => void;
   /** Llança una màgia del grimori d'un jugador des del seu token (`origin` = centre). */
   onCastSpell: (type: import('@/types').SpellType, origin: import('@/types').Point) => void;
+  /** Tria un atac del menú: el ratolí apunta l'objectiu amb l'abast al mapa (`aimAttack`). */
+  onAttack: (p: AttackPending) => void;
   /** Diàlegs preparats de cada token (veure `useDialog`). */
   dialogs: Record<string, SavedDialog[]>;
   /** Frase improvisada: globus sobre el token (combat) o escena (barres i càmera). */
@@ -186,6 +189,42 @@ function MenuHeader({ title, children, onClose, onDrag, floating }: {
   );
 }
 
+/** Atac genèric dels tokens sense atacs a la fitxa (enemics, jugadors sense fitxa). */
+const GENERIC_MELEE: SheetAttack = { name: 'Cos a cos', kind: 'melee', reachFt: 5 };
+
+const rangeText = (a: SheetAttack) => {
+  const { normalFt, longFt } = attackRanges(a);
+  return longFt ? `${normalFt}/${longFt}` : `${normalFt}`;
+};
+
+/**
+ * Atacs del token (fitxa del jugador; els enemics, de moment, un cos a cos genèric de 5 ft).
+ * Triar-ne un tanca el menú i deixa el ratolí apuntant: anell d'abast, línia i peus fins al
+ * token assenyalat (vora a vora). Només informa: si encerta i el dany es decideixen a la taula.
+ */
+function AttackList({ attacks, onPick }: { attacks: SheetAttack[]; onPick: (a: SheetAttack) => void }) {
+  return (
+    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SwordsIcon size={11} /> Atacs</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+        {attacks.map((a, i) => {
+          const dmg = DAMAGE_TYPES.find(d => d.id === a.damageType)?.label;
+          const kind = a.kind === 'melee' ? 'cos a cos' : a.kind === 'thrown' ? 'llançadissa' : 'a distància';
+          return (
+            <Button key={`${a.name}-${i}`} size="sm" variant="tint" color={C.enemy}
+              title={`${a.name} · ${kind} · ${rangeText(a)} ft${a.bonus ? ` · ${a.bonus}` : ''}${a.damage ? ` · ${a.damage}` : ''}${dmg ? ` ${dmg}` : ''}\nClic al mapa (o al token objectiu) · Esc o clic dret cancel·la`}
+              onMouseDown={e => { e.stopPropagation(); onPick(a); }}
+              style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
+              <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{a.name}</span>
+              <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{rangeText(a)}</span>
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Grimori del jugador (conjurs de la seva fitxa al Notion, `SPELLBOOKS`) agrupat pel gest
  * de l'app: direccionals, a un punt dins d'abast i personals. Triar-ne un tanca el menú i
@@ -240,7 +279,7 @@ export function ContextMenuOverlay({
   setDefeated, setConditions,
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell, onAttack,
   dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat, characters,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
@@ -444,7 +483,7 @@ export function ContextMenuOverlay({
   const book = contextMenu.casterPos ? spellbookFor(t.name) : [];
   const actionBtn: React.CSSProperties = { flex: '1 1 auto', minWidth: 0 };
   return (
-    <div key={t.key} ref={setMenuEl} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, book.length > 0 ? 620 : 400)}>
+    <div key={t.key} ref={setMenuEl} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, book.length > 0 ? 680 : 460)}>
       <MenuHeader title={<NameField key={`${t.key}:${t.name}`} value={t.name} onCommit={t.rename} />} {...head}>
         {/* Derrotat és un interruptor amb nom: abans era un ✕ solt just on s'espera el botó
             de tancar el menú, i en tota la resta de l'app ✕ vol dir tancar o eliminar. */}
@@ -462,6 +501,17 @@ export function ContextMenuOverlay({
         {t.hpMax > 0 && <div style={{ display: 'flex' }}><HpControl hp={t.hp} hpMax={t.hpMax} onAdjust={t.adjustHp} size="md" /></div>}
         <TokenFields t={t} p={edit} />
       </div>
+
+      {contextMenu.canAttack && (() => {
+        const ch = pl ? characterFor(pl, characters.characters) : null;
+        const own = ch ? attacksOf(sheetOf(ch)) : [];
+        const list = own.length > 0 ? own : [GENERIC_MELEE];
+        return <AttackList attacks={list} onPick={a => {
+          const { normalFt, longFt } = attackRanges(a);
+          onAttack({ key: t.key, label: a.name, normalFt, longFt });
+          onClose();
+        }} />;
+      })()}
 
       {contextMenu.casterPos && (() => {
         const origin = contextMenu.casterPos;

@@ -39,6 +39,11 @@ export function useDMRefs() {
   // Punts de llum (torxes/llànties) col·locats pel DM. S'activen quan un token de jugador
   // és dins de la mateixa sala. Sincronitzats al jugador i persistits.
   const rLights         = useRef<import('@/types').LightSource[]>([]);
+  // Terreny difícil: caselles "col,fila" (immutable: una llista nova a cada canvi, perquè el STATE ho detecti)
+  const rDifficult      = useRef<readonly string[]>([]);
+  const rTerrainDrag    = useRef<{ erase: boolean } | null>(null);
+  // Atac triat al menú d'un token, esperant l'objectiu (`aimAttack`).
+  const rAttackPending  = useRef<import('@/types').AttackPending | null>(null);
   const rLightSelected  = useRef<string | null>(null);   // llum seleccionada (per editar-ne el radi)
   const rNewLightRadiusFt = useRef(15);                  // radi per defecte de les llums noves (peus)
   const rLightDrag      = useRef<{ id: string; ox: number; oy: number } | null>(null); // drag d'una llum
@@ -222,7 +227,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rDoors, rLights, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rLights, rDifficult, rTerrainDrag, rAttackPending, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rUndo, rTurnGen, rUndoGesture, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,

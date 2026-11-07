@@ -12,7 +12,7 @@ import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells, spellShake, followSpellPreview } from '@/lib/render/spells';
 import { renderPlayerTokens, renderLibEnemyTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
-import { renderGrid, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
+import { renderGrid, renderDifficult, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
 import { relayToParent } from '@/lib/relay';
@@ -138,6 +138,7 @@ export function PlayerView() {
   const rDoors        = useRef<Door[]>([]);
   // Punts de llum (torxes): il·luminen la seva sala quan hi ha un token de jugador dins.
   const rLights       = useRef<import('@/types').LightSource[]>([]);
+  const rDifficult    = useRef<readonly string[]>([]);
   const roomRevealAnimRef = useRef<Record<string, number>>({});
   const rActiveSpells = useRef<Spell[]>([]);
   const rGridVisible  = useRef(false);
@@ -515,6 +516,7 @@ export function PlayerView() {
     rConditions,
     rTileLive,
     rAppStyle,
+    rDifficult,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
@@ -545,6 +547,7 @@ export function PlayerView() {
         if (msg.walls) rWalls.current = msg.walls;
         if (msg.doors) rDoors.current = msg.doors;
         if (msg.lights) rLights.current = msg.lights;
+        if (msg.difficult) rDifficult.current = msg.difficult;
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
         if (msg.cam)           rCam.current           = msg.cam;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
@@ -631,6 +634,7 @@ export function PlayerView() {
         if (msg.walls) rWalls.current = msg.walls;
         if (msg.doors) rDoors.current = msg.doors;
         if (msg.lights) rLights.current = msg.lights;
+        if (msg.difficult) rDifficult.current = msg.difficult;
         if (msg.turn) rTurn.current = msg.turn;
         refreshTurnBanner();
         if (msg.spellPreview !== undefined) rSpellPreviewTarget.current = msg.spellPreview;
@@ -1116,6 +1120,7 @@ export function PlayerView() {
       ctx.restore();
 
       renderGrid(ctx, fc);
+      renderDifficult(ctx, rDifficult.current, fc);
       renderDMPointer(ctx, fc);
       renderMeasureRuler(ctx, fc);
 

@@ -129,7 +129,10 @@ export interface Spell {
 }
 
 /** Token que el cursor assenyala mentre s'apunta una acció: només el veu el DM (no viatja). */
-export interface ReachHover { x: number; y: number; R: number; ft: number | null; out: boolean }
+export interface ReachHover { x: number; y: number; R: number; ft: number | null; out: boolean; long?: boolean }
+
+/** Zona d'un atac: dins de l'abast, a l'abast llarg (desavantatge) o fora. */
+export type ReachZone = 'in' | 'long' | 'out';
 
 export type SpellPreview =
   /**
@@ -137,7 +140,19 @@ export type SpellPreview =
    * el cursor és fora de l'abast → tot es pinta en vermell, però el clic s'accepta igualment.
    */
   | { mode: 'line'; start: Point; end: Point; rangeFt?: number; outOfRange?: boolean; hover?: ReachHover }
-  | { mode: 'area_place'; origin: Point; center: Point; spellType: string; outOfRange?: boolean; hover?: ReachHover };
+  | { mode: 'area_place'; origin: Point; center: Point; spellType: string; outOfRange?: boolean; hover?: ReachHover }
+  /**
+   * Atac d'un token (menú «Atacs»): línia de la vora del token al cursor, anell de l'abast i,
+   * si en té, de l'abast llarg. Distàncies vora a vora. Només avís: el clic s'accepta sempre.
+   */
+  | { mode: 'attack'; start: Point; startR: number; end: Point; label: string; normalFt: number; longFt?: number; zone: ReachZone; ft: number | null; hover?: ReachHover };
+
+/** Atac triat al menú d'un token que espera l'objectiu (veure `aimAttack`). */
+export interface AttackPending {
+  /** Token que ataca (`pl_*`/`lib_*`): la posició es llegeix a cada moviment (el menú flotant pot ser vell). */
+  key: string;
+  label: string; normalFt: number; longFt?: number;
+}
 
 /**
  * Màgia triada que espera el clic de destí. `mode: 'line'` → el clic fixa la punta del
@@ -150,7 +165,7 @@ export interface AreaSpellPending {
   mode?: 'line' | 'area';
 }
 
-export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light' | 'tiles';
+export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light' | 'tiles' | 'terrain';
 
 // Punt de llum (torxa/llàntia) col·locat pel DM dins d'una sala. Només s'activa (i els
 // jugadors veuen la seva zona) si un token de jugador és dins de la mateixa sala.
@@ -217,6 +232,8 @@ export interface ContextMenuState {
   roomRevealed?: boolean;
   /** Centre del token de jugador (coords de mapa): origen dels conjurs del seu grimori. */
   casterPos?: Point;
+  /** Hi ha atacs al menú (jugadors i enemics). */
+  canAttack?: boolean;
 }
 
 export interface ExpositorState {
@@ -378,6 +395,8 @@ export interface BCStateMessage {
   doors?: Door[];
   // Punts de llum (camp pesat): torxes/llànties col·locades pel DM dins de sales.
   lights?: LightSource[];
+  // Terreny difícil (camp pesat): caselles "col,fila" que costen el doble de moviment.
+  difficult?: readonly string[];
   // Spells d'àrea actius (dormir/grasa) i regla de mesura: es reconcilien al STATE
   // perquè un DELETE_SPELL o un MEASURE de neteja perduts (reconnexió WS) no deixin
   // l'estat obsolet a la pantalla del jugador (camp pesat: només quan canvia la ref).
@@ -426,6 +445,7 @@ export interface BCStructMessage {
   walls?: Wall[];
   doors?: Door[];
   lights?: LightSource[];
+  difficult?: readonly string[];
   // Spells d'àrea actius: al STRUCT perquè un jugador que es connecta tard els vegi.
   activeSpells?: Spell[];
   // Punter i regla de mesura del DM: es reenvien al STRUCT perquè una reconnexió

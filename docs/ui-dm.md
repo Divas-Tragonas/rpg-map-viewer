@@ -144,6 +144,7 @@
 - **Regla**: si afegeixes un camí que pot fallar de cara a l'usuari, ha de passar per `notify`, no per `console.error` tot sol.
 
 ## Dreceres de teclat i modificadors (`useKeyboardHandlers`)
+- `8`: eina Terreny difícil (mode Preparar).
 - ⚠️ **Ctrl i Maj commuten els modes de vista NOMÉS amb un toc net**: prémer i deixar anar la tecla sola, sense cap altra tecla, clic ni roda pel mig i en menys de `TAP_MS`. Abans commutaven en *prémer-la* (keydown), o sigui que tot **Ctrl+Z** encenia el mode CTRL (i el segon el tornava a apagar restaurant la càmera de tothom) i el **Maj+clic** de portes/màgies encenia la vista privada. `rShiftHeld` continua sent la tecla física premuda (la fan servir les màgies i les portes). La pinça del trackpad envia `ctrlKey` sense cap keydown: no toca res.
 - **Espai mantingut** (`rSpaceHeld`) = arrossegar el mapa amb qualsevol eina (cursor `grab`/`grabbing` via els estats `spaceHeld`/`panning` de `DMView`).
 - **N** obre el diari i enfoca el camp de nota ràpida (`onQuickNote`; funciona també sense mapa).

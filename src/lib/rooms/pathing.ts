@@ -19,6 +19,9 @@ export interface CellGridInfo {
  */
 export type CellBlocker = (center: Point) => boolean;
 
+/** Multiplicador del cost d'ENTRAR a una casella (rep el seu centre): 1 normal, 2 terreny difícil. */
+export type CellCost = (center: Point) => number;
+
 /** Cert si el segment AB creua (encreuament propi) alguna paret. */
 export function segmentBlocked(a: Point, b: Point, walls: Wall[]): boolean {
   for (const w of walls) {
@@ -62,8 +65,9 @@ export function computeReachableCells(
   maxCells: number,
   grid: CellGridInfo,
   blocked?: CellBlocker,
+  cost?: CellCost,
 ): Map<string, number> | null {
-  if (walls.length === 0 && !blocked) return null;
+  if (walls.length === 0 && !blocked && !cost) return null;
   const mc = Math.min(Math.max(0, maxCells), MAX_CELLS_CAP);
   const budget = mc + 0.5;
   const { gs, gox, goy } = grid;
@@ -128,12 +132,12 @@ export function computeReachableCells(
   };
   const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   while (heap.length) {
-    const [cost, dc, dr] = heapPop();
-    if (cost > (reach.get(`${dc},${dr}`) ?? Infinity)) continue;  // entrada obsoleta
+    const [acc, dc, dr] = heapPop();
+    if (acc > (reach.get(`${dc},${dr}`) ?? Infinity)) continue;  // entrada obsoleta
     for (const [sx, sy] of DIRS) {
       const ndc = dc + sx, ndr = dr + sy;
       const diag = sx !== 0 && sy !== 0;
-      const ncost = cost + (diag ? SQRT2 : 1);
+      const ncost = acc + (diag ? SQRT2 : 1) * (cost ? cost(center(ndc, ndr)) : 1);
       if (ncost > budget) continue;
       const k = `${ndc},${ndr}`;
       if (ncost >= (reach.get(k) ?? Infinity)) continue;
@@ -219,8 +223,9 @@ export function computePath(
   grid: CellGridInfo,
   maxCells: number,
   blocked?: CellBlocker,
+  cost?: CellCost,
 ): Point[] | null {
-  if (walls.length === 0 && !blocked) return null;
+  if (walls.length === 0 && !blocked && !cost) return null;
   const ddc = destCol - startCol, ddr = destRow - startRow;
   if (ddc === 0 && ddr === 0) return null;
   const mc = Math.min(Math.max(0, maxCells), MAX_CELLS_CAP);
@@ -279,13 +284,13 @@ export function computePath(
   const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   const destKey = `${ddc},${ddr}`;
   while (heap.length) {
-    const [cost, dc, dr] = heapPop();
-    if (cost > (dist.get(`${dc},${dr}`) ?? Infinity)) continue;
+    const [acc, dc, dr] = heapPop();
+    if (acc > (dist.get(`${dc},${dr}`) ?? Infinity)) continue;
     if (dc === ddc && dr === ddr) break;
     for (const [sx, sy] of DIRS) {
       const ndc = dc + sx, ndr = dr + sy;
       const diag = sx !== 0 && sy !== 0;
-      const ncost = cost + (diag ? SQRT2 : 1);
+      const ncost = acc + (diag ? SQRT2 : 1) * (cost ? cost(center(ndc, ndr)) : 1);
       if (ncost > budget) continue;
       const k = `${ndc},${ndr}`;
       if (ncost >= (dist.get(k) ?? Infinity)) continue;

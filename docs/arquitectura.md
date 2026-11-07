@@ -154,7 +154,8 @@ src/
 │   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
 │   ├── rules/reach.ts      # edgeDistanceFt (vora a vora), isOutOfRange
-│   ├── spellcast.ts        # aimSpell (previsualització + avís d'abast) i previewForPlayers
+│   ├── rules/terrain.ts    # terreny difícil: caselles, terrainCost (cost ×2 al pathfinding)
+│   ├── spellcast.ts        # aimSpell / aimAttack (previsualització + avís d'abast) i previewForPlayers
 │   ├── phosphor/screen.ts  # Mode Fòsfor: la pantalla de jugador com una TV de tub (paleta + CRT en WebGL)
 │   ├── textures/noise.ts   # Soroll de les zones màgiques (el de valor de la v4.33 + gradient 3D)
 │   ├── textures/fields.ts  # Camp de color de cada element de zona (texel, temps) → rgba

@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.99 — Terreny difícil i atacs amb abast al menú del token
+- **Terreny difícil** (eina nova al mode Preparar, tecla `8`): pinta caselles de la graella amb el clic (el dret esborra), també sobre mapes d'imatge. Es veuen ratllades a totes les pantalles i costen el **doble** de moviment: el rang groc del jugador i la validació del DM ho tenen en compte. Es desa amb la partida
+- **Atacs al menú del token**: secció «Atacs» amb les armes de la fitxa (es llegeixen soles del text «Atacs», o s'editen al back office). En triar-ne una, el mapa mostra l'anell de l'abast (i de l'abast llarg) i la distància de **vora a vora** fins al token sota el cursor: verd dins, ambre a l'abast llarg (desavantatge), vermell fora. Només avisa: el clic sempre s'accepta
+- Els enemics, de moment, tenen un «Cos a cos» de 5 ft (l'abast propi arribarà amb la API)
+- **Back office**: editor d'atacs a la fitxa (nom, tipus, abast, distància, bonus, dany i tipus de dany)
+- Sense canvis a la API
+
 ### v4.98 — L'abast de les màgies és un avís, no un límit
 - **Abast com a avís**: apuntant una màgia des del grimori, si el cursor és fora d'abast el cercle, la línia, l'àrea i l'etiqueta passen a **vermell**, però el clic llança igualment (abans la punta es tallava a l'abast)
 - **Token assenyalat**: amb el cursor sobre un token, s'hi dibuixa un anell (verd dins d'abast, vermell fora) amb els peus fins a la seva **vora**; només ho veu el DM

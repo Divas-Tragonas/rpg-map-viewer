@@ -5,7 +5,7 @@ import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells, spellShake } from '@/lib/render/spells';
 import { renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
 import { advanceTokenSpread } from '@/lib/render/token-geom';
-import { renderGrid, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
+import { renderGrid, renderDifficult, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
 import { drawTileLive, drawTileDoorsOver } from '@/lib/tilemap/render';
@@ -269,6 +269,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       }
 
       renderGrid(ctx, fc);
+      renderDifficult(ctx, R.rDifficult.current, fc);
       renderGridCalib(ctx, fc);
 
       // Eina Caselles: casella sota el cursor i rectangle en curs (sala o Maj).

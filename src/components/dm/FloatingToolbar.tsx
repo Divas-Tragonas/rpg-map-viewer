@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { PenLine, Eraser, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon, SparklesIcon, TilesIcon } from '@/components/icons';
+import { PenLine, Eraser, Trash2, CrosshairIcon, TriangleIcon, PointerIcon, GridIcon, WallIcon, SunIcon, SparklesIcon, TilesIcon, TerrainIcon } from '@/components/icons';
 import { C, PALETTE, FS, RADIUS, tint } from '@/constants';
 import { useCompactLayout } from '@/hooks/useCompact';
 import { GridPanel } from '@/components/dm/GridPanel';
@@ -92,6 +92,7 @@ const PREP_TOOLS: ToolDef[] = [
   SELECT_TOOL,
   { tool: 'wall', label: 'Parets i portes', hint: '5', icon: <WallIcon size={15} />, desc: 'Dibuixa parets; tancar-les crea una sala.' },
   { tool: 'light', label: 'Llums', hint: '6', icon: <SunIcon size={15} />, desc: "Torxes que s'encenen quan hi entra un jugador." },
+  { tool: 'terrain', label: 'Terreny difícil', hint: '8', icon: <TerrainIcon size={15} />, desc: 'Pinta caselles que costen el doble (clic dret esborra).' },
 ];
 
 /** Estil Píxel: l'editor de caselles (només amb un mapa de caselles obert). */
