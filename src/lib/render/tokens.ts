@@ -5,8 +5,9 @@ import { drawConditionBadges } from '@/lib/conditions';
 import { drawCreature, grayCreature } from '@/lib/sprites/draw';
 import { drawFigureState, figureLook, isLying, reducedMotion } from '@/lib/sprites/states';
 import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
+import { drawStatusFx, hasStatusFx } from '@/lib/sprites/statusfx';
 import { pointInPolygon } from '@/lib/geometry';
-import { FIG_SCALE, FOOT_FLAT, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, footOf, footEllipse, SHADOW_RX, SHADOW_RY } from './token-geom';
+import { FIG_SCALE, FOOT_FLAT, creatureBounds, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, footOf, footEllipse, SHADOW_RX, SHADOW_RY } from './token-geom';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
@@ -326,7 +327,13 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
       // Amb els estats a la figura (`lib/sprites/states.ts`): estirada, de pedra, quieta, contorn…
       // Estirada, la figura es posa de través sobre l'ombra (sense la correcció dels peus).
       const look = figureLook(opts.conds ?? []);
-      drawFigureState(ctx, sprite, look, look.lying ? cx : pf.x, look.lying ? footY : pf.foot, S, left, key.length * 3.1 + key.charCodeAt(key.length - 1), now, hit.flash);
+      const seed = key.length * 3.1 + key.charCodeAt(key.length - 1);
+      drawFigureState(ctx, sprite, look, look.lying ? cx : pf.x, look.lying ? footY : pf.foot, S, left, seed, now, hit.flash);
+      // Animacions dels estats (estrelles, cors, lianes…: `lib/sprites/statusfx.ts`). No a les invisibles.
+      const conds = opts.conds ?? [];
+      if (!opts.invis && hasStatusFx(conds)) {
+        drawStatusFx(ctx, conds, cx, pf.top + creatureBounds(sprite).top * S, footY, S, now, seed, look.lying, reducedMotion());
+      }
     }
     ctx.restore();
     if (alpha > 0.3) drawFigureHitFx(ctx, key, cx, footY, S, now);

@@ -2,6 +2,8 @@ import type { FrameContext } from './types';
 import type { PaintedZone } from '@/types';
 import { ELEMENTS_BY_ID } from '@/constants';
 import { drawZoneFx } from './zonefx';
+import { drawZonePixelAccents } from './zonepixel';
+import { reducedMotion } from '@/lib/sprites/states';
 
 // Cached per zone object so per-frame drawing doesn't re-walk `points` in JS every frame.
 // A dragged/edited zone gets a new points array (see useMouseHandlers), which naturally
@@ -38,6 +40,9 @@ export function drawFlatZone(ctx: CanvasRenderingContext2D, zone: PaintedZone): 
 export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const { isDM, rPaintedZones, zoneAppearRef, rGridSize } = fc;
   const t = performance.now() / 1000;
+  // App Píxel: detalls de pixel art dins de les zones (`zonepixel.ts`), damunt del camp de sempre.
+  const pixel = fc.rAppStyle?.current === 'pixel';
+  const calm = pixel && reducedMotion();
   for (const zone of rPaintedZones.current) {
     if (isDM) {
       drawFlatZone(ctx, zone);
@@ -77,6 +82,7 @@ export function renderPaintedZones(ctx: CanvasRenderingContext2D, fc: FrameConte
       const FADE_IN = 0.75;
       const fadeAlpha = elapsed < FADE_IN ? elapsed / FADE_IN : 1;
       drawZoneFx(ctx, zone, t, rGridSize.current, fadeAlpha);
+      if (pixel) drawZonePixelAccents(ctx, zone, rGridSize.current, fadeAlpha, calm);
       if (appearT && elapsed > 1.5) delete zoneAppearRef.current[zone.id];
     }
   }

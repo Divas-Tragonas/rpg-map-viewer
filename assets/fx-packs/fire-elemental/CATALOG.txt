@@ -1,0 +1,25 @@
+Free Pixel Fire & Elemental Effects: 16 animated effects, each at 32x32 and 64x64, 12 fps
+number, name, element, type, frames, playback
+
+01  Campfire            fire       loop   12 frames  loops
+02  Torch Flame         fire       loop    8 frames  loops
+03  Fire Explosion      fire       burst  12 frames  plays once
+04  Burning Ground      fire       loop   12 frames  loops
+05  Ice Spikes          ice        burst  10 frames  plays once
+06  Snow Swirl          ice        loop   12 frames  loops
+07  Frost Crystal       ice        loop   12 frames  loops
+08  Ice Burst           ice        burst  10 frames  plays once
+09  Electric Crackle    lightning  loop    8 frames  loops
+10  Chain Arc           lightning  loop    8 frames  loops
+11  Thunder Burst       lightning  burst  10 frames  plays once
+12  Spark Fountain      lightning  loop   12 frames  loops
+13  Acid Puddle         acid       loop   12 frames  loops
+14  Acid Splash         acid       burst  10 frames  plays once
+15  Poison Cloud        acid       loop   12 frames  loops
+16  Acid Drip           acid       loop   12 frames  loops
+
+Palettes (darkest to brightest; index 0 is transparent):
+  fire       #3b0f14 #a8231e #e8601c #f7b52c #fff3a8  smoke #3a3340 #655b6b
+  ice        #142a4f #2763a8 #4fa4e8 #9fe0f7 #ffffff
+  lightning  #3a1d5c #7b3fc4 #f2c230 #fff07a #ffffff
+  acid       #14260f #3f7a1c #7ec926 #c4f03c #f4ffb0  smoke #26302a #46574b

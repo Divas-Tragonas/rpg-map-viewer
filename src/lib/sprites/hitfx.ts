@@ -24,6 +24,8 @@
 import { blit, parseSprite, tintedRegion } from './draw';
 import { pfDrawChar, pfAdvance, PF_LINE } from './font';
 import { PAL } from '@/lib/render/fxsprites';
+import { animFrame, animMs, drawAnim } from './fxanim';
+import { sheet } from './pack';
 import type { HpHit, HitKind } from '@/types';
 
 /** El `HpHit` que toca després de canviar la vida en `delta` (un canvi de 0 no és un cop). */
@@ -40,7 +42,8 @@ const HEAL_MS = 900;
 type ImpactStyle = 'slash' | 'claw' | 'swing' | 'star';
 /** 0 = lleu, 1 = normal, 2 = fort. */
 type Severity = 0 | 1 | 2;
-interface Hit { t0: number; kind: 'hit' | 'heal'; dir: [number, number]; style: ImpactStyle; seed: number; amount: number; sev: Severity }
+interface Hit { t0: number; kind: 'hit' | 'heal'; dir: [number, number]; style: ImpactStyle; seed: number; amount: number; sev: Severity;
+  /** El cop l'ha deixat a 0 (núvol de pols als peus). */ ko?: boolean; /** Atac a distància (impacte d'estrella, sense urpada ni tall). */ ranged?: boolean }
 
 /** Per grau: durada, flaixos (fraccions [inici, fi]), empenta (px d'art), mida de l'impacte. */
 const SEV = [
@@ -108,7 +111,8 @@ export function noteFigure(key: string, sprite: string, hp: number | undefined, 
     dir = [dx / d, dy / d];
     if (lunge) _lunges.set(by!, { t0: now, tx: x, ty: y, reach: SEV[sev].lunge });
   }
-  _hits.set(key, { t0: now + (lunge ? LUNGE_HIT_MS : 0), kind: 'hit', dir, style: hit?.k === 'spell' ? 'star' : styleOf(a ? by : null), seed, amount, sev });
+  _hits.set(key, { t0: now + (lunge ? LUNGE_HIT_MS : 0), kind: 'hit', dir, style: hit?.k === 'spell' ? 'star' : styleOf(a ? by : null), seed, amount, sev,
+    ko: hp <= 0 && prev > 0, ranged: hit?.k === 'ranged' });
 }
 
 export interface FigureFx {
@@ -117,6 +121,9 @@ export interface FigureFx {
   /** Flaix damunt de la figura. */
   flash: { alpha: number; tint: 'white' | 'heal' } | null;
 }
+
+/** Fins quan es pinta alguna cosa d'un cop (el número dura com a mínim 650 ms; la pols del KO, ~550). */
+const hitLife = (h: Hit) => h.kind === 'heal' ? HEAL_MS : Math.max(SEV[h.sev].ms, 650);
 
 const NONE: FigureFx = { dx: 0, dy: 0, rot: 0, flash: null };
 
@@ -141,8 +148,9 @@ export function figureFx(key: string, cx: number, footY: number, S: number, now:
   if (h) {
     const ms = h.kind === 'heal' ? HEAL_MS : SEV[h.sev].ms;
     const e = now - h.t0;
-    if (e >= ms) _hits.delete(key);
-    else if (e >= 0) {
+    // El registre viu fins que s'acaba el que es pinta a sobre (número, pols); el moviment, `ms`.
+    if (e >= hitLife(h)) _hits.delete(key);
+    else if (e >= 0 && e < ms) {
       const p = e / ms;
       if (h.kind === 'hit') {
         const s = SEV[h.sev];
@@ -203,22 +211,32 @@ export function drawFigureHitFx(ctx: CanvasRenderingContext2D, key: string, cx: 
   const px = S / 48;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
+  const anims = !!sheet('anims');
   if (h.kind === 'hit') {
     const s = SEV[h.sev];
+    // Cop que el deixa a 0: núvol de pols als peus.
+    if (h.ko && anims) drawAnim(ctx, 'dust_cloud', animFrame('dust_cloud', e - 60), cx, footY, px * 2.2, { anchor: 'foot' });
     const flip = h.dir[0] < 0 || (h.dir[0] === 0 && h.seed > 500);
     // Cop fort: un esclat d'estrella al darrere i gotes de sang que salten cap enrere.
     if (h.sev === 2) {
       const fs = Math.floor(e / 80);
       if (fs < 3) blit(ctx, 'impact', (3 + fs) * 48, 48, 48, 48, cx - S * 0.75, midY - S * 0.75, S * 1.5, S * 1.5);
       const fb = Math.floor(e / 90);
-      if (fb < BLOOD_FRAMES.length) {
+      if (anims) {
+        // Esquitx de sang (SoggySocks) cap enrere del cop, a l'escala de la figura.
+        const bf = animFrame('bleed', e - 40);
+        drawAnim(ctx, 'bleed', bf, cx + (h.dir[0] || (flip ? -0.6 : 0.6)) * S * 0.12, midY, px * 1.5, { flip });
+      } else if (fb < BLOOD_FRAMES.length) {
         const [bc, br] = BLOOD_FRAMES[fb];
         const bs = S * 0.7, bx = cx + (h.dir[0] || (flip ? -0.6 : 0.6)) * S * 0.3, by = midY + S * 0.05;
         blit(ctx, 'fx', bc * 24, br * 24, 24, 24, bx - bs / 2, by - bs / 2, bs, bs);
       }
     }
     const f = Math.floor(e / IMPACT_FRAME_MS);
-    if (f < 3) {
+    if (h.ranged && anims) {
+      // A distància (fletxa, virot, pedra): impacte blanc amb esquerdes, sense urpada ni tall.
+      drawAnim(ctx, 'impact_star', animFrame('impact_star', e), cx, midY, px * s.impact * 1.1, { flip });
+    } else if (f < 3) {
       const [c0, r] = IMPACT[h.style];
       const size = S * s.impact * (h.style === 'star' ? 0.8 : 1);
       ctx.save();
@@ -227,6 +245,10 @@ export function drawFigureHitFx(ctx: CanvasRenderingContext2D, key: string, cx: 
       blit(ctx, 'impact', (c0 + f) * 48, r * 48, 48, 48, -size / 2, -size / 2, size, size);
       ctx.restore();
     }
+  } else if (anims) {
+    // Gotes que pugen i brillen (SoggySocks «water heal»), tenyides del vermell de poció.
+    const hf = animFrame('heal_rise', e * animMs('heal_rise') / HEAL_MS);
+    drawAnim(ctx, 'heal_rise', hf, cx, footY, px * 2, { anchor: 'foot', tint: PAL.potion, bright: true });
   } else {
     const f = Math.floor(e / 130);
     if (f < HEAL_FRAMES.length) {
@@ -237,7 +259,7 @@ export function drawFigureHitFx(ctx: CanvasRenderingContext2D, key: string, cx: 
     }
   }
   // Número que puja i s'esvaeix (amb un rebot en sortir). Escala sencera: res de píxels deformats.
-  const dur = h.kind === 'heal' ? HEAL_MS : Math.max(SEV[h.sev].ms, 650);
+  const dur = hitLife(h);
   if (e < dur) {
     const p = e / dur;
     const text = h.kind === 'heal' ? `+${h.amount}` : `-${h.amount}`;

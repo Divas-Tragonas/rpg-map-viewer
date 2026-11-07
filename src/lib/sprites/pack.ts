@@ -17,6 +17,8 @@ export const SHEET_FILES = {
   items: 'uf_items.png',
   fx: 'uf_FX.png',
   impact: 'uf_FX_impact.png',
+  // Animacions d'efectes dels paquets nous (`scripts/fx-atlas.py` a partir de `assets/fx-packs/`).
+  anims: 'fx_anims.png',
   portraits: 'uf_portraits.png',
   faces: 'uf_portraits_example.png',
   skills: 'uf_skills.png',

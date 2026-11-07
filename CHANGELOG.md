@@ -3,6 +3,15 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 10 — Animacions noves d'atacs, màgies, estats i zones (app Píxel)
+- **Paquets de pixel art nous al repositori**, sencers, a `assets/fx-packs/` (foc i elements, Magic Pack 9, Magic VFX, i els SoggySocks de combat, terra, estats, llamp, natura, aigua i icones), amb un catàleg de cada textura a `assets/fx-packs/INDEX.md` per poder-ne fer servir més endavant
+- **La tria que encaixa** (31 animacions) va a un sol full, `public/sprites/fx_anims.png` (69 KB), generat amb `scripts/fx-atlas.py`
+- **Màgies**: la bola de foc fa un esclat gran amb esclats petits fins a la vora i deixa brases a terra; el llamp i el raig màgic són un arc elèctric que va del llançador al destí; les mans ardents i els alès són onades d'esclats que s'obren en con (foc, gel i neu, núvols de verí); l'alè d'àcid, esquitxos en línia. Impactes nous per al projectil màgic, el raig de gel (esclat i punxes de gel), l'agafada electritzant, la flama sagrada (llamp de llum del cel), curar ferides (gotes vermelles que pugen), encisar persona (cors), beneir, prestidigitació, taumatúrgia, el raig de foc, el raig necròtic, el terror, el núvol, desaparèixer (remolí), l'ona de tro, enredar (lianes) i la fletxa àcida
+- **Cops**: el cop fort esquitxa sang, el que deixa a 0 aixeca pols, l'atac a distància fa un impacte propi (no un tall d'espasa) i la curació són gotes vermelles que pugen. Arreglat: el número dels cops lleus es tallava abans d'hora
+- **Estats a la figureta**: Atordit (estrelles), Encisat (cors), Paralitzat (espurnes), Enverinat (núvol de verí), Retingut (lianes als peus), Inconscient (zetes) i Beneït (espurnes daurades)
+- **Zones màgiques a la pantalla de jugador**: detalls de pixel art escampats per dins (flametes, cristalls de gel, bassals d'àcid, espurnes…), lluny de la vora i quiets al seu lloc. El camp de sempre no canvia
+- Tot a l'app Píxel; la Clàssica no canvia. Sense canvis a la API ni a la sincronització
+
 ### v5 snapshot 9 — Poders i conjurs de les criatures, recàrrega i mides de 5e
 - **Poders i conjurs al menú dels enemics i aliats**: tots els encanteris i accions especials del seu bloc (dades de 5e.tools), com el grimori de Liriandor: alès dels dracs, el Rostre horrorós i el Lament de la banshee, les mirades de les mòmies, els raigs oculars de l'espectador i el contemplador, el Xiscle i les Espores del vrock, i els encanteris del Mag malvat, Nezznar, el Sacerdot, el Druida, el Lich… amb la seva CD i el seu bonus d'atac
 - **Cada poder té animació i efecte**: les màgies que ja existien i 15 animacions noves (alès de foc, fred, verí i àcid, rajos necròtics, raigs oculars, immobilitzar, terror, núvols, ones de tro, desaparèixer…). El pop-up de sempre amb els afectats, la salvació, els estats i el dany, amb «CD 14 · 12d6» a la capçalera. Els que no tenen efecte de joc (Druidisme, Passa boirosa…) només fan l'animació
