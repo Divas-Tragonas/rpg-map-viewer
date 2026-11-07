@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 11 — L'animació d'atac la fa qui ataca
+- **Arreglat**: l'envestida de l'atac (app Píxel) la feia sempre el token que tenia el torn. Ara la fa el token des del qual s'ha triat l'atac: si al torn de Liriandor el guerrer ataca una rata, s'hi llança el guerrer
+- **Fora de combat també hi ha animació d'atac** (abans no en sortia cap perquè no hi havia torn)
+- Els conjurs i els poders de les criatures fan l'impacte des del llançador (sense envestida)
+- Sense canvis a la API
+
 ### v5 snapshot 10 — Animacions noves d'atacs, màgies, estats i zones (app Píxel)
 - **Paquets de pixel art nous al repositori**, sencers, a `assets/fx-packs/` (foc i elements, Magic Pack 9, Magic VFX, i els SoggySocks de combat, terra, estats, llamp, natura, aigua i icones), amb un catàleg de cada textura a `assets/fx-packs/INDEX.md` per poder-ne fer servir més endavant
 - **La tria que encaixa** (31 animacions) va a un sol full, `public/sprites/fx_anims.png` (69 KB), generat amb `scripts/fx-atlas.py`

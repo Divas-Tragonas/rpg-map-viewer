@@ -29,9 +29,9 @@ import { sheet } from './pack';
 import type { HpHit, HitKind } from '@/types';
 
 /** El `HpHit` que toca després de canviar la vida en `delta` (un canvi de 0 no és un cop). */
-export function nextHpHit(prev: HpHit | undefined, delta: number, kind?: HitKind): HpHit | undefined {
+export function nextHpHit(prev: HpHit | undefined, delta: number, kind?: HitKind, by?: string): HpHit | undefined {
   if (!delta) return prev;
-  return { d: delta, n: (prev?.n ?? 0) + 1, ...(kind ? { k: kind } : {}) };
+  return { d: delta, n: (prev?.n ?? 0) + 1, ...(kind ? { k: kind } : {}), ...(by ? { a: by } : {}) };
 }
 
 const LUNGE_MS = 300;
@@ -101,7 +101,12 @@ export function noteFigure(key: string, sprite: string, hp: number | undefined, 
   const seed = (now * 7919) % 1000;
   if (delta > 0) { _hits.set(key, { t0: now, kind: 'heal', dir: [0, 0], style: 'star', seed, amount: delta, sev: 1 }); return; }
   const amount = -delta, sev = severity(amount, hpMax);
-  const by = attacker && attacker !== key ? attacker : null;
+  // Qui ataca: el que diu el cop (atac o conjur triat al menú d'un token, també fora de combat); si
+  // no en diu res (± del lateral), el token que té el torn. Abans sempre era el del torn: si el
+  // guerrer atacava al torn de Liriandor, l'envestida la feia Liriandor.
+  const fromHit = hit && hit.n !== prevN ? hit.a : undefined;
+  const who = fromHit ?? attacker;
+  const by = who && who !== key ? who : null;
   const a = by ? _pos.get(by) : undefined;
   // Conjur o atac a distància: el cop arriba sense envestida (l'efecte ja ha fet el viatge).
   const lunge = !!a && (!hit?.k || hit.k === 'melee');

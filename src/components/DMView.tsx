@@ -2327,8 +2327,8 @@ export function DMView() {
               window.setTimeout(() => {
                 for (const o of outs) {
                   if (o.delta !== 0) {
-                    if (o.key.startsWith('pl_')) adjustPlayerHp(parseInt(o.key.slice(3)), -o.delta, 'spell');
-                    else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta, 'spell');
+                    if (o.key.startsWith('pl_')) adjustPlayerHp(parseInt(o.key.slice(3)), -o.delta, 'spell', caster);
+                    else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta, 'spell', caster);
                     if (o.delta > 0) effectsOnDamage(o.key);
                   }
                   for (const c of o.addConditions) toggleCondition(o.key, c);
@@ -2357,8 +2357,8 @@ export function DMView() {
           <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}
             onApply={(amount, info) => {
               if (amount > 0) {
-                if (pl) adjustPlayerHp(pl.id, -amount, damagePrompt.hitKind);
-                else if (en) adjustLibEnemyHp(en.id, -amount, damagePrompt.hitKind);
+                if (pl) adjustPlayerHp(pl.id, -amount, damagePrompt.hitKind, damagePrompt.attackerKey);
+                else if (en) adjustLibEnemyHp(en.id, -amount, damagePrompt.hitKind, damagePrompt.attackerKey);
                 effectsOnDamage(k);
               }
               const who = damagePrompt.attackerKey ? tokNameOf(damagePrompt.attackerKey) : 'Algú';
