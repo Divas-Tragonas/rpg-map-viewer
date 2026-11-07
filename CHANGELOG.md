@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 2 — Els conjurs fan dany i posen estats en combat; graella dels mapes de caselles
+- **Conjurs en combat**: amb els torns actius, en llançar una màgia que toca tokens surt un pop-up al costat dels afectats. Poses el dany tirat un cop, marques qui **supera** la salvació (meitat o res, segons la màgia) i s'aplica a cadascun amb les seves resistències. **Enter** aplica, **Esc** cancel·la
+- **Estats proposats**: Dormir → Inconscient, Riure horrible → Tombat i Incapacitat, Greix → Tombat, Encisar persona → Encisat. Surten marcats a qui no supera la salvació; els pots desmarcar abans d'aplicar
+- Formes: Bola de foc i Dormir (àrea), Raig elèctric i Raig màgic (línia), Mans ardents (con de 15 ft), la resta a un sol objectiu. Curar ferides cura
+- **Mapa de caselles**: en crear-lo o importar-lo, la graella s'encén sola amb la mida de les caselles i es veu també a la pantalla del DM (abans només hi havia l'imant, sense línies)
+- La graella també surt mentre pintes terreny difícil
+- Sense canvis a la API
+
 ### v5 snapshot 1 — Dany amb resistències (combat amb regles de 5e, versió no definitiva)
 - **Pop-up de dany**: atacant des del menú del token, clicar l'objectiu obre un pop-up al seu costat (sense tapar-lo). Hi escrius el dany que han tret els daus i veus el **dany final** segons les defenses de l'enemic, amb el perquè («Resistent a tallant (arma no màgica): la meitat») i els PV que li quedaran. **Enter** aplica (es pot desfer), **Esc** cancel·la
 - **Defenses dels enemics** al back office: abast cos a cos en peus, resistències, resistències a armes no màgiques, vulnerabilitats i immunitats (botons per tipus de dany). Immune → 0, resistent → la meitat, vulnerable → el doble; resistent i vulnerable alhora es compensen

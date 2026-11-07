@@ -5,6 +5,10 @@ import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
 import { DamagePopup } from '@/components/dm/DamagePopup';
+import { SpellEffectPopup, type SpellTarget } from '@/components/dm/SpellEffectPopup';
+import { spellTargets } from '@/lib/rules/spell-effects';
+import { mapToClient } from '@/lib/screen';
+import { tokenSlots } from '@/lib/render/token-geom';
 import type {
   PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, DrawTool,
@@ -98,6 +102,8 @@ export function DMView() {
   const [lights, setLights] = useState<LightSource[]>([]);
   // Pop-up de dany d'un atac (v5): s'obre en clicar l'objectiu mentre s'apunta un atac del menú.
   const [damagePrompt, setDamagePrompt] = useState<import('@/types').DamagePrompt | null>(null);
+  // Pop-up d'un conjur llançat en combat (v5): afectats, dany/cura i estats proposats.
+  const [spellPrompt, setSpellPrompt] = useState<{ type: string; keys: string[]; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
@@ -402,6 +408,9 @@ export function DMView() {
     R.rGridOriginX.current = 0; setGridOriginX(0);
     R.rGridOriginY.current = 0; setGridOriginY(0);
     R.rGridSnap.current = true; setGridSnap(true);
+    // Un mapa de caselles sempre es juga amb graella: s'encén sola (abans només rebia la mida i
+    // l'imant, i no es veia enlloc).
+    R.rGridVisible.current = true; setGridVisible(true);
   }, [R]);
   // Criatures d'un .tmx → enemics de la biblioteca amb la seva figureta.
   const addCreatureTokens = useCallback((list: { name: string; x: number; y: number }[]) => {
@@ -908,6 +917,25 @@ export function DMView() {
   useWheelZoom(R, setZoom, setDmPrivateActive, _broadcastState);
 
   // ── Mouse handlers ────────────────────────────────────────────────────────
+  // ── Conjurs en combat: qui toca i pop-up per confirmar dany, salvacions i estats ──────
+  // Només amb els torns actius (fora de combat les màgies són només l'efecte visual).
+  const onSpellCast = useCallback((type: string, points: import('@/types').Point[]) => {
+    if (!R.rTurn.current.active) return;
+    const slots = tokenSlots(R, false);
+    const keys = spellTargets(type, points, slots, R.rGridSize.current);
+    if (keys.length === 0) return;
+    let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+    for (const k of keys) {
+      const s = slots.find(x => x.key === k); if (!s) continue;
+      const a = mapToClient(R, { x: s.x - s.R, y: s.y - s.R }), z = mapToClient(R, { x: s.x + s.R, y: s.y + s.R });
+      if (!a || !z) continue;
+      l = Math.min(l, a.x); t = Math.min(t, a.y); r = Math.max(r, z.x); b = Math.max(b, z.y);
+    }
+    if (!Number.isFinite(l)) return;
+    setDamagePrompt(null);
+    setSpellPrompt({ type, keys, anchor: { l, r, t, b } });
+  }, [R]);
+
   const mouseSetters = useMemo(() => ({
     setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
     setActiveSpells, setPaintedZones, setContextMenu: setContextMenuFromMap, onUndoChange: refreshUndo,
@@ -916,8 +944,8 @@ export function DMView() {
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
     setRoomRevealed, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
     tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave },
-    notify, openDamage: setDamagePrompt,
-  }), [notify, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
+    notify, openDamage: setDamagePrompt, onSpellCast,
+  }), [notify, onSpellCast, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState, commitStroke);
@@ -2077,6 +2105,7 @@ export function DMView() {
             // Direccionals: el traç es llança tal com s'ha dibuixat (l'abast és només un avís)
             const clamped = spellMenu?.points ?? [];
             addSpell(type, clamped, setSpellMenu);
+            onSpellCast(type, clamped);
           }
         }}
       />
@@ -2084,6 +2113,30 @@ export function DMView() {
         shapeMenu={shapeMenu} onClose={() => setShapeMenu(null)}
         onAddZone={(element) => addPaintedZone(element, shapeMenu, setShapeMenu)}
       />
+      {spellPrompt && (() => {
+        const targets: SpellTarget[] = [];
+        for (const k of spellPrompt.keys) {
+          const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;
+          const en = k.startsWith('lib_') ? libEnemies.find(e => `lib_${e.id}` === k) : undefined;
+          if (pl) targets.push({ key: k, name: pl.name, hp: pl.hp, hpMax: pl.hpMax, conditions: conditions[k] ?? [] });
+          else if (en) targets.push({ key: k, name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: en.defenses, conditions: conditions[k] ?? [] });
+        }
+        if (targets.length === 0) return null;
+        return (
+          <SpellEffectPopup key={`${spellPrompt.type}:${spellPrompt.keys.join(',')}`} spellType={spellPrompt.type}
+            anchor={spellPrompt.anchor} targets={targets} onClose={() => setSpellPrompt(null)}
+            onApply={outs => {
+              for (const o of outs) {
+                if (o.delta !== 0) {
+                  if (o.key.startsWith('pl_')) adjustPlayerHp(parseInt(o.key.slice(3)), -o.delta);
+                  else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta);
+                }
+                for (const c of o.addConditions) toggleCondition(o.key, c);
+              }
+              setSpellPrompt(null);
+            }} />
+        );
+      })()}
       {damagePrompt && (() => {
         const k = damagePrompt.targetKey;
         const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;

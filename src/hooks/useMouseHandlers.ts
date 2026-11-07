@@ -80,6 +80,8 @@ interface MouseHandlerSetters {
   notify: import('@/types').Notify;
   /** Obre el pop-up de dany al costat del token objectiu d'un atac. */
   openDamage: (p: import('@/types').DamagePrompt) => void;
+  /** Conjur llançat: en combat, obre el pop-up amb els afectats (`SpellEffectPopup`). */
+  onSpellCast: (type: string, points: import('@/types').Point[]) => void;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -236,6 +238,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       R.bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
       R.wsRef.current?.send(JSON.stringify({ type: 'SPELL', spell: { ...sp, startTime: 0 } }));
       R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
+      S.onSpellCast(type, sp.points);
       e.preventDefault(); return;
     }
     // Eina Terreny: botó esquerre marca terreny difícil, el dret l'esborra (arrossegant).
