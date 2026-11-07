@@ -1,5 +1,4 @@
 import type { Point } from '@/types';
-import { AREA_SPELL_DATA, LINE_SPELL_RANGE_FT } from '@/constants';
 import type { AbilityId, DamageType } from '@/lib/characters';
 import type { TokenSlot } from '@/lib/render/token-geom';
 import { cellCenter, cellKeyOf, cellOfPoint, circleCells, tokenCells, type Cell, type Grid } from '@/lib/rules/cells';
@@ -28,10 +27,16 @@ export interface SpellEffect {
   heal?: boolean;
   /** Segons des del llançament fins a l'impacte de l'animació: el dany i els estats s'apliquen llavors. */
   impactS?: number;
-  /** Benefici que dona (es mostra al pop-up; l'app no el porta a cap número). */
+  /** Benefici que dona (es mostra al pop-up i es marca amb un estat de benefici). */
   buff?: 'shield' | 'mage_armor' | 'bless';
-  /** Màgia sense efecte de dany a la taula: el pop-up hi deixa posar dany a mà igualment. */
-  generic?: boolean;
+  /**
+   * Durada en combat, en torns del llançador (regles de 5e): els estats que posa s'acaben sols
+   * quan comença el seu torn per `rounds`-èsima vegada. 1 = «fins al principi del seu proper torn»
+   * (Escut); 10 = 1 minut. Sense = no caduca en combat (Encisar, 1 hora; Greix: fins que s'aixequi).
+   */
+  rounds?: number;
+  /** L'efecte s'acaba si l'afectat rep dany (Dormir). */
+  endsOnDamage?: boolean;
 }
 
 export const SPELL_EFFECTS: Record<string, SpellEffect> = {
@@ -43,31 +48,22 @@ export const SPELL_EFFECTS: Record<string, SpellEffect> = {
   shocking_grasp:   { shape: 'single', damageType: 'lightning', impactS: 0.2 },
   burning_hands:    { shape: 'cone', sizeFt: 15, damageType: 'fire', save: 'dex', half: true, impactS: 0.35 },
   sacred_flame:     { shape: 'single', damageType: 'radiant', save: 'dex', impactS: 0.3 },
-  hideous_laughter: { shape: 'single', save: 'wis', conditions: ['prone', 'incapacitated'], impactS: 0.75 },
+  hideous_laughter: { shape: 'single', save: 'wis', conditions: ['prone', 'incapacitated'], impactS: 0.75, rounds: 10 },
   charm_person:     { shape: 'single', save: 'wis', conditions: ['charmed'], impactS: 0.8 },
-  sleep:            { shape: 'circle', sizeFt: 20, conditions: ['unconscious'], impactS: 0.6 },
+  sleep:            { shape: 'circle', sizeFt: 20, conditions: ['unconscious'], impactS: 0.6, rounds: 10, endsOnDamage: true },
   grease:           { shape: 'circle', sizeFt: 10, save: 'dex', conditions: ['prone'], impactS: 0.6 },
-  shield:           { shape: 'self', buff: 'shield' },
-  mage_armor:       { shape: 'single', buff: 'mage_armor' },
-  bless:            { shape: 'single', buff: 'bless' },
+  shield:           { shape: 'self', buff: 'shield', rounds: 1, conditions: ['shielded'] },
+  mage_armor:       { shape: 'single', buff: 'mage_armor', conditions: ['mage_armored'] },
+  bless:            { shape: 'single', buff: 'bless', rounds: 10, conditions: ['blessed'] },
   cure_wounds:      { shape: 'single', heal: true, impactS: 0.5 },
 };
 
 /**
- * Efecte d'una màgia: el de la taula o, si no hi és, un de genèric segons el seu gest (àrea del
- * seu radi o un sol objectiu), perquè el DM hi pugui posar dany igualment. Les personals que no
- * són a la taula (Detectar màgia…) no en tenen.
+ * Efecte d'una màgia: només les de la taula. Les que no fan dany ni posen estats (Mà de mag, Llum,
+ * Prestidigitació, Taumatúrgia, Detectar màgia) no obren cap pop-up: es llancen i prou.
  */
 export function effectFor(type: string): SpellEffect | null {
-  const fx = SPELL_EFFECTS[type];
-  if (fx) return fx;
-  const area = AREA_SPELL_DATA[type];
-  if (area) {
-    if (area.rangeFt === 0) return null;
-    return area.aoeRadiusFt > 2.5 ? { shape: 'circle', sizeFt: area.aoeRadiusFt, generic: true } : { shape: 'single', generic: true };
-  }
-  if (LINE_SPELL_RANGE_FT[type] !== undefined) return { shape: 'single', generic: true };
-  return null;
+  return SPELL_EFFECTS[type] ?? null;
 }
 
 export const SAVE_LABEL: Record<AbilityId, string> = { str: 'FUE', dex: 'DES', con: 'CON', int: 'INT', wis: 'SAB', cha: 'CAR' };

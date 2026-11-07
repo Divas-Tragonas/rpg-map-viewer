@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
+import { CONDITIONS_BY_ID, SPELL_BY_TYPE, C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
@@ -8,6 +8,7 @@ import { DamagePopup } from '@/components/dm/DamagePopup';
 import { SpellEffectPopup, type SpellTarget } from '@/components/dm/SpellEffectPopup';
 import { spellTargets, SPELL_EFFECTS } from '@/lib/rules/spell-effects';
 import { spellImpactS } from '@/lib/render/spells';
+import { tickTurnStart, onDamaged, type TimedEffect } from '@/lib/rules/timed-effects';
 import { gridOf } from '@/lib/rules/cells';
 import { mapToClient } from '@/lib/screen';
 import { tokenSlots } from '@/lib/render/token-geom';
@@ -105,7 +106,7 @@ export function DMView() {
   // Pop-up de dany d'un atac (v5): s'obre en clicar l'objectiu mentre s'apunta un atac del menú.
   const [damagePrompt, setDamagePrompt] = useState<import('@/types').DamagePrompt | null>(null);
   // Pop-up d'un conjur llançat en combat (v5): afectats, dany/cura i estats proposats.
-  const [spellPrompt, setSpellPrompt] = useState<{ type: string; points: import('@/types').Point[]; keys: string[]; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
+  const [spellPrompt, setSpellPrompt] = useState<{ type: string; points: import('@/types').Point[]; keys: string[]; caster?: string; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
@@ -921,6 +922,50 @@ export function DMView() {
   useWheelZoom(R, setZoom, setDmPrivateActive, _broadcastState);
 
   // ── Mouse handlers ────────────────────────────────────────────────────────
+  // ── Durades en combat (Dormir, Riure horrible, Escut, Beneir…) ────────────────────────────
+  const tokNameOf = (k: string) => (k.startsWith('pl_')
+    ? R.rPlayers.current.find(p => `pl_${p.id}` === k)?.name
+    : R.rLibEnemies.current.find(e => `lib_${e.id}` === k)?.name) ?? '?';
+  // Treu els estats d'uns efectes acabats (si cap altre efecte viu no els manté) i n'avisa.
+  const endEffects = useCallback((ended: TimedEffect[], left: TimedEffect[]) => {
+    R.rTimedEffects.current = left;
+    for (const e of ended) {
+      for (const c of e.conditions) {
+        const still = left.some(o => o.target === e.target && o.conditions.includes(c));
+        if (!still && (R.rConditions.current[e.target] ?? []).includes(c)) toggleCondition(e.target, c);
+      }
+      notify(`S'acaba: ${e.label}`, 'info');
+    }
+  }, [R, toggleCondition, notify]);
+  /** Un token ha rebut dany: s'acaben els efectes que ho diuen (Dormir). */
+  const effectsOnDamage = useCallback((key: string) => {
+    const { ended, left } = onDamaged(R.rTimedEffects.current, key);
+    if (ended.length) endEffects(ended, left);
+  }, [R, endEffects]);
+  // Cada inici de torn compta per als efectes d'aquell llançador. En acabar el combat, els
+  // beneficis de combat (Escut, Beneït) es treuen i els rellotges es buiden.
+  const lastTurnSig = useRef('');
+  useEffect(() => {
+    if (!turn.active) {
+      lastTurnSig.current = '';
+      const all = R.rTimedEffects.current;
+      if (!all.length) return;
+      const buffs = all.filter(e => e.conditions.some(c => CONDITIONS_BY_ID.get(c)?.buff));
+      R.rTimedEffects.current = [];
+      for (const e of buffs) for (const c of e.conditions) {
+        if (CONDITIONS_BY_ID.get(c)?.buff && (R.rConditions.current[e.target] ?? []).includes(c)) toggleCondition(e.target, c);
+      }
+      return;
+    }
+    const sig = `${turn.round}:${turn.turnIndex}:${turn.order.length}`;
+    if (sig === lastTurnSig.current) return;
+    const first = lastTurnSig.current === '';
+    lastTurnSig.current = sig;
+    if (first) return;
+    const { ended, left } = tickTurnStart(R.rTimedEffects.current, String(turn.order[turn.turnIndex]));
+    if (ended.length) endEffects(ended, left); else R.rTimedEffects.current = left;
+  }, [turn, R, endEffects, toggleCondition]);
+
   // ── Conjurs: qui toca i pop-up per confirmar dany, salvacions i estats (abans de l'animació) ──
   // També fora de combat: el DM pot voler el dany sense començar els torns.
   const onSpellCast = useCallback((type: string, points: import('@/types').Point[]): boolean => {
@@ -936,7 +981,9 @@ export function DMView() {
     }
     if (!Number.isFinite(l)) return false;
     setDamagePrompt(null);
-    setSpellPrompt({ type, points, keys, anchor: { l, r, t, b } });
+    const p0 = points[0];
+    const caster = p0 ? slots.find(x => Math.hypot(x.x - p0.x, x.y - p0.y) <= x.R)?.key : undefined;
+    setSpellPrompt({ type, points, keys, caster, anchor: { l, r, t, b } });
     return true;
   }, [R]);
 
@@ -965,6 +1012,16 @@ export function DMView() {
   });
 
   // ── Multi-selection group delete (Delete/Backspace removes lib enemies in the selection) ──
+  // Supr amb un token seleccionat: fora, sense confirmació (Ctrl+Z el torna: `removePlayer` i
+  // `removeLibEnemy` ja passen pel desfer únic). Neteja la selecció (`_cleanupTokenKey`).
+  const onDeleteToken = useCallback((key: string) => {
+    if (key.startsWith('pl_')) removePlayer(parseInt(key.slice(3)));
+    else if (key.startsWith('lib_')) removeLibEnemy(parseInt(key.slice(4)));
+    else return;
+    R.rSelectedToken.current = null; setSelectedToken(null);
+    setContextMenu(c => (c && String(c.id) === key ? null : c));
+  }, [removePlayer, removeLibEnemy]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const onDeleteSelection = useCallback(() => {
     for (const id of R.rMultiSelected.current) {
       if (typeof id === 'string' && id.startsWith('lib_')) removeLibEnemy(parseInt(id.replace('lib_', '')));
@@ -1113,7 +1170,7 @@ export function DMView() {
   useKeyboardHandlers(R, {
     setDrawTool, undo, redo, skipBossIntro, onQuickNote: openQuickNote,
     toggleCtrlPan, toggleShiftPan, toggleAreaSelect,
-    onDeleteSelection,
+    onDeleteSelection, onDeleteToken,
     removeLastWall,
     cancelWallChain,
     advanceTurn: advanceTurnIfPlaying, toggleShortcuts, setSpaceHeld,
@@ -2142,14 +2199,26 @@ export function DMView() {
               const { type: st, points: pts } = spellPrompt;
               addSpell(st, pts, () => {});
               setSpellPrompt(null);
+              const fx = SPELL_EFFECTS[st];
+              const caster = spellPrompt.caster;
+              const title = SPELL_BY_TYPE.get(st)?.title ?? st;
               window.setTimeout(() => {
                 for (const o of outs) {
                   if (o.delta !== 0) {
                     if (o.key.startsWith('pl_')) adjustPlayerHp(parseInt(o.key.slice(3)), -o.delta, 'spell');
                     else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta, 'spell');
+                    if (o.delta > 0) effectsOnDamage(o.key);
                   }
                   for (const c of o.addConditions) toggleCondition(o.key, c);
                   if (o.note) notify(o.note, 'info');
+                  // En combat, els estats d'aquesta màgia duren el que diu la regla (torns del llançador).
+                  if (R.rTurn.current.active && fx?.rounds && caster && o.addConditions.length) {
+                    const name = tokNameOf(o.key);
+                    R.rTimedEffects.current = [...R.rTimedEffects.current, {
+                      id: `${Date.now()}_${o.key}`, target: o.key, conditions: o.addConditions,
+                      label: `${title} (${name})`, clock: caster, turnsLeft: fx.rounds, endsOnDamage: fx.endsOnDamage,
+                    }];
+                  }
                 }
               }, spellImpactS(st, pts, R.rGridSize.current, R.rAppStyle.current === 'pixel', SPELL_EFFECTS[st]?.impactS ?? 0.4) * 1000);
             }} />
@@ -2168,6 +2237,7 @@ export function DMView() {
               if (amount > 0) {
                 if (pl) adjustPlayerHp(pl.id, -amount, damagePrompt.hitKind);
                 else if (en) adjustLibEnemyHp(en.id, -amount, damagePrompt.hitKind);
+                effectsOnDamage(k);
               }
               setDamagePrompt(null);
             }} />

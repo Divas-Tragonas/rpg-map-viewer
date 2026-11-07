@@ -46,7 +46,19 @@ const FACE = 'M86 256A170 182 0 1 0 426 256A170 182 0 1 0 86 256Z';
 
 // ── Icones ────────────────────────────────────────────────────────────────────
 
+const SHIELD = 'M256 36L444 102V244C444 362 362 444 256 480C150 444 68 362 68 244V102Z';
+
 export const CONDITION_ICONS: Record<string, IconPart[]> = {
+
+  // Escut (màgia): un escut ple.
+  shielded: [{ d: SHIELD }],
+
+  // Beneït: una estrella de quatre puntes.
+  blessed: [{ d: 'M256 32L306 206L480 256L306 306L256 480L206 306L32 256L206 206Z' }],
+
+  // Armadura de mag: escut amb un rombe buit al mig.
+  mage_armored: [{ d: SHIELD + 'M256 150L340 252L256 354L172 252Z' }],
+
 
   // Cara amb una bena tapant els ulls.
   blinded: [{

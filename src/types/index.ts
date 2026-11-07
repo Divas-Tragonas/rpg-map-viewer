@@ -303,6 +303,8 @@ export interface Condition {
   en: string;
   /** Color identificatiu de l'estat: badge, segment de l'anell i ressaltat del menú. */
   color: string;
+  /** Benefici d'una màgia (Escut, Beneït…), no un estat de 5e. */
+  buff?: true;
 }
 
 export interface Element {

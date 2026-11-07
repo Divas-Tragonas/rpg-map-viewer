@@ -64,8 +64,8 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
 }) {
   const fx = effectFor(spellType);
   const meta = SPELL_BY_TYPE.get(spellType);
-  // Dany o cura (els genèrics també: el DM hi pot posar dany a mà). Les de protecció, no.
-  const hasAmount = !!fx?.damageType || !!fx?.heal || !!fx?.generic;
+  // Dany o cura. Les de protecció i les d'estats, no.
+  const hasAmount = !!fx?.damageType || !!fx?.heal;
   const [raw, setRaw] = useState('');
   const [type, setType] = useState<DamageType | ''>(fx?.damageType ?? '');
   const [rows, setRows] = useState<Record<string, Row>>(() =>
@@ -85,7 +85,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   const outcomeOf = (t: SpellTarget) => {
     const row = rows[t.key];
     if (fx.heal) return { delta: -amount, reasons: [] as string[] };
-    if (!fx.damageType && !fx.generic) return { delta: 0, reasons: [] as string[] };
+    if (!fx.damageType) return { delta: 0, reasons: [] as string[] };
     const r = spellDamageFor(amount, type || undefined, row.saved, !!fx.half, t.defenses);
     return { delta: r.final, reasons: r.reasons };
   };

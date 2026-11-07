@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 5 — Durades de 5e en combat, beneficis al token i Supr
+- **Mà de mag, Llum, Prestidigitació, Taumatúrgia i Detectar màgia** ja no obren el pop-up de dany: no en fan. Només hi surten les màgies que fan dany, curen, posen estats o donen un benefici
+- **Durades en combat** (regles de 5e, comptant els torns de qui l'ha llançat): Escut fins al principi del seu proper torn; Dormir, Riure horrible i Beneir 1 minut (10 rondes). En acabar-se, l'estat es treu sol i surt un avís. **Dormir s'acaba si l'adormit rep dany**. Encisar (1 hora), Greix (fins que s'aixequi) i Armadura de mag (8 hores) no caduquen dins del combat
+- **Beneficis marcats al token**: Escut, Beneït i Armadura de mag són estats nous (amb icona) que es veuen a l'anell del token i al selector d'estats. En acabar el combat, Escut i Beneït es treuen
+- **Supr** elimina el token seleccionat sense confirmació; **Ctrl+Z** el torna (també al seu lloc a la barra de torns)
+- Sense canvis a la API
+
 ### v5 snapshot 4 — Graella subtil i només al terra, conjurs fora de combat i Escut
 - **Graella més subtil**. Als mapes de caselles només es veu al **terra de les sales** (ni al buit negre ni a les parets); als mapes d'imatge o vídeo, per tot el fons
 - **Al DM la graella torna a sortir només mentre mous un token** (la v5 snapshot 2 la deixava sempre encesa als mapes de caselles)

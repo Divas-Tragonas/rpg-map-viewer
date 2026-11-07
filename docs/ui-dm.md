@@ -145,6 +145,7 @@
 
 ## Dreceres de teclat i modificadors (`useKeyboardHandlers`)
 - `8`: eina Terreny difícil (mode Preparar).
+- **Supr** (v5 snapshot 5) amb un token seleccionat: l'elimina **sense confirmació** (`onDeleteToken` a `DMView` → `removePlayer`/`removeLibEnemy`, que ja passen pel desfer únic: Ctrl+Z el torna amb el seu lloc a la barra de torns). Només Supr, no el retrocés (massa fàcil de prémer sense voler). Amb selecció múltiple, com abans, treu els enemics seleccionats.
 - ⚠️ **Ctrl i Maj commuten els modes de vista NOMÉS amb un toc net**: prémer i deixar anar la tecla sola, sense cap altra tecla, clic ni roda pel mig i en menys de `TAP_MS`. Abans commutaven en *prémer-la* (keydown), o sigui que tot **Ctrl+Z** encenia el mode CTRL (i el segon el tornava a apagar restaurant la càmera de tothom) i el **Maj+clic** de portes/màgies encenia la vista privada. `rShiftHeld` continua sent la tecla física premuda (la fan servir les màgies i les portes). La pinça del trackpad envia `ctrlKey` sense cap keydown: no toca res.
 - **Espai mantingut** (`rSpaceHeld`) = arrossegar el mapa amb qualsevol eina (cursor `grab`/`grabbing` via els estats `spaceHeld`/`panning` de `DMView`).
 - **N** obre el diari i enfoca el camp de nota ràpida (`onQuickNote`; funciona també sense mapa).

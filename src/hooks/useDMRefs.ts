@@ -44,6 +44,8 @@ export function useDMRefs() {
   const rTerrainDrag    = useRef<{ erase: boolean } | null>(null);
   // Atac triat al menú d'un token, esperant l'objectiu (`aimAttack`).
   const rAttackPending  = useRef<import('@/types').AttackPending | null>(null);
+  // Durades en combat dels estats i beneficis de les màgies (`lib/rules/timed-effects.ts`).
+  const rTimedEffects   = useRef<import('@/lib/rules/timed-effects').TimedEffect[]>([]);
   const rLightSelected  = useRef<string | null>(null);   // llum seleccionada (per editar-ne el radi)
   const rNewLightRadiusFt = useRef(15);                  // radi per defecte de les llums noves (peus)
   const rLightDrag      = useRef<{ id: string; ox: number; oy: number } | null>(null); // drag d'una llum
@@ -227,7 +229,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rDoors, rLights, rDifficult, rTerrainDrag, rAttackPending, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rLights, rDifficult, rTerrainDrag, rAttackPending, rTimedEffects, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rTurn, rUndo, rTurnGen, rUndoGesture, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,

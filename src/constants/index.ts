@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v5 snapshot 4';
+export const APP_VERSION = 'v5 snapshot 5';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -29,6 +29,11 @@ export const CONDITIONS: Condition[] = [
   { id: 'stunned',       label: 'Atordit',     es: 'Aturdido',     en: 'Stunned',       color: '#f97316' },
   { id: 'unconscious',   label: 'Inconscient', es: 'Inconsciente', en: 'Unconscious',   color: '#1e40af' },
   { id: 'dying',         label: 'Morint',      es: 'Muriendo',     en: 'Dying',         color: '#7f1d1d' },
+  // Beneficis de màgies (v5 snapshot 5): no són estats de 5e, però es marquen igual al token
+  // perquè es vegi qui els té i, en combat, s'acaben sols (`lib/rules/timed-effects.ts`).
+  { id: 'shielded',      label: 'Escut',       es: 'Escudo',       en: 'Shield',        color: '#8b5cf6', buff: true },
+  { id: 'blessed',       label: 'Beneït',      es: 'Bendecido',    en: 'Blessed',       color: '#eab308', buff: true },
+  { id: 'mage_armored',  label: 'Armadura de mag', es: 'Armadura de mago', en: 'Mage Armor', color: '#6366f1', buff: true },
 ];
 
 export const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));

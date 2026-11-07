@@ -29,6 +29,8 @@ interface KBOpts {
   toggleShiftPan: () => void;
   toggleAreaSelect: () => void;
   onDeleteSelection?: () => void;
+  /** Supr amb un token seleccionat: l'elimina sense confirmació (es pot desfer amb Ctrl+Z). */
+  onDeleteToken?: (key: string) => void;
   removeLastWall?: () => void;
   cancelWallChain?: () => void;
   /** Passa el torn al següent (Enter, amb combat actiu). El mateix que el botó «Següent». */
@@ -45,7 +47,7 @@ interface KBOpts {
 const TAP_MS = 450;
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undo, redo, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld, onQuickNote } = opts;
+  const { setDrawTool, undo, redo, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, onDeleteToken, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld, onQuickNote } = opts;
 
   // CTRL i MAJ commuten els modes de vista (CTRL: vista compartida; MAJ: vista privada del DM)
   // només amb un TOC NET: prémer i deixar anar la tecla sola, sense cap altra tecla ni clic
@@ -178,6 +180,8 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       // Esc sense res més a cancel·lar: torna a l'eina de selecció (com la V).
       if (e.key === 'Escape' && R.rDrawTool.current !== 'none') { toSelection(); return; }
       if ((e.key === 'Delete' || e.key === 'Backspace') && R.rMultiSelected.current.size > 0) { e.preventDefault(); onDeleteSelection?.(); return; }
+      // Supr (només Supr: el retrocés és massa fàcil de prémer sense voler) amb un token seleccionat.
+      if (e.key === 'Delete' && R.rSelectedToken.current != null) { e.preventDefault(); onDeleteToken?.(String(R.rSelectedToken.current)); return; }
       if (e.ctrlKey || e.metaKey) return;
       // Enter passa el torn. Si el focus és en un botó, Enter ja el prem: no ho fem dos cops.
       if (e.key === 'Enter' && R.rTurn.current.active && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof HTMLSelectElement)) {
@@ -208,5 +212,5 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undo, redo, skipBossIntro, onDeleteSelection, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, onQuickNote]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [undo, redo, skipBossIntro, onDeleteSelection, onDeleteToken, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, onQuickNote]); // eslint-disable-line react-hooks/exhaustive-deps
 }

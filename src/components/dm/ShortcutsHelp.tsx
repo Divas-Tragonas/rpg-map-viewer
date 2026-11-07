@@ -44,7 +44,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Enter', 'Passar el torn'],
       ['Ctrl+Z', 'Desfer l\'última acció (el botó Desfer de dalt diu quina)'],
       ['Ctrl+Maj+Z / Ctrl+Y', 'Refer el que s\'ha desfet'],
-      ['Supr', 'Treure de l\'escena els enemics seleccionats'],
+      ['Supr', 'Eliminar el token seleccionat, sense confirmació (Ctrl+Z el torna); amb selecció múltiple, els enemics seleccionats'],
       ['Clic dret', 'Menú del token (vida, fitxa, estats, conjurs), la sala o la zona'],
       ['Doble clic', 'Seleccionar tot el grup d\'un token'],
       ['N', 'Nota ràpida al diari de la sessió'],
