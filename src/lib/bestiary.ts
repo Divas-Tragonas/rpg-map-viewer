@@ -226,12 +226,14 @@ const CASTLE: EnemyTemplate[] = [
   T('fum_owlbear',  'Os mussol captiu',   '#8B5E3C', 59, 45, 1.30, 'minotaur', 700, 'Castell de la Fumarola', 'Torre (zona 13) · VD 3', undefined, 'owlbear'),
   T('fum_snarl',    'Snarl',              '#8a7060', 18, 28, 0.80, 'wolf_red', 50, 'Castell de la Fumarola', 'Llop del rei Jalil (zona 14) · VD 1/4', undefined, 'wolf'),
   T('fum_jalil',    'Rei Jalil',          '#7a4a2a', 65, 48, 1.35, 'ogre', 700, 'Castell de la Fumarola', 'Osgo vell, cap dels Bocapeñasco (King Grol, zona 14) · jefe', undefined, 'bugbear_chief'),
+  T('lmop_redbrand', 'Rufià dels Mantells Vermells', '#9a2a2a', 16, 33, 0.95, 'thief', 100, 'Bestiari', 'Redbrand Ruffian (LMoP): banda de Phandalin · VD 1/2', undefined, 'redbrand'),
+  T('lmop_ash_zombie', 'Zombi de cendra', '#7a7a6a', 22, 33, 0.95, 'zombie_b', 50, 'Bestiari', 'Ash Zombie (LMoP): mansió Tresendar i Vell Búho · VD 1/4', undefined, 'ash_zombie'),
   T('fum_vyerith',  'Vyerith',            '#8a4aa0', 52, 35, 1.00, 'drow_wizard', 700, 'Castell de la Fumarola', 'Doppelganger disfressat de drow, emissari dels Germans (zona 14) · VD 3 · jefe', undefined, 'doppelganger'),
 ];
 
 /** Aliats i NPCs de la campanya (XP 0). */
 const ALLIES: EnemyTemplate[] = [
-  T('npc_sildar', 'Sildar Flocdeneu',  '#5a8ac0', 52, 35, 1.00, 'knight', 0, 'Bestiari', 'Sildar Hallwinter, guerrer de l\'Aliança dels Lords · es juga com a Cavaller (VD 3)', true, 'knight'),
+  T('npc_sildar', 'Sildar Flocdeneu',  '#5a8ac0', 27, 35, 1.00, 'knight', 0, 'Bestiari', 'Sildar Hallwinter, guerrer de l\'Aliança dels Lords (LMoP) · VD 1', true, 'sildar'),
   T('npc_gota',   'Gota',              '#7ab07a', 7,  22, 0.65, 'goblin', 0, 'Bestiari', 'Droop, goblin petit i espantadís · stats de goblin', true, 'goblin'),
   T('npc_roc',    'Roc Cercarocs',     '#b0905a', 11, 28, 0.80, 'dwarf', 0, 'Bestiari', 'Gundren Buscarrocas, nan presoner · es juga com a Guàrdia', true, 'guard'),
 ];

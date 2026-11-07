@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 8 — Bestiari revisat amb les dades de 5e.tools
+- **Tots els blocs del bestiari de l'app tornats a generar a partir de 5e.tools** (Manual de monstres, La mina perduda de Phandelver i Volo): CA, vida, velocitat, característiques, salvacions, resistències, immunitats, immunitats a estats, **tots els atacs** amb abast i dany extra, accions especials (alès, teranyina…), trets, encanteris per nivell i reaccions
+- Correccions respecte d'abans: el **Mag malvat** (bastó 1d8−1 i els seus encanteris reals: light, mage hand, shocking grasp, charm person, magic missile, hold person, misty step), **Mormesk** (VD 3, 45 PV, Drenar vida +5 3d8+3), el **Rei Grol** (CA 17, estrella del matí +5 2d8+3 i javelina), **Nezznar** (DES 13, SAV 14), el **Druida** (bastó +2 1d6; +4 1d8 amb shillelagh), el **Cuc porpra** (+14), el **Sacerdot** (30 ft), l'**Explorador** (arc llarg 150/600) i el **Foc follet** (pot quedar petrificat)
+- **Sildar Flocdeneu** ara té el seu bloc de Phandelver (VD 1, 27 PV, CA 16) en lloc del de Cavaller
+- Plantilles noves de Phandelver al Bestiari: **Rufià dels Mantells Vermells** i **Zombi de cendra**
+- L'atac múltiple i els noms dels encanteris es mostren en anglès, com a la font
+- Sense canvis a la API
+
 ### v5 snapshot 7 — Historial del combat, avisos a baix i bloc de 5e als enemics de la BD
 - **Historial del combat**: botó petit a la dreta de la barra de torns amb el que ha passat, per rondes: inici i fi, cada atac (qui, a qui, amb què, el dany final i el perquè, si era fora d'abast i si cau), cada conjur amb els afectats (dany, salvació, resistències, estats) i els efectes que s'acaben. No hi surten els torns ni els ± de vida a mà
 - **Avisos a baix**, just a sobre de la barra de combat (o arran de baix si no n'hi ha), i duren més (10 s). Només surten com a avís les coses del moment (Escut aplicat, un efecte que s'acaba); el dany i els estats van a l'historial
