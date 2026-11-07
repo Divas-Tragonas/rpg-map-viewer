@@ -4,7 +4,7 @@ import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from 
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
-import { clampToRange } from '@/lib/spellcast';
+import { aimSpell } from '@/lib/spellcast';
 import { tokenMenuFor } from '@/lib/token-menu';
 import { tokenAt, tokenBounds, updateTokenSpread, clearTokenSpread } from '@/lib/render/token-geom';
 
@@ -194,7 +194,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     if (e.button === 0 && R.rAreaPlacementPending.current && !e.shiftKey && !e.altKey && !e.ctrlKey) {
       const { mx: pmx, my: pmy } = mc(e);
       const { type, origin } = R.rAreaPlacementPending.current;
-      const target = clampToRange(origin, { x: pmx, y: pmy }, spellRangeFt(type), R.rGridSize.current);
+      // L'abast és un avís (vermell al cursor): el clic fixa el destí allà on és, fora d'abast també.
+      const target = { x: pmx, y: pmy };
       const sp = { id: Date.now().toString(), type, points: [origin, target], startTime: performance.now() };
       const ns = [...R.rActiveSpells.current, sp];
       R.rActiveSpells.current = ns; S.setActiveSpells(ns);
@@ -483,15 +484,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     if (R.rDrawTool.current === 'tiles' && S.tileTool) { S.tileTool.move(mx, my); return; }
 
-    // Màgia triada esperant el destí: centre de l'àrea o punta del raig, limitat a l'abast.
+    // Màgia triada esperant el destí: centre de l'àrea o punta del raig; fora d'abast = avís en vermell, no es talla.
     // Abans de les branques de cada eina: la del grimori es pot llançar amb qualsevol eina.
     if (R.rAreaPlacementPending.current) {
       const pend = R.rAreaPlacementPending.current;
-      const range = spellRangeFt(pend.type);
-      const tgt = clampToRange(pend.origin, { x: mx, y: my }, range, R.rGridSize.current);
-      R.rSpellPreview.current = pend.mode === 'line'
-        ? { mode: 'line', start: pend.origin, end: tgt, rangeFt: range }
-        : { mode: 'area_place', origin: pend.origin, center: tgt, spellType: pend.type };
+      R.rSpellPreview.current = aimSpell(R, pend, { x: mx, y: my }, spellRangeFt(pend.type), R.rGridSize.current, sc);
       return;
     }
 

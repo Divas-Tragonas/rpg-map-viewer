@@ -1,7 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
-import { clampToRange } from '@/lib/spellcast';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
@@ -2058,11 +2057,8 @@ export function DMView() {
             R.rSpellPreview.current = { mode: 'area_place', origin, center: origin, spellType: type };
             setSpellMenu(null);
           } else {
-            // Direccionals: el traç no pot passar de l'abast del conjur (mans ardents, 15 ft…)
-            const pts = spellMenu?.points ?? [];
-            const range = spellRangeFt(type);
-            const clamped = spellMenu?.mode === 'line' && pts.length === 2
-              ? [pts[0], clampToRange(pts[0], pts[1], range, R.rGridSize.current)] : pts;
+            // Direccionals: el traç es llança tal com s'ha dibuixat (l'abast és només un avís)
+            const clamped = spellMenu?.points ?? [];
             addSpell(type, clamped, setSpellMenu);
           }
         }}

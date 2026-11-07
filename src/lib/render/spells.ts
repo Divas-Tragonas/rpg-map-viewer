@@ -96,30 +96,51 @@ function hash32(s: string): number {
 
 // ── Preview ──────────────────────────────────────────────────────────────────
 
+const OUT_RED = '#ff4d4d';
+
+/** Anell damunt el token assenyalat amb la distància fins a la seva vora (només DM). */
+function drawReachHover(ctx: CanvasRenderingContext2D, h: NonNullable<SpellPreview['hover']>, sc: number): void {
+  const col = h.out ? OUT_RED : '#7dffa0';
+  ctx.save();
+  ctx.globalAlpha = 0.95; ctx.strokeStyle = col; ctx.lineWidth = 2.5 / sc;
+  ctx.beginPath(); ctx.arc(h.x, h.y, h.R + 6 / sc, 0, Math.PI * 2); ctx.stroke();
+  if (h.ft !== null) {
+    const text = `${h.ft}ft${h.out ? ' · fora' : ''}`;
+    ctx.font = `bold ${12 / sc}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(text).width, ty = h.y - h.R - 18 / sc;
+    ctx.fillStyle = 'rgba(10,13,18,0.85)';
+    ctx.fillRect(h.x - tw / 2 - 5 / sc, ty - 8 / sc, tw + 10 / sc, 16 / sc);
+    ctx.fillStyle = col; ctx.fillText(text, h.x, ty);
+  }
+  ctx.restore();
+}
+
 export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: SpellPreview, sc: number, gridSize: number): void {
   ctx.save();
+  // Fora d'abast: tot en vermell (avís; el clic funciona igualment).
+  const hot = preview.outOfRange ? OUT_RED : '#ffd200';
 
   if (preview.mode === 'line') {
     const { start, end } = preview;
     // Abast màxim (llançat des d'un token): cercle blanc de guions, com el de les àrees
     if (preview.rangeFt && gridSize > 0) {
-      ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 / sc;
+      ctx.globalAlpha = 0.7; ctx.strokeStyle = preview.outOfRange ? OUT_RED : '#ffffff'; ctx.lineWidth = 1.5 / sc;
       ctx.setLineDash([8 / sc, 6 / sc]);
       ctx.beginPath(); ctx.arc(start.x, start.y, ftToWorld(preview.rangeFt, gridSize), 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
     // 3-layer preview line — same visual language as active spells
     ctx.lineCap = 'round';
-    ctx.globalAlpha = 0.20; ctx.strokeStyle = '#ffd200'; ctx.lineWidth = 9 / sc;
+    ctx.globalAlpha = 0.20; ctx.strokeStyle = hot; ctx.lineWidth = 9 / sc;
     ctx.setLineDash([10 / sc, 6 / sc]);
     ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
-    ctx.globalAlpha = 0.55; ctx.strokeStyle = '#ffd200'; ctx.lineWidth = 2.5 / sc;
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = hot; ctx.lineWidth = 2.5 / sc;
     ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
     ctx.globalAlpha = 0.80; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
     ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
     ctx.setLineDash([]);
     // Dots
-    ctx.globalAlpha = 0.90; ctx.fillStyle = '#ffd200';
+    ctx.globalAlpha = 0.90; ctx.fillStyle = hot;
     ctx.beginPath(); ctx.arc(end.x, end.y, 5 / sc, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 0.60;
     ctx.beginPath(); ctx.arc(start.x, start.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
@@ -128,11 +149,11 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     const ft = worldToFt(Math.hypot(end.x - start.x, end.y - start.y), gridSize);
     const lmx = (start.x + end.x) / 2, lmy = (start.y + end.y) / 2;
     ctx.globalAlpha = 0.9; ctx.font = `bold ${12 / sc}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const text = `📏 ${ft}ft`;
+    const text = `📏 ${ft}ft${preview.outOfRange ? ' · fora d\'abast' : ''}`;
     const tw = ctx.measureText(text).width;
     ctx.fillStyle = 'rgba(10,13,18,0.82)';
     ctx.fillRect(lmx - tw / 2 - 5 / sc, lmy - 17 / sc, tw + 10 / sc, 14 / sc);
-    ctx.fillStyle = '#ffd200';
+    ctx.fillStyle = hot;
     ctx.fillText(text, lmx, lmy - 10 / sc);
     ctx.textBaseline = 'alphabetic';
 
@@ -145,7 +166,7 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     const isOval     = data.aoeRadiusFt === 10;
 
     // Range limit — full white dashed circumference
-    ctx.globalAlpha = 0.70; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 / sc;
+    ctx.globalAlpha = 0.70; ctx.strokeStyle = preview.outOfRange ? OUT_RED : '#ffffff'; ctx.lineWidth = 1.5 / sc;
     ctx.setLineDash([8 / sc, 6 / sc]);
     ctx.beginPath(); ctx.arc(origin.x, origin.y, rangeWorld, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
@@ -157,13 +178,13 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     ctx.beginPath(); ctx.moveTo(origin.x, origin.y - cs); ctx.lineTo(origin.x, origin.y + cs); ctx.stroke();
 
     // AoE at cursor — 3-layer (outer glow / fill / stroke)
-    ctx.globalAlpha = 0.10; ctx.fillStyle = data.color;
+    ctx.globalAlpha = 0.10; ctx.fillStyle = preview.outOfRange ? OUT_RED : data.color;
     if (isOval) {
       ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.fill();
     } else {
       ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.globalAlpha = 0.20; ctx.strokeStyle = data.color; ctx.lineWidth = 8 / sc;
+    ctx.globalAlpha = 0.20; ctx.strokeStyle = preview.outOfRange ? OUT_RED : data.color; ctx.lineWidth = 8 / sc;
     ctx.setLineDash([6 / sc, 4 / sc]);
     if (isOval) { ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.stroke(); }
     else        { ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.stroke(); }
@@ -173,6 +194,7 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     ctx.setLineDash([]);
   }
 
+  if (preview.hover) drawReachHover(ctx, preview.hover, sc);
   ctx.globalAlpha = 1; ctx.restore();
 }
 

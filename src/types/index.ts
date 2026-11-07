@@ -128,10 +128,16 @@ export interface Spell {
   startTime: number;
 }
 
+/** Token que el cursor assenyala mentre s'apunta una acció: només el veu el DM (no viatja). */
+export interface ReachHover { x: number; y: number; R: number; ft: number | null; out: boolean }
+
 export type SpellPreview =
-  /** `rangeFt`: abast màxim (es pinta un cercle d'abast al voltant de `start`). */
-  | { mode: 'line'; start: Point; end: Point; rangeFt?: number }
-  | { mode: 'area_place'; origin: Point; center: Point; spellType: string };
+  /**
+   * `rangeFt`: abast màxim (es pinta un cercle d'abast al voltant de `start`). `outOfRange`:
+   * el cursor és fora de l'abast → tot es pinta en vermell, però el clic s'accepta igualment.
+   */
+  | { mode: 'line'; start: Point; end: Point; rangeFt?: number; outOfRange?: boolean; hover?: ReachHover }
+  | { mode: 'area_place'; origin: Point; center: Point; spellType: string; outOfRange?: boolean; hover?: ReachHover };
 
 /**
  * Màgia triada que espera el clic de destí. `mode: 'line'` → el clic fixa la punta del

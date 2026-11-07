@@ -153,7 +153,8 @@ src/
 │   │   ├── icons.ts        # CONDITION_ICONS: isotips vectorials (paths SVG) dels estats
 │   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk
 │   ├── geometry.ts         # getBBox i utilitats geomètriques
-│   ├── spellcast.ts        # clampToRange: limita el destí d'una màgia al seu abast en peus
+│   ├── rules/reach.ts      # edgeDistanceFt (vora a vora), isOutOfRange
+│   ├── spellcast.ts        # aimSpell (previsualització + avís d'abast) i previewForPlayers
 │   ├── phosphor/screen.ts  # Mode Fòsfor: la pantalla de jugador com una TV de tub (paleta + CRT en WebGL)
 │   ├── textures/noise.ts   # Soroll de les zones màgiques (el de valor de la v4.33 + gradient 3D)
 │   ├── textures/fields.ts  # Camp de color de cada element de zona (texel, temps) → rgba

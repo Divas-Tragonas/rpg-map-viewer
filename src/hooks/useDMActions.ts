@@ -16,6 +16,7 @@ import { viewRect, clampCamToMap, mediaSize } from '@/lib/camera';
 import { api } from '@/lib/api';
 import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
+import { previewForPlayers } from '@/lib/spellcast';
 import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
 
 interface Setters {
@@ -226,7 +227,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // Màgia que s'està apuntant: el tick (`useRafLoop`) envia un STATE quan canvia. Va
       // dins del STATE (que el servidor reenvia opac) i no en un missatge propi: així no
       // cal que la API conegui cap tipus nou.
-      spellPreview: rSpellPreview.current,
+      spellPreview: previewForPlayers(rSpellPreview.current),
       // Estil de l'app (Clàssic / Píxel): lleuger, s'envia sempre.
       appStyle: R.rAppStyle.current,
       // Mode Fòsfor de les pantalles de jugador: lleuger, s'envia sempre.
@@ -274,7 +275,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       measure: rMeasure.current,
       pointerPos: rPointerPos.current,
       turn: rTurn.current,
-      spellPreview: rSpellPreview.current,
+      spellPreview: previewForPlayers(rSpellPreview.current),
       appStyle: R.rAppStyle.current,
       phosphor: R.rPhosphor.current,
       tileLive: R.rTileLive.current,

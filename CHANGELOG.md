@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v4.98 — L'abast de les màgies és un avís, no un límit
+- **Abast com a avís**: apuntant una màgia des del grimori, si el cursor és fora d'abast el cercle, la línia, l'àrea i l'etiqueta passen a **vermell**, però el clic llança igualment (abans la punta es tallava a l'abast)
+- **Token assenyalat**: amb el cursor sobre un token, s'hi dibuixa un anell (verd dins d'abast, vermell fora) amb els peus fins a la seva **vora**; només ho veu el DM
+- Distàncies de vora a vora (`lib/rules/reach.ts`); la mida del token és el seu radi, sense categories
+- Sense canvis a la API
+
 ### v4.97 — La mà de Jaume es mou i les parets només amb l'eina
 - **Jaume III**: el guant puja i baixa amb la destral, com la mà del bàrbar (abans la destral es movia i la mà no)
 - **Arreglat**: les línies daurades de les parets i els punts grocs dels vèrtexs es veien sempre al DM; ara només surten amb l'eina Parets (o col·locant una porta). Les portes es continuen veient per obrir-les i tancar-les jugant
