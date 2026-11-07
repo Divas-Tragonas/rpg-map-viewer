@@ -24,12 +24,12 @@
 import { blit, parseSprite, tintedRegion } from './draw';
 import { pfDrawChar, pfAdvance, PF_LINE } from './font';
 import { PAL } from '@/lib/render/fxsprites';
-import type { HpHit } from '@/types';
+import type { HpHit, HitKind } from '@/types';
 
 /** El `HpHit` que toca després de canviar la vida en `delta` (un canvi de 0 no és un cop). */
-export function nextHpHit(prev: HpHit | undefined, delta: number): HpHit | undefined {
+export function nextHpHit(prev: HpHit | undefined, delta: number, kind?: HitKind): HpHit | undefined {
   if (!delta) return prev;
-  return { d: delta, n: (prev?.n ?? 0) + 1 };
+  return { d: delta, n: (prev?.n ?? 0) + 1, ...(kind ? { k: kind } : {}) };
 }
 
 const LUNGE_MS = 300;
@@ -100,13 +100,15 @@ export function noteFigure(key: string, sprite: string, hp: number | undefined, 
   const amount = -delta, sev = severity(amount, hpMax);
   const by = attacker && attacker !== key ? attacker : null;
   const a = by ? _pos.get(by) : undefined;
+  // Conjur o atac a distància: el cop arriba sense envestida (l'efecte ja ha fet el viatge).
+  const lunge = !!a && (!hit?.k || hit.k === 'melee');
   let dir: [number, number] = [0, 0];
   if (a) {
     const dx = x - a.x, dy = y - a.y, d = Math.hypot(dx, dy) || 1;
     dir = [dx / d, dy / d];
-    _lunges.set(by!, { t0: now, tx: x, ty: y, reach: SEV[sev].lunge });
+    if (lunge) _lunges.set(by!, { t0: now, tx: x, ty: y, reach: SEV[sev].lunge });
   }
-  _hits.set(key, { t0: now + (a ? LUNGE_HIT_MS : 0), kind: 'hit', dir, style: styleOf(a ? by : null), seed, amount, sev });
+  _hits.set(key, { t0: now + (lunge ? LUNGE_HIT_MS : 0), kind: 'hit', dir, style: hit?.k === 'spell' ? 'star' : styleOf(a ? by : null), seed, amount, sev });
 }
 
 export interface FigureFx {

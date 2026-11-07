@@ -1,6 +1,7 @@
 import type { Point } from '@/types';
 import type { AbilityId, DamageType } from '@/lib/characters';
 import type { TokenSlot } from '@/lib/render/token-geom';
+import { cellCenter, cellKeyOf, cellOfPoint, circleCells, tokenCells, type Cell, type Grid } from '@/lib/rules/cells';
 
 /**
  * Taula d'efectes dels conjurs (v5): què fa cada màgia de l'app quan toca tokens en combat.
@@ -23,22 +24,24 @@ export interface SpellEffect {
   half?: boolean;
   conditions?: string[];
   heal?: boolean;
+  /** Segons des del llançament fins a l'impacte de l'animació: el dany i els estats s'apliquen llavors. */
+  impactS?: number;
 }
 
 export const SPELL_EFFECTS: Record<string, SpellEffect> = {
-  fireball:         { shape: 'circle', sizeFt: 20, damageType: 'fire', save: 'dex', half: true },
-  lightning:        { shape: 'line', sizeFt: 5, damageType: 'lightning', save: 'dex', half: true },
-  magic_beam:       { shape: 'line', sizeFt: 5, damageType: 'force' },
-  magic_missile:    { shape: 'single', damageType: 'force' },
-  ray_of_frost:     { shape: 'single', damageType: 'cold' },
-  shocking_grasp:   { shape: 'single', damageType: 'lightning' },
-  burning_hands:    { shape: 'cone', sizeFt: 15, damageType: 'fire', save: 'dex', half: true },
-  sacred_flame:     { shape: 'single', damageType: 'radiant', save: 'dex' },
-  hideous_laughter: { shape: 'single', save: 'wis', conditions: ['prone', 'incapacitated'] },
-  charm_person:     { shape: 'single', save: 'wis', conditions: ['charmed'] },
-  sleep:            { shape: 'circle', sizeFt: 20, conditions: ['unconscious'] },
-  grease:           { shape: 'circle', sizeFt: 10, save: 'dex', conditions: ['prone'] },
-  cure_wounds:      { shape: 'single', heal: true },
+  fireball:         { shape: 'circle', sizeFt: 20, damageType: 'fire', save: 'dex', half: true, impactS: 0.85 },
+  lightning:        { shape: 'line', sizeFt: 5, damageType: 'lightning', save: 'dex', half: true, impactS: 0.15 },
+  magic_beam:       { shape: 'line', sizeFt: 5, damageType: 'force', impactS: 0.45 },
+  magic_missile:    { shape: 'single', damageType: 'force', impactS: 0.85 },
+  ray_of_frost:     { shape: 'single', damageType: 'cold', impactS: 0.3 },
+  shocking_grasp:   { shape: 'single', damageType: 'lightning', impactS: 0.2 },
+  burning_hands:    { shape: 'cone', sizeFt: 15, damageType: 'fire', save: 'dex', half: true, impactS: 0.35 },
+  sacred_flame:     { shape: 'single', damageType: 'radiant', save: 'dex', impactS: 0.3 },
+  hideous_laughter: { shape: 'single', save: 'wis', conditions: ['prone', 'incapacitated'], impactS: 0.75 },
+  charm_person:     { shape: 'single', save: 'wis', conditions: ['charmed'], impactS: 0.8 },
+  sleep:            { shape: 'circle', sizeFt: 20, conditions: ['unconscious'], impactS: 0.6 },
+  grease:           { shape: 'circle', sizeFt: 10, save: 'dex', conditions: ['prone'], impactS: 0.6 },
+  cure_wounds:      { shape: 'single', heal: true, impactS: 0.5 },
 };
 
 export const SAVE_LABEL: Record<AbilityId, string> = { str: 'FUE', dex: 'DES', con: 'CON', int: 'INT', wis: 'SAB', cha: 'CAR' };
@@ -52,49 +55,65 @@ function distToSegment(p: Point, a: Point, b: Point): number {
 }
 
 /**
- * Tokens afectats per un conjur llançat (claus `pl_*`/`lib_*`), en ordre de pintura. Un token
- * compta si la seva base toca la forma (radi `R` inclòs). El llançador (el token que conté el
- * primer punt) no compta a les línies, cons i d'un sol objectiu; a les àrees sí, si hi és a dins.
- * Sense graella no hi ha peus: retorna [].
+ * Caselles que cobreix un conjur (amb graella), com a la taula: àrea = caselles amb el centre dins
+ * del radi; línia = caselles amb el centre a menys de mitja casella del traç; con = caselles amb el
+ * centre dins del con (sense la del llançador); un sol objectiu = la casella del punt final.
  */
-export function spellTargets(type: string, points: Point[], slots: TokenSlot[], gridSize: number): string[] {
+export function spellCells(type: string, points: Point[], g: Grid): Cell[] {
   const fx = SPELL_EFFECTS[type];
-  if (!fx || gridSize <= 0 || points.length === 0) return [];
+  if (!fx || points.length === 0) return [];
   const start = points[0], end = points[points.length - 1];
-  const caster = slots.find(s => Math.hypot(s.x - start.x, s.y - start.y) <= s.R);
-  const others = slots.filter(s => s !== caster);
-  switch (fx.shape) {
-    case 'circle': {
-      const r = ft(fx.sizeFt ?? 5, gridSize);
-      return slots.filter(s => Math.hypot(s.x - end.x, s.y - end.y) <= r + s.R).map(s => s.key);
-    }
-    case 'line': {
-      const half = ft(fx.sizeFt ?? 5, gridSize) / 2;
-      return others.filter(s => {
-        for (let i = 1; i < points.length; i++) if (distToSegment(s, points[i - 1], points[i]) <= half + s.R) return true;
-        return points.length === 1 && Math.hypot(s.x - start.x, s.y - start.y) <= half + s.R;
-      }).map(s => s.key);
-    }
-    case 'cone': {
-      const len = ft(fx.sizeFt ?? 15, gridSize);
-      const dir = Math.atan2(end.y - start.y, end.x - start.x);
-      const halfAngle = Math.atan(0.5);  // amplada final = llargada
-      return others.filter(s => {
-        const d = Math.hypot(s.x - start.x, s.y - start.y);
-        if (d > len + s.R || d === 0) return false;
-        let da = Math.abs(Math.atan2(s.y - start.y, s.x - start.x) - dir);
+  if (fx.shape === 'circle') return circleCells(end, fx.sizeFt ?? 5, g);
+  if (fx.shape === 'single') return [cellOfPoint(end, g)];
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  const len = ft(fx.sizeFt ?? 15, g.gs);
+  if (fx.shape === 'cone') { x0 = start.x - len; x1 = start.x + len; y0 = start.y - len; y1 = start.y + len; }
+  const out: Cell[] = [];
+  const own = cellKeyOf(cellOfPoint(start, g));
+  const dir = Math.atan2(end.y - start.y, end.x - start.x), halfAngle = Math.atan(0.5);
+  for (let c = Math.floor((x0 - g.gox) / g.gs) - 1; c <= Math.floor((x1 - g.gox) / g.gs) + 1; c++) {
+    for (let r = Math.floor((y0 - g.goy) / g.gs) - 1; r <= Math.floor((y1 - g.goy) / g.gs) + 1; r++) {
+      const m = cellCenter([c, r], g);
+      if (fx.shape === 'line') {
+        for (let i = 1; i < points.length; i++) if (distToSegment(m, points[i - 1], points[i]) <= g.gs / 2) { out.push([c, r]); break; }
+      } else {
+        if (`${c},${r}` === own) continue;
+        const d = Math.hypot(m.x - start.x, m.y - start.y);
+        if (d === 0 || d > len) continue;
+        let da = Math.abs(Math.atan2(m.y - start.y, m.x - start.x) - dir);
         if (da > Math.PI) da = 2 * Math.PI - da;
-        return da <= halfAngle + Math.asin(Math.min(1, s.R / d));
-      }).map(s => s.key);
-    }
-    case 'single': {
-      // El token més proper al punt final, si el toca (o és a menys de mitja casella de la vora).
-      let best: TokenSlot | null = null, bestD = Infinity;
-      for (const s of others) {
-        const d = Math.hypot(s.x - end.x, s.y - end.y) - s.R;
-        if (d <= gridSize / 2 && d < bestD) { best = s; bestD = d; }
+        if (da <= halfAngle + 1e-6) out.push([c, r]);
       }
-      return best ? [best.key] : [];
     }
   }
+  return out;
+}
+
+/**
+ * Tokens afectats per un conjur llançat (claus `pl_*`/`lib_*`), en ordre de pintura. Per caselles:
+ * un token compta si alguna de les caselles que ocupa és dins de `spellCells`. El llançador (el token
+ * que conté el primer punt) no compta a les línies, cons i d'un sol objectiu; a les àrees sí, si hi és.
+ * Sense graella no hi ha peus: retorna [].
+ */
+export function spellTargets(type: string, points: Point[], slots: TokenSlot[], grid: Grid | null): string[] {
+  const fx = SPELL_EFFECTS[type];
+  if (!fx || !grid || points.length === 0) return [];
+  const start = points[0], end = points[points.length - 1];
+  const caster = slots.find(s => Math.hypot(s.x - start.x, s.y - start.y) <= s.R);
+  const pool = fx.shape === 'circle' ? slots : slots.filter(s => s !== caster);
+  if (fx.shape === 'single') {
+    // El token que ocupa la casella del punt final; si no n'hi ha, el més proper a mitja casella.
+    const endKey = cellKeyOf(cellOfPoint(end, grid));
+    const on = pool.find(s => tokenCells(s, s.R, grid).some(c => cellKeyOf(c) === endKey));
+    if (on) return [on.key];
+    let best: TokenSlot | null = null, bestD = Infinity;
+    for (const s of pool) {
+      const d = Math.hypot(s.x - end.x, s.y - end.y) - s.R;
+      if (d <= grid.gs / 2 && d < bestD) { best = s; bestD = d; }
+    }
+    return best ? [best.key] : [];
+  }
+  const hit = new Set(spellCells(type, points, grid).map(cellKeyOf));
+  return pool.filter(s => tokenCells(s, s.R, grid).some(c => hit.has(cellKeyOf(c)))).map(s => s.key);
 }

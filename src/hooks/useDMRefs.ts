@@ -192,7 +192,7 @@ export function useDMRefs() {
   const rAreaPlacementPending  = useRef<AreaSpellPending | null>(null);
 
   // Estil Píxel i mapa de caselles (veure `lib/sprites` i `lib/tilemap`).
-  const rAppStyle      = useRef<AppStyle>('classic');
+  const rAppStyle      = useRef<AppStyle>('pixel');
   // Mode Fòsfor de les pantalles de jugador (TV de tub antiga): viatja dins de cada STATE.
   const rPhosphor      = useRef(false);
   const rTileMap       = useRef<TileMap | null>(null);

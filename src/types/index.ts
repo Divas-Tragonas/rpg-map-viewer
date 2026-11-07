@@ -10,7 +10,12 @@ export interface MapSize {
  * debò: un atac de 6 a un token de 2 de vida surt «-6» (si sortís «-2», els jugadors en
  * deduirien la vida). Viatja dins del token: cap camp de sync nou.
  */
-export interface HpHit { d: number; n: number }
+/**
+ * `k`: d'on ve el cop (v5). Només el cos a cos (o un canvi sense origen, com el ± del lateral) fa
+ * l'envestida del token del torn; un conjur o un atac a distància no l'ha de fer.
+ */
+export type HitKind = 'melee' | 'ranged' | 'spell';
+export interface HpHit { d: number; n: number; k?: HitKind }
 
 export interface Player {
   id: number;
@@ -139,7 +144,7 @@ export type SpellPreview =
    * `rangeFt`: abast màxim (es pinta un cercle d'abast al voltant de `start`). `outOfRange`:
    * el cursor és fora de l'abast → tot es pinta en vermell, però el clic s'accepta igualment.
    */
-  | { mode: 'line'; start: Point; end: Point; rangeFt?: number; outOfRange?: boolean; hover?: ReachHover }
+  | { mode: 'line'; start: Point; end: Point; rangeFt?: number; outOfRange?: boolean; hover?: ReachHover; /** Peus mesurats (per caselles si hi ha graella). */ ft?: number | null }
   | { mode: 'area_place'; origin: Point; center: Point; spellType: string; outOfRange?: boolean; hover?: ReachHover }
   /**
    * Atac d'un token (menú «Atacs»): línia de la vora del token al cursor, anell de l'abast i,
@@ -154,6 +159,8 @@ export interface AttackPending {
   label: string; normalFt: number; longFt?: number;
   /** Tipus de dany de l'arma: el pop-up de dany el proposa. */
   damageType?: import('@/lib/characters').DamageType;
+  /** Cos a cos, a distància o llançadissa: decideix si el cop fa l'envestida. */
+  kind?: import('@/lib/characters').AttackKind;
 }
 
 /** Pop-up de dany obert al costat del token objectiu (`DamagePopup`). */
@@ -163,6 +170,8 @@ export interface DamagePrompt {
   damageType?: import('@/lib/characters').DamageType;
   /** Capsa del token objectiu a la finestra (px de client), per col·locar-lo al costat. */
   anchor: { l: number; r: number; t: number; b: number };
+  /** Cos a cos (el token del torn fa l'envestida) o a distància (sense envestida). */
+  hitKind?: HitKind;
 }
 
 /**

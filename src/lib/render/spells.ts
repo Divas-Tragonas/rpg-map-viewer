@@ -1,5 +1,6 @@
 import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
+import { cellOfPoint, cellsPaths, circleCells, gridOf, rangePaths, tokenCells, type Grid } from '@/lib/rules/cells';
 import { AREA_SPELL_DATA, PERSISTENT_SPELLS } from '@/constants';
 import { drawSpellFireball, drawFireballGround, fireballShake, FIREBALL_DUR } from './fireball';
 import { drawSpellLightning, drawLightningGround, pruneLightningFx, lightningShake, LIGHTNING_DUR, LIGHTNING_FIRST_STRIKE } from './lightning';
@@ -9,7 +10,7 @@ import {
   MAGIC_MISSILE_DUR, HIDEOUS_LAUGHTER_DUR, BURNING_HANDS_DUR,
 } from './minorspells';
 import { drawSpellSleep, drawSpellGrease } from './areaspells';
-import { drawPixelSpell, hasPixelSpell } from './pixelspells';
+import { drawPixelSpell, hasPixelSpell, pixelTravelS } from './pixelspells';
 import { sheet } from '@/lib/sprites/pack';
 import {
   drawSpellRayOfFrost, drawSpellShockingGrasp, drawSpellMageHand, drawSpellPrestidigitation, drawSpellMageArmor,
@@ -39,6 +40,18 @@ export function spellShake(spells: readonly Spell[], now: number, pixel = false)
     x += l.x; y += l.y;
   }
   return { x, y };
+}
+
+/**
+ * Segons des del llançament fins que l'efecte arriba als afectats: al pop-up dels conjurs en
+ * combat, el dany i els estats s'apliquen llavors (no abans que l'animació toqui).
+ */
+export function spellImpactS(type: string, pts: Point[], gridSize: number, pixel: boolean, fallbackS: number): number {
+  if (pixel && hasPixelSpell(type) && !PERSISTENT_SPELLS.has(type)) {
+    const t = pixelTravelS(type, pts, SPELL_DURATIONS[type] ?? 2.5, gridSize);
+    return t > 0 ? t + 0.05 : Math.min(fallbackS, 0.3);
+  }
+  return fallbackS;
 }
 
 const SPELL_DURATIONS: Record<string, number> = {
@@ -117,24 +130,40 @@ function drawReachHover(ctx: CanvasRenderingContext2D, h: NonNullable<SpellPrevi
   ctx.restore();
 }
 
+/** Més enllà d'aquest abast (caselles) no es pinta la regió: seria massa gran per a cada frame. */
+const MAX_REGION_CELLS = 80;
+
+/** Pinta una regió de caselles: farciment suau i perímetre esglaonat (com el rang de moviment). */
+function drawCells(ctx: CanvasRenderingContext2D, paths: { fill: Path2D; edge: Path2D }, color: string, fillA: number, edgeA: number, sc: number, dashed = false): void {
+  ctx.save();
+  if (fillA > 0) { ctx.globalAlpha = fillA; ctx.fillStyle = color; ctx.fill(paths.fill); }
+  ctx.globalAlpha = edgeA; ctx.strokeStyle = color; ctx.lineWidth = 2 / sc;
+  if (dashed) ctx.setLineDash([6 / sc, 5 / sc]);
+  ctx.stroke(paths.edge);
+  ctx.restore();
+}
+
+/** Abast per caselles des d'unes caselles d'origen (si no és desmesurat). */
+function drawRange(ctx: CanvasRenderingContext2D, from: Parameters<typeof rangePaths>[0], ft: number, grid: Grid, color: string, sc: number, long = false): void {
+  if (ft / 5 > MAX_REGION_CELLS) return;
+  drawCells(ctx, rangePaths(from, ft, grid), color, long ? 0 : 0.07, long ? 0.35 : 0.65, sc, long);
+}
+
 /**
  * Atac del menú d'un token: anell de l'abast (i de l'abast llarg, més tènue) mesurat des de la
  * VORA del token, línia fins a l'objectiu i etiqueta amb el nom i els peus. Verd dins, ambre a
  * l'abast llarg (desavantatge), vermell fora: només avís, el DM decideix.
  */
-function renderAttackPreview(ctx: CanvasRenderingContext2D, p: Extract<SpellPreview, { mode: 'attack' }>, sc: number, gridSize: number): void {
+function renderAttackPreview(ctx: CanvasRenderingContext2D, p: Extract<SpellPreview, { mode: 'attack' }>, sc: number, grid: Grid | null): void {
   const col = p.zone === 'out' ? OUT_RED : p.zone === 'long' ? LONG_AMBER : IN_GREEN;
   const { start, startR, end } = p;
   ctx.save();
-  if (gridSize > 0) {
-    ctx.lineWidth = 1.5 / sc; ctx.setLineDash([8 / sc, 6 / sc]);
-    ctx.globalAlpha = 0.75; ctx.strokeStyle = p.zone === 'out' ? OUT_RED : '#ffffff';
-    ctx.beginPath(); ctx.arc(start.x, start.y, startR + ftToWorld(p.normalFt, gridSize), 0, Math.PI * 2); ctx.stroke();
-    if (p.longFt) {
-      ctx.globalAlpha = 0.4;
-      ctx.beginPath(); ctx.arc(start.x, start.y, startR + ftToWorld(p.longFt, gridSize), 0, Math.PI * 2); ctx.stroke();
-    }
-    ctx.setLineDash([]);
+  // Amb graella: l'abast són les caselles a l'abast (i les de l'abast llarg, només la vora).
+  if (grid) {
+    const mine = tokenCells(start, startR, grid);
+    const ringCol = p.zone === 'out' ? OUT_RED : '#ffffff';
+    drawRange(ctx, mine, p.normalFt, grid, ringCol, sc);
+    if (p.longFt) drawRange(ctx, mine, p.longFt, grid, ringCol, sc, true);
   }
   const d = Math.hypot(end.x - start.x, end.y - start.y);
   if (d > startR) {
@@ -160,8 +189,8 @@ function renderAttackPreview(ctx: CanvasRenderingContext2D, p: Extract<SpellPrev
   if (p.hover) drawReachHover(ctx, p.hover, sc);
 }
 
-export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: SpellPreview, sc: number, gridSize: number): void {
-  if (preview.mode === 'attack') { renderAttackPreview(ctx, preview, sc, gridSize); return; }
+export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: SpellPreview, sc: number, gridSize: number, grid: Grid | null = null): void {
+  if (preview.mode === 'attack') { renderAttackPreview(ctx, preview, sc, grid); return; }
   ctx.save();
   // Fora d'abast: tot en vermell (avís; el clic funciona igualment).
   const hot = preview.outOfRange ? OUT_RED : '#ffd200';
@@ -169,7 +198,9 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
   if (preview.mode === 'line') {
     const { start, end } = preview;
     // Abast màxim (llançat des d'un token): cercle blanc de guions, com el de les àrees
-    if (preview.rangeFt && gridSize > 0) {
+    if (preview.rangeFt && grid) {
+      drawRange(ctx, [cellOfPoint(start, grid)], preview.rangeFt, grid, preview.outOfRange ? OUT_RED : '#ffffff', sc);
+    } else if (preview.rangeFt && gridSize > 0) {
       ctx.globalAlpha = 0.7; ctx.strokeStyle = preview.outOfRange ? OUT_RED : '#ffffff'; ctx.lineWidth = 1.5 / sc;
       ctx.setLineDash([8 / sc, 6 / sc]);
       ctx.beginPath(); ctx.arc(start.x, start.y, ftToWorld(preview.rangeFt, gridSize), 0, Math.PI * 2); ctx.stroke();
@@ -192,7 +223,7 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     ctx.beginPath(); ctx.arc(start.x, start.y, 4 / sc, 0, Math.PI * 2); ctx.fill();
 
     // Live "shortest distance" readout — a straight line is already its own diagonal.
-    const ft = worldToFt(Math.hypot(end.x - start.x, end.y - start.y), gridSize);
+    const ft = preview.ft ?? worldToFt(Math.hypot(end.x - start.x, end.y - start.y), gridSize);
     const lmx = (start.x + end.x) / 2, lmy = (start.y + end.y) / 2;
     ctx.globalAlpha = 0.9; ctx.font = `bold ${12 / sc}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const text = `📏 ${ft}ft${preview.outOfRange ? ' · fora d\'abast' : ''}`;
@@ -211,11 +242,14 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     const aoeWorld   = ftToWorld(data.aoeRadiusFt, gridSize);
     const isOval     = data.aoeRadiusFt === 10;
 
-    // Range limit — full white dashed circumference
-    ctx.globalAlpha = 0.70; ctx.strokeStyle = preview.outOfRange ? OUT_RED : '#ffffff'; ctx.lineWidth = 1.5 / sc;
-    ctx.setLineDash([8 / sc, 6 / sc]);
-    ctx.beginPath(); ctx.arc(origin.x, origin.y, rangeWorld, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
+    // Range limit — amb graella, les caselles a l'abast; sense, la circumferència de guions
+    if (grid) drawRange(ctx, [cellOfPoint(origin, grid)], data.rangeFt, grid, preview.outOfRange ? OUT_RED : '#ffffff', sc);
+    else {
+      ctx.globalAlpha = 0.70; ctx.strokeStyle = preview.outOfRange ? OUT_RED : '#ffffff'; ctx.lineWidth = 1.5 / sc;
+      ctx.setLineDash([8 / sc, 6 / sc]);
+      ctx.beginPath(); ctx.arc(origin.x, origin.y, rangeWorld, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     // Origin crosshair
     ctx.globalAlpha = 0.55; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1 / sc;
@@ -223,6 +257,10 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     ctx.beginPath(); ctx.moveTo(origin.x - cs, origin.y); ctx.lineTo(origin.x + cs, origin.y); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(origin.x, origin.y - cs); ctx.lineTo(origin.x, origin.y + cs); ctx.stroke();
 
+    // AoE: amb graella, les caselles que cobreix (centre dins del radi), com a la taula.
+    if (grid) {
+      drawCells(ctx, cellsPaths(circleCells(center, data.aoeRadiusFt, grid), grid), preview.outOfRange ? OUT_RED : data.color, 0.28, 0.9, sc);
+    } else {
     // AoE at cursor — 3-layer (outer glow / fill / stroke)
     ctx.globalAlpha = 0.10; ctx.fillStyle = preview.outOfRange ? OUT_RED : data.color;
     if (isOval) {
@@ -238,6 +276,7 @@ export function renderSpellPreview(ctx: CanvasRenderingContext2D, preview: Spell
     if (isOval) { ctx.beginPath(); ctx.ellipse(center.x, center.y, aoeWorld, aoeWorld * 0.55, 0, 0, Math.PI * 2); ctx.stroke(); }
     else        { ctx.beginPath(); ctx.arc(center.x, center.y, aoeWorld, 0, Math.PI * 2); ctx.stroke(); }
     ctx.setLineDash([]);
+    }
   }
 
   if (preview.hover) drawReachHover(ctx, preview.hover, sc);
@@ -313,5 +352,5 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     rActiveSpells.current = alive; setActiveSpells(alive);
     pruneLightningFx(new Set(alive.map(sp => sp.id)));
   }
-  if (layer === 'air' && rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize);
+  if (layer === 'air' && rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize, gridOf(gridSize, fc.rGridOriginX.current, fc.rGridOriginY.current));
 }

@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 3 — Primer el dany, després l'animació; abasts per caselles; app Píxel per defecte
+- **App Píxel per defecte**: l'app arrenca a la Píxel (també qui tenia triada la Clàssica, una vegada); a partir d'aquí es recorda el que triïs
+- **Conjurs en combat: primer es decideix i després es veu**. En clicar el destí surt el pop-up i el conjur encara no es llança; en aplicar, surt l'animació i el dany i els estats arriben quan l'efecte toca. «Només l'efecte» la llança sense aplicar res; Cancel·lar/Esc no llança res
+- **Sense cop cos a cos fals**: el dany d'un conjur o d'un atac a distància ja no fa que el token del torn faci l'envestida (abans, un Raig de gebre feia que Liriandor «pegués» cos a cos en aplicar-lo)
+- **Abasts i àrees per caselles**: amb graella, l'abast dels atacs i els conjurs es pinta com les caselles a l'abast (com el rang de moviment) i les àrees com les caselles que cobreixen; la distància i qui queda afectat també es calculen per caselles. Sense graella, cercles com abans
+- L'etiqueta de la línia d'un conjur i la del token assenyalat donen la mateixa distància
+- Sense canvis a la API
+
 ### v5 snapshot 2 — Els conjurs fan dany i posen estats en combat; graella dels mapes de caselles
 - **Conjurs en combat**: amb els torns actius, en llançar una màgia que toca tokens surt un pop-up al costat dels afectats. Poses el dany tirat un cop, marques qui **supera** la salvació (meitat o res, segons la màgia) i s'aplica a cadascun amb les seves resistències. **Enter** aplica, **Esc** cancel·la
 - **Estats proposats**: Dormir → Inconscient, Riure horrible → Tombat i Incapacitat, Greix → Tombat, Encisar persona → Encisat. Surten marcats a qui no supera la salvació; els pots desmarcar abans d'aplicar

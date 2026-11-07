@@ -510,7 +510,7 @@ export function ContextMenuOverlay({
         const list = own.length > 0 ? own : [generic];
         return <AttackList attacks={list} onPick={a => {
           const { normalFt, longFt } = attackRanges(a);
-          onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType });
+          onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind });
           onClose();
         }} />;
       })()}

@@ -6,7 +6,9 @@ import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
 import { DamagePopup } from '@/components/dm/DamagePopup';
 import { SpellEffectPopup, type SpellTarget } from '@/components/dm/SpellEffectPopup';
-import { spellTargets } from '@/lib/rules/spell-effects';
+import { spellTargets, SPELL_EFFECTS } from '@/lib/rules/spell-effects';
+import { spellImpactS } from '@/lib/render/spells';
+import { gridOf } from '@/lib/rules/cells';
 import { mapToClient } from '@/lib/screen';
 import { tokenSlots } from '@/lib/render/token-geom';
 import type {
@@ -103,7 +105,7 @@ export function DMView() {
   // Pop-up de dany d'un atac (v5): s'obre en clicar l'objectiu mentre s'apunta un atac del menú.
   const [damagePrompt, setDamagePrompt] = useState<import('@/types').DamagePrompt | null>(null);
   // Pop-up d'un conjur llançat en combat (v5): afectats, dany/cura i estats proposats.
-  const [spellPrompt, setSpellPrompt] = useState<{ type: string; keys: string[]; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
+  const [spellPrompt, setSpellPrompt] = useState<{ type: string; points: import('@/types').Point[]; keys: string[]; anchor: { l: number; r: number; t: number; b: number } } | null>(null);
   const [lightSelectedId, setLightSelectedId] = useState<string | null>(null);
   const [newLightRadiusFt, setNewLightRadiusFt] = useState(15);
   const [turn, setTurn] = useState<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
@@ -151,7 +153,9 @@ export function DMView() {
   const [panning, setPanning] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   // Quina «app»: Clàssica o Píxel (sprites del paquet Oryx i mapes de caselles). Es recorda.
-  const [pixel, setPixel] = useStoredFlag('rpg_pixel', false);
+  // App Píxel per defecte (v5). Clau nova: qui tenia desada la Clàssica com a «per defecte» de
+  // l'antiga (`rpg_pixel`) també passa a la Píxel; a partir d'aquí es recorda el que triï.
+  const [pixel, setPixel] = useStoredFlag('rpg_pixel_v5', true);
   // Mode Fòsfor: les pantalles de jugador es veuen com una TV de tub antiga (menú Pantalles).
   const [phosphor, setPhosphor] = useStoredFlag('rpg_phosphor', false);
   const pack = useSpritePack();
@@ -919,11 +923,11 @@ export function DMView() {
   // ── Mouse handlers ────────────────────────────────────────────────────────
   // ── Conjurs en combat: qui toca i pop-up per confirmar dany, salvacions i estats ──────
   // Només amb els torns actius (fora de combat les màgies són només l'efecte visual).
-  const onSpellCast = useCallback((type: string, points: import('@/types').Point[]) => {
-    if (!R.rTurn.current.active) return;
+  const onSpellCast = useCallback((type: string, points: import('@/types').Point[]): boolean => {
+    if (!R.rTurn.current.active) return false;
     const slots = tokenSlots(R, false);
-    const keys = spellTargets(type, points, slots, R.rGridSize.current);
-    if (keys.length === 0) return;
+    const keys = spellTargets(type, points, slots, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current));
+    if (keys.length === 0) return false;
     let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
     for (const k of keys) {
       const s = slots.find(x => x.key === k); if (!s) continue;
@@ -931,9 +935,10 @@ export function DMView() {
       if (!a || !z) continue;
       l = Math.min(l, a.x); t = Math.min(t, a.y); r = Math.max(r, z.x); b = Math.max(b, z.y);
     }
-    if (!Number.isFinite(l)) return;
+    if (!Number.isFinite(l)) return false;
     setDamagePrompt(null);
-    setSpellPrompt({ type, keys, anchor: { l, r, t, b } });
+    setSpellPrompt({ type, points, keys, anchor: { l, r, t, b } });
+    return true;
   }, [R]);
 
   const mouseSetters = useMemo(() => ({
@@ -2104,8 +2109,9 @@ export function DMView() {
           } else {
             // Direccionals: el traç es llança tal com s'ha dibuixat (l'abast és només un avís)
             const clamped = spellMenu?.points ?? [];
-            addSpell(type, clamped, setSpellMenu);
-            onSpellCast(type, clamped);
+            // En combat, primer el pop-up del dany; l'animació surt en confirmar-lo.
+            if (onSpellCast(type, clamped)) setSpellMenu(null);
+            else addSpell(type, clamped, setSpellMenu);
           }
         }}
       />
@@ -2125,15 +2131,21 @@ export function DMView() {
         return (
           <SpellEffectPopup key={`${spellPrompt.type}:${spellPrompt.keys.join(',')}`} spellType={spellPrompt.type}
             anchor={spellPrompt.anchor} targets={targets} onClose={() => setSpellPrompt(null)}
+            onCastOnly={() => { addSpell(spellPrompt.type, spellPrompt.points, () => {}); setSpellPrompt(null); }}
             onApply={outs => {
-              for (const o of outs) {
-                if (o.delta !== 0) {
-                  if (o.key.startsWith('pl_')) adjustPlayerHp(parseInt(o.key.slice(3)), -o.delta);
-                  else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta);
-                }
-                for (const c of o.addConditions) toggleCondition(o.key, c);
-              }
+              // Ara sí: l'animació, i el dany i els estats quan l'efecte arriba als afectats.
+              const { type: st, points: pts } = spellPrompt;
+              addSpell(st, pts, () => {});
               setSpellPrompt(null);
+              window.setTimeout(() => {
+                for (const o of outs) {
+                  if (o.delta !== 0) {
+                    if (o.key.startsWith('pl_')) adjustPlayerHp(parseInt(o.key.slice(3)), -o.delta, 'spell');
+                    else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta, 'spell');
+                  }
+                  for (const c of o.addConditions) toggleCondition(o.key, c);
+                }
+              }, spellImpactS(st, pts, R.rGridSize.current, R.rAppStyle.current === 'pixel', SPELL_EFFECTS[st]?.impactS ?? 0.4) * 1000);
             }} />
         );
       })()}
@@ -2148,8 +2160,8 @@ export function DMView() {
           <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}
             onApply={amount => {
               if (amount > 0) {
-                if (pl) adjustPlayerHp(pl.id, -amount);
-                else if (en) adjustLibEnemyHp(en.id, -amount);
+                if (pl) adjustPlayerHp(pl.id, -amount, damagePrompt.hitKind);
+                else if (en) adjustLibEnemyHp(en.id, -amount, damagePrompt.hitKind);
               }
               setDamagePrompt(null);
             }} />

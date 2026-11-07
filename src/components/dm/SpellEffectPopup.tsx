@@ -33,13 +33,18 @@ export function spellDamageFor(amount: number, type: DamageType | undefined, sav
  * Pop-up d'un conjur llançat en combat (v5): els tokens afectats amb el dany (o la cura) i els
  * estats proposats. Un sol número de dany per a tothom (el que han tret els daus); per a cada
  * afectat, «supera» la salvació (meitat o res, i li treu els estats proposats) i el resultat
- * amb les seves defenses. Enter aplica, Esc cancel·la. Es col·loca al costat dels afectats.
+ * amb les seves defenses. Es col·loca al costat dels afectats. S'obre ABANS de l'animació: Enter la
+ * llança i aplica el dany i els estats quan l'efecte arriba; «Només l'efecte» la llança sense aplicar
+ * res; Esc o Cancel·lar no llancen el conjur.
  */
-export function SpellEffectPopup({ spellType, anchor, targets, onApply, onClose }: {
+export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose }: {
   spellType: string;
   anchor: { l: number; r: number; t: number; b: number };
   targets: SpellTarget[];
   onApply: (out: SpellOutcome[]) => void;
+  /** Llança l'animació sense aplicar res (el DM ho farà a mà). */
+  onCastOnly: () => void;
+  /** Cancel·la el conjur: no es llança res. */
   onClose: () => void;
 }) {
   const fx = SPELL_EFFECTS[spellType];
@@ -153,7 +158,8 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onClose 
       <div style={{ display: 'flex', gap: 6 }}>
         <Button variant="primary" onClick={apply} style={{ flex: 1 }}
           disabled={hasAmount && raw.trim() === '' && !fx.conditions?.length}>Aplicar ↵</Button>
-        <Button variant="secondary" onClick={onClose}>Cancel·lar</Button>
+        <Button variant="secondary" onClick={onCastOnly} title="Llança l'efecte sense tocar vida ni estats">Només l'efecte</Button>
+        <Button variant="ghost" onClick={onClose} title="No es llança el conjur (Esc)">Cancel·lar</Button>
       </div>
     </div>
   );

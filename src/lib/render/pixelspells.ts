@@ -87,6 +87,18 @@ const DEFS: Record<string, PixelSpellDef> = {
 
 export const hasPixelSpell = (type: string) => type in DEFS;
 
+/**
+ * Segons fins que el projectil d'una màgia en píxel arriba al destí (0 si no en té): la mateixa
+ * fórmula que `drawPixelSpell`, perquè el dany s'apliqui quan l'efecte toca.
+ */
+export function pixelTravelS(type: string, pts: Point[], dur: number, gridSize: number, sc = 1): number {
+  const def = DEFS[type];
+  if (!def?.proj || pts.length < 2) return 0;
+  const from = pts[0], to = pts[pts.length - 1];
+  const dist = Math.hypot(to.x - from.x, to.y - from.y);
+  return dist > 0 ? Math.min(dur * 0.35, 0.18 + dist / (fxCell(sc, gridSize) * 22)) : 0;
+}
+
 /** Punt i angle al llarg d'una polilínia, per fracció de longitud (0..1). */
 function along(pts: Point[], f: number): { x: number; y: number; ang: number } {
   if (pts.length < 2) return { x: pts[0]?.x ?? 0, y: pts[0]?.y ?? 0, ang: 0 };

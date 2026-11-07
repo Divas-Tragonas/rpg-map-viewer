@@ -5,6 +5,7 @@ import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
 import { aimSpell, aimAttack } from '@/lib/spellcast';
+import { gridOf } from '@/lib/rules/cells';
 import { cellAt, cellKey, paintCell } from '@/lib/rules/terrain';
 import { tokenMenuFor } from '@/lib/token-menu';
 import { tokenAt, tokenBounds, updateTokenSpread, clearTokenSpread } from '@/lib/render/token-geom';
@@ -80,8 +81,11 @@ interface MouseHandlerSetters {
   notify: import('@/types').Notify;
   /** Obre el pop-up de dany al costat del token objectiu d'un atac. */
   openDamage: (p: import('@/types').DamagePrompt) => void;
-  /** Conjur llançat: en combat, obre el pop-up amb els afectats (`SpellEffectPopup`). */
-  onSpellCast: (type: string, points: import('@/types').Point[]) => void;
+  /**
+   * Conjur a punt de llançar-se: en combat, si toca tokens, obre el pop-up (`SpellEffectPopup`) i
+   * retorna `true` (l'animació es llança en confirmar-lo). `false` = llançar-lo ara.
+   */
+  onSpellCast: (type: string, points: import('@/types').Point[]) => boolean;
 }
 
 type BroadcastFn = (extra?: Record<string, unknown>) => void;
@@ -219,7 +223,11 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       // Clic sobre un altre token: pop-up de dany al seu costat (el DM hi posa el que han tret els daus).
       if (target && target.key !== pend.key) {
         const b = tokenBounds(target), toX = (x: number) => e.clientX + (x - amx) * asc, toY = (y: number) => e.clientY + (y - amy) * asc;
-        S.openDamage({ targetKey: target.key, label: pend.label, damageType: pend.damageType,
+        // Cos a cos (amb envestida) o a distància: una llançadissa a tocar és cos a cos.
+        const pv = aimAttack(R, pend, { x: amx, y: amy }, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), asc);
+        const near = pv?.mode === 'attack' && (pv.ft === null || pv.ft <= 5);
+        const hitKind = pend.kind === 'ranged' ? 'ranged' as const : pend.kind === 'thrown' && !near ? 'ranged' as const : 'melee' as const;
+        S.openDamage({ targetKey: target.key, label: pend.label, damageType: pend.damageType, hitKind,
           anchor: { l: toX(b.l), r: toX(b.r), t: toY(b.t), b: toY(b.b) } });
       }
       e.preventDefault(); return;
@@ -232,13 +240,18 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const { type, origin } = R.rAreaPlacementPending.current;
       // L'abast és un avís (vermell al cursor): el clic fixa el destí allà on és, fora d'abast també.
       const target = { x: pmx, y: pmy };
+      // En combat, si toca algun token: primer el pop-up (dany, salvacions, estats) i, en
+      // confirmar-lo, l'animació. Si no, es llança ja.
+      if (S.onSpellCast(type, [origin, target])) {
+        R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
+        e.preventDefault(); return;
+      }
       const sp = { id: Date.now().toString(), type, points: [origin, target], startTime: performance.now() };
       const ns = [...R.rActiveSpells.current, sp];
       R.rActiveSpells.current = ns; S.setActiveSpells(ns);
       R.bcRef.current?.postMessage({ type: 'SPELL', spell: { ...sp, startTime: 0 } });
       R.wsRef.current?.send(JSON.stringify({ type: 'SPELL', spell: { ...sp, startTime: 0 } }));
       R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
-      S.onSpellCast(type, sp.points);
       e.preventDefault(); return;
     }
     // Eina Terreny: botó esquerre marca terreny difícil, el dret l'esborra (arrossegant).
@@ -538,14 +551,14 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // Màgia triada esperant el destí: centre de l'àrea o punta del raig; fora d'abast = avís en vermell, no es talla.
     // Abans de les branques de cada eina: la del grimori es pot llançar amb qualsevol eina.
     if (R.rAttackPending.current) {
-      const pv = aimAttack(R, R.rAttackPending.current, { x: mx, y: my }, R.rGridSize.current, sc);
+      const pv = aimAttack(R, R.rAttackPending.current, { x: mx, y: my }, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), sc);
       if (!pv) { cancelPendingSpell(R); return; }   // l'atacant ja no hi és
       R.rSpellPreview.current = pv;
       return;
     }
     if (R.rAreaPlacementPending.current) {
       const pend = R.rAreaPlacementPending.current;
-      R.rSpellPreview.current = aimSpell(R, pend, { x: mx, y: my }, spellRangeFt(pend.type), R.rGridSize.current, sc);
+      R.rSpellPreview.current = aimSpell(R, pend, { x: mx, y: my }, spellRangeFt(pend.type), gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), sc);
       return;
     }
 

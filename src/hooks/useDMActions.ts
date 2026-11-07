@@ -699,11 +699,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState, _cleanupTokenKey, _recordTokens, _tokName]);
 
-  const adjustPlayerHp = useCallback((id: number, delta: number) => {
+  const adjustPlayerHp = useCallback((id: number, delta: number, kind?: import('@/types').HitKind) => {
     // Clics seguits al mateix token (−1 cinc cops) = un sol desfer.
     _recordTokens(`PV de ${_tokName(`pl_${id}`)}`, [`pl_${id}`], `hp:pl_${id}`);
     const updated = rPlayers.current.map(pl =>
-      pl.id === id ? { ...pl, hp: Math.max(0, Math.min(pl.hpMax, (pl.hp ?? pl.hpMax) + delta)), hpHit: nextHpHit(pl.hpHit, delta) } : pl
+      pl.id === id ? { ...pl, hp: Math.max(0, Math.min(pl.hpMax, (pl.hp ?? pl.hpMax) + delta)), hpHit: nextHpHit(pl.hpHit, delta, kind) } : pl
     );
     rPlayers.current = updated; S.setPlayers(updated);
     const changed = updated.find(pl => pl.id === id);
@@ -1117,10 +1117,10 @@ export function useDMActions(R: DMRefs, S: Setters) {
     _broadcastState({});
   }, [_broadcastState]);
 
-  const adjustLibEnemyHp = useCallback((id: number, delta: number) => {
+  const adjustLibEnemyHp = useCallback((id: number, delta: number, kind?: import('@/types').HitKind) => {
     _recordTokens(`PV de ${_tokName(`lib_${id}`)}`, [`lib_${id}`], `hp:lib_${id}`);
     const updated = rLibEnemies.current.map(en =>
-      en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)), hpHit: nextHpHit(en.hpHit, delta) } : en
+      en.id === id ? { ...en, hp: Math.max(0, Math.min(en.hpMax, (en.hp ?? en.hpMax) + delta)), hpHit: nextHpHit(en.hpHit, delta, kind) } : en
     );
     rLibEnemies.current = updated; S.setLibEnemies(updated);
     const changed = updated.find(en => en.id === id);

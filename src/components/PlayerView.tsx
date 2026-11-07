@@ -162,7 +162,7 @@ export function PlayerView() {
   const rMovePath      = useRef<Record<string, { pts: { x: number; y: number }[]; t: number }>>({});
   const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   // App Píxel: estil que mana el DM i parts vives del mapa de caselles (aigua, torxes, portes).
-  const rAppStyle      = useRef<AppStyle>('classic');
+  const rAppStyle      = useRef<AppStyle>('pixel');
   const rTileLive      = useRef<TileLive | null>(null);
   const [pixel, setPixel] = useState(false);
   // Mode Fòsfor (TV de tub antiga, veure `lib/phosphor/screen.ts`). `phosphorRef` = el que es
