@@ -4,7 +4,7 @@ import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from 
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
 import { ELEMENTS_BY_ID, WAND_CURSOR, AREA_SPELL_DATA, SPELL_BY_TYPE, PERSISTENT_SPELLS, spellRangeFt } from '@/constants';
-import { aimSpell, aimAttack } from '@/lib/spellcast';
+import { aimSpell, aimAttack, spellAimPoint } from '@/lib/spellcast';
 import { gridOf, snapTokenCenter } from '@/lib/rules/cells';
 import { cellAt, cellKey, paintCell } from '@/lib/rules/terrain';
 import { tokenMenuFor } from '@/lib/token-menu';
@@ -237,15 +237,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // del grimori es llança sense haver de canviar a l'eina Màgies.
     if (e.button === 0 && R.rAreaPlacementPending.current && !e.shiftKey && !e.altKey && !e.ctrlKey) {
       const { mx: pmx, my: pmy, sc: psc } = mc(e);
-      const { type, origin, mode, power } = R.rAreaPlacementPending.current;
+      const { type, origin, power } = R.rAreaPlacementPending.current;
       // L'abast és un avís (vermell al cursor): el clic fixa el destí allà on és, fora d'abast també.
-      // Una màgia direccional clicada sobre un token (o la seva figureta, que a l'app Píxel queda per
-      // sobre de la seva casella) apunta al centre del token: si no, el con o el raig podien no tocar-lo.
-      let target = { x: pmx, y: pmy };
-      if (mode === 'line') {
-        const hit = tokenAt(R, pmx, pmy, psc);
-        if (hit && Math.hypot(hit.x - origin.x, hit.y - origin.y) > hit.R) target = { x: hit.x, y: hit.y };
-      }
+      // Clicada sobre un token (o la seva figureta, que a l'app Píxel queda per sobre de la casella),
+      // una màgia que l'apunta (raig, con, un sol objectiu) va al centre del token: si no, el raig podia
+      // no tocar-lo i les que esclaten al terra quedaven al cap o a un costat (`spellAimPoint`).
+      let target = spellAimPoint(R, R.rAreaPlacementPending.current, { x: pmx, y: pmy }, psc);
       // Alè (con o línia de longitud fixa): surt del llançador cap on s'ha clicat, amb la seva llargada.
       const gsz = R.rGridSize.current;
       if (power?.lineFt && gsz > 0) {

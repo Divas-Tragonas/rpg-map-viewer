@@ -2,7 +2,35 @@ import type { Point, SpellPreview, ReachHover, ReachZone, AttackPending } from '
 import { edgeDistanceFt, isOutOfRange } from '@/lib/rules/reach';
 import { tokenAt, tokenSlots, type TokenRefs } from '@/lib/render/token-geom';
 import { cellOfPoint, cellsDistFt, tokenCells, type Grid } from '@/lib/rules/cells';
-import { SPELL_BY_TYPE } from '@/constants';
+import { SPELL_BY_TYPE, AREA_SPELL_DATA } from '@/constants';
+import { effectFor, type SpellEffect } from '@/lib/rules/spell-effects';
+
+type AimPending = { mode?: 'line' | 'area'; origin: Point; type: string; power?: { rangeFt: number; aoeFt?: number; lineFt?: number; fx?: Pick<SpellEffect, 'shape'> | { shape: string } | null } };
+
+/**
+ * La màgia d'àrea va a UN token (un sol objectiu: Flama sagrada, Curar ferides, Riure histèric…, o una
+ * àrea de 5 ft o menys)? Llavors el destí s'enganxa al token clicat.
+ */
+function aimsAtToken(pend: AimPending): boolean {
+  const shape = pend.power?.fx?.shape ?? effectFor(pend.type)?.shape;
+  if (shape) return shape === 'single' || shape === 'self';
+  return (pend.power?.aoeFt ?? AREA_SPELL_DATA[pend.type]?.aoeRadiusFt ?? 0) <= 5;
+}
+
+/**
+ * Destí d'una màgia segons on és el cursor. Si és sobre un token (també sobre el cap de la seva
+ * figureta, que a l'app Píxel puja per sobre de la casella) i la màgia el té com a objectiu, el destí
+ * és el **centre del token**: les animacions que esclaten al terra (Flama sagrada…) queden a la seva
+ * base encara que s'hagi clicat al cap o a un costat. Raigs i cons: cap al centre del token (si no és
+ * el llançador). Àrees grans (Bola de foc): on s'ha clicat. La previsualització i el clic en fan servir
+ * el mateix, perquè el que es veu en apuntar sigui on cau.
+ */
+export function spellAimPoint(refs: TokenRefs, pend: AimPending, cursor: Point, sc: number): Point {
+  const hit = tokenAt(refs, cursor.x, cursor.y, sc);
+  if (!hit) return cursor;
+  if (pend.mode === 'line') return Math.hypot(hit.x - pend.origin.x, hit.y - pend.origin.y) > hit.R ? { x: hit.x, y: hit.y } : cursor;
+  return aimsAtToken(pend) ? { x: hit.x, y: hit.y } : cursor;
+}
 
 /**
  * Previsualització d'una màgia que espera el destí. L'abast és un AVÍS: el destí és
@@ -13,10 +41,12 @@ import { SPELL_BY_TYPE } from '@/constants';
  *  - Àrea (`area`): l'abast és fins al centre de l'àrea (el cursor).
  */
 export function aimSpell(
-  refs: TokenRefs, pend: { mode?: 'line' | 'area'; origin: Point; type: string; power?: { rangeFt: number; aoeFt?: number; lineFt?: number; fx?: { shape: string } | null } },
-  cursor: Point, rangeFt: number | undefined, grid: Grid | null, sc: number,
+  refs: TokenRefs, pend: AimPending,
+  cursorRaw: Point, rangeFt: number | undefined, grid: Grid | null, sc: number,
 ): SpellPreview {
-  const slot = tokenAt(refs, cursor.x, cursor.y, sc);
+  const slot = tokenAt(refs, cursorRaw.x, cursorRaw.y, sc);
+  // El destí que es veu és el mateix que farà servir el clic (centre del token si l'apunta).
+  const cursor = spellAimPoint(refs, pend, cursorRaw, sc);
   // El llançador mateix (el seu centre és l'origen) no compta com a objectiu.
   const tok = slot && Math.hypot(slot.x - pend.origin.x, slot.y - pend.origin.y) > 1 ? slot : null;
   // Amb graella, per caselles des de la casella del llançador; sense, en línia recta.

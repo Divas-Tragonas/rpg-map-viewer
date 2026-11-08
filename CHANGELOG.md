@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 14 — Màgies d'un objectiu centrades al token
+- Clicant sobre un token (també sobre el cap de la figureta o un costat), les màgies d'un sol objectiu (Flama sagrada, Curar ferides, Riure histèric, Raig de gebre…) i les d'àrea petita van al centre del token: les animacions que esclaten al terra queden a la seva base
+- Raigs i cons, igual que abans, cap al centre del token. Les àrees grans (Bola de foc, Son…) continuen anant on es clica
+- La previsualització en apuntar mostra el mateix punt on caurà
+- Sense canvis a la API
+
 ### v5 snapshot 13 — Efectes centrats a la figureta
 - **Creu de derrotat** centrada al cos de la figureta (abans, al centre de la casella, que cau a les cames)
 - **Conjurs de l'app Píxel**: els efectes al cos i els segells (exclamació, estrelles, zzz…) fan servir la geometria dels tokens; els segells que suren queden damunt del cap, sense tapar-lo
