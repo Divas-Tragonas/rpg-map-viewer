@@ -18,6 +18,7 @@
 
 import type { Point } from '@/types';
 import { pathAt } from '@/lib/geometry';
+import { FX_SLOW } from '@/constants';
 import {
   mulberry32, glowSprite, smokeSprite, scorchSprite, blit, blitStretch, fire, PAL,
   TAU, clamp01, easeOutCubic, easeOutQuart, smoothstep, dragged, glow, fxCell, FX_SIZE,
@@ -330,7 +331,7 @@ export function fireballShake(spells: readonly { type: string; startTime: number
   let x = 0, y = 0;
   for (const sp of spells) {
     if (sp.type !== 'fireball') continue;
-    const tau = (now - sp.startTime) / 1000 - IMPACT_AT;
+    const tau = (now - sp.startTime) / 1000 / FX_SLOW - IMPACT_AT;
     if (tau < 0 || tau > 0.65) continue;
     const amp = 11 * (1 - tau / 0.65) ** 2;
     const s = sp.id.length + (sp.startTime % 7);

@@ -259,6 +259,7 @@ const rPos = useRef<PosMap>({});              // ref mirall (lectura O(1) dins t
 | `BC_CHANNEL` | `'rpg_map_sync_v18'` | BroadcastChannel |
 | `TOKEN_LERP` | `0.07` | Suavitzat moviment tokens |
 | `TSCALE` | `90` | Escala base tokens |
+| `FX_SLOW` | `1.25` | Lentitud de les animacions d'atacs, conjurs i accions (divideix el temps; veure `efectes-i-cinematiques.md`) |
 | `TOKEN_STACK_TOL` | `0.5` | Tokens «apilats» (fracció de casella entre centres): s'obren en ventall sota el cursor (`render/token-geom.ts`) |
 | `C` | objecte colors | Paleta UI (`bg`, `panel`, `accent`, `text`...) |
 | `CONDITIONS` | array | Estats de D&D (16, amb `label` en català, `es`/`en` i `color`) |

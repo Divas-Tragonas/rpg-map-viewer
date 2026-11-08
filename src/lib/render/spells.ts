@@ -1,7 +1,7 @@
 import type { Spell, SpellPreview, Point } from '@/types';
 import type { FrameContext } from './types';
 import { cellOfPoint, cellsPaths, circleCells, gridOf, rangePaths, tokenCells, type Grid } from '@/lib/rules/cells';
-import { AREA_SPELL_DATA, PERSISTENT_SPELLS, SPELL_BY_TYPE } from '@/constants';
+import { AREA_SPELL_DATA, PERSISTENT_SPELLS, SPELL_BY_TYPE, FX_SLOW } from '@/constants';
 import { drawSpellFireball, drawFireballGround, fireballShake, FIREBALL_DUR } from './fireball';
 import { drawSpellLightning, drawLightningGround, pruneLightningFx, lightningShake, LIGHTNING_DUR, LIGHTNING_FIRST_STRIKE } from './lightning';
 import { drawSpellMagicBeam, MAGIC_BEAM_DUR } from './magicbeam';
@@ -38,7 +38,7 @@ export function spellShake(spells: readonly Spell[], now: number, pixel = false)
   let x = f.x, y = f.y;
   for (const sp of spells) {
     if (sp.type !== 'lightning') continue;
-    const l = lightningShake((now - sp.startTime) / 1000 - LIGHTNING_FIRST_STRIKE, sp.id.length);
+    const l = lightningShake((now - sp.startTime) / 1000 / FX_SLOW - LIGHTNING_FIRST_STRIKE, sp.id.length);
     x += l.x; y += l.y;
   }
   return { x, y };
@@ -51,9 +51,9 @@ export function spellShake(spells: readonly Spell[], now: number, pixel = false)
 export function spellImpactS(type: string, pts: Point[], gridSize: number, pixel: boolean, fallbackS: number): number {
   if (pixel && hasPixelSpell(type) && !PERSISTENT_SPELLS.has(type)) {
     const t = pixelTravelS(type, pts, SPELL_DURATIONS[type] ?? 2.5, gridSize);
-    return t > 0 ? t + 0.05 : Math.min(fallbackS, 0.3);
+    return (t > 0 ? t + 0.05 : Math.min(fallbackS, 0.3)) * FX_SLOW;
   }
-  return fallbackS;
+  return fallbackS * FX_SLOW;  // l'animació va `FX_SLOW` vegades més lenta: l'impacte, també
 }
 
 const SPELL_DURATIONS: Record<string, number> = {
@@ -341,7 +341,8 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
   const gridSize = rGridSize.current;
   const pixel = fc.rAppStyle?.current === 'pixel' && !!sheet('fx');
   for (const sp of rActiveSpells.current) {
-    const elapsed = (now - sp.startTime) / 1000;
+    // Temps de l'animació (no el real): `FX_SLOW` la fa més lenta; caduca quan aquest arriba a `dur`.
+    const elapsed = (now - sp.startTime) / 1000 / FX_SLOW;
     const dur = SPELL_DURATIONS[sp.type] ?? 2.5;
     const isArea = PERSISTENT_SPELLS.has(sp.type);
     if (elapsed > dur && !isArea) continue;  // non-area spells expire

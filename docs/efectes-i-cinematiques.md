@@ -36,6 +36,11 @@
 - **Sacsejada de càmera** (`spellShake` a `spells.ts`, que suma `fireballShake` i `lightningShake`): el tick del DM (`useRafLoop`) i el del jugador (`PlayerView`) la sumen a `ox/oy`, així el fons DOM i el canvas es mouen junts. No afecta `rDmCam` (que surt de `rZoom`/`rPanOffset`) ni es sincronitza: cada pantalla la calcula del seu `startTime`. Un spell nou amb sacsejada s'afegeix a `spellShake`, no als ticks.
 - **Ajudants comuns** (`fxsprites.ts`): `glow`, `blitStretch` (sprite estirat: flares, flaixos direccionals), `fire` (bufarada de foc amb temperatura), `streak` (espurna), `impactBurst`, `smoothstep`, `dragged` (desplaçament amb fricció), `fxCell` (mida de casella o fallback de pantalla)… Els efectes nous els han de fer servir en lloc de copiar-los.
 
+## Velocitat de les animacions (`FX_SLOW` a `constants`, v5 snapshot 15)
+- Totes les animacions d'**atacs, conjurs i accions** (poders de criatures) van un **25 % més lentes** (`FX_SLOW = 1.25`). No es toca cap animació: es frena el **rellotge**. El temps des de l'inici es divideix per `FX_SLOW` a `renderSpells` (conjurs i poders, també la seva caducitat), a les sacsejades de càmera (`fireballShake`, raig) i a `lib/sprites/hitfx.ts` (envestida, cop, número, curació i el retard del cop després de l'envestida).
+- ⚠️ El moment de l'**impacte** (quan s'apliquen dany i estats als conjurs en combat, `spellImpactS`) es **multiplica** per `FX_SLOW`: si no, el número sortiria abans que l'efecte arribés.
+- Una animació nova d'atac o de conjur ha de passar per aquests rellotges (o dividir el seu temps per `FX_SLOW`).
+
 ## Llenguatge visual comú dels spells
 - **Una paleta per escola** (`PAL` a `fxsprites.ts`: `fire`, `arcane`, `charm`, `dream`; cadascuna `white → light → mid → deep`). Un spell nou n'agafa una; no s'inventa colors propis. Projectil i raig màgic = `arcane`; bola de foc i mans ardents = `fire`.
 - **Impacte únic** (`impactBurst`): flaix → llum → anell → espurnes. Tots els spells que toquen un objectiu l'usen, a una mida proporcional al seu nivell.

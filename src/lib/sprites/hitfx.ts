@@ -27,6 +27,7 @@ import { PAL } from '@/lib/render/fxsprites';
 import { animFrame, animMs, drawAnim } from './fxanim';
 import { sheet } from './pack';
 import type { HpHit, HitKind } from '@/types';
+import { FX_SLOW } from '@/constants';
 
 /** El `HpHit` que toca després de canviar la vida en `delta` (un canvi de 0 no és un cop). */
 export function nextHpHit(prev: HpHit | undefined, delta: number, kind?: HitKind, by?: string): HpHit | undefined {
@@ -116,7 +117,7 @@ export function noteFigure(key: string, sprite: string, hp: number | undefined, 
     dir = [dx / d, dy / d];
     if (lunge) _lunges.set(by!, { t0: now, tx: x, ty: y, reach: SEV[sev].lunge });
   }
-  _hits.set(key, { t0: now + (lunge ? LUNGE_HIT_MS : 0), kind: 'hit', dir, style: hit?.k === 'spell' ? 'star' : styleOf(a ? by : null), seed, amount, sev,
+  _hits.set(key, { t0: now + (lunge ? LUNGE_HIT_MS * FX_SLOW : 0), kind: 'hit', dir, style: hit?.k === 'spell' ? 'star' : styleOf(a ? by : null), seed, amount, sev,
     ko: hp <= 0 && prev > 0, ranged: hit?.k === 'ranged' });
 }
 
@@ -139,7 +140,7 @@ export function figureFx(key: string, cx: number, footY: number, S: number, now:
   let flash: FigureFx['flash'] = null;
   const l = _lunges.get(key);
   if (l) {
-    const p = (now - l.t0) / LUNGE_MS;
+    const p = (now - l.t0) / FX_SLOW / LUNGE_MS;
     if (p >= 1) _lunges.delete(key);
     else if (!calm) {
       const ux = l.tx - cx, uy = l.ty - footY, d = Math.hypot(ux, uy) || 1;
@@ -152,7 +153,7 @@ export function figureFx(key: string, cx: number, footY: number, S: number, now:
   const h = _hits.get(key);
   if (h) {
     const ms = h.kind === 'heal' ? HEAL_MS : SEV[h.sev].ms;
-    const e = now - h.t0;
+    const e = (now - h.t0) / FX_SLOW;  // temps de l'animació (més lenta, `FX_SLOW`)
     // El registre viu fins que s'acaba el que es pinta a sobre (número, pols); el moviment, `ms`.
     if (e >= hitLife(h)) _hits.delete(key);
     else if (e >= 0 && e < ms) {
@@ -210,7 +211,7 @@ function numberCanvas(text: string, color: string): HTMLCanvasElement {
 export function drawFigureHitFx(ctx: CanvasRenderingContext2D, key: string, cx: number, footY: number, S: number, now: number) {
   const h = _hits.get(key);
   if (!h) return;
-  const e = now - h.t0;
+  const e = (now - h.t0) / FX_SLOW;  // temps de l'animació (més lenta, `FX_SLOW`)
   if (e < 0) return;
   const midY = footY - S * 0.42;
   const px = S / 48;
