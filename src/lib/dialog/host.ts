@@ -1,6 +1,8 @@
 import type { CamRect, DialogSync, Point } from '@/types';
 import { playDialog, reducedMotion, type DialogLook, type DialogView } from './scene';
 import { dialogToken, type DialogWorld } from './tokens';
+import { figureBox, footOf } from '@/lib/render/token-geom';
+import { hasCreature } from '@/lib/sprites/draw';
 
 /**
  * El que fa una pantalla (DM o jugador) amb el camp `dialog`: un sol lloc per a les dues,
@@ -75,7 +77,12 @@ export class DialogHost {
     let anchor: Point | null = null;
     if (d.kind === 'bubble' && !d.voice) {
       const tok = dialogToken(this.world, d.tokenId, true);
-      if (tok) anchor = toScreen({ x: tok.center.x, y: tok.center.y - tok.R });
+      // Al cap: amb figureta, el de la figura (que puja per sobre de la casella); amb disc, la vora de dalt.
+      if (tok) {
+        const fig = look.pixel && tok.sprite && hasCreature(tok.sprite) ? tok.sprite : null;
+        const top = fig ? figureBox(fig, tok.center.x, footOf(tok.center.y, tok.R), tok.R).t : tok.center.y - tok.R;
+        anchor = toScreen({ x: tok.center.x, y: top });
+      }
     }
     v.tick(now, anchor);
   }

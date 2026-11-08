@@ -7,7 +7,7 @@ import { drawFigureState, figureLook, reducedMotion } from '@/lib/sprites/states
 import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
 import { drawStatusFx, hasStatusFx } from '@/lib/sprites/statusfx';
 import { pointInPolygon } from '@/lib/geometry';
-import { FIG_SCALE, FOOT_FLAT, creatureBounds, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, footOf, footEllipse, SHADOW_RX, SHADOW_RY } from './token-geom';
+import { FIG_SCALE, FOOT_FLAT, creatureBounds, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, footOf, footEllipse, SHADOW_RX, SHADOW_RY, figureMid } from './token-geom';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
@@ -542,10 +542,13 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     ctx.globalAlpha = 1;
 
     if (isDM && en.hpMax > 0) drawHpBar(ctx, ep.x, ep.y, R, sc, en.hp ?? en.hpMax, en.hpMax);
+    const epC = ep;
 
     const drawCross = () => {
       if (isDefeated && showStates && (isDM || crossProg > 0)) {
         const cr = R * 0.82;
+        // Amb figureta, la creu va sobre el cos (no al centre de la casella, que cau a les cames).
+        const ep = { x: epC.x, y: libSprite ? figureMid(libSprite, epC.y, R) : epC.y };
         ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
         if (isDM) {
           ctx.beginPath(); ctx.moveTo(ep.x - cr, ep.y - cr); ctx.lineTo(ep.x + cr, ep.y + cr); ctx.stroke();
@@ -721,7 +724,8 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
 
     const drawCross = () => {
       if (isDefeated && (isDM || crossProg > 0)) {
-        const cx = ppos.x + R, cy = ppos.y + R, cr = R * 0.82;
+        // Amb figureta, la creu va sobre el cos (no al centre de la casella, que cau a les cames).
+        const cx = ppos.x + R, cy = plSprite ? figureMid(plSprite, ppos.y + R, R) : ppos.y + R, cr = R * 0.82;
         ctx.save(); ctx.strokeStyle = C.enemy; ctx.lineWidth = 5 / sc; ctx.lineCap = 'round';
         if (isDM) {
           ctx.beginPath(); ctx.moveTo(cx - cr, cy - cr); ctx.lineTo(cx + cr, cy + cr); ctx.stroke();

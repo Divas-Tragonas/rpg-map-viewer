@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 13 — Efectes centrats a la figureta
+- **Creu de derrotat** centrada al cos de la figureta (abans, al centre de la casella, que cau a les cames)
+- **Conjurs de l'app Píxel**: els efectes al cos i els segells (exclamació, estrelles, zzz…) fan servir la geometria dels tokens; els segells que suren queden damunt del cap, sense tapar-lo
+- **Globus de diàleg** ancorat al cap de la figureta
+- Sense canvis a la API
+
 ### v5 snapshot 12 — Icones de pixel art i estats sense bombolles
 - **Paquet d'icones «UPSCALE» separat i net**: les quatre captures borroses (armes, equipament, objectes i conjurs) convertides en **1.686 icones soltes de 16×16 amb el fons transparent**, a `assets/icon-packs/` amb un catàleg i fulls numerats. En lloc d'ampliar-les més, se n'ha recuperat la resolució original (estaven ampliades ×1,9 amb suavitzat) i es pinten ampliades sense suavitzar: nítides a qualsevol mida
 - **Icones noves a la interfície** en lloc dels emojis: roda de màgies, roda de zones, grimori dels jugadors, poders de les criatures, pop-up dels conjurs i l'icona de les zones del DM. Els **atacs** tenen la icona de la seva arma (espasa, arc, ballesta, daga, destral, maça, llança, bastó, mossegada, urpa…)

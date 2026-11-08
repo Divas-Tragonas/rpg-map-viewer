@@ -103,6 +103,28 @@ export function figureBox(sprite: string, cx: number, footY: number, R: number):
   return { l: cx - half, r: cx + half, t: b - (bd.bottom - bd.top) * S, b };
 }
 
+/**
+ * Centre del cos de la figureta (px de mapa) d'un token de centre `cy`: on s'han de centrar els
+ * efectes que van «sobre el token» (la creu de derrotat). Amb els peus per sota del centre de la
+ * casella, la figura queda per sobre i el centre de la casella cau a les cames.
+ */
+export function figureMid(sprite: string, cy: number, R: number): number {
+  const b = figureBox(sprite, 0, footOf(cy, R), R);
+  return (b.t + b.b) / 2;
+}
+
+/**
+ * La mateixa geometria en fraccions de la casella, per als efectes que només coneixen el punt del
+ * token i la casella (els conjurs de l'app Píxel, `render/pixelspells.ts`). Suposen la mida habitual
+ * d'un token (R = 0,45 casella, la d'«Ajustar mida», `sizeAllTokens`) i un sprite d'alçada mitjana
+ * (`FIG_FALLBACK`): peus, centre del cos i cap, respecte del centre de la casella.
+ */
+const R_PER_CELL = 0.45;
+const FIG_H = (FIG_FALLBACK.bottom - FIG_FALLBACK.top) * FIG_SCALE;  // alçada de la figura, en R
+export const FIG_FOOT_DY = (FOOT_DROP + FOOT_SINK) * R_PER_CELL;
+export const FIG_HEAD_DY = (FOOT_DROP + FOOT_SINK - FIG_H) * R_PER_CELL;
+export const FIG_BODY_DY = (FIG_FOOT_DY + FIG_HEAD_DY) / 2;
+
 // ── Tokens en ordre de pintura ────────────────────────────────────────────────
 export interface TokenSlot { key: string; x: number; y: number; R: number; sprite: string | null }
 

@@ -15,6 +15,7 @@ import { AREA_SPELL_DATA } from '@/constants';
 import { PAL, fxCell, FX_SIZE, type Palette } from './fxsprites';
 import { animFrame, drawAnim, drawAnimAlong, FX_ANIMS, type FxAnimId } from '@/lib/sprites/fxanim';
 import { sheet } from '@/lib/sprites/pack';
+import { FIG_FOOT_DY, FIG_BODY_DY, FIG_HEAD_DY } from './token-geom';
 
 const FX = 24;
 /** Columna del full per a cada orientació (angle de canvas: 0 = dreta, 90 = avall). */
@@ -192,8 +193,11 @@ function rnd(seed: number, i: number, j = 0): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-/** Els peus i el cos d'una figureta respecte del centre de la casella (veure `footOf`/`placeFigure`). */
-const FOOT_DY = 0.15, BODY_DY = -0.3;
+/**
+ * Els peus i el cos d'una figureta respecte del centre de la casella, en caselles: surten de la
+ * geometria dels tokens (`render/token-geom.ts`), perquè els efectes quedin on és la figura.
+ */
+const FOOT_DY = FIG_FOOT_DY, BODY_DY = FIG_BODY_DY;
 
 function drawAnimFx(ctx: CanvasRenderingContext2D, f: AnimFx, at: Point, from: Point, to: Point, k: number,
   fade: number, P: number, radius: number, grid: number, seed: number) {
@@ -397,8 +401,10 @@ export function drawPixelSpell(ctx: CanvasRenderingContext2D, type: string, pts:
       // El segell es queda flotant i s'esvaeix amb la màgia.
       ctx.globalAlpha = fade * Math.min(1, k / 0.12);
       const bob = Math.sin(k * 5) * cell * 0.06;
+      // Els que embolcallen el token (escut, llum, diana…) van al centre del cos de la figura; la resta
+      // (exclamació, estrelles, zzz…) suren damunt del cap, sense tocar-lo.
       const above = def.seal === 'shield' || def.seal === 'light' || def.seal === 'target' || def.seal === 'heal' || def.seal === 'arcane' || def.seal === 'zap';
-      const sy = at.y - (above ? 0 : cell * 0.75) + bob;
+      const sy = (above ? at.y + grid * BODY_DY : at.y + grid * FIG_HEAD_DY - size * 0.55) + bob;
       const t = s.tint ? tintedRegion('fx', fr[0] * FX, fr[1] * FX, FX, FX, ramp(s.tint)) : null;
       if (t) ctx.drawImage(t, at.x - size / 2, sy - size / 2, size, size);
       else fx(ctx, fr[0], fr[1], at.x, sy, size);
