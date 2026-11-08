@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 16 — Escena: imatge o vídeo amb subtítols
+- **Pestanya nova «Escena»** al panell «Mostrar als jugadors»: una imatge o un vídeo de fons i el text a sobre, com uns subtítols. Sense imatge, el text surt a pantalla completa (com el Revelador)
+- **Previsualització 16:9** que és el que veuen els jugadors: la imatge omple tot l'escenari i el text hi va a sobre. S'hi pot arrossegar el fitxer, fer zoom amb la roda i moure la imatge
+- Opcions compactes a dalt (velocitat, pauses, suavitat, manual) i opcions noves: posició dels subtítols (baix, centre, dalt), mida, franja fosca, **frase a frase** o text continu, encaixar/omplir la imatge, moviment de càmera i recentrar. El text s'escriu a sota de tot
+- Els canvis de text, opcions o imatge mentre es mostra arriben als jugadors en directe; funciona a la tablet (també si es connecta tard)
+- L'Expositor i el Revelador de text no canvien: l'Escena n'aprofita el motor. Mostrar-ne un amaga els altres
+- Sense canvis a la API
+
 ### v5 snapshot 15 — Animacions d'atac i conjurs un 15 % més lentes
 - Totes les animacions d'atacs, conjurs i poders de criatures van un 15 % més lentes (`FX_SLOW`), a totes les pantalles
 - El dany i els estats dels conjurs en combat s'apliquen quan l'efecte arriba, amb el nou ritme

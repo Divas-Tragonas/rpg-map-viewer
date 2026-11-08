@@ -105,8 +105,8 @@
 - El panell d'Història s'obre a l'esquerra de la rail (`right: 12 + RAIL_W`); el de Mostrar, a dalt a l'esquerra de l'escenari. Un panell nou de la dreta ha de deixar lloc a `RAIL_W`.
 
 ## Panell «Mostrar als jugadors» (`ShowPanelHeader` + `DMView`)
-- L'Expositor, el Revelador de text, el Diàleg i la Fitxa són **les pestanyes d'un sol panell** (Imatge o vídeo · Text · Diàleg · Fitxa), que obre el botó «Mostrar als jugadors» de la rail de la dreta. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
-- Cada pestanya continua obrint el seu estat de sempre (`expositorOpen` / `textRevealOpen`, un sol obert alhora) i la pestanya recordada és `showTab`: els bucles RAF i les dreceres de teclat de cada un no han canviat. En obrir el panell, si s'està mostrant alguna cosa, s'obre per aquella pestanya.
+- L'Expositor, el Revelador de text, l'Escena (imatge + subtítols), el Diàleg i la Fitxa són **les pestanyes d'un sol panell** (Imatge o vídeo · Text · Escena · Diàleg · Fitxa), que obre el botó «Mostrar als jugadors» de la rail de la dreta. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
+- Cada pestanya continua obrint el seu estat de sempre (`expositorOpen` / `textRevealOpen`, un sol obert alhora) i la pestanya recordada és `showTab`: els bucles RAF i les dreceres de teclat de cada un no han canviat. L'**Escena** (`ScenePanel` + `useSceneShow`, v5 snapshot 16) està sempre muntada i s'amaga amb `display: none` quan no és la pestanya oberta (el seu motor de text hi té els spans). En obrir el panell, si s'està mostrant alguna cosa, s'obre per aquella pestanya.
 - Un punt verd a la pestanya (i al botó de la barra) diu què s'està mostrant als jugadors.
 - Amplada fixa `SHOW_PANEL_W` (560) per a les dues pestanyes: canviar de pestanya no fa saltar el panell. Va a `top: 12` de l'escenari.
 

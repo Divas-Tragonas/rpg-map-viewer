@@ -280,6 +280,17 @@ Tampoc no ha calgut cap canvi del WebSocket per a les fitxes (v4.67): el camp `s
 (SheetShow | null: foto de la fitxa amb les parts que tria el DM) viatja dins del STATE i del
 STRUCT, només quan canvia.
 
+Tampoc no ha calgut cap canvi per a l'Escena (imatge + subtítols, v5 snapshot 16): els camps
+`scene` (SceneShow | null: id, text, media { id, mimeType } | null, opts) i `sceneSync`
+(SceneSync: id, pos, cps, fadeMs, view { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }, ~30 fps)
+viatgen dins del STATE. El mèdia reaprofita EXPOSITOR_SHOW_META amb dos camps més
+(`target: 'scene'`, `id`) + el frame binari; el servidor els reenvia opacs.
+
+⚠️ Nota (2026-11-08): `ROUTABLE_TO_CLIENTS` (app/src/modules/sync/sync.routes.ts) NO inclou
+TEXTREVEAL_SHOW / TEXTREVEAL_SYNC / TEXTREVEAL_HIDE, tot i que surten a la taula de dalt: el
+Revelador de text no arriba als clients per WS (només per BroadcastChannel). Si es vol a la
+tablet, cal afegir-los a la llista de la API.
+
 Tampoc no ha calgut cap canvi per al mode Fòsfor (v4.92): el camp `phosphor` (boolean, lleuger)
 viatja dins del STATE i del STRUCT, que el servidor ja reenvia opacs.
 

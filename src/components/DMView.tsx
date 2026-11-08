@@ -47,6 +47,8 @@ import { TurnTracker } from '@/components/dm/TurnTracker';
 import { ServerSessionsPanel } from '@/components/dm/ServerSessionsPanel';
 import { TopBar } from '@/components/dm/TopBar';
 import { ShowPanelHeader, type ShowTab } from '@/components/dm/ShowPanelHeader';
+import { ScenePanel } from '@/components/dm/ScenePanel';
+import { useSceneShow } from '@/hooks/useSceneShow';
 import { DialogPanel, EMPTY_DRAFT, type DialogDraft } from '@/components/dm/DialogPanel';
 import { DialogControls } from '@/components/dm/DialogControls';
 import { useDialog } from '@/hooks/useDialog';
@@ -264,6 +266,11 @@ export function DMView() {
   // els TEXTREVEAL_SYNC (que ignora perquè no té el text). S'assigna més avall,
   // quan trBroadcastShow ja existeix.
   const trResendShowRef = React.useRef<() => void>(() => {});
+  // Escena (imatge + subtítols, `useSceneShow`): el mateix reenviament en (re)connectar-se
+  // una pantalla, i amagar-la quan es mostra una altra cosa. Via ref: els handlers que
+  // les criden es creen abans que el hook.
+  const sceneResendRef = React.useRef<() => void>(() => {});
+  const sceneHideRef = React.useRef<() => void>(() => {});
   // ── Història: mòduls i diari (panell a la dreta del mapa, veure `StoryPanel`) ──
   const [storyOpen, setStoryOpen] = useState(false);
   const [storyTab, setStoryTab] = useState<StoryTab>('modul');
@@ -833,6 +840,7 @@ export function DMView() {
       if (msg?.type === 'PLAYER_READY') {
         _sendFullState();
         trResendShowRef.current();
+        sceneResendRef.current();
       } else if (msg?.type === 'VIEWPORT' && msg.id) {
         _registerScreen(String(msg.id), msg.w ?? 0, msg.h ?? 0);
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
@@ -855,6 +863,7 @@ export function DMView() {
       if (msg.type === 'PLAYER_READY') {
         _sendFullState();
         trResendShowRef.current();
+        sceneResendRef.current();
       } else if (msg.type === 'VIEWPORT' && msg.id !== undefined && msg.w && msg.h) {
         _registerScreen(String(msg.id), msg.w, msg.h);
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
@@ -868,6 +877,7 @@ export function DMView() {
       // més tard, i els ja connectats recuperin l'estat si el DM havia caigut.
       _sendFullState();
       trResendShowRef.current();
+      sceneResendRef.current();
     });
     R.wsRef.current = ws;
     return () => { ws.close(); R.wsRef.current = null; };
@@ -1397,6 +1407,7 @@ export function DMView() {
     // Sinergia: en mostrar una imatge/vídeo, amaguem el revelador de text (crossfade al jugador)
     // i acabem el diàleg (cadascun amaga els altres).
     if (trActiveRef.current) hideTextRevealOnPlayer();
+    sceneHideRef.current();
     dialogEndRef.current();
     const buf = await file.arrayBuffer();
     R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
@@ -1413,16 +1424,32 @@ export function DMView() {
     setExpositorActive(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Escena: imatge o vídeo de fons + text en subtítols (pestanya «Escena») ───
+  const scene = useSceneShow({
+    bcRef: R.bcRef, wsRef: R.wsRef,
+    hideOthers: () => {
+      if (expositorActiveRef.current) hideExpositorOnPlayer();
+      if (trActiveRef.current) hideTextRevealOnPlayer();
+      dialogEndRef.current();
+    },
+  });
+  const { setOpen: setSceneOpen, hide: hideScene, resend: resendScene, activeRef: sceneActiveRef } = scene;
+  useEffect(() => {
+    sceneResendRef.current = resendScene;
+    sceneHideRef.current = () => { if (sceneActiveRef.current) hideScene(); };
+  }, [resendScene, hideScene, sceneActiveRef]);
+
   // ── Panell «Mostrar als jugadors» (pestanyes Imatge o vídeo / Text) ─────────
   const openShowTab = useCallback((t: ShowTab) => {
     setShowTab(t);
     setExpositorOpen(t === 'imatge');
     setTextRevealOpen(t === 'text');
+    setSceneOpen(t === 'escena');
     setDialogOpen(t === 'dialeg');
     setSheetOpen(t === 'fitxa');
-  }, []);
-  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); setDialogOpen(false); setSheetOpen(false); }, []);
-  const showPanelOpen = expositorOpen || textRevealOpen || dialogOpen || sheetOpen;
+  }, [setSceneOpen]);
+  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); setSceneOpen(false); setDialogOpen(false); setSheetOpen(false); }, [setSceneOpen]);
+  const showPanelOpen = expositorOpen || textRevealOpen || scene.open || dialogOpen || sheetOpen;
 
   // ── Diàlegs de personatges (pestanya «Diàleg», veure `useDialog`) ─────────
   const dlg = useDialog(R, {
@@ -1430,6 +1457,7 @@ export function DMView() {
     hideOthers: () => {
       if (expositorActiveRef.current) hideExpositorOnPlayer();
       if (trActiveRef.current) hideTextRevealOnPlayer();
+      sceneHideRef.current();
     },
     launchBossIntro,
   });
@@ -1457,8 +1485,8 @@ export function DMView() {
   const toggleShowPanel = useCallback(() => {
     if (showPanelOpen) closeShowPanel();
     // Si ara mateix s'està mostrant alguna cosa, s'obre per aquella pestanya.
-    else openShowTab(dlg.ui ? 'dialeg' : textRevealActive ? 'text' : expositorActive ? 'imatge' : sheetShowId ? 'fitxa' : showTab);
-  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, expositorActive, showTab, dlg.ui, sheetShowId]);
+    else openShowTab(dlg.ui ? 'dialeg' : textRevealActive ? 'text' : scene.active ? 'escena' : expositorActive ? 'imatge' : sheetShowId ? 'fitxa' : showTab);
+  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, scene.active, expositorActive, showTab, dlg.ui, sheetShowId]);
 
   // ── Fitxa a les pantalles de jugador (camp pesat `sheet` del STATE) ────────
   /** Foto de la fitxa amb les parts triades; el retrat i el color, del jugador que la porta. */
@@ -1695,6 +1723,7 @@ export function DMView() {
     if (!eng || eng.n === 0) return;
     // Sinergia: en llançar text, amaguem l'expositor d'imatge (crossfade al jugador) i el diàleg
     if (expositorActiveRef.current) hideExpositorOnPlayer();
+    sceneHideRef.current();
     dialogEndRef.current();
     trBroadcastShow();
     trActiveRef.current = true;
@@ -1956,8 +1985,8 @@ export function DMView() {
           onDoubleClick={onDoubleClick}
         />
         <RightRail
-          canShow={mode === 'jugar' || showPanelOpen || expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId}
-          showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
+          canShow={mode === 'jugar' || showPanelOpen || expositorActive || textRevealActive || scene.active || !!dlg.ui || !!sheetShowId}
+          showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || scene.active || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
           storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => !v)} />
         <CanvasHUD
           gridCalibrating={gridCalibrating} hasMap={bgLoaded}
@@ -2009,7 +2038,7 @@ export function DMView() {
         {/* Expositor floating panel */}
         {expositorOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', overflowY: 'auto', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Espai: reinicia / pausa el moviment" onClose={closeShowPanel} />
             {/* Preview area with KB animation and pan/zoom */}
             <div
@@ -2091,7 +2120,7 @@ export function DMView() {
         {/* Revelador de text floating panel */}
         {textRevealOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Espai: revela / pausa · ←→ navega · R reinicia" onClose={closeShowPanel} />
 
             <div style={{ overflowY: 'auto', minHeight: 0 }}>
@@ -2192,10 +2221,16 @@ export function DMView() {
           </div>
         )}
 
+        {/* Escena: imatge o vídeo + subtítols. Sempre muntada (el motor de text hi viu). */}
+        <ScenePanel sc={scene} width={SHOW_PANEL_W}
+          onFileDropped={() => { fileDragDepth.current = 0; setFileOver(false); }}
+          header={<ShowPanelHeader tab="escena" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+            hint="Espai: revela / pausa · ←→ navega · R reinicia" onClose={closeShowPanel} />} />
+
         {/* Diàleg: pestanya del panell «Mostrar als jugadors» */}
         {dialogOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="dialeg" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+            <ShowPanelHeader tab="dialeg" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Espai/→ avança · ← enrere · Esc acaba" onClose={closeShowPanel} />
             <DialogPanel draft={dialogDraft} onDraft={setDialogDraft} tokens={sceneTokenList} saved={dlg.dialogs}
               running={!!dlg.ui} onStart={startDraft} onEnd={dlg.end} onSave={saveDraft} onDelete={dlg.deleteDialog} />
@@ -2204,7 +2239,7 @@ export function DMView() {
         {/* Fitxa: pestanya del panell «Mostrar als jugadors» */}
         {sheetOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="fitxa" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+            <ShowPanelHeader tab="fitxa" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Una targeta al costat del mapa" onClose={closeShowPanel} />
             <SheetPanel characters={chars.characters} status={chars.status} pending={chars.pending}
               selected={sheetSel} onSelect={setSheetSel} parts={sheetParts} onParts={setSheetParts}

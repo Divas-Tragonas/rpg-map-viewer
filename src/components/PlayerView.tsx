@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layers } from '@/components/icons';
 import { TurnBanner } from '@/components/player/TurnBanner';
 import { SheetCard } from '@/components/player/SheetCard';
+import { SceneOverlay, type SceneController } from '@/components/player/SceneOverlay';
 import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
 import { BC_CHANNEL, APP_VERSION, FONT_SERIF } from '@/constants';
 import {
@@ -240,6 +241,10 @@ export function PlayerView() {
   }, []);
   const pendingBgMetaRef = useRef<{ mimeType: string; withFade?: boolean } | null>(null);
   const pendingExpMetaRef = useRef<{ mimeType: string } | null>(null);
+  // Escena (imatge + subtítols): el mèdia arriba pel WS amb la capçalera de l'Expositor
+  // marcada `target: 'scene'` (el servidor només reenvia tipus coneguts).
+  const pendingSceneMetaRef = useRef<{ mimeType: string; id: string } | null>(null);
+  const sceneCtlRef = useRef<SceneController | null>(null);
   const rafRef = useRef<number>(0);
   const _ctx2dRef = useRef<CanvasRenderingContext2D | null>(null);
   const isShapeDrawingRef = useRef(false);
@@ -663,6 +668,9 @@ export function PlayerView() {
         if (msg.dialog !== undefined) dialogHostRef.current?.apply(msg.dialog);
         // Fitxa d'un personatge (pesat: només arriba quan canvia; null = amagada).
         if (msg.sheet !== undefined) setSheet(msg.sheet);
+        // Escena (imatge + subtítols): `scene` quan canvia (null = amagar), `sceneSync` ~30 fps.
+        if (msg.scene !== undefined) sceneCtlRef.current?.apply(msg.scene);
+        if (msg.sceneSync) sceneCtlRef.current?.sync(msg.sceneSync);
         if (msg.dmPreviewActive !== undefined) {
           rDMPreviewActive.current = msg.dmPreviewActive;
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
@@ -755,6 +763,8 @@ export function PlayerView() {
         } else {
           doShow(url);
         }
+      } else if (msg.type === 'SCENE_MEDIA') {
+        sceneCtlRef.current?.media(msg.buffer, msg.mimeType, msg.id);
       } else if (msg.type === 'EXPOSITOR_HIDE') {
         expositorVisibleRef.current = false;
         setExpositorVisible(false);
@@ -827,7 +837,11 @@ export function PlayerView() {
       if (ev.data instanceof ArrayBuffer) {
         const bgMeta = pendingBgMetaRef.current;
         const expMeta = pendingExpMetaRef.current;
-        if (bgMeta) {
+        const sceneMeta = pendingSceneMetaRef.current;
+        if (sceneMeta) {
+          pendingSceneMetaRef.current = null;
+          sceneCtlRef.current?.media(ev.data, sceneMeta.mimeType, sceneMeta.id);
+        } else if (bgMeta) {
           pendingBgMetaRef.current = null;
           if (!_bgChanged(ev.data, bgMeta.mimeType)) return;
           const blob = new Blob([ev.data], { type: bgMeta.mimeType });
@@ -862,7 +876,9 @@ export function PlayerView() {
           return;
         }
         if (msg.type === 'EXPOSITOR_SHOW_META') {
-          pendingExpMetaRef.current = parsed as { mimeType: string };
+          const meta = parsed as { mimeType: string; target?: string; id?: string };
+          if (meta.target === 'scene' && meta.id) pendingSceneMetaRef.current = { mimeType: meta.mimeType, id: meta.id };
+          else pendingExpMetaRef.current = meta;
           return;
         }
         // Synthesize a fake BroadcastChannel MessageEvent so the existing handler processes it
@@ -1280,6 +1296,8 @@ export function PlayerView() {
           />
         </div>
       </div>
+      {/* Escena: imatge o vídeo de fons + text en subtítols (zIndex 52) */}
+      <SceneOverlay controllerRef={sceneCtlRef} />
       <div ref={flashRef} style={{ position: 'absolute', inset: 0, zIndex: 90, background: '#fff', opacity: 0, pointerEvents: 'none' }} />
       </div>
     </div>

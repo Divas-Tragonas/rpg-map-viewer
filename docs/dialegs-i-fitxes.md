@@ -38,6 +38,15 @@
 - Pestanya «Imatge o vídeo» del panell «Mostrar als jugadors» (botó de la rail de la dreta del mapa) → preview amb zoom/pan + Ken Burns.
 - El jugador mostra el contingut a pantalla completa (overlay zIndex 50) amb fade IN/OUT i `EXPOSITOR_SYNC` (LERP).
 
+## Escena: imatge o vídeo + subtítols (v5 snapshot 16) — `lib/scene` + `useSceneShow` + `ScenePanel` + `SceneOverlay`
+- Pestanya «Escena» del panell «Mostrar als jugadors». Fusiona l'Expositor i el Revelador **sense tocar-los**: una imatge o un vídeo de fons i el text a sobre en subtítols. **Sense imatge, el text surt a pantalla completa** (com el Revelador).
+- **Panell** (de dalt a baix): opcions compactes (Velocitat + Pauses · Suavitat + Manual; Subtítols: posició Baix/Centre/Dalt, mida S/M/L, Franja fosca, «Frase a frase» o «Continu»; Imatge: Encaixar/Omplir, Moviment (Ken Burns), Recentra, Canvia…/Treu), l'**escenari 16:9** (previsualització: la imatge l'omple sencer, arrossegar-hi un fitxer, roda = zoom, arrossegar = moure; en manual, un clic revela la frase), la barra d'estat, el **text** i els botons. Teclat com el Revelador (Espai, ←/→, R).
+- **Un sol escenari per a les dues pantalles** (`SceneStage`): el DM veu el que veuran. Mides de la lletra en % de l'amplada de l'escenari (`sceneFontPx`), mèdia i transform igual (`viewTransform`, pan normalitzat a la mida de l'escenari). L'element del text (`textRef`) existeix sempre, amb imatge o sense: el motor no perd els spans en canviar de format.
+- **Text**: el mateix `RevealEngine` (el DM integra `pos`, el jugador el segueix). «Frase a frase» (`SentenceWindow`): només es veu la frase on és el front (la resta amb `display: none`, només en canviar de frase); durant la pausa del final encara es veu aquella. «Continu»: tot s'acumula i la caixa (alçada màxima 36%) llisca perquè l'última línia quedi a baix (`followBottom`).
+- **Sincronització sense canvis a la API** (el servidor només reenvia tipus coneguts, veure `sincronitzacio.md`): `STATE.scene` (només quan canvia; nou `id` a cada «Mostrar» → fos entre escenes) i `STATE.sceneSync` (~30 fps, amb batec d'1 s si no canvia res). El mèdia: `SCENE_MEDIA` pel BC i `EXPOSITOR_SHOW_META` amb `target: 'scene'` + binari pel WS; el jugador el descarta si ja té aquell `id` (arriba per totes dues vies). En `PLAYER_READY` i en reconnectar el WS, el DM ho reenvia tot (`sceneResendRef`).
+- **Prioritat**: mostrar l'Escena amaga l'Expositor, el Revelador i el diàleg; mostrar qualsevol d'aquests amaga l'Escena (`sceneHideRef`). Conviu amb la Fitxa. Canviar text, opcions o imatge mentre es mostra arriba als jugadors en directe.
+- Al jugador, capa `zIndex 52` amb el mateix fos que l'Expositor (1,4 s / 0,3 s). No es desa a la partida. Queda al diari com a «Escena als jugadors».
+
 ## Revelador de text (`src/lib/textreveal/`)
 - Pestanya «Text» del panell «Mostrar als jugadors» → editor, controls i previsualització.
 - Motor compartit `RevealEngine` (`src/lib/textreveal/index.ts`): construeix spans, esvaïment per caràcter (smoothstep + blur), pauses dramàtiques al final de frase, mode manual.

@@ -475,6 +475,10 @@ export interface BCStateMessage {
   dialog?: DialogSync | null;
   // Fitxa d'un personatge a les pantalles (pesat: només quan canvia; `null` = amagada).
   sheet?: SheetShow | null;
+  // Escena (imatge + subtítols, `lib/scene`): `scene` només quan canvia (`null` = amagada);
+  // `sceneSync` (~30 fps) va en un STATE que no porta res més.
+  scene?: import('@/lib/scene').SceneShow | null;
+  sceneSync?: import('@/lib/scene').SceneSync;
 }
 
 export interface BCStructMessage {
@@ -562,7 +566,10 @@ export type BCMessage =
   // Reset de la memòria d'explorat d'una sala: torna a ser negra del tot (fog of war).
   | { type: 'RESET_EXPLORED'; points: Point[] }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }
-  | { type: 'EXPOSITOR_SHOW_META'; mimeType: string };
+  // `target: 'scene'` = el binari és el mèdia de l'Escena (imatge + subtítols), no de l'Expositor.
+  | { type: 'EXPOSITOR_SHOW_META'; mimeType: string; target?: 'scene'; id?: string }
+  // Mèdia de l'Escena pel BroadcastChannel (pel WS va amb la capçalera de dalt).
+  | { type: 'SCENE_MEDIA'; id: string; buffer: ArrayBuffer; mimeType: string };
 
 /**
  * Avís visible a la pantalla del DM. Fins ara, una càrrega que fallava (fons il·legible,

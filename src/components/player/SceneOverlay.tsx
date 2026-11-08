@@ -1,0 +1,180 @@
+'use client';
+import React, { useEffect, useRef, useState } from 'react';
+import { RevealEngine } from '@/lib/textreveal';
+import { SceneStage } from '@/components/scene/SceneStage';
+import {
+  DEFAULT_SCENE_OPTS, IDENTITY_VIEW, SentenceWindow, followBottom, viewTransform,
+  type SceneShow, type SceneSync, type SceneView,
+} from '@/lib/scene';
+
+/** El que PlayerView crida en rebre missatges (veure `lib/scene`). */
+export interface SceneController {
+  /** Camp `scene` del STATE: escena nova, canvis de l'actual o `null` (amagar). */
+  apply(scene: SceneShow | null): void;
+  /** Camp `sceneSync` del STATE (~30 fps): front del text i enquadrament. */
+  sync(s: SceneSync): void;
+  /** Imatge o vídeo de l'escena (pel BroadcastChannel o pel WS). */
+  media(buffer: ArrayBuffer, mimeType: string, id: string): void;
+}
+
+const FADE_SWAP_MS = 350;
+const KEEP_MEDIA = 3;
+
+/**
+ * Escena a la pantalla del jugador: imatge o vídeo de fons i el text en subtítols (o a
+ * pantalla completa si no hi ha imatge). Capa `zIndex 52`, per sobre de l'Expositor (50) i
+ * del Revelador (51), amb el mateix fos d'entrada i sortida. Té el seu propi bucle: segueix
+ * el `pos` que envia el DM amb el rellotge d'aquesta pantalla, com el Revelador.
+ */
+export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject<SceneController | null> }) {
+  const [shown, setShown] = useState<SceneShow | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [fading, setFading] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+
+  const sceneRef = useRef<SceneShow | null>(null);
+  const urlsRef = useRef(new Map<string, string>());
+  const engRef = useRef<RevealEngine | null>(null);
+  const winRef = useRef(new SentenceWindow());
+  const tgtRef = useRef({ pos: 0, cps: 20, fadeMs: 500 });
+  const lastSyncRef = useRef<SceneSync | null>(null);
+  const viewTgt = useRef<SceneView>({ ...IDENTITY_VIEW });
+  const viewCur = useRef<SceneView>({ ...IDENTITY_VIEW });
+  const swapRef = useRef(0);
+  const mediaInnerRef = useRef<HTMLDivElement | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const sizeRef = useRef({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const urls = urlsRef.current;
+    const eng = () => (engRef.current ??= new RevealEngine());
+
+    const setText = (text: string, pos: number) => {
+      const el = textRef.current; if (!el) return;
+      eng().setText(text, el);
+      winRef.current.invalidate();
+      if (boxRef.current) boxRef.current.scrollTop = 0;
+      if (pos > 0) eng().snapTo(pos);
+    };
+
+    const mediaFor = (s: SceneShow | null) => (s?.media ? urls.get(s.media.id) ?? null : null);
+
+    const ctl: SceneController = {
+      apply(next) {
+        const cur = sceneRef.current;
+        if (!next) {
+          if (!cur) return;
+          sceneRef.current = null;
+          swapRef.current++;
+          setVisible(false);
+          return;
+        }
+        if (cur && cur.id === next.id) {
+          // La mateixa escena: opcions, mèdia o text que el DM ha canviat en directe.
+          sceneRef.current = next;
+          if (eng().chars !== next.text) setText(next.text, tgtRef.current.pos);
+          setShown(next);
+          setMediaUrl(mediaFor(next));
+          return;
+        }
+        // Escena nova: fos amb l'anterior (si n'hi havia) i començar on va el DM.
+        sceneRef.current = next;
+        const token = ++swapRef.current;
+        const doShow = () => {
+          if (token !== swapRef.current) return;
+          const ls = lastSyncRef.current;
+          const pos = ls && ls.id === next.id ? ls.pos : 0;
+          tgtRef.current = ls && ls.id === next.id ? { pos: ls.pos, cps: ls.cps, fadeMs: ls.fadeMs } : { ...tgtRef.current, pos: 0 };
+          if (ls && ls.id === next.id) { viewTgt.current = { ...ls.view }; viewCur.current = { ...ls.view }; }
+          else { viewTgt.current = { ...IDENTITY_VIEW }; viewCur.current = { ...IDENTITY_VIEW }; }
+          setText(next.text, pos);
+          setShown(next);
+          setMediaUrl(mediaFor(next));
+          setFading(false);
+          setVisible(true);
+        };
+        if (cur) { setFading(true); setTimeout(doShow, FADE_SWAP_MS); }
+        else doShow();
+      },
+      sync(s) {
+        lastSyncRef.current = s;
+        if (sceneRef.current?.id !== s.id) return;
+        tgtRef.current = { pos: s.pos, cps: s.cps, fadeMs: s.fadeMs };
+        viewTgt.current = s.view;
+      },
+      media(buffer, mimeType, id) {
+        // Arriba pel BroadcastChannel I pel WS a la mateixa màquina: el segon s'ignora.
+        if (urls.has(id)) return;
+        urls.set(id, URL.createObjectURL(new Blob([buffer], { type: mimeType })));
+        // Només es guarden els últims (el de l'escena actual sempre).
+        const keep = sceneRef.current?.media?.id;
+        for (const k of [...urls.keys()]) {
+          if (urls.size <= KEEP_MEDIA) break;
+          if (k === id || k === keep) continue;
+          URL.revokeObjectURL(urls.get(k)!); urls.delete(k);
+        }
+        if (sceneRef.current?.media?.id === id) setMediaUrl(urls.get(id)!);
+      },
+    };
+    controllerRef.current = ctl;
+    return () => {
+      controllerRef.current = null;
+      for (const u of urls.values()) URL.revokeObjectURL(u);
+      urls.clear();
+    };
+  }, [controllerRef]);
+
+  // Bucle propi: segueix el front del DM i suavitza l'enquadrament de la imatge.
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const tick = (ts: number) => {
+      raf = requestAnimationFrame(tick);
+      const sc = sceneRef.current;
+      const eng = engRef.current;
+      const dt = last ? Math.min(80, ts - last) : 16;
+      last = ts;
+      if (!sc || !eng) return;
+      const t = tgtRef.current;
+      eng.tick(dt);
+      eng.follow(t.pos, t.cps);
+      const hasMedia = !!sc.media;
+      const box = boxRef.current;
+      eng.render(t.fadeMs, hasMedia ? undefined : box);
+      if (hasMedia && sc.opts.flow === 'sentence') winRef.current.apply(eng);
+      else winRef.current.showAll(eng);
+      if (hasMedia && sc.opts.flow === 'flow' && box) followBottom(eng, box);
+      const inner = mediaInnerRef.current;
+      if (hasMedia && inner) {
+        const tg = viewTgt.current, cur = viewCur.current;
+        const EL = 0.028;
+        cur.zoom += (tg.zoom - cur.zoom) * EL;
+        cur.panXNorm += (tg.panXNorm - cur.panXNorm) * EL;
+        cur.panYNorm += (tg.panYNorm - cur.panYNorm) * EL;
+        cur.kbTxPct += (tg.kbTxPct - cur.kbTxPct) * EL;
+        cur.kbTyPct += (tg.kbTyPct - cur.kbTyPct) * EL;
+        inner.style.transform = viewTransform(cur, sizeRef.current.w, sizeRef.current.h);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: 'absolute', inset: 0, zIndex: 52,
+        opacity: (visible && !fading) ? 1 : 0,
+        pointerEvents: visible ? 'auto' : 'none',
+        transition: fading ? 'opacity 0.3s ease-in-out' : 'opacity 1.4s ease-in-out',
+      }}
+    >
+      <SceneStage
+        mediaUrl={mediaUrl} mimeType={shown?.media?.mimeType ?? null} hasMedia={!!shown?.media}
+        opts={shown?.opts ?? DEFAULT_SCENE_OPTS}
+        mediaInnerRef={mediaInnerRef} boxRef={boxRef} textRef={textRef} sizeRef={sizeRef}
+      />
+    </div>
+  );
+}
