@@ -37,7 +37,7 @@
 - **Ajudants comuns** (`fxsprites.ts`): `glow`, `blitStretch` (sprite estirat: flares, flaixos direccionals), `fire` (bufarada de foc amb temperatura), `streak` (espurna), `impactBurst`, `smoothstep`, `dragged` (desplaçament amb fricció), `fxCell` (mida de casella o fallback de pantalla)… Els efectes nous els han de fer servir en lloc de copiar-los.
 
 ## Velocitat de les animacions (`FX_SLOW` a `constants`, v5 snapshot 15)
-- Totes les animacions d'**atacs, conjurs i accions** (poders de criatures) van un **25 % més lentes** (`FX_SLOW = 1.25`). No es toca cap animació: es frena el **rellotge**. El temps des de l'inici es divideix per `FX_SLOW` a `renderSpells` (conjurs i poders, també la seva caducitat), a les sacsejades de càmera (`fireballShake`, raig) i a `lib/sprites/hitfx.ts` (envestida, cop, número, curació i el retard del cop després de l'envestida).
+- Totes les animacions d'**atacs, conjurs i accions** (poders de criatures) van un **15 % més lentes** (`FX_SLOW = 1.15`). No es toca cap animació: es frena el **rellotge**. El temps des de l'inici es divideix per `FX_SLOW` a `renderSpells` (conjurs i poders, també la seva caducitat), a les sacsejades de càmera (`fireballShake`, raig) i a `lib/sprites/hitfx.ts` (envestida, cop, número, curació i el retard del cop després de l'envestida).
 - ⚠️ El moment de l'**impacte** (quan s'apliquen dany i estats als conjurs en combat, `spellImpactS`) es **multiplica** per `FX_SLOW`: si no, el número sortiria abans que l'efecte arribés.
 - Una animació nova d'atac o de conjur ha de passar per aquests rellotges (o dividir el seu temps per `FX_SLOW`).
 

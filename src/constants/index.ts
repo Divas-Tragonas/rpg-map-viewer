@@ -289,12 +289,12 @@ export function tint(color: string, alpha: number): string {
 export const BC_CHANNEL = 'rpg_map_sync_v18';
 export const TOKEN_LERP  = 0.07;
 /**
- * Lentitud de les animacions d'atacs, conjurs i accions (poders de criatures): 1,25 = un 25 % més
+ * Lentitud de les animacions d'atacs, conjurs i accions (poders de criatures): 1,15 = un 15 % més
  * lentes. S'aplica al rellotge, no a cada animació: el temps des de l'inici es divideix per aquest
  * factor (`renderSpells`, sacsejades, `lib/sprites/hitfx.ts`), i el moment de l'impacte (quan
  * s'apliquen dany i estats, `spellImpactS`) es multiplica, perquè animació i regles quadrin.
  */
-export const FX_SLOW = 1.25;
+export const FX_SLOW = 1.15;
 export const TSCALE      = 90;
 /**
  * Tolerància de «tokens apilats», en fracció de la mida de casella (sense graella, del diàmetre del

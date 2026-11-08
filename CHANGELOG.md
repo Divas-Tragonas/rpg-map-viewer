@@ -3,8 +3,8 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
-### v5 snapshot 15 — Animacions d'atac i conjurs un 25 % més lentes
-- Totes les animacions d'atacs, conjurs i poders de criatures van un 25 % més lentes (`FX_SLOW`), a totes les pantalles
+### v5 snapshot 15 — Animacions d'atac i conjurs un 15 % més lentes
+- Totes les animacions d'atacs, conjurs i poders de criatures van un 15 % més lentes (`FX_SLOW`), a totes les pantalles
 - El dany i els estats dels conjurs en combat s'apliquen quan l'efecte arriba, amb el nou ritme
 - Sense canvis a la API
 
