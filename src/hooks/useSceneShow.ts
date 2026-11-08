@@ -32,7 +32,14 @@ export function useSceneShow(io: {
   const [active, setActive] = useState(false);
   const [text, setText] = useState('');
   const [opts, setOptsState] = useState<SceneOpts>(DEFAULT_SCENE_OPTS);
-  const [media, setMedia] = useState<SceneMedia | null>(null);
+  // Diapositives: totes les imatges o vídeos carregats, en ordre, i quina es veu ara.
+  const [slides, setSlidesState] = useState<SceneMedia[]>([]);
+  const [cur, setCurState] = useState(0);
+  // Després de l'última diapositiva, tornar a la primera (només el DM: no viatja).
+  const [loop, setLoopState] = useState(false);
+  const loopRef = useRef(false);
+  const setLoop = useCallback((v: boolean) => { loopRef.current = v; setLoopState(v); }, []);
+  const media = slides[cur] ?? null;
   const [dramatic, setDramaticState] = useState(true);
   const [manual, setManualState] = useState(false);
   const [speed, setSpeedState] = useState(50);
@@ -41,7 +48,11 @@ export function useSceneShow(io: {
   // Miralls per al bucle (no es torna a crear a cada canvi).
   const activeRef = useRef(false);
   const optsRef = useRef(opts);
-  const mediaRef = useRef<SceneMedia | null>(null);
+  const mediaRef = useRef<SceneMedia | null>(null);      // la d'ara (slides[cur])
+  const slidesRef = useRef<SceneMedia[]>([]);
+  const curRef = useRef(0);
+  /** Mèdia ja enviat als jugadors des de l'últim «Mostrar» / reenviament. */
+  const sentRef = useRef(new Set<string>());
   const textValRef = useRef('');
   const dramaticRef = useRef(true);
   const manualRef = useRef(false);
@@ -79,7 +90,11 @@ export function useSceneShow(io: {
 
   const buildScene = useCallback((): SceneShow => {
     const m = mediaRef.current;
-    return { id: idRef.current, text: textValRef.current, media: m ? { id: m.id, mimeType: m.mimeType } : null, opts: optsRef.current };
+    const ref = (x: SceneMedia) => ({ id: x.id, mimeType: x.mimeType });
+    return {
+      id: idRef.current, text: textValRef.current, media: m ? ref(m) : null,
+      slides: slidesRef.current.map(ref), opts: optsRef.current,
+    };
   }, []);
 
   const sendScene = useCallback(() => {
@@ -87,15 +102,24 @@ export function useSceneShow(io: {
     post({ type: 'STATE', scene: activeRef.current ? buildScene() : null });
   }, [post, buildScene]);
 
-  const sendMedia = useCallback(async () => {
-    const m = mediaRef.current; if (!m) return;
+  /** Envia una imatge als jugadors (si encara no l'han rebuda des de l'últim «Mostrar»). */
+  const sendOne = useCallback(async (m: SceneMedia) => {
+    if (sentRef.current.has(m.id)) return;
+    sentRef.current.add(m.id);
     if (!m.buffer) m.buffer = await m.file.arrayBuffer();
-    if (mediaRef.current !== m) return;
+    if (!activeRef.current || !slidesRef.current.includes(m)) { sentRef.current.delete(m.id); return; }
     bcRef.current?.postMessage({ type: 'SCENE_MEDIA', id: m.id, buffer: m.buffer, mimeType: m.mimeType });
     // Pel WS, com l'Expositor: capçalera + frame binari (`target` el distingeix).
     wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_SHOW_META', mimeType: m.mimeType, target: 'scene', id: m.id }));
     wsRef.current?.sendBinary(m.buffer);
   }, [bcRef, wsRef]);
+
+  /** Totes les diapositives: primer la d'ara, després les següents i les d'abans. */
+  const sendAllMedia = useCallback(async () => {
+    const list = slidesRef.current, c = curRef.current;
+    const order = [...list.slice(c), ...list.slice(0, c)];
+    for (const m of order) await sendOne(m);
+  }, [sendOne]);
 
   // ── Text ─────────────────────────────────────────────────────────────────────
   const updateStatus = useCallback(() => {
@@ -189,32 +213,73 @@ export function useSceneShow(io: {
     });
   }, []);
   // Les opcions i el mèdia arriben als jugadors en directe si s'està mostrant.
-  useEffect(() => { if (activeRef.current) sendScene(); }, [opts, media, sendScene]);
+  useEffect(() => { if (activeRef.current) sendScene(); }, [opts, media, slides, sendScene]);
 
   const restartMotion = useCallback(() => {
     zoomRef.current = 1; panRef.current = { x: 0, y: 0 };
     kbRef.current = { ...kbRef.current, start: performance.now(), phase: 0 };
   }, []);
 
-  const loadFile = useCallback((file: File) => {
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return;
-    const prev = mediaRef.current;
-    const m: SceneMedia = { id: newSceneId(), url: URL.createObjectURL(file), mimeType: file.type, file, buffer: null };
-    mediaRef.current = m;
-    setMedia(m);
-    if (prev) URL.revokeObjectURL(prev.url);
-    kbRef.current = { variant: Math.floor(Math.random() * KB_VARIANT_COUNT), start: performance.now(), phase: 0, paused: false };
-    zoomRef.current = 1; panRef.current = { x: 0, y: 0 };
-    if (activeRef.current) void sendMedia();
-  }, [sendMedia]);
-
-  const clearMedia = useCallback(() => {
-    const prev = mediaRef.current;
-    mediaRef.current = null;
-    setMedia(null);
-    if (prev) URL.revokeObjectURL(prev.url);
+  /** Desa la llista i quina es veu (refs per al bucle + estat per a la UI). */
+  const commitSlides = useCallback((list: SceneMedia[], idx: number) => {
+    const c = list.length ? Math.max(0, Math.min(list.length - 1, idx)) : 0;
+    const changed = list[c] !== mediaRef.current;
+    slidesRef.current = list; curRef.current = c; mediaRef.current = list[c] ?? null;
+    setSlidesState(list); setCurState(c);
+    if (changed) {
+      // Imatge nova: moviment nou i sense el zoom/pan de l'anterior.
+      kbRef.current = { variant: Math.floor(Math.random() * KB_VARIANT_COUNT), start: performance.now(), phase: 0, paused: false };
+      zoomRef.current = 1; panRef.current = { x: 0, y: 0 };
+    }
   }, []);
-  useEffect(() => () => { if (mediaRef.current) URL.revokeObjectURL(mediaRef.current.url); }, []);
+
+  /** Afegeix imatges o vídeos al final. Si no n'hi havia cap, es veu la primera. */
+  const addFiles = useCallback((files: File[] | FileList) => {
+    const ok = [...files].filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    if (!ok.length) return;
+    const added = ok.map(file => ({ id: newSceneId(), url: URL.createObjectURL(file), mimeType: file.type, file, buffer: null }));
+    commitSlides([...slidesRef.current, ...added], slidesRef.current.length ? curRef.current : 0);
+    if (activeRef.current) void (async () => { for (const m of added) await sendOne(m); })();
+  }, [commitSlides, sendOne]);
+
+  const goTo = useCallback((i: number) => {
+    const list = slidesRef.current;
+    if (i < 0 || i >= list.length || i === curRef.current) return;
+    commitSlides(list, i);
+    if (activeRef.current) void sendOne(list[i]);
+  }, [commitSlides, sendOne]);
+  const nextSlide = useCallback(() => {
+    const c = curRef.current, n = slidesRef.current.length;
+    if (c < n - 1) goTo(c + 1);
+    else if (loopRef.current && n > 1) goTo(0);
+  }, [goTo]);
+  const prevSlide = useCallback(() => goTo(curRef.current - 1), [goTo]);
+
+  const removeSlide = useCallback((i: number) => {
+    const list = slidesRef.current; const m = list[i]; if (!m) return;
+    const next = list.filter((_, k) => k !== i);
+    const c = curRef.current;
+    commitSlides(next, i < c ? c - 1 : c);
+    URL.revokeObjectURL(m.url);
+    sentRef.current.delete(m.id);
+  }, [commitSlides]);
+
+  /** Mou una diapositiva de `from` a `to` (la que es veu continua sent la mateixa). */
+  const moveSlide = useCallback((from: number, to: number) => {
+    const list = [...slidesRef.current];
+    if (from === to || !list[from] || to < 0 || to >= list.length) return;
+    const showing = mediaRef.current;
+    const [m] = list.splice(from, 1);
+    list.splice(to, 0, m);
+    commitSlides(list, showing ? list.indexOf(showing) : 0);
+  }, [commitSlides]);
+
+  const clearSlides = useCallback(() => {
+    for (const m of slidesRef.current) URL.revokeObjectURL(m.url);
+    sentRef.current.clear();
+    commitSlides([], 0);
+  }, [commitSlides]);
+  useEffect(() => () => { for (const m of slidesRef.current) URL.revokeObjectURL(m.url); }, []);
 
   const panBy = useCallback((dx: number, dy: number) => {
     panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
@@ -230,12 +295,14 @@ export function useSceneShow(io: {
     idRef.current = newSceneId();
     activeRef.current = true;
     setActive(true);
-    void sendMedia();
+    sentRef.current.clear();
     sendScene();
+    void sendAllMedia();
     const shown = textValRef.current.replace(/\s+/g, ' ').trim();
     const what = shown ? `«${shown.length > 70 ? `${shown.slice(0, 70).trimEnd()}…` : shown}»` : 'imatge sense text';
-    logJournal('text', `Escena als jugadors${mediaRef.current ? ' (amb imatge)' : ''}: ${what}`);
-  }, [sendMedia, sendScene]);
+    const n = slidesRef.current.length;
+    logJournal('text', `Escena als jugadors${n ? ` (${n === 1 ? 'amb imatge' : `${n} imatges`})` : ''}: ${what}`);
+  }, [sendAllMedia, sendScene]);
 
   const hide = useCallback(() => {
     if (!activeRef.current) return;
@@ -247,9 +314,10 @@ export function useSceneShow(io: {
   /** Una pantalla s'ha (re)connectat: si s'està mostrant, li torna a enviar tot. */
   const resend = useCallback(() => {
     if (!activeRef.current) return;
-    void sendMedia();
+    sentRef.current.clear();
     sendScene();
-  }, [sendMedia, sendScene]);
+    void sendAllMedia();
+  }, [sendAllMedia, sendScene]);
 
   // ── Bucle: avança el text, mou la imatge i envia el sync ─────────────────────
   useEffect(() => {
@@ -321,15 +389,18 @@ export function useSceneShow(io: {
         case 'ArrowRight': e.preventDefault(); if (manualRef.current) nextSentence(); else play(); break;
         case 'ArrowLeft': e.preventDefault(); if (manualRef.current) prevSentence(); else reset(); break;
         case 'r': case 'R': reset(); break;
+        case 'ArrowDown': case 'PageDown': e.preventDefault(); nextSlide(); break;
+        case 'ArrowUp': case 'PageUp': e.preventDefault(); prevSlide(); break;
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, primary, nextSentence, play, prevSentence, reset]);
+  }, [open, primary, nextSentence, play, prevSentence, reset, nextSlide, prevSlide]);
 
   return {
     open, setOpen, active, activeRef, show, hide, resend,
-    text, setText, opts, setOpts, media, loadFile, clearMedia, restartMotion, panBy, zoomBy,
+    text, setText, opts, setOpts, media, slides, cur, loop, setLoop, addFiles, goTo, nextSlide, prevSlide, removeSlide, moveSlide, clearSlides,
+    restartMotion, panBy, zoomBy,
     dramatic, setDramatic, manual, setManual, speed, setSpeed, smooth, setSmooth,
     primary, reset, nextSentence,
     refs: { mediaInnerRef, boxRef, textRef, sizeRef, counterRef, progRef, playBtnRef },

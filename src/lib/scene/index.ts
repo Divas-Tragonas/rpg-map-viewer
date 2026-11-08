@@ -42,7 +42,14 @@ export interface SceneShow {
   /** Canvia a cada «Mostrar»: la pantalla fa el fos entre l'escena d'abans i la nova. */
   id: string;
   text: string;
+  /** Imatge o vídeo que es veu ara (una de `slides`). */
   media: SceneMediaRef | null;
+  /**
+   * Totes les imatges de l'escena, en ordre (diapositives). Les pantalles les reben totes en
+   * mostrar-se, així passar a la següent és immediat; només es guarden les d'aquesta llista.
+   * Absent = només `media` (DM d'abans de les diapositives).
+   */
+  slides?: SceneMediaRef[];
   opts: SceneOpts;
 }
 
@@ -99,6 +106,22 @@ export function kbAt(variant: number, phase: number): { scale: number; tx: numbe
 /** Transform CSS del contenidor del mèdia (centrat a l'escenari). */
 export function viewTransform(v: SceneView, w: number, h: number): string {
   return `translate(calc(-50% + ${v.panXNorm * w}px), calc(-50% + ${v.panYNorm * h}px)) scale(${v.zoom}) translate(${v.kbTxPct}%, ${v.kbTyPct}%)`;
+}
+
+// ── Zones de clic de la previsualització del DM ───────────────────────────────
+// L'escenari té dos blocs: el de la imatge (clic = diapositiva següent) i el del text
+// (clic = avançar el text). El del text és la franja on van els subtítols.
+export type SceneZone = 'image' | 'text';
+
+/** Franja vertical (0..1) dels subtítols segons on van. */
+export function textZoneBand(place: ScenePlace): [number, number] {
+  return place === 'bottom' ? [0.62, 1] : place === 'top' ? [0, 0.38] : [0.3, 0.7];
+}
+
+export function zoneAt(yNorm: number, place: ScenePlace, hasMedia: boolean): SceneZone {
+  if (!hasMedia) return 'text';
+  const [a, b] = textZoneBand(place);
+  return yNorm >= a && yNorm <= b ? 'text' : 'image';
 }
 
 // ── Subtítol frase a frase ─────────────────────────────────────────────────────

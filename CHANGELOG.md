@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 17 — Escena: diapositives, dos blocs i configuració endreçada
+- **Diverses imatges o vídeos** a l'Escena, que es passen com a diapositives (amb un fos suau als jugadors). Tots es preparen a les pantalles en mostrar l'escena, així el canvi és immediat
+- **Dos blocs a la previsualització**: clic al bloc de la imatge = imatge següent; clic al bloc del text (la franja dels subtítols) = avançar el text. Una pista diu què farà cada clic
+- **Carrusel de miniatures** entre la previsualització i el text: la d'ara, la següent i les que vénen; clic per anar-hi, arrossegar per canviar l'ordre, × per treure-la, «+» per afegir-ne. Tecles ↓/↑ per passar d'imatge. Opció «Bucle»
+- **Configuració endreçada** en tres grups (Text · Subtítols · Imatge), plegable amb un resum d'una línia
+- Sense canvis a la API
+
 ### v5 snapshot 16 — Escena: imatge o vídeo amb subtítols
 - **Pestanya nova «Escena»** al panell «Mostrar als jugadors»: una imatge o un vídeo de fons i el text a sobre, com uns subtítols. Sense imatge, el text surt a pantalla completa (com el Revelador)
 - **Previsualització 16:9** que és el que veuen els jugadors: la imatge omple tot l'escenari i el text hi va a sobre. S'hi pot arrossegar el fitxer, fer zoom amb la roda i moure la imatge

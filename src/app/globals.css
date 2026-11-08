@@ -47,3 +47,6 @@ input[type=color] { cursor: pointer; }
   background-size: 100% 4px;
   box-shadow: 0 0 0 100vmax #000, inset 0 0 14vmin rgba(0, 0, 0, 0.6), inset 0 0 2vmin rgba(0, 0, 0, 0.5);
 }
+
+/* Escena: fos d'entrada de cada imatge nova (diapositives), per sobre de l'anterior. */
+@keyframes scene-slide-in { from { opacity: 0 } to { opacity: 1 } }

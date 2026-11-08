@@ -37,6 +37,14 @@ export function SceneStage({ mediaUrl, mimeType, hasMedia, opts, mediaInnerRef, 
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Capes de mèdia: en canviar d'imatge (diapositiva) la nova entra amb un fos per sobre de
+  // l'anterior, que es treu quan el fos acaba. El transform el porta només la de dalt.
+  const [layers, setLayers] = useState<{ url: string; mime: string }[]>([]);
+  const [lastUrl, setLastUrl] = useState<string | null>(null);
+  if (mediaUrl !== lastUrl) {
+    setLastUrl(mediaUrl);
+    setLayers(ls => (mediaUrl ? [...ls.slice(-1), { url: mediaUrl, mime: mimeType ?? '' }] : []));
+  }
   useEffect(() => {
     const el = rootRef.current; if (!el) return;
     const upd = () => {
@@ -54,7 +62,6 @@ export function SceneStage({ mediaUrl, mimeType, hasMedia, opts, mediaInnerRef, 
   }, [sizeRef]);
 
   const { w, h } = size;
-  const video = !!mimeType && mimeType.startsWith('video/');
   const cover = opts.fit === 'cover';
   const fontPx = sceneFontPx(w, opts, hasMedia);
   const mediaStyle: React.CSSProperties = cover
@@ -82,15 +89,24 @@ export function SceneStage({ mediaUrl, mimeType, hasMedia, opts, mediaInnerRef, 
 
   return (
     <div ref={rootRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: hasMedia ? '#080604' : FULL_BG }}>
-      {hasMedia && mediaUrl && !video && !cover && (
-        <div style={{ position: 'absolute', inset: -60, backgroundImage: `url(${mediaUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(36px) brightness(0.22) saturate(0.45)', transform: 'scale(1.12)', pointerEvents: 'none' }} />
-      )}
-      {hasMedia && (
-        <div ref={mediaInnerRef} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center', pointerEvents: 'none' }}>
-          {mediaUrl && !video && <img src={mediaUrl} alt="" draggable={false} style={mediaStyle} />}
-          {mediaUrl && video && <video src={mediaUrl} autoPlay loop muted playsInline draggable={false} style={mediaStyle} />}
-        </div>
-      )}
+      {hasMedia && layers.map((l, i) => {
+        const top = i === layers.length - 1;
+        const video = l.mime.startsWith('video/');
+        return (
+          <div key={l.url}
+            onAnimationEnd={top && layers.length > 1 ? () => setLayers(ls => ls.slice(-1)) : undefined}
+            style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', animation: top && layers.length > 1 ? 'scene-slide-in 0.9s ease-in-out both' : undefined }}>
+            {!video && !cover && (
+              <div style={{ position: 'absolute', inset: -60, backgroundImage: `url(${l.url})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(36px) brightness(0.22) saturate(0.45)', transform: 'scale(1.12)' }} />
+            )}
+            <div ref={top ? mediaInnerRef : undefined} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center' }}>
+              {video
+                ? <video src={l.url} autoPlay loop muted playsInline draggable={false} style={mediaStyle} />
+                : <img src={l.url} alt="" draggable={false} style={mediaStyle} />}
+            </div>
+          </div>
+        );
+      })}
       {hasMedia && opts.band && <div style={{ position: 'absolute', pointerEvents: 'none', ...BAND[opts.place] }} />}
       <div ref={boxRef} style={box}>
         <div ref={textRef} style={text} />

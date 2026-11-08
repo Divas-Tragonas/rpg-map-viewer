@@ -18,6 +18,7 @@ export interface SceneController {
 }
 
 const FADE_SWAP_MS = 350;
+/** Sense llista de diapositives (DM antic), quantes imatges es guarden. */
 const KEEP_MEDIA = 3;
 
 /**
@@ -41,6 +42,9 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
   const viewTgt = useRef<SceneView>({ ...IDENTITY_VIEW });
   const viewCur = useRef<SceneView>({ ...IDENTITY_VIEW });
   const swapRef = useRef(0);
+  // En canviar de diapositiva, el primer sync posa l'enquadrament de cop (no el suavitza
+  // des de l'enquadrament de la imatge d'abans).
+  const snapViewRef = useRef(false);
   const mediaInnerRef = useRef<HTMLDivElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
@@ -60,6 +64,14 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
 
     const mediaFor = (s: SceneShow | null) => (s?.media ? urls.get(s.media.id) ?? null : null);
 
+    /** Allibera les imatges que ja no són a l'escena (les diapositives es guarden totes). */
+    const prune = (s: SceneShow) => {
+      if (!s.slides) return;
+      const keep = new Set(s.slides.map(m => m.id));
+      if (s.media) keep.add(s.media.id);
+      for (const [k, u] of [...urls]) if (!keep.has(k)) { URL.revokeObjectURL(u); urls.delete(k); }
+    };
+
     const ctl: SceneController = {
       apply(next) {
         const cur = sceneRef.current;
@@ -72,7 +84,9 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
         }
         if (cur && cur.id === next.id) {
           // La mateixa escena: opcions, mèdia o text que el DM ha canviat en directe.
+          if (cur.media?.id !== next.media?.id) snapViewRef.current = true;
           sceneRef.current = next;
+          prune(next);
           if (eng().chars !== next.text) setText(next.text, tgtRef.current.pos);
           setShown(next);
           setMediaUrl(mediaFor(next));
@@ -80,6 +94,7 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
         }
         // Escena nova: fos amb l'anterior (si n'hi havia) i començar on va el DM.
         sceneRef.current = next;
+        prune(next);
         const token = ++swapRef.current;
         const doShow = () => {
           if (token !== swapRef.current) return;
@@ -102,17 +117,21 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
         if (sceneRef.current?.id !== s.id) return;
         tgtRef.current = { pos: s.pos, cps: s.cps, fadeMs: s.fadeMs };
         viewTgt.current = s.view;
+        if (snapViewRef.current) { snapViewRef.current = false; viewCur.current = { ...s.view }; }
       },
       media(buffer, mimeType, id) {
         // Arriba pel BroadcastChannel I pel WS a la mateixa màquina: el segon s'ignora.
         if (urls.has(id)) return;
         urls.set(id, URL.createObjectURL(new Blob([buffer], { type: mimeType })));
-        // Només es guarden els últims (el de l'escena actual sempre).
+        // Amb diapositives, es guarden totes les de l'escena (`prune` treu les que sobren).
+        // Sense (DM antic), només les últimes, i la de l'escena actual sempre.
         const keep = sceneRef.current?.media?.id;
-        for (const k of [...urls.keys()]) {
-          if (urls.size <= KEEP_MEDIA) break;
-          if (k === id || k === keep) continue;
-          URL.revokeObjectURL(urls.get(k)!); urls.delete(k);
+        if (!sceneRef.current?.slides) {
+          for (const k of [...urls.keys()]) {
+            if (urls.size <= KEEP_MEDIA) break;
+            if (k === id || k === keep) continue;
+            URL.revokeObjectURL(urls.get(k)!); urls.delete(k);
+          }
         }
         if (sceneRef.current?.media?.id === id) setMediaUrl(urls.get(id)!);
       },

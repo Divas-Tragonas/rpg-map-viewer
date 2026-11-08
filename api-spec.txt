@@ -283,7 +283,8 @@ STRUCT, només quan canvia.
 Tampoc no ha calgut cap canvi per a l'Escena (imatge + subtítols, v5 snapshot 16): els camps
 `scene` (SceneShow | null: id, text, media { id, mimeType } | null, opts) i `sceneSync`
 (SceneSync: id, pos, cps, fadeMs, view { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }, ~30 fps)
-viatgen dins del STATE. El mèdia reaprofita EXPOSITOR_SHOW_META amb dos camps més
+viatgen dins del STATE. Des de la v5 snapshot 17, `scene.slides` (SceneMediaRef[]) porta totes
+les diapositives (imatges) de l'escena i `media` la d'ara. El mèdia reaprofita EXPOSITOR_SHOW_META amb dos camps més
 (`target: 'scene'`, `id`) + el frame binari; el servidor els reenvia opacs.
 
 ⚠️ Nota (2026-11-08): `ROUTABLE_TO_CLIENTS` (app/src/modules/sync/sync.routes.ts) NO inclou

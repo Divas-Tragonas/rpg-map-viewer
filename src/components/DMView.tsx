@@ -2225,7 +2225,7 @@ export function DMView() {
         <ScenePanel sc={scene} width={SHOW_PANEL_W}
           onFileDropped={() => { fileDragDepth.current = 0; setFileOver(false); }}
           header={<ShowPanelHeader tab="escena" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
-            hint="Espai: revela / pausa · ←→ navega · R reinicia" onClose={closeShowPanel} />} />
+            hint="Espai: text · ↓↑ imatge · ←→ frase · R reinicia" onClose={closeShowPanel} />} />
 
         {/* Diàleg: pestanya del panell «Mostrar als jugadors» */}
         {dialogOpen && (
