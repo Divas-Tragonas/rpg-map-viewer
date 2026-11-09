@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.01 — Fitxes d'Espardeny i Cigarramic, i munició que es gasta
+- **Espardeny**: 21 PV màxims, ballesta (1d8 amb Destresa, 80/320 ft), 20 fletxes i 25 fletxes de ballesta, 702 d'XP (a la còpia local; a la API, des del back office)
+- **Cigarramic**: 17 PV màxims, **Bastó pelegrí** (arma especial amb una ranura màgica: bastó 1d4 o espasa 1d6, amb Destresa) i ballesta (1d8)
+- **Munició que es gasta**: un atac pot gastar una pila de `sheet.ammo` (`SheetAttack.ammo`). En apuntar-lo a un objectiu en baixa una peça de la fitxa; el menú «Atacs» mostra el que queda i s'apaga a 0. Sense pila = il·limitada. Editable al back office («Munició» a cada atac i apartat «Munició»)
+- Sense canvis a la API (`sheet` és opac)
+
 ### v5.00 — Versió 5
 - Publicació de la **versió 5**: tot el que s'ha fet de la v5 snapshot 1 a la 19. Resum de les novetats al [README](README.md#novetats-de-la-v5)
 - Combat amb regles de 5e (dany amb defenses, conjurs amb salvacions, estats i durades), bestiari de 5e complet amb poders i historial del combat, animacions de pixel art noves i l'Escena (imatges en diapositives amb subtítols) en lloc de l'Expositor i el Revelador de text

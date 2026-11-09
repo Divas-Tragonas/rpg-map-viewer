@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { C, tint } from '@/constants';
 import { api, isApiConfigured, type ApiCharacter, type ApiCharacterInput } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import { ABILITIES, DEFAULT_SECTIONS, DAMAGE_TYPES, abilityMod, attacksOf, levelUpTo, parseAttacks, sameCharacter, sheetOf, signed, xpProgress, type AbilityId, type AttackKind, type CharacterSheet, type DamageType, type SheetAttack } from '@/lib/characters';
+import { ABILITIES, DEFAULT_SECTIONS, DAMAGE_TYPES, abilityMod, attacksOf, levelUpTo, parseAttacks, sameCharacter, sheetOf, signed, xpProgress, type AbilityId, type AmmoStack, type AttackKind, type CharacterSheet, type DamageType, type SheetAttack } from '@/lib/characters';
 import { CHARACTER_SEED } from '@/lib/characters-seed';
 
 type Form = ApiCharacterInput & { sheet: CharacterSheet };
@@ -278,6 +278,7 @@ function CharacterForm({ modal, saving, onChange, onSave, onClose }: {
         </div>
 
         <AttacksEditor sheet={sh} onChange={attacks => setSheet({ attacks })} />
+        <AmmoEditor ammo={sh.ammo ?? []} onChange={ammo => setSheet({ ammo: ammo.length ? ammo : undefined })} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
@@ -316,6 +317,25 @@ const small: React.CSSProperties = { ...inputStyle, padding: '6px 8px' };
  * el mapa els llegeix del text de la secció «Atacs»: aquí es veuen i es poden passar a editables.
  * `undefined` = tornar a llegir-los del text.
  */
+/** Munició que es gasta en disparar al mapa: una pila per nom; els atacs hi enllacen pel nom. */
+function AmmoEditor({ ammo, onChange }: { ammo: AmmoStack[]; onChange: (a: AmmoStack[]) => void }) {
+  const label: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.1em' };
+  const setRow = (i: number, patch: Partial<AmmoStack>) => onChange(ammo.map((a, j) => j === i ? { ...a, ...patch } : a));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span style={label}>Munició · baixa sola en disparar un atac que la gasta (sense pila = il·limitada)</span>
+      {ammo.map((a, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr auto', gap: 6, alignItems: 'end', maxWidth: 420 }}>
+          <Field label="Nom"><input value={a.name} onChange={e => setRow(i, { name: e.target.value })} style={small} /></Field>
+          <Field label="Queden"><input type="number" min={0} value={a.count} onChange={e => setRow(i, { count: Math.max(0, parseInt(e.target.value) || 0) })} style={small} /></Field>
+          <Button variant="ghost" onClick={() => onChange(ammo.filter((_, j) => j !== i))}>Treure</Button>
+        </div>
+      ))}
+      <div><Button variant="secondary" onClick={() => onChange([...ammo, { name: 'Fletxes', count: 20 }])}>Afegir munició</Button></div>
+    </div>
+  );
+}
+
 function AttacksEditor({ sheet, onChange }: { sheet: CharacterSheet; onChange: (a: SheetAttack[] | undefined) => void }) {
   const own = sheet.attacks;
   const list = own ?? attacksOf(sheet);
@@ -333,7 +353,7 @@ function AttacksEditor({ sheet, onChange }: { sheet: CharacterSheet; onChange: (
         </div>
       )}
       {own?.map((a, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr 1.2fr auto', gap: 6, alignItems: 'end' }}>
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr 1.2fr 1.1fr auto', gap: 6, alignItems: 'end' }}>
           <Field label="Nom"><input value={a.name} onChange={e => setRow(i, { name: e.target.value })} style={small} /></Field>
           <Field label="Tipus">
             <select value={a.kind} onChange={e => setRow(i, { kind: e.target.value as AttackKind })} style={small}>
@@ -351,6 +371,7 @@ function AttacksEditor({ sheet, onChange }: { sheet: CharacterSheet; onChange: (
               {DAMAGE_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
             </select>
           </Field>
+          <Field label="Munició"><input value={a.ammo ?? ''} placeholder="Fletxes" title="Pila de munició que gasta (veure «Munició»)" onChange={e => setRow(i, { ammo: e.target.value.trim() ? e.target.value : undefined })} style={small} /></Field>
           <Button variant="ghost" onClick={() => onChange(own.filter((_, j) => j !== i))} title="Treure l'atac">Treure</Button>
         </div>
       ))}

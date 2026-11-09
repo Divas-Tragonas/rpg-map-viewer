@@ -168,6 +168,8 @@ export interface AttackPending {
   damageType?: import('@/lib/characters').DamageType;
   /** Cos a cos, a distància o llançadissa: decideix si el cop fa l'envestida. */
   kind?: import('@/lib/characters').AttackKind;
+  /** Pila de munició que gasta el tret (`SheetAttack.ammo`). */
+  ammo?: string;
 }
 
 /** Pop-up de dany obert al costat del token objectiu (`DamagePopup`). */

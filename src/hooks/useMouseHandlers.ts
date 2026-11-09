@@ -81,6 +81,8 @@ interface MouseHandlerSetters {
   notify: import('@/types').Notify;
   /** Obre el pop-up de dany al costat del token objectiu d'un atac. */
   openDamage: (p: import('@/types').DamagePrompt) => void;
+  /** Gasta una peça de munició de l'atacant (token `pl_*`) en apuntar un atac que en gasta. */
+  spendAmmo: (attackerKey: string, ammo: string) => void;
   /**
    * Conjur a punt de llançar-se: en combat, si toca tokens, obre el pop-up (`SpellEffectPopup`) i
    * retorna `true` (l'animació es llança en confirmar-lo). `false` = llançar-lo ara.
@@ -222,6 +224,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       cancelPendingSpell(R);
       // Clic sobre un altre token: pop-up de dany al seu costat (el DM hi posa el que han tret els daus).
       if (target && target.key !== pend.key) {
+        if (pend.ammo) S.spendAmmo(pend.key, pend.ammo);
         const b = tokenBounds(target), toX = (x: number) => e.clientX + (x - amx) * asc, toY = (y: number) => e.clientY + (y - amy) * asc;
         // Cos a cos (amb envestida) o a distància: una llançadissa a tocar és cos a cos.
         const pv = aimAttack(R, pend, { x: amx, y: amy }, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), asc);

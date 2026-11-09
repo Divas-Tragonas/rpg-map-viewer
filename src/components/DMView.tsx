@@ -75,7 +75,7 @@ import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
+import { buildSheetShow, characterFor, spendAmmo as spendAmmoOf, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
 import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
 import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
@@ -1040,6 +1040,21 @@ export function DMView() {
       : { mode: 'line', start: origin, end: origin, rangeFt: def.rangeFt };
   }, [R, onSpellCast, addSpell]);
 
+  // Munició: cada tret d'un jugador (l'atac apuntat a un objectiu) en gasta una peça de la seva fitxa.
+  const charsRef = useRef(chars); charsRef.current = chars;
+  const spendAmmo = useCallback((attackerKey: string, ammo: string) => {
+    const pl = R.rPlayers.current.find(p => `pl_${p.id}` === attackerKey);
+    const cs = charsRef.current;
+    const ch = pl ? characterFor(pl, cs.characters) : null;
+    if (!pl || !ch) return;
+    const sheet = sheetOf(ch);
+    const next = spendAmmoOf(sheet, ammo);
+    if (!next) return;
+    const left = next.find(x => x.name.trim().toLowerCase() === ammo.trim().toLowerCase())?.count ?? 0;
+    void cs.update(ch.id, { sheet: { ...ch.sheet, ammo: next } });
+    if (left === 0) notify(`${pl.name} es queda sense ${ammo.toLowerCase()}.`, 'warn');
+  }, [R, notify]);
+
   const mouseSetters = useMemo(() => ({
     setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
     setActiveSpells, setPaintedZones, setContextMenu: setContextMenuFromMap, onUndoChange: refreshUndo,
@@ -1048,8 +1063,8 @@ export function DMView() {
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
     setRoomRevealed, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
     tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave },
-    notify, openDamage: setDamagePrompt, onSpellCast,
-  }), [notify, onSpellCast, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
+    notify, openDamage: setDamagePrompt, onSpellCast, spendAmmo,
+  }), [notify, spendAmmo, onSpellCast, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
     useMouseHandlers(R, mouseSetters, _broadcastState, commitStroke);

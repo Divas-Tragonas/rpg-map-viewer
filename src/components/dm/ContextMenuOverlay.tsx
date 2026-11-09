@@ -10,7 +10,7 @@ import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/com
 import { CharacterSection, type CharacterMenuProps } from '@/components/dm/CharacterSection';
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog, AttackPending } from '@/types';
-import { attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
+import { ammoLeft, attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
 import { monsterForEnemy } from '@/lib/db-enemies';
 import { enemyDefenses } from '@/lib/rules/damage';
 import { MonsterBlock } from '@/components/dm/MonsterBlock';
@@ -212,22 +212,25 @@ const rangeText = (a: SheetAttack) => {
  * Triar-ne un tanca el menú i deixa el ratolí apuntant: anell d'abast, línia i peus fins al
  * token assenyalat (vora a vora). Només informa: si encerta i el dany es decideixen a la taula.
  */
-function AttackList({ attacks, onPick }: { attacks: SheetAttack[]; onPick: (a: SheetAttack) => void }) {
+function AttackList({ attacks, onPick, ammoOf }: { attacks: SheetAttack[]; onPick: (a: SheetAttack) => void; ammoOf?: (a: SheetAttack) => number | null }) {
   return (
     <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
       <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SwordsIcon size={11} /> Atacs</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
         {attacks.map((a, i) => {
           const dmg = DAMAGE_TYPES.find(d => d.id === a.damageType)?.label;
+          const left = ammoOf?.(a) ?? null;
+          const out = left === 0;
           const kind = a.kind === 'melee' ? 'cos a cos' : a.kind === 'thrown' ? 'llançadissa' : 'a distància';
           return (
             <Button key={`${a.name}-${i}`} size="sm" variant="tint" color={C.enemy}
-              title={`${a.name} · ${kind} · ${rangeText(a)} ft${a.bonus ? ` · ${a.bonus}` : ''}${a.damage ? ` · ${a.damage}` : ''}${dmg ? ` ${dmg}` : ''}\nClic al mapa (o al token objectiu) · Esc o clic dret cancel·la`}
-              onMouseDown={e => { e.stopPropagation(); onPick(a); }}
+              title={`${a.name} · ${kind} · ${rangeText(a)} ft${a.bonus ? ` · ${a.bonus}` : ''}${a.damage ? ` · ${a.damage}` : ''}${dmg ? ` ${dmg}` : ''}${left !== null ? ` · ${left} ${a.ammo?.toLowerCase()}` : ''}${out ? ' (sense munició)' : ''}\nClic al mapa (o al token objectiu) · Esc o clic dret cancel·la`}
+              disabled={out}
+              onMouseDown={e => { e.stopPropagation(); if (!out) onPick(a); }}
               style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
               <PixelIcon name={attackIcon(a.name, a.kind)} />
               <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{a.name}</span>
-              <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{rangeText(a)}</span>
+              <span style={{ color: out ? C.enemy : C.dim, fontSize: FS.xs, flexShrink: 0 }}>{left !== null ? `${left}× · ` : ''}{rangeText(a)}</span>
             </Button>
           );
         })}
@@ -569,9 +572,9 @@ export function ContextMenuOverlay({
         const reach = lib ? enemyDefenses(lib)?.reachFt : undefined;
         const generic = reach !== undefined ? { ...GENERIC_MELEE, reachFt: reach } : GENERIC_MELEE;
         const list = own.length > 0 ? own : [generic];
-        return <AttackList attacks={list} onPick={a => {
+        return <AttackList attacks={list} ammoOf={ch ? a => ammoLeft(sheetOf(ch), a) : undefined} onPick={a => {
           const { normalFt, longFt } = attackRanges(a);
-          onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind });
+          onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind, ammo: a.ammo });
           onClose();
         }} />;
       })()}

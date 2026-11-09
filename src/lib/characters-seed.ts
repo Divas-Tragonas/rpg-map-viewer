@@ -10,7 +10,8 @@
 import type { ApiCharacterInput } from '@/lib/api';
 import type { CharacterSheet } from '@/lib/characters';
 
-type Seed = Omit<ApiCharacterInput, 'sheet' | 'portrait'> & { sheet: CharacterSheet };
+/** `xp`: l'experiència amb què comença la còpia local (la API no l'accepta en crear: només l'endpoint d'XP). */
+type Seed = Omit<ApiCharacterInput, 'sheet' | 'portrait'> & { sheet: CharacterSheet; xp?: number };
 
 export const CHARACTER_SEED: Seed[] = [
   {
@@ -70,15 +71,21 @@ export const CHARACTER_SEED: Seed[] = [
   },
   {
     name: 'Espardeny Llepamabre', player: 'Martí', race: 'Humà', className: 'Guerrer 1', level: 1,
-    hpMax: 12, ac: 14, speed: 30, passivePerception: 13,
+    hpMax: 21, ac: 14, speed: 30, passivePerception: 13, xp: 702,
     notionUrl: 'https://app.notion.com/p/30fdcaf8e682800691e3e32bd536f398',
     sheet: {
       background: 'Heroi del poble', alignment: 'Legal bo', initiative: '+3', profBonus: '+2', hitDie: '1d10',
       abilities: { str: 14, dex: 16, con: 15, int: 11, wis: 13, cha: 9 }, saves: ['str', 'con'],
+      attacks: [
+        { name: 'Espadón', kind: 'melee', reachFt: 5, bonus: '+4', damage: '2d6+2', damageType: 'slashing' },
+        { name: 'Arc llarg', kind: 'ranged', rangeFt: 150, longFt: 600, bonus: '+7', damage: '1d8+3', damageType: 'piercing', ammo: 'Fletxes' },
+        { name: 'Ballesta', kind: 'ranged', rangeFt: 80, longFt: 320, bonus: '+7', damage: '1d8+3', damageType: 'piercing', ammo: 'Fletxes de ballesta' },
+      ],
+      ammo: [{ name: 'Fletxes', count: 20 }, { name: 'Fletxes de ballesta', count: 25 }],
       sections: [
         { title: 'Habilitats', text: 'Atletismo +4 ✦ · Percepción +3 ✦ · Supervivencia +3 ✦ · Acrobacias +3' },
-        { title: 'Atacs', text: '- **Espadón** +4 · 2d6+2 tallant\n- **Arc llarg** +7 · 1d8+3 perforant (abast 150/600 peus)' },
-        { title: 'Equip', text: "Armadura de cuir, arc llarg, 20 fletxes, espadón, motxilla, sac de dormir, estris de cuina, esca, 10 torxes, racions 10 dies, odre d'aigua, 50 peus de corda de cànem, eines de fuster, pala, olla de ferro, roba comuna, bossa" },
+        { title: 'Atacs', text: '- **Espadón** +4 · 2d6+2 tallant\n- **Arc llarg** +7 · 1d8+3 perforant (abast 150/600 peus) · gasta 1 fletxa\n- **Ballesta** +7 · 1d8+3 perforant (abast 80/320 peus) · gasta 1 virota' },
+        { title: 'Equip', text: "Armadura de cuir, arc llarg, 20 fletxes, ballesta, 25 fletxes de ballesta, espadón, motxilla, sac de dormir, estris de cuina, esca, 10 torxes, racions 10 dies, odre d'aigua, 50 peus de corda de cànem, eines de fuster, pala, olla de ferro, roba comuna, bossa" },
         { title: 'Trets', text: "- **Segundo Aire:** acció addicional per recuperar 1d10 + nivell de guerrer en PV (1 cop per descans curt o llarg)\n- **Estilo de Combate (Arquería):** +2 a l'atac amb armes a distància (inclòs a l'arc)\n- **Hospitalidad Rústica:** troba refugi entre la gent del poble, que la protegirà de la llei si cal" },
         { title: 'Idiomes i competències', text: '**Idiomes:** Comú, Èlfic\n**Competències:** totes les armadures, escuts, armes simples i marcials, eines de fuster, vehicles terrestres' },
         { title: 'Personalitat', text: "**Trets:** quan fixa la ment en alguna cosa, la persegueix. Intenta semblar intel·ligent amb paraules llargues.\n**Ideal:** Sinceritat. No és bo fingir ser qui no ets.\n**Vincle:** un dia, Pineda del Tro tornarà a ser un poble pròsper, amb una estàtua seva a la plaça.\n**Defecte:** convençut de la importància del seu destí, no veu les seves limitacions.\n**Meta:** Espantar el drac de la Torre Vella de Pineda del Tro i provar que és un heroi de debò." },
@@ -88,15 +95,23 @@ export const CHARACTER_SEED: Seed[] = [
   },
   {
     name: 'Cigarramic Capllimat', player: 'Pau', race: 'Mitjà peus lleugers', className: 'Pícar 1', level: 1,
-    hpMax: 9, ac: 14, speed: 25, passivePerception: 10,
+    hpMax: 17, ac: 14, speed: 25, passivePerception: 10,
     notionUrl: 'https://app.notion.com/p/30fdcaf8e682801393b9de85cc8d5f95',
     sheet: {
       background: 'Criminal', alignment: 'Neutral', initiative: '+3', profBonus: '+2', hitDie: '1d8',
       abilities: { str: 8, dex: 16, con: 12, int: 13, wis: 10, cha: 16 }, saves: ['dex', 'cha'],
+      attacks: [
+        { name: 'Bastó pelegrí (bastó)', kind: 'melee', reachFt: 5, bonus: '+5', damage: '1d4+3', damageType: 'bludgeoning' },
+        { name: 'Bastó pelegrí (espasa)', kind: 'melee', reachFt: 5, bonus: '+5', damage: '1d6+3', damageType: 'slashing' },
+        { name: 'Espada corta', kind: 'melee', reachFt: 5, bonus: '+5', damage: '1d6+3', damageType: 'piercing' },
+        { name: 'Arc curt', kind: 'ranged', rangeFt: 80, longFt: 320, bonus: '+5', damage: '1d6+3', damageType: 'piercing', ammo: 'Fletxes' },
+        { name: 'Ballesta', kind: 'ranged', rangeFt: 80, longFt: 320, bonus: '+5', damage: '1d8+3', damageType: 'piercing' },
+      ],
+      ammo: [{ name: 'Fletxes', count: 20 }],
       sections: [
         { title: 'Habilitats', text: 'Acrobacias +5 ✦ · Engaño +5 ✦ · Juego de Manos +5 ✦ · Persuasión +5 ✦ · **Sigilo +7 ✦✦** (pericia)' },
         { title: 'Atacs', text: '- **Espada corta** +5 · 1d6+3 perforant\n- **Arc curt** +5 · 1d6+3 perforant (abast 80/320 peus)\n- **Atac furtiu:** +1d6 amb avantatge o amb un aliat al costat de l\'objectiu' },
-        { title: 'Equip', text: "Espada corta, arc curt, 20 fletxes, armadura de cuir, eines de lladre, motxilla, 5 espelmes, palanqueta, martell, 10 pitons, 50 peus de corda de cànem, llanterna sorda, 2 flascons d'oli, racions 5 dies, esca, odre d'aigua, roba fosca amb caputxa, bossa\n**Monedes:** 10 PP" },
+        { title: 'Equip', text: "**Bastó pelegrí** (arma especial, amb una ranura màgica; bastó 1d4 o espasa 1d6, amb Destresa), ballesta, espada corta, arc curt, 20 fletxes, armadura de cuir, eines de lladre, motxilla, 5 espelmes, palanqueta, martell, 10 pitons, 50 peus de corda de cànem, llanterna sorda, 2 flascons d'oli, racions 5 dies, esca, odre d'aigua, roba fosca amb caputxa, bossa\n**Monedes:** 10 PP" },
         { title: 'Trets', text: "- **Suerte:** amb un 1 natural en un d20, pot tornar a tirar\n- **Valiente:** avantatge contra ser espantat\n- **Agilidad de Mediano:** pot passar per l'espai de criatures més grans\n- **Sigiloso por Naturaleza:** es pot amagar darrere de criatures més grans\n- **Contacto Criminal:** intermediari d'una xarxa criminal\n- **Pericia:** bonus doble a Sigilo i eines de lladre\n- **Canto de Ladrones:** coneix el cant dels lladres" },
         { title: 'Idiomes i competències', text: "**Idiomes:** Comú, Mitjà\n**Competències:** armadures lleugeres, armes simples, ballestes de mà, espases llargues, roperes i curtes, eines de lladre, cartes, eines de fuster" },
         { title: 'Personalitat', text: "**Trets:** mai té un pla, però és molt bo improvisant. La millor manera de fer-li fer una cosa és dir-li que no pot.\n**Ideal:** La gent. Lleial als amics, no als ideals.\n**Vincle:** la seva tia té una granja a Phentanil i sempre li dona part dels guanys il·lícits.\n**Defecte:** la seva tia no ha de saber mai què va fer amb els Caps Roges.\n**Meta:** Venjança: descobrir qui el va trair als Caps Roges." },

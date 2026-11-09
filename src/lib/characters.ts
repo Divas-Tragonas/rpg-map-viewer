@@ -34,7 +34,15 @@ export interface CharacterSheet {
    * del text de la secció «Atacs» (`parseAttacks`); l'editor del back office els desa aquí.
    */
   attacks?: SheetAttack[];
+  /**
+   * Munició que es gasta en disparar (fletxes, virotes…): una pila per tipus. Un atac amb
+   * `ammo: 'Fletxes'` en gasta una de la pila d'aquest nom cada cop que s'apunta a un objectiu.
+   * Una pila que no hi és = sense control (munició il·limitada).
+   */
+  ammo?: AmmoStack[];
 }
+
+export interface AmmoStack { name: string; count: number }
 
 // ── Atacs (només informació: l'app mesura l'abast, els daus es tiren a la taula) ──────────
 
@@ -65,6 +73,24 @@ export interface SheetAttack {
   bonus?: string;
   damage?: string;
   damageType?: DamageType;
+  /** Nom de la pila de `sheet.ammo` que gasta cada tret (veure `spendAmmo`). */
+  ammo?: string;
+}
+
+const sameAmmo = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Munició que queda d'un atac: `null` si no en gasta (o la pila no hi és) = il·limitada. */
+export function ammoLeft(sheet: CharacterSheet, a: Pick<SheetAttack, 'ammo'>): number | null {
+  if (!a.ammo) return null;
+  const st = sheet.ammo?.find(x => sameAmmo(x.name, a.ammo!));
+  return st ? st.count : null;
+}
+
+/** La munició d'una fitxa amb una peça menys de la pila `name` (mai per sota de 0). `null` = res a canviar. */
+export function spendAmmo(sheet: CharacterSheet, name: string): AmmoStack[] | null {
+  const st = sheet.ammo;
+  if (!st?.some(x => sameAmmo(x.name, name))) return null;
+  return st.map(x => sameAmmo(x.name, name) ? { ...x, count: Math.max(0, x.count - 1) } : x);
 }
 
 /** Abast «bo» (sense desavantatge) i llarg d'un atac, en peus. */

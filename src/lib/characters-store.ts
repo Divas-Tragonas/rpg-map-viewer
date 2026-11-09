@@ -35,7 +35,7 @@ export function loadCachedCharacters(): ApiCharacter[] {
   if (c?.characters?.length) return c.characters;
   return CHARACTER_SEED.map(sd => ({
     ...sd, id: `local-${sd.name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-')}`,
-    xp: 0, portrait: '', createdAt: '', updatedAt: '',
+    xp: sd.xp ?? 0, portrait: '', createdAt: '', updatedAt: '',
   }));
 }
 
