@@ -5,6 +5,13 @@ El DM treballa en una pantalla i els jugadors veuen, en una altra (TV, tablet o 
 
 **Live:** [https://rpg-map-viewer.vercel.app/](https://rpg-map-viewer.vercel.app/)
 
+## Novetats de la v5
+
+- **Combat amb regles de 5e**: el dany d'atacs i conjurs té en compte resistències, immunitats i vulnerabilitats; els conjurs demanen salvació, posen estats i duren el que toca; abasts i àrees per caselles.
+- **Bestiari de 5e complet**: blocs sencers dels monstres (atacs, poders, conjurs amb recàrrega, mides) i un historial del combat.
+- **Animacions de pixel art noves** per a atacs, màgies, estats i zones, i l'app Píxel per defecte.
+- **Escena**: imatges o vídeos en diapositives amb el text en subtítols, en lloc de l'Expositor i el Revelador de text.
+
 ---
 
 ## Engegar-la
@@ -24,7 +31,7 @@ Les dues finestres del mateix ordinador es sincronitzen soles; per a una tablet,
 | `/` | El DM | Tot el control: mapa, tokens, combat, sales, màgies |
 | `/player` | Els jugadors | Només el que el DM mostra: mapa, tokens, torn, fitxa, diàlegs |
 | `/admin` | El DM, fora de partida | Back office: enemics, fitxes de personatge (cal API) |
-| `/expositor` | Un monitor de recanvi | Visor local d'un fitxer a pantalla completa (res a veure amb l'Expositor del DM) |
+| `/expositor` | Un monitor de recanvi | Visor local d'un fitxer a pantalla completa (no el controla el DM) |
 
 ## Primer ús en 5 passos
 
@@ -32,7 +39,7 @@ Les dues finestres del mateix ordinador es sincronitzen soles; per a una tablet,
 2. **Prepara.** Interruptor **Preparar · Jugar** a la barra de dalt. A *Preparar* dibuixes parets, sales fosques, portes i llums, i calibres la graella.
 3. **Col·loca les DIVAS i els enemics.** Lateral esquerre → *Escena* (jugadors i enemics) i *Biblioteca* (plantilles per afegir). Clic dret a un token = tota la seva fitxa.
 4. **Obre una pantalla de jugador.** Menú **Pantalles** de la barra: obre una finestra al PC o copia l'adreça per a la tablet.
-5. **Juga.** Passa a *Jugar*: mou tokens, inicia el combat (barra de torns de baix), llança màgies i, amb **Mostrar als jugadors**, ensenya imatges, text, diàlegs o fitxes. **Ctrl+Z** desfà l'última acció i **?** mostra totes les dreceres.
+5. **Juga.** Passa a *Jugar*: mou tokens, inicia el combat (barra de torns de baix), llança màgies i, amb **Mostrar als jugadors**, ensenya imatges amb subtítols (Escena), diàlegs o fitxes. **Ctrl+Z** desfà l'última acció i **?** mostra totes les dreceres.
 
 Tot es desa sol cada 30 s al navegador; el menú **Partida** exporta o carrega una partida.
 

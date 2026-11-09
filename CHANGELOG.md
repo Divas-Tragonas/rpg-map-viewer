@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.00 — Versió 5
+- Publicació de la **versió 5**: tot el que s'ha fet de la v5 snapshot 1 a la 19. Resum de les novetats al [README](README.md#novetats-de-la-v5)
+- Combat amb regles de 5e (dany amb defenses, conjurs amb salvacions, estats i durades), bestiari de 5e complet amb poders i historial del combat, animacions de pixel art noves i l'Escena (imatges en diapositives amb subtítols) en lloc de l'Expositor i el Revelador de text
+- Necessita la API amb els camps de 5e als enemics (v5 snapshots 1 i 7, veure `api-spec.txt`)
+
 ### v5 snapshot 19 — L'Escena substitueix l'Expositor i el Revelador de text
 - **Fora les pestanyes «Imatge o vídeo» i «Text»** del panell «Mostrar als jugadors» (Expositor i Revelador de text), també a les pantalles de jugador: l'**Escena** en fa les dues coses. El panell queda amb Escena · Diàleg · Fitxa. El text que deixen els mòduls de la Història («llegir en veu alta», «Anteriorment…») va a la caixa de text de l'Escena
 - **Configuració de l'Escena reorganitzada**: dos grups (Text · Imatge) en una graella de tres columnes iguals, amb el nom de cada ajust a sobre. Els botons fan sempre la mateixa mida: canviar a L/R (sense imatge) ja no mou res. «Buida» passa al grup Imatge
