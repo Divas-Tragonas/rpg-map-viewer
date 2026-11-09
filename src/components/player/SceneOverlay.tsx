@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { RevealEngine } from '@/lib/textreveal';
 import { SceneStage } from '@/components/scene/SceneStage';
 import {
-  DEFAULT_SCENE_OPTS, IDENTITY_VIEW, SentenceWindow, followBottom, viewTransform,
+  DEFAULT_SCENE_OPTS, IDENTITY_VIEW, SentenceWindow, viewTransform,
   type SceneShow, type SceneSync, type SceneView,
 } from '@/lib/scene';
 
@@ -161,9 +161,9 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
       const hasMedia = !!sc.media;
       const box = boxRef.current;
       eng.render(t.fadeMs, hasMedia ? undefined : box);
-      if (hasMedia && sc.opts.flow === 'sentence') winRef.current.apply(eng);
+      // Amb imatge, subtítols sempre frase a frase.
+      if (hasMedia) winRef.current.apply(eng);
       else winRef.current.showAll(eng);
-      if (hasMedia && sc.opts.flow === 'flow' && box) followBottom(eng, box);
       const inner = mediaInnerRef.current;
       if (hasMedia && inner) {
         const tg = viewTgt.current, cur = viewCur.current;

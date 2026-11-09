@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 18 — Escena: panell compacte i alineació sense imatge
+- **Tot el panell de l'Escena cap a la pantalla sense scroll** (1920×1080 a escala 125 %): configuració en files compactes, el progrés del text com una línia a sota de la previsualització i l'estat al costat dels botons
+- **Text i subtítols en un sol grup** de la configuració; el d'Imatge en una sola fila
+- **Subtítols sempre frase a frase**: fora l'opció «Continu»
+- **Sense imatge, la posició passa a ser l'alineació** del text a pantalla completa: els botons diuen L · Centre · R (dalt = esquerra, baix = dreta). La mida S/M/L també hi compta
+- **Miniatures més petites**, amb la que es veu sempre al centre del carrusel
+- Sense canvis a la API
+
 ### v5 snapshot 17 — Escena: diapositives, dos blocs i configuració endreçada
 - **Diverses imatges o vídeos** a l'Escena, que es passen com a diapositives (amb un fos suau als jugadors). Tots es preparen a les pantalles en mostrar l'escena, així el canvi és immediat
 - **Dos blocs a la previsualització**: clic al bloc de la imatge = imatge següent; clic al bloc del text (la franja dels subtítols) = avançar el text. Una pista diu què farà cada clic

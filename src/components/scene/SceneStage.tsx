@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { FONT_SERIF } from '@/constants';
-import { sceneFontPx, type SceneOpts } from '@/lib/scene';
+import { PLACE_ALIGN, sceneFontPx, type SceneOpts } from '@/lib/scene';
 
 /** Fons del text a pantalla completa (sense imatge): el mateix del Revelador de text. */
 const FULL_BG = 'radial-gradient(130% 90% at 50% 0%, #1a1611 0%, #0a0806 62%)';
@@ -84,7 +84,7 @@ export function SceneStage({ mediaUrl, mimeType, hasMedia, opts, mediaInnerRef, 
     }
     : {
       fontFamily: FONT_SERIF, fontSize: fontPx, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-      maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', color: '#ece3d0', textShadow: '0 2px 24px rgba(0,0,0,0.6)',
+      maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', textAlign: PLACE_ALIGN[opts.place], color: '#ece3d0', textShadow: '0 2px 24px rgba(0,0,0,0.6)',
     };
 
   return (

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RevealEngine, cpsFromSlider, fadeMsFromSlider } from '@/lib/textreveal';
 import {
-  DEFAULT_SCENE_OPTS, KB_VARIANT_COUNT, SentenceWindow, followBottom, kbAt, kbPhase, newSceneId, viewTransform,
+  DEFAULT_SCENE_OPTS, KB_VARIANT_COUNT, SentenceWindow, kbAt, kbPhase, newSceneId, viewTransform,
   type SceneOpts, type SceneShow, type SceneView,
 } from '@/lib/scene';
 import { logJournal } from '@/lib/journal';
@@ -346,9 +346,9 @@ export function useSceneShow(io: {
         }
         const box = boxRef.current;
         eng.render(f, m ? undefined : box);
-        if (m && o.flow === 'sentence') winRef.current.apply(eng);
+        // Amb imatge, subtítols sempre frase a frase.
+        if (m) winRef.current.apply(eng);
         else winRef.current.showAll(eng);
-        if (m && o.flow === 'flow' && box) followBottom(eng, box);
         updateStatus();
       }
 

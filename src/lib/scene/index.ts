@@ -15,17 +15,17 @@ import type { RevealEngine } from '@/lib/textreveal';
 
 export type ScenePlace = 'bottom' | 'center' | 'top';
 export type SceneSize = 's' | 'm' | 'l';
-export type SceneFlow = 'sentence' | 'flow';
 export type SceneFit = 'contain' | 'cover';
 
 export interface SceneOpts {
-  /** On van els subtítols (amb imatge). */
+  /**
+   * Amb imatge, on van els subtítols (dalt, centre, baix). Sense imatge (text a pantalla
+   * completa), com s'alinea el text: dalt = esquerra, centre = centre, baix = dreta.
+   */
   place: ScenePlace;
   size: SceneSize;
   /** Franja fosca darrere dels subtítols, per llegir-los sobre imatges clares. */
   band: boolean;
-  /** `sentence` = només la frase d'ara (subtítol); `flow` = el text s'acumula. */
-  flow: SceneFlow;
   /** `contain` = la imatge sencera (fons difuminat al voltant); `cover` = omple la pantalla. */
   fit: SceneFit;
   /** Moviment lent de càmera (Ken Burns) sobre la imatge. */
@@ -33,7 +33,7 @@ export interface SceneOpts {
 }
 
 export const DEFAULT_SCENE_OPTS: SceneOpts = {
-  place: 'bottom', size: 'm', band: true, flow: 'sentence', fit: 'contain', kenBurns: true,
+  place: 'bottom', size: 'm', band: true, fit: 'contain', kenBurns: true,
 };
 
 export interface SceneMediaRef { id: string; mimeType: string }
@@ -73,13 +73,15 @@ export function newSceneId(): string {
 // jugador es veuen igual, sigui quina sigui la mida de cadascuna.
 const SUB_SIZE: Record<SceneSize, number> = { s: 2.2, m: 2.9, l: 3.8 };
 const FULL_SIZE = 4.2;
+/** Sense imatge, la mida (S/M/L) també compta: escala la del text a pantalla completa. */
+const FULL_SCALE: Record<SceneSize, number> = { s: 0.8, m: 1, l: 1.22 };
 
 /** Mida de la lletra en px per a un escenari de `w` px d'ample. */
 export function sceneFontPx(w: number, opts: SceneOpts, hasMedia: boolean): number {
-  const pct = hasMedia ? SUB_SIZE[opts.size] : FULL_SIZE;
+  const pct = hasMedia ? SUB_SIZE[opts.size] : FULL_SIZE * FULL_SCALE[opts.size];
   const px = pct * w / 100;
   // Mínims perquè un mòbil vertical o la previsualització siguin llegibles.
-  return hasMedia ? Math.max(13, px) : Math.max(16, Math.min(64, px));
+  return hasMedia ? Math.max(13, px) : Math.max(14, Math.min(78, px));
 }
 
 // ── Ken Burns (mateixos quatre moviments que l'Expositor) ────────────────────
@@ -117,6 +119,9 @@ export type SceneZone = 'image' | 'text';
 export function textZoneBand(place: ScenePlace): [number, number] {
   return place === 'bottom' ? [0.62, 1] : place === 'top' ? [0, 0.38] : [0.3, 0.7];
 }
+
+/** Sense imatge, la posició dels subtítols és l'alineació del text a pantalla completa. */
+export const PLACE_ALIGN: Record<ScenePlace, 'left' | 'center' | 'right'> = { top: 'left', center: 'center', bottom: 'right' };
 
 export function zoneAt(yNorm: number, place: ScenePlace, hasMedia: boolean): SceneZone {
   if (!hasMedia) return 'text';
@@ -160,17 +165,4 @@ export class SentenceWindow {
     for (let i = 0; i < eng.n; i++) eng.units[i].style.display = (i >= a && i < b) ? '' : 'none';
     this.all = false; this.a = a; this.b = b;
   }
-}
-
-/**
- * Mode continu amb imatge: la caixa dels subtítols té una alçada màxima i s'hi fa
- * lliscar el text perquè l'última línia revelada quedi a baix de tot.
- */
-export function followBottom(eng: RevealEngine, box: HTMLElement): void {
-  if (!eng.n) return;
-  const k = Math.max(0, Math.min(eng.n - 1, Math.ceil(eng.pos) - 1));
-  const u = eng.units[k]; if (!u) return;
-  const target = Math.max(0, u.offsetTop + u.offsetHeight - box.clientHeight + 8);
-  const d = target - box.scrollTop;
-  if (Math.abs(d) > 0.5) box.scrollTop += d * 0.18;
 }

@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { C, FS, RADIUS, FONT_SERIF } from '@/constants';
-import { ImageIcon, CheckIcon, PlayIcon, SlidersIcon } from '@/components/icons';
+import { ImageIcon, CheckIcon, PlayIcon } from '@/components/icons';
 import { SceneStage } from '@/components/scene/SceneStage';
 import { speedLabel, smoothLabel } from '@/lib/textreveal';
 import type { SceneShowApi, SceneMedia } from '@/hooks/useSceneShow';
@@ -12,13 +12,13 @@ function Seg<T extends string>({ value, onChange, items, title }: {
   value: T; onChange: (v: T) => void; items: [T, string][]; title?: string;
 }) {
   return (
-    <div title={title} style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: RADIUS.md, overflow: 'hidden', flex: 1, minWidth: 0 }}>
+    <div title={title} style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: RADIUS.md, overflow: 'hidden', flexShrink: 0 }}>
       {items.map(([v, label], i) => (
         <button key={v} onClick={() => onChange(v)} aria-pressed={value === v}
           style={{
-            flex: 1, padding: '4px 4px', border: 'none', borderLeft: i ? `1px solid ${C.border}` : 'none', cursor: 'pointer',
+            padding: '3px 7px', border: 'none', borderLeft: i ? `1px solid ${C.border}` : 'none', cursor: 'pointer',
             background: value === v ? `${C.accent}22` : 'transparent', color: value === v ? C.accent : C.dim,
-            fontSize: FS.xs, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            fontSize: FS.xs, fontWeight: 700, whiteSpace: 'nowrap',
           }}>
           {label}
         </button>
@@ -31,7 +31,7 @@ function Toggle({ on, onClick, children, title }: { on: boolean; onClick: () => 
   return (
     <button onClick={onClick} aria-pressed={on} title={title}
       style={{
-        flex: 1, padding: '4px 6px', borderRadius: RADIUS.md, border: `1px solid ${on ? C.accent : C.border}`,
+        padding: '3px 8px', borderRadius: RADIUS.md, border: `1px solid ${on ? C.accent : C.border}`, flexShrink: 0,
         background: on ? `${C.accent}18` : 'transparent', color: on ? C.accent : C.dim,
         cursor: 'pointer', fontSize: FS.xs, fontWeight: 700, whiteSpace: 'nowrap',
       }}>
@@ -44,7 +44,7 @@ function SmallBtn({ onClick, children, title, disabled }: { onClick: () => void;
   return (
     <button onClick={onClick} title={title} disabled={disabled}
       style={{
-        flex: 1, padding: '4px 6px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent',
+        padding: '3px 7px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', flexShrink: 0,
         color: disabled ? 'rgba(255,255,255,0.18)' : C.dim, cursor: disabled ? 'default' : 'pointer', fontSize: FS.xs, fontWeight: 600, whiteSpace: 'nowrap',
       }}>
       {children}
@@ -52,33 +52,39 @@ function SmallBtn({ onClick, children, title, disabled }: { onClick: () => void;
   );
 }
 
-/** Un ajust: nom petit a dalt (i el valor a la dreta, si en té) i el control a sota. */
-function Field({ label, value, children }: { label: string; value?: string; children: React.ReactNode }) {
+/** Nom d'un ajust, a l'esquerra del control. */
+function Lbl({ children }: { children: React.ReactNode }) {
+  return <span style={{ fontSize: FS.xs, color: C.dim, whiteSpace: 'nowrap', flexShrink: 0 }}>{children}</span>;
+}
+
+function Slider({ label, value, valueLabel, onChange }: { label: string; value: number; valueLabel: string; onChange: (v: number) => void }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: FS.xs, color: C.dim }}>
-        <span>{label}</span>{value && <b style={{ color: C.text, fontWeight: 600 }}>{value}</b>}
-      </div>
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>{children}</div>
-    </div>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }} title={`${label}: ${valueLabel}`}>
+      <Lbl>{label}</Lbl>
+      <input type="range" min={1} max={100} value={value} onChange={e => onChange(+e.target.value)} aria-label={label}
+        style={{ flex: 1, minWidth: 40, accentColor: C.accent }} />
+      <b style={{ fontSize: FS.xs, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', minWidth: 54 }}>{valueLabel}</b>
+    </label>
   );
 }
 
-/** Un grup de la configuració (Text · Subtítols · Imatge). */
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+/** Títol d'un grup de la configuració, a la columna de l'esquerra. */
+function GroupTitle({ children, rows = 1, first = false }: { children: React.ReactNode; rows?: number; first?: boolean }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '7px 8px 8px', border: `1px solid ${C.border}`, borderRadius: RADIUS.md, background: 'rgba(255,255,255,0.015)', minWidth: 0 }}>
-      <div style={{ fontSize: FS.xs, color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{title}</div>
+    <div style={{
+      gridRow: `span ${rows}`, alignSelf: 'stretch', display: 'flex', alignItems: 'center', fontSize: FS.xs, color: C.accent,
+      fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', borderTop: first ? 'none' : `1px solid ${C.border}`, paddingTop: first ? 0 : 6,
+    }}>
       {children}
     </div>
   );
 }
 
-const PLACE_LABEL: Record<SceneOpts['place'], string> = { bottom: 'baix', center: 'centre', top: 'dalt' };
+const ROW: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 };
 
 // ── Carrusel de diapositives ─────────────────────────────────────────────────
-const THUMB_W = 88;
-const THUMB_H = 50;
+const THUMB_W = 56;
+const THUMB_H = 32;
 const SLIDE_MIME = 'application/x-scene-slide';
 
 function Thumb({ m, i, cur, onGo, onRemove, onMove }: {
@@ -87,7 +93,7 @@ function Thumb({ m, i, cur, onGo, onRemove, onMove }: {
 }) {
   const [hover, setHover] = useState(false);
   const isCur = i === cur;
-  const badge = isCur ? 'ARA' : i === cur + 1 ? 'SEGÜENT' : null;
+  const isNext = i === cur + 1;
   return (
     <div
       data-slide={i}
@@ -102,23 +108,21 @@ function Thumb({ m, i, cur, onGo, onRemove, onMove }: {
       }}
       onClick={() => onGo(i)}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      title={isCur ? 'Es veu ara' : `Passar a la imatge ${i + 1} (arrossega per canviar l'ordre)`}
+      title={isCur ? `Imatge ${i + 1}: es veu ara` : `Imatge ${i + 1}${isNext ? ' (la següent)' : ''}: clic per passar-hi, arrossega per canviar l'ordre`}
       style={{
-        position: 'relative', width: THUMB_W, height: THUMB_H, flexShrink: 0, borderRadius: RADIUS.sm, overflow: 'hidden', cursor: 'pointer',
-        outline: `2px solid ${isCur ? C.accent : 'transparent'}`, outlineOffset: -2, background: '#000',
-        opacity: i < cur ? 0.45 : 1, boxShadow: isCur ? `0 0 10px ${C.accent}55` : 'none',
+        position: 'relative', width: THUMB_W, height: THUMB_H, flexShrink: 0, borderRadius: 3, overflow: 'hidden', cursor: 'pointer', background: '#000',
+        outline: isCur ? `2px solid ${C.accent}` : isNext ? '1px solid rgba(255,255,255,0.45)' : 'none', outlineOffset: isCur ? -2 : -1,
+        opacity: i < cur ? 0.4 : isCur ? 1 : 0.8, boxShadow: isCur ? `0 0 8px ${C.accent}66` : 'none',
+        transform: isCur ? 'scale(1.08)' : 'none', transition: 'transform 0.15s, opacity 0.15s',
       }}>
       {m.mimeType.startsWith('video/')
         ? <video src={`${m.url}#t=0.1`} muted preload="metadata" playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
         // eslint-disable-next-line @next/next/no-img-element
         : <img src={m.url} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />}
-      <span style={{ position: 'absolute', left: 3, bottom: 2, fontSize: 9, fontWeight: 700, color: '#fff', textShadow: '0 1px 2px #000' }}>{i + 1}</span>
-      {badge && (
-        <span style={{ position: 'absolute', left: 3, top: 3, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', padding: '1px 4px', borderRadius: 3, background: isCur ? C.accent : 'rgba(0,0,0,0.65)', color: isCur ? C.onAccent : C.text }}>{badge}</span>
-      )}
+      <span style={{ position: 'absolute', left: 3, bottom: 1, fontSize: 9, fontWeight: 700, color: '#fff', textShadow: '0 1px 2px #000, 0 0 3px #000' }}>{i + 1}</span>
       {hover && (
         <button onClick={e => { e.stopPropagation(); onRemove(i); }} aria-label={`Treure la imatge ${i + 1}`} title="Treure"
-          style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, lineHeight: '14px', padding: 0, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>×</button>
+          style={{ position: 'absolute', top: 1, right: 1, width: 13, height: 13, lineHeight: '11px', padding: 0, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>×</button>
       )}
     </div>
   );
@@ -126,13 +130,15 @@ function Thumb({ m, i, cur, onGo, onRemove, onMove }: {
 
 /**
  * Pestanya «Escena» del panell «Mostrar als jugadors»: imatges o vídeos de fons (en
- * diapositives) + text en subtítols. De dalt a baix: la configuració (Text · Subtítols ·
- * Imatge, plegable), l'escenari (la previsualització, tal com ho veuran els jugadors), el
- * carrusel de les imatges carregades, el text i els botons.
+ * diapositives) + text en subtítols, sempre frase a frase. De dalt a baix: la configuració
+ * (Text · Imatge, en files compactes), l'escenari (la previsualització, tal com ho veuran
+ * els jugadors), el carrusel de les imatges, el text i els botons. Tot ha de cabre sense
+ * scroll en una pantalla de 1920×1080 a escala 125 % (uns 720 px d'alçada útil).
  *
  * L'escenari té dos blocs, com l'esquema del DM: el **de la imatge** (clic = la següent)
  * i el **del text** (la franja dels subtítols; clic = avançar el text). Arrossegar mou la
- * imatge i la roda hi fa zoom. Sense imatge, el text surt a pantalla completa.
+ * imatge i la roda hi fa zoom. Sense imatge, el text surt a pantalla completa i la
+ * «posició» dels subtítols passa a ser l'alineació (dalt = L, baix = R).
  *
  * Està sempre muntada (amagada quan no és la pestanya oberta): el motor de text hi té els
  * seus spans i l'escena continua als jugadors encara que es tanqui el panell.
@@ -149,7 +155,6 @@ export function ScenePanel({ sc, header, width, onFileDropped }: {
   const stripRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const [hoverZone, setHoverZone] = useState<SceneZone | null>(null);
-  const [showCfg, setShowCfg] = useState(true);
   // Els refs de l'escenari a part: si no, la regla `react-hooks/refs` pren tot `sc` per un ref.
   const { mediaInnerRef, boxRef, textRef, sizeRef, counterRef, progRef, playBtnRef } = sc.refs;
   const hasMedia = !!sc.media;
@@ -166,12 +171,13 @@ export function ScenePanel({ sc, header, width, onFileDropped }: {
     return () => el.removeEventListener('wheel', onWheel);
   }, [hasMedia, zoomBy]);
 
-  // Carrusel: la imatge d'ara a l'esquerra (amb un tros de l'anterior), les següents a la dreta.
+  // Carrusel: la imatge d'ara sempre al centre (els separadors dels extrems ho permeten
+  // també per a la primera i l'última), les anteriors a l'esquerra i les següents a la dreta.
   useEffect(() => {
     const strip = stripRef.current; if (!strip) return;
     const el = strip.querySelector<HTMLElement>(`[data-slide="${sc.cur}"]`); if (!el) return;
-    strip.scrollTo({ left: Math.max(0, el.offsetLeft - strip.offsetLeft - THUMB_W * 0.45), behavior: 'smooth' });
-  }, [sc.cur, n]);
+    strip.scrollTo({ left: el.offsetLeft - strip.offsetLeft - (strip.clientWidth - THUMB_W) / 2, behavior: 'smooth' });
+  }, [sc.cur, n, sc.open]);
 
   const zoneOf = (e: React.MouseEvent): SceneZone => {
     const r = stageRef.current?.getBoundingClientRect();
@@ -190,7 +196,11 @@ export function ScenePanel({ sc, header, width, onFileDropped }: {
   const canShow = hasMedia || sc.text.trim().length > 0;
   const [bandA, bandB] = textZoneBand(o.place);
   const imageHint = !n ? 'Clic: afegir imatges' : sc.cur < n - 1 ? `Clic: imatge següent · ${sc.cur + 1}/${n}` : sc.loop ? `Clic: tornar a la primera · ${n}/${n}` : `Última imatge · ${n}/${n}`;
-  const summary = `${speedLabel(sc.speed)} · ${o.flow === 'sentence' ? 'frase a frase' : 'continu'} · ${PLACE_LABEL[o.place]} · ${o.size.toUpperCase()} · ${o.fit === 'cover' ? 'omplir' : 'encaixar'}`;
+  // Amb imatge, la posició dels subtítols; sense, l'alineació del text (dalt = L, baix = R).
+  // Els botons no es mouen: només canvia el que hi diu.
+  const placeItems: [SceneOpts['place'], string][] = hasMedia
+    ? [['top', 'Dalt'], ['center', 'Centre'], ['bottom', 'Baix']]
+    : [['top', 'L'], ['center', 'Centre'], ['bottom', 'R']];
 
   return (
     <div style={{
@@ -201,57 +211,35 @@ export function ScenePanel({ sc, header, width, onFileDropped }: {
       {header}
 
       <div style={{ overflowY: 'auto', minHeight: 0 }}>
-        {/* ── Configuració (plegable) ── */}
-        <div style={{ borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={() => setShowCfg(v => !v)} aria-expanded={showCfg}
-            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', border: 'none', background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: FS.xs, fontWeight: 700, textAlign: 'left' }}>
-            <SlidersIcon size={13} color={C.dim} />
-            <span style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>Configuració</span>
-            {!showCfg && <span style={{ flex: 1, minWidth: 0, color: C.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>}
-            <span style={{ marginLeft: 'auto', fontSize: FS.sm }}>{showCfg ? '▾' : '▸'}</span>
-          </button>
-          {showCfg && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, padding: '0 12px 10px' }}>
-              <Group title="Text">
-                <Field label="Velocitat" value={speedLabel(sc.speed)}>
-                  <input type="range" min={1} max={100} value={sc.speed} onChange={e => sc.setSpeed(+e.target.value)} aria-label="Velocitat" style={{ width: '100%', accentColor: C.accent }} />
-                </Field>
-                <Field label="Suavitat" value={smoothLabel(sc.smooth)}>
-                  <input type="range" min={1} max={100} value={sc.smooth} onChange={e => sc.setSmooth(+e.target.value)} aria-label="Suavitat" style={{ width: '100%', accentColor: C.accent }} />
-                </Field>
-                <Field label="Ritme">
-                  <Toggle on={sc.dramatic} onClick={() => sc.setDramatic(!sc.dramatic)} title="Pausa en acabar cada frase i cada paràgraf">Pauses</Toggle>
-                  <Toggle on={sc.manual} onClick={() => sc.setManual(!sc.manual)} title="Revelar frase a frase (Espai o clic al bloc del text)">Manual</Toggle>
-                </Field>
-              </Group>
-              <Group title="Subtítols">
-                <Field label="Posició">
-                  <Seg value={o.place} onChange={v => setO({ place: v })} items={[['bottom', 'Baix'], ['center', 'Centre'], ['top', 'Dalt']]} />
-                </Field>
-                <Field label="Mida i fons">
-                  <Seg value={o.size} onChange={v => setO({ size: v })} title="Mida de la lletra" items={[['s', 'S'], ['m', 'M'], ['l', 'L']]} />
-                  <Toggle on={o.band} onClick={() => setO({ band: !o.band })} title="Franja fosca darrere el text (per llegir-lo sobre imatges clares)">Franja</Toggle>
-                </Field>
-                <Field label="Es veu">
-                  <Seg value={o.flow} onChange={v => setO({ flow: v })} title="Frase a frase: només la frase d'ara. Continu: el text s'acumula"
-                    items={[['sentence', 'Frase'], ['flow', 'Continu']]} />
-                </Field>
-              </Group>
-              <Group title="Imatge">
-                <Field label="Ajust">
-                  <Seg value={o.fit} onChange={v => setO({ fit: v })} title="Encaixar: la imatge sencera. Omplir: cobreix tota la pantalla (en retalla les vores)"
-                    items={[['contain', 'Encaixar'], ['cover', 'Omplir']]} />
-                </Field>
-                <Field label="Càmera">
-                  <Toggle on={o.kenBurns} onClick={() => setO({ kenBurns: !o.kenBurns })} title="Moviment lent de càmera (Ken Burns)">Moviment</Toggle>
-                  <SmallBtn onClick={sc.restartMotion} disabled={!hasMedia} title="Treu el zoom i el desplaçament i torna a començar el moviment">↺</SmallBtn>
-                </Field>
-                <Field label="Diapositives">
-                  <Toggle on={sc.loop} onClick={() => sc.setLoop(!sc.loop)} title="Després de l'última, tornar a la primera">Bucle</Toggle>
-                </Field>
-              </Group>
-            </div>
-          )}
+        {/* ── Configuració: Text (i subtítols) · Imatge ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '52px minmax(0, 1fr)', columnGap: 8, rowGap: 6, padding: '8px 12px', borderBottom: `1px solid ${C.border}` }}>
+          <GroupTitle rows={2} first>Text</GroupTitle>
+          <div style={ROW}>
+            <Slider label="Velocitat" value={sc.speed} valueLabel={speedLabel(sc.speed)} onChange={sc.setSpeed} />
+            <Slider label="Suavitat" value={sc.smooth} valueLabel={smoothLabel(sc.smooth)} onChange={sc.setSmooth} />
+          </div>
+          <div style={ROW}>
+            <Lbl>{hasMedia ? 'Posició' : 'Alineació'}</Lbl>
+            <Seg value={o.place} onChange={v => setO({ place: v })} items={placeItems}
+              title={hasMedia ? 'On surten els subtítols sobre la imatge' : 'Alineació del text a pantalla completa (sense imatge)'} />
+            <Lbl>Mida</Lbl>
+            <Seg value={o.size} onChange={v => setO({ size: v })} title="Mida de la lletra" items={[['s', 'S'], ['m', 'M'], ['l', 'L']]} />
+            <span style={{ flex: 1 }} />
+            <Toggle on={o.band} onClick={() => setO({ band: !o.band })} title="Franja fosca darrere els subtítols (per llegir-los sobre imatges clares)">Franja</Toggle>
+            <Toggle on={sc.dramatic} onClick={() => sc.setDramatic(!sc.dramatic)} title="Pausa en acabar cada frase i cada paràgraf">Pauses</Toggle>
+            <Toggle on={sc.manual} onClick={() => sc.setManual(!sc.manual)} title="Revelar frase a frase (Espai o clic al bloc del text)">Manual</Toggle>
+          </div>
+          <GroupTitle>Imatge</GroupTitle>
+          <div style={{ ...ROW, borderTop: `1px solid ${C.border}`, paddingTop: 6 }}>
+            <Lbl>Ajust</Lbl>
+            <Seg value={o.fit} onChange={v => setO({ fit: v })} title="Encaixar: la imatge sencera. Omplir: cobreix tota la pantalla (en retalla les vores)"
+              items={[['contain', 'Encaixar'], ['cover', 'Omplir']]} />
+            <Lbl>Càmera</Lbl>
+            <Toggle on={o.kenBurns} onClick={() => setO({ kenBurns: !o.kenBurns })} title="Moviment lent de càmera (Ken Burns)">Moviment</Toggle>
+            <SmallBtn onClick={sc.restartMotion} disabled={!hasMedia} title="Recentrar: treu el zoom i el desplaçament i torna a començar el moviment">↺</SmallBtn>
+            <span style={{ flex: 1 }} />
+            <Toggle on={sc.loop} onClick={() => sc.setLoop(!sc.loop)} title="Després de l'última imatge, tornar a la primera">Bucle</Toggle>
+          </div>
         </div>
 
         {/* ── Escenari: bloc de la imatge + bloc del text ── */}
@@ -312,64 +300,68 @@ export function ScenePanel({ sc, header, width, onFileDropped }: {
                 Arrossega aquí una o més imatges o vídeos de fons<br />i escriu el text a sota.<br />Sense imatge, el text surt a pantalla completa.
               </div>
             )}
+            {/* Progrés del text: una línia a la vora de baix de l'escenari */}
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }}>
+              <div ref={progRef} style={{ height: '100%', width: '0%', background: C.accent, opacity: 0.8 }} />
+            </div>
           </SceneStage>
         </div>
         <input ref={inputRef} type="file" accept="image/*,video/*" multiple aria-label="Imatges o vídeos de l'escena" style={{ display: 'none' }}
           onChange={e => { if (e.target.files) sc.addFiles(e.target.files); e.target.value = ''; }} />
 
-        {/* ── Carrusel de les imatges carregades ── */}
+        {/* ── Carrusel de les imatges carregades (la d'ara, al centre) ── */}
         <div onDragOver={e => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }} onDrop={dropFiles}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px 7px 12px', borderTop: `1px solid ${C.border}`, background: 'rgba(0,0,0,0.25)' }}>
-          <div ref={stripRef} style={{ display: 'flex', gap: 6, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'thin', paddingBottom: 1 }}>
-            {sc.slides.map((m, i) => (
-              <Thumb key={m.id} m={m} i={i} cur={sc.cur} onGo={sc.goTo} onRemove={sc.removeSlide} onMove={sc.moveSlide} />
-            ))}
-            <button onClick={() => inputRef.current?.click()} title="Afegir imatges o vídeos (també es poden arrossegar aquí)"
-              style={{ width: n ? 50 : THUMB_W * 2.4, height: THUMB_H, flexShrink: 0, borderRadius: RADIUS.sm, border: `1px dashed ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: n ? FS.xl : FS.xs, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              {n ? '+' : <><ImageIcon size={13} color={C.dim} /> Afegeix imatges</>}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderTop: `1px solid ${C.border}`, background: 'rgba(0,0,0,0.25)' }}>
+          {n > 0 ? (
+            <div ref={stripRef} style={{ display: 'flex', alignItems: 'center', gap: 5, overflowX: 'auto', flex: 1, minWidth: 0, height: THUMB_H + 6, scrollbarWidth: 'none' }}>
+              <span style={{ flex: `0 0 calc(50% - ${THUMB_W / 2 + 5}px)` }} />
+              {sc.slides.map((m, i) => (
+                <Thumb key={m.id} m={m} i={i} cur={sc.cur} onGo={sc.goTo} onRemove={sc.removeSlide} onMove={sc.moveSlide} />
+              ))}
+              <span style={{ flex: `0 0 calc(50% - ${THUMB_W / 2 + 5}px)` }} />
+            </div>
+          ) : (
+            <button onClick={() => inputRef.current?.click()} title="Afegir imatges o vídeos (també es poden arrossegar aquí o a l'escenari)"
+              style={{ flex: 1, height: THUMB_H + 6, borderRadius: RADIUS.sm, border: `1px dashed ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: FS.xs, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <ImageIcon size={12} color={C.dim} /> Afegeix imatges per passar-les com a diapositives
             </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-            <span style={{ fontSize: FS.xs, color: C.dim, whiteSpace: 'nowrap' }}>{n ? <><b style={{ color: C.text }}>{sc.cur + 1}</b> / {n}</> : 'Cap imatge'}</span>
-            <button onClick={sc.clearSlides} disabled={!n} title="Treure totes les imatges: el text passa a pantalla completa"
-              style={{ padding: '2px 7px', borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: 'transparent', color: n ? C.dim : 'rgba(255,255,255,0.18)', cursor: n ? 'pointer' : 'default', fontSize: FS.xs }}>
-              Buida
-            </button>
-          </div>
+          )}
+          {n > 0 && (
+            <>
+              <button onClick={() => inputRef.current?.click()} title="Afegir imatges o vídeos (també es poden arrossegar aquí)"
+                style={{ width: 26, height: THUMB_H, flexShrink: 0, borderRadius: 3, border: `1px dashed ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: FS.lg, lineHeight: 1 }}>+</button>
+              <span style={{ fontSize: FS.xs, color: C.dim, whiteSpace: 'nowrap', minWidth: 30, textAlign: 'center' }}><b style={{ color: C.text }}>{sc.cur + 1}</b>/{n}</span>
+              <SmallBtn onClick={sc.clearSlides} title="Treure totes les imatges: el text passa a pantalla completa">Buida</SmallBtn>
+            </>
+          )}
         </div>
 
-        {/* ── Text: estat + editor ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, fontSize: FS.sm, color: C.dim }}>
-          <span ref={counterRef} style={{ minWidth: 80 }}>—</span>
-          <div style={{ flex: 1, height: 3, background: C.border, borderRadius: RADIUS.sm, overflow: 'hidden' }}>
-            <div ref={progRef} style={{ height: '100%', width: '0%', background: C.text }} />
-          </div>
-        </div>
+        {/* ── Text ── */}
         <textarea
           value={sc.text}
           onChange={e => sc.setText(e.target.value)}
-          placeholder={'Text dels subtítols…\n\nCada frase és un subtítol (en mode «Frase»).'}
-          style={{ width: '100%', height: 92, resize: 'vertical', border: 'none', outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: FONT_SERIF, fontSize: FS.lg, lineHeight: 1.5, padding: '10px 12px', display: 'block' }}
+          placeholder={'Text dels subtítols… Cada frase és un subtítol.'}
+          style={{ width: '100%', height: 84, resize: 'vertical', border: 'none', borderTop: `1px solid ${C.border}`, outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: FONT_SERIF, fontSize: FS.lg, lineHeight: 1.45, padding: '8px 12px', display: 'block' }}
         />
       </div>
 
-      {/* ── Botons ── */}
-      <div style={{ padding: '8px 10px', display: 'flex', gap: 6, flexShrink: 0, borderTop: `1px solid ${C.border}` }}>
+      {/* ── Botons (amb l'estat del text) ── */}
+      <div style={{ padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, borderTop: `1px solid ${C.border}` }}>
         <button ref={playBtnRef} onClick={sc.primary}
-          style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.03)', color: C.text, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
+          style={{ padding: '7px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.03)', color: C.text, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
           Comença
         </button>
         <button onClick={sc.reset}
-          style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: FS.sm }}>
+          style={{ padding: '7px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: FS.sm }}>
           Reinicia
         </button>
-        <div style={{ flex: 1 }} />
+        <span ref={counterRef} style={{ flex: 1, minWidth: 0, fontSize: FS.xs, color: C.dim, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>—</span>
         <button onClick={sc.show} disabled={!canShow}
-          style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: 'none', background: canShow ? C.accent : 'rgba(255,255,255,0.05)', color: canShow ? C.onAccent : C.dim, cursor: canShow ? 'pointer' : 'default', fontWeight: 700, fontSize: FS.sm, display: 'flex', alignItems: 'center', gap: 6 }}>
+          style={{ padding: '7px 12px', borderRadius: RADIUS.md, border: 'none', background: canShow ? C.accent : 'rgba(255,255,255,0.05)', color: canShow ? C.onAccent : C.dim, cursor: canShow ? 'pointer' : 'default', fontWeight: 700, fontSize: FS.sm, display: 'flex', alignItems: 'center', gap: 6 }}>
           {sc.active ? <><CheckIcon size={13} /> Mostrant als jugadors</> : <><PlayIcon size={12} /> Mostrar als jugadors</>}
         </button>
         <button onClick={sc.hide} disabled={!sc.active}
-          style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: sc.active ? 'pointer' : 'default', color: sc.active ? C.dim : 'rgba(255,255,255,0.15)', fontSize: FS.sm }}>
+          style={{ padding: '7px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: sc.active ? 'pointer' : 'default', color: sc.active ? C.dim : 'rgba(255,255,255,0.15)', fontSize: FS.sm }}>
           Ocultar
         </button>
       </div>
