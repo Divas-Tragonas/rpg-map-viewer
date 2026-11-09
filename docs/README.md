@@ -20,7 +20,7 @@ les regles de treball (git, versions, API) són a [CLAUDE.md](../CLAUDE.md).
 | Mapa, parets, sales, portes, llums, desat | [mapa-sales-llum.md](mapa-sales-llum.md) | Sales fosques, il·luminació, col·lisions, desat automàtic |
 | App Píxel | [pixel-i-missions.md](pixel-i-missions.md) | Sprites, mapes de caselles, Forja de figuretes, animacions d'efectes (conjurs, cops, estats), icones de la interfície i els paquets d'`assets/fx-packs/` i `assets/icon-packs/` |
 | Màgies, zones màgiques, cinemàtiques de boss | [efectes-i-cinematiques.md](efectes-i-cinematiques.md) | Bola de foc, raigs, grimoris, zones, cinemàtiques |
-| Diàlegs, fitxes, Expositor, Revelador de text | [dialegs-i-fitxes.md](dialegs-i-fitxes.md) | Guió, XP, panell «Mostrar als jugadors» |
+| Diàlegs, fitxes, Escena (imatges + subtítols) | [dialegs-i-fitxes.md](dialegs-i-fitxes.md) | Guió, XP, panell «Mostrar als jugadors» |
 | Mòduls de la història, diari de la sessió, panell Història | [historia-i-moduls.md](historia-i-moduls.md) | Format del paquet, de Notion a l'app i del diari a Notion |
 | Millores en curs, decisions pendents per lots | [millores.md](millores.md) | Checklists dels lots i prompts de la API pendents |
 | Qualsevol cosa, abans de donar-la per acabada | [errors-comuns.md](errors-comuns.md) | Trampes ja trobades i com evitar-les |

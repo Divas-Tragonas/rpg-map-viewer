@@ -106,7 +106,7 @@ repeteix; màxim 1500 entrades (cauen primer les menys importants: les notes i l
 | `xp` | `confirmXpAward` (repartiment confirmat) |
 | `dialog` | `useDialog.start` (només escenes; les frases soltes i els globus no) |
 | `cinematic` | `useCinematic.launchBossIntro` (no la previsualització) |
-| `text` | `sendTextRevealToPlayer` (el Revelador mostrat als jugadors) |
+| `text` | `show` de `useSceneShow` (l'Escena mostrada als jugadors) |
 | `down` | `useJournalWatchers`: un jugador que passa a derrotat |
 | `module` | `useStory`: obrir, col·locar enemics, sortida, jugat |
 | `note` | Camp «Nota ràpida» del diari; **tecla N** (`useKeyboardHandlers.onQuickNote`) obre el panell i enfoca el camp |
@@ -130,7 +130,7 @@ Quan l'usuari enganxi un resum «Copiar resum»:
 4. Les `notes` del DM van a la secció «Notes» de la pàgina, tal qual.
 
 ### «Anteriorment…» (recap per als jugadors)
-L'estrella ★ de cada entrada la marca; **Anteriorment…** deixa al Revelador de text «Anteriorment…» + una
+L'estrella ★ de cada entrada la marca; **Anteriorment…** deixa a la caixa de text de l'Escena «Anteriorment…» + una
 línia per entrada marcada (`recapText`). El DM el mostra als jugadors com qualsevol text. Sense cap marcada,
 el botó és desactivat.
 

@@ -21,7 +21,7 @@ export interface SceneMedia { id: string; url: string; mimeType: string; file: F
 export function useSceneShow(io: {
   bcRef: React.RefObject<BroadcastChannel | null>;
   wsRef: React.RefObject<SyncSocket | null>;
-  /** Amaga l'Expositor, el Revelador i el diàleg (mostrar l'escena els substitueix). */
+  /** Acaba el diàleg en curs (mostrar l'escena el substitueix). */
   hideOthers: () => void;
 }) {
   const { bcRef, wsRef } = io;

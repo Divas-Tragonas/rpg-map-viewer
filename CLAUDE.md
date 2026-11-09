@@ -148,7 +148,7 @@ Una taula més detallada és a [`docs/README.md`](docs/README.md). Resum:
 | Mapa, parets, sales, portes, llums, desat | [`docs/mapa-sales-llum.md`](docs/mapa-sales-llum.md) |
 | App Píxel, missions, llocs | [`docs/pixel-i-missions.md`](docs/pixel-i-missions.md) |
 | Màgies, zones màgiques, cinemàtiques de boss | [`docs/efectes-i-cinematiques.md`](docs/efectes-i-cinematiques.md) |
-| Diàlegs, fitxes, Expositor, Revelador de text | [`docs/dialegs-i-fitxes.md`](docs/dialegs-i-fitxes.md) |
+| Diàlegs, fitxes, Escena (imatges + subtítols) | [`docs/dialegs-i-fitxes.md`](docs/dialegs-i-fitxes.md) |
 | Mòduls de la història, diari de la sessió, panell Història | [`docs/historia-i-moduls.md`](docs/historia-i-moduls.md) |
 | Errors comuns a evitar | [`docs/errors-comuns.md`](docs/errors-comuns.md) |
 | Contracte amb la API | [`api-spec.txt`](api-spec.txt) |

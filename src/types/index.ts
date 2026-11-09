@@ -292,12 +292,6 @@ export interface ContextMenuState {
   canAttack?: boolean;
 }
 
-export interface ExpositorState {
-  visible: boolean;
-  src: string | null;
-  mediaType: 'image' | 'video' | null;
-}
-
 export interface SceneConfigMenuState {
   id: number | string;
   name: string;
@@ -555,18 +549,13 @@ export type BCMessage =
   // Format de pantalla d'un client (jugador→DM): el DM llista les pantalles connectades
   // i avisa de quant de mapa veuen fora del seu enquadrament.
   | { type: 'VIEWPORT'; id: string; w: number; h: number }
-  | { type: 'EXPOSITOR_SHOW'; buffer: ArrayBuffer; mimeType: string }
-  | { type: 'EXPOSITOR_HIDE' }
-  | { type: 'EXPOSITOR_SYNC'; zoom: number; panXNorm: number; panYNorm: number; kbTxPct: number; kbTyPct: number }
-  | { type: 'TEXTREVEAL_SHOW'; text: string; pos: number; cps: number; fadeMs: number }
-  | { type: 'TEXTREVEAL_HIDE' }
-  | { type: 'TEXTREVEAL_SYNC'; pos: number; cps: number; fadeMs: number }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number }
   | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number }
   // Reset de la memòria d'explorat d'una sala: torna a ser negra del tot (fog of war).
   | { type: 'RESET_EXPLORED'; points: Point[] }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }
-  // `target: 'scene'` = el binari és el mèdia de l'Escena (imatge + subtítols), no de l'Expositor.
+  // Capçalera del binari de l'Escena pel WS (nom heretat de l'antic Expositor, que el servidor
+  // ja reenvia): sempre amb `target: 'scene'`.
   | { type: 'EXPOSITOR_SHOW_META'; mimeType: string; target?: 'scene'; id?: string }
   // Mèdia de l'Escena pel BroadcastChannel (pel WS va amb la capçalera de dalt).
   | { type: 'SCENE_MEDIA'; id: string; buffer: ArrayBuffer; mimeType: string };

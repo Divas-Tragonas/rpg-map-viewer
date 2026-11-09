@@ -105,10 +105,11 @@
 - El panell d'Història s'obre a l'esquerra de la rail (`right: 12 + RAIL_W`); el de Mostrar, a dalt a l'esquerra de l'escenari. Un panell nou de la dreta ha de deixar lloc a `RAIL_W`.
 
 ## Panell «Mostrar als jugadors» (`ShowPanelHeader` + `DMView`)
-- L'Expositor, el Revelador de text, l'Escena (imatge + subtítols), el Diàleg i la Fitxa són **les pestanyes d'un sol panell** (Imatge o vídeo · Text · Escena · Diàleg · Fitxa), que obre el botó «Mostrar als jugadors» de la rail de la dreta. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
-- Cada pestanya continua obrint el seu estat de sempre (`expositorOpen` / `textRevealOpen`, un sol obert alhora) i la pestanya recordada és `showTab`: els bucles RAF i les dreceres de teclat de cada un no han canviat. L'**Escena** (`ScenePanel` + `useSceneShow`, v5 snapshot 16) està sempre muntada i s'amaga amb `display: none` quan no és la pestanya oberta (el seu motor de text hi té els spans). En obrir el panell, si s'està mostrant alguna cosa, s'obre per aquella pestanya.
+- L'Escena (imatges + subtítols), el Diàleg i la Fitxa són **les pestanyes d'un sol panell** (Escena · Diàleg · Fitxa), que obre el botó «Mostrar als jugadors» de la rail de la dreta. Abans eren dos botons i dos panells que ja s'excloïen l'un a l'altre.
+- Cada pestanya té el seu estat d'obert (`scene.open`, `dialogOpen`, `sheetOpen`; un sol obert alhora) i la pestanya recordada és `showTab`. L'**Escena** (`ScenePanel` + `useSceneShow`) està sempre muntada i s'amaga amb `display: none` quan no és la pestanya oberta (el seu motor de text hi té els spans). En obrir el panell, si s'està mostrant alguna cosa, s'obre per aquella pestanya. En passar a Preparar, el panell es tanca (`closeShowRef`); el que es mostra, es manté.
+- Les pestanyes «Imatge o vídeo» (Expositor) i «Text» (Revelador de text) es van treure a la v5 snapshot 19: l'Escena en fa les dues coses.
 - Un punt verd a la pestanya (i al botó de la barra) diu què s'està mostrant als jugadors.
-- Amplada fixa `SHOW_PANEL_W` (560) per a les dues pestanyes: canviar de pestanya no fa saltar el panell. Va a `top: 12` de l'escenari.
+- Amplada fixa `SHOW_PANEL_W` (560) per a totes les pestanyes: canviar de pestanya no fa saltar el panell. Va a `top: 12` de l'escenari.
 
 ## Barra de desplaçament integrada (`src/components/ui/ScrollArea.tsx`)
 - La barra nativa ocupava una franja fixa, sempre visible i que no lligava amb el lateral. `ScrollArea` amaga la nativa (`.sa-viewport`) i en dibuixa una **per sobre del contingut** (no li treu amplada): invisible en repòs, molt suau en passar el cursor per la zona, visible mentre es fa scroll (`data-scrolling`, s'apaga als 900 ms) i més ampla en apropar-s'hi o arrossegar-la. Es pot arrossegar el polze i clicar el carril per saltar-hi.
@@ -134,7 +135,7 @@
 - **Botons**: `Button` (variants `primary` / `secondary` / `ghost` / `danger` / `tint`, mides `sm` / `md` / `lg`, `active` per a commutadors) i `IconButton` (quadrat d'una icona). `buttonStyle()` per donar aspecte de botó a un `<label>` o `<Link>`. Una sola acció `primary` per bloc.
 - ⚠️ No afegir estils de botó, mides de lletra ni colors escrits a mà en components nous: si falta una variant, s'afegeix a `Button`.
 - **El daurat (`C.accent`) només vol dir dues coses: l'acció principal d'un bloc (`primary`) i el que està actiu o seleccionat** (eina, pestanya, mode, xip del torn, interruptor encès). No per a dades (ronda, peus, comptadors, valors de camps), etiquetes, insígnies ni avisos. Un avís va amb un punt o un text en `C.warn`, no amb tot un botó del color avís (veure `BarButton`).
-- **Tipografia de títols** `FONT_SERIF` (EB Garamond, servida des de l'app amb `next/font/local`, sense internet): nom del mapa a la barra superior, títol de la benvinguda, nom del token a la capçalera del menú del clic dret, títols dels diàlegs (dreceres, partides al servidor) i el text que es llegeix als jugadors (revelador). La resta de la UI, en sans. ⚠️ Mai `'EB Garamond'` escrit a mà: `next/font` canvia el nom de la família i no la trobaria (cauria a Georgia, com passava abans: la font no s'havia carregat mai).
+- **Tipografia de títols** `FONT_SERIF` (EB Garamond, servida des de l'app amb `next/font/local`, sense internet): nom del mapa a la barra superior, títol de la benvinguda, nom del token a la capçalera del menú del clic dret, títols dels diàlegs (dreceres, partides al servidor) i el text que es llegeix als jugadors (Escena). La resta de la UI, en sans. ⚠️ Mai `'EB Garamond'` escrit a mà: `next/font` canvia el nom de la família i no la trobaria (cauria a Georgia, com passava abans: la font no s'havia carregat mai).
 - **Icones, mai emojis, a la interfície** (botons, capçaleres de secció, menús): vectorials d'`icons.tsx`, que agafen el color del text. Les emojis surten diferent a cada sistema (a Windows, glifs negres sobre el fons fosc). L'excepció són les màgies i els elements (`SPELL_TYPES.emoji`, `ELEMENTS.emoji`): són el «retrat» de cada màgia a la roda i al grimori, contingut i no controls.
 
 ## Avisos a la pantalla (`src/components/ui/NoticeStack.tsx`)
@@ -163,7 +164,7 @@
 
 ## Pantalla de benvinguda i fitxers deixats al canvas (`DMView`)
 - Sense mapa: «**Obrir mapa**» (primari), «**Provar la demo**», «**Recuperar l'última partida**» (si hi ha desat automàtic) i enllaços per carregar una partida `.json` o canviar d'app. Abans el text del centre enviava a una caixa petita del panell lateral, i el centre no acceptava fitxers.
-- **Tot l'escenari accepta fitxers** (`onStageDrop` → `loadAnyFile`): imatge/vídeo → mapa, `.json` → partida, amb un marc «Deixa anar per carregar-lo». Només reacciona a arrossegaments de fitxers (`dataTransfer.types` inclou `Files`). ⚠️ Qualsevol zona de drop interna (p. ex. la previsualització de l'Expositor) ha de fer `stopPropagation`, si no el fitxer també es carregaria com a mapa.
+- **Tot l'escenari accepta fitxers** (`onStageDrop` → `loadAnyFile`): imatge/vídeo → mapa, `.json` → partida, amb un marc «Deixa anar per carregar-lo». Només reacciona a arrossegaments de fitxers (`dataTransfer.types` inclou `Files`). ⚠️ Qualsevol zona de drop interna (p. ex. l'escenari i el carrusel de l'Escena) ha de fer `stopPropagation`, si no el fitxer també es carregaria com a mapa.
 - Sense mapa, la barra d'eines queda apagada, la barra de torns no surt, el zoom i el menú Vista no apareixen i «Exportar a un fitxer» (menú Partida) queda desactivat.
 
 ## Ull de visibilitat — un sol significat

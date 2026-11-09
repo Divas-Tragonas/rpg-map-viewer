@@ -2,23 +2,20 @@
 import React from 'react';
 import { C, FS } from '@/constants';
 
-export type ShowTab = 'imatge' | 'text' | 'escena' | 'dialeg' | 'fitxa';
+export type ShowTab = 'escena' | 'dialeg' | 'fitxa';
 
-// «Escena» = imatge o vídeo de fons + text en subtítols (veure `ScenePanel`).
-const TABS: [ShowTab, string][] = [['imatge', 'Imatge o vídeo'], ['text', 'Text'], ['escena', 'Escena'], ['dialeg', 'Diàleg'], ['fitxa', 'Fitxa']];
+// «Escena» = imatges o vídeos de fons + text en subtítols (veure `ScenePanel`). Va substituir
+// les pestanyes «Imatge o vídeo» (Expositor) i «Text» (Revelador de text) a la v5.
+const TABS: [ShowTab, string][] = [['escena', 'Escena'], ['dialeg', 'Diàleg'], ['fitxa', 'Fitxa']];
 
 /**
- * Capçalera del panell «Mostrar als jugadors». L'Expositor i el Revelador de text eren dos
- * botons i dos panells que ja s'excloïen l'un a l'altre (mostrar-ne un amaga l'altre als
- * jugadors); ara són pestanyes del mateix panell, amb el Diàleg (que té prioritat: en
- * començar-ne un, amaga els altres dos). Un punt verd a la pestanya diu què
+ * Capçalera del panell «Mostrar als jugadors»: pestanyes Escena · Diàleg · Fitxa. El Diàleg
+ * té prioritat (en començar-ne un, amaga l'Escena). Un punt verd a la pestanya diu què
  * s'està mostrant ara mateix, així es veu també des de l'altra.
  */
-export function ShowPanelHeader({ tab, onTab, imageActive, textActive, sceneActive = false, dialogActive = false, sheetActive = false, hint, onClose }: {
+export function ShowPanelHeader({ tab, onTab, sceneActive = false, dialogActive = false, sheetActive = false, hint, onClose }: {
   tab: ShowTab;
   onTab: (t: ShowTab) => void;
-  imageActive: boolean;
-  textActive: boolean;
   sceneActive?: boolean;
   dialogActive?: boolean;
   sheetActive?: boolean;
@@ -26,7 +23,7 @@ export function ShowPanelHeader({ tab, onTab, imageActive, textActive, sceneActi
   hint: string;
   onClose: () => void;
 }) {
-  const active: Record<ShowTab, boolean> = { imatge: imageActive, text: textActive, escena: sceneActive, dialeg: dialogActive, fitxa: sheetActive };
+  const active: Record<ShowTab, boolean> = { escena: sceneActive, dialeg: dialogActive, fitxa: sheetActive };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '0 6px 0 12px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
       <span style={{ color: C.bright, fontWeight: 700, fontSize: FS.md, marginRight: 10, whiteSpace: 'nowrap' }}>Mostrar als jugadors</span>

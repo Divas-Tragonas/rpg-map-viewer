@@ -2,14 +2,12 @@
 import React, { useState, useRef, useCallback } from 'react';
 
 /**
- * Visor local per a una pantalla solta. **No és l'Expositor del DM**: no rep res del
- * BroadcastChannel ni del WebSocket i el DM no el controla. Serveix per posar una imatge
- * o un vídeo a pantalla completa en un monitor de recanvi obrint-hi el fitxer a mà.
+ * Visor local per a una pantalla solta: no rep res del BroadcastChannel ni del WebSocket i
+ * el DM no el controla. Serveix per posar una imatge o un vídeo a pantalla completa en un
+ * monitor de recanvi obrint-hi el fitxer a mà.
  *
- * L'Expositor sincronitzat (el que el DM ensenya als jugadors) és la pestanya «Imatge o
- * vídeo» del botó «Mostrar als jugadors» de la barra superior del DM i es veu a `/player`,
- * no aquí. Tenir-ne dos que es deien
- * igual era la confusió de sempre.
+ * El que el DM ensenya als jugadors (imatges i text) és la pestanya «Escena» del panell
+ * «Mostrar als jugadors» i es veu a `/player`, no aquí.
  */
 export default function ExpositorPage() {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);

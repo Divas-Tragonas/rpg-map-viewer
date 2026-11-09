@@ -50,7 +50,7 @@ src/
 │   ├── fonts/              # EBGaramond-latin.woff2 + OFL.txt (llicència: s'ha de distribuir amb la font)
 │   ├── page.tsx            # → <DMView />
 │   ├── player/page.tsx     # → <PlayerView />
-│   └── expositor/page.tsx  # Expositor de campanya
+│   └── expositor/page.tsx  # Visor local per a un monitor de recanvi (no sincronitzat)
 ├── components/
 │   ├── DMView.tsx          # Component principal DM (estat + orquestració)
 │   ├── PlayerView.tsx      # Component jugador
@@ -148,7 +148,8 @@ src/
 │   │   ├── token-geom.ts   # centre, figureta (placeFigure), hit-test (tokenAt) i ventall dels apilats
 │   │   └── grid.ts         # renderGrid, renderGridCalib, renderDMPointer
 │   ├── cinematic/          # timeline.ts (CinematicTimeline) + bossIntro.ts (cinemàtica de boss, DM i jugador) + pixelIntros.ts (les 10 de pixel art)
-│   ├── textreveal/index.ts # RevealEngine + helpers (revelador de text DM/Jugador)
+│   ├── textreveal/index.ts # RevealEngine: text lletra a lletra amb esvaïment (el fa servir l'Escena)
+│   ├── scene/index.ts      # Escena: tipus, Ken Burns, zones de clic, subtítol frase a frase
 │   ├── conditions/
 │   │   ├── icons.ts        # CONDITION_ICONS: isotips vectorials (paths SVG) dels estats
 │   │   └── index.ts        # drawConditionIcon / drawConditionBadges + conditionInk

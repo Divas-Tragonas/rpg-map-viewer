@@ -228,7 +228,7 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | STATE               | Camps de BCStateMessage (vis, pos, cam, zoom, players, gridSnap, activeSpells, measure...) | Delta d'estat       |
 | STRUCT              | Estat complet inicial (BCStructMessage, inclou cam + activeSpells + measure) | Enviat en reconnexió / late join |
 | BG_META             | { mimeType: string, withFade?: boolean }                        | Capçalera del frame binari BG      |
-| EXPOSITOR_SHOW_META | { mimeType: string }                                            | Capçalera del frame binari expositor |
+| EXPOSITOR_SHOW_META | { mimeType: string, target: 'scene', id: string }               | Capçalera del frame binari de l'Escena (v5: ja no hi ha Expositor) |
 | STROKE              | { points, color, size, tool }                                   | Traç de dibuix                     |
 | CLEAR_DRAW          | —                                                               | Netejar canvas                     |
 | UNDO_DRAW           | { strokeHistory: StrokeData[] }                                 | Desfer traç                        |
@@ -238,11 +238,8 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | DELETE_SPELL        | { id: string }                                                  | Eliminar spell d'àrea actiu        |
 | BOSS_INTRO          | { tokenId, bossName, tokenPos, cam?, portraitDataUrl, style?, sprite?, party?, extras?, message? } | Cinematica boss (cam: CamRect mapa; style: pixel art; extras: enemics del grup) |
 | BOSS_INTRO_SKIP     | —                                                               | Saltar cinematica                  |
-| EXPOSITOR_HIDE      | —                                                               | Amagar expositor                   |
-| EXPOSITOR_SYNC      | { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }                  | Sincronització expositor           |
-| TEXTREVEAL_SHOW     | { text: string, pos: number, cps: number, fadeMs: number }      | Mostrar revelador de text          |
-| TEXTREVEAL_SYNC     | { pos: number, cps: number, fadeMs: number }                    | Front de revelació (~30fps)        |
-| TEXTREVEAL_HIDE     | —                                                               | Amagar revelador de text           |
+| EXPOSITOR_HIDE      | —                                                               | (des de la v5 el frontend ja no l'envia) |
+| EXPOSITOR_SYNC      | { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }                  | (des de la v5 el frontend ja no l'envia) |
 | TOKEN_RELAY         | { id: number | string, x: number, y: number }                   | Relay d'un TOKEN_MOVE d'un client a la resta de clients (veure sota) |
 | (binary frame)      | ArrayBuffer (imatge o vídeo)                                    | Segueix BG_META o EXPOSITOR_SHOW_META |
 
@@ -287,10 +284,10 @@ viatgen dins del STATE. Des de la v5 snapshot 17, `scene.slides` (SceneMediaRef[
 les diapositives (imatges) de l'escena i `media` la d'ara. El mèdia reaprofita EXPOSITOR_SHOW_META amb dos camps més
 (`target: 'scene'`, `id`) + el frame binari; el servidor els reenvia opacs.
 
-⚠️ Nota (2026-11-08): `ROUTABLE_TO_CLIENTS` (app/src/modules/sync/sync.routes.ts) NO inclou
-TEXTREVEAL_SHOW / TEXTREVEAL_SYNC / TEXTREVEAL_HIDE, tot i que surten a la taula de dalt: el
-Revelador de text no arriba als clients per WS (només per BroadcastChannel). Si es vol a la
-tablet, cal afegir-los a la llista de la API.
+Des de la v5 snapshot 19 el frontend ja no té l'Expositor ni el Revelador de text (l'Escena
+en fa les dues coses): ja no envia EXPOSITOR_HIDE, EXPOSITOR_SYNC ni TEXTREVEAL_*. (Els
+TEXTREVEAL_* no eren mai a `ROUTABLE_TO_CLIENTS`: el Revelador no arribava a la tablet.) La API
+no cal tocar-la; si es vol, EXPOSITOR_HIDE i EXPOSITOR_SYNC es poden treure de la llista.
 
 Tampoc no ha calgut cap canvi per al mode Fòsfor (v4.92): el camp `phosphor` (boolean, lleuger)
 viatja dins del STATE i del STRUCT, que el servidor ja reenvia opacs.
@@ -337,8 +334,8 @@ connexió es tanca. En reconnectar, envia `PLAYER_READY` per demanar STRUCT.
   → Servidor envia STRUCT cached (si hi ha)
   → iPad envia PLAYER_READY
   → DM rep PLAYER_READY → envia BG_META + binary + STRUCT
-    (+ TEXTREVEAL_SHOW si el revelador de text està actiu, perquè el client
-     que reconnecta recuperi el text: els TEXTREVEAL_SYNC sols no porten text)
+    (+ si es mostra l'Escena: un STATE amb `scene` i els seus binaris, perquè el
+     client que reconnecta la recuperi)
   → iPad rep tot i mostra el mapa
   → Usuari arrossega token → iPad envia TOKEN_MOVE
   → DM rep TOKEN_MOVE → actualitza posició localment

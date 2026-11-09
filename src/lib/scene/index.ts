@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Escena — imatge o vídeo de fons + text en subtítols (pestanya «Escena» del panell
-// «Mostrar als jugadors»). Fusiona l'Expositor i el Revelador de text sense tocar-los:
-// fa servir el mateix motor de text (`RevealEngine`) i el mateix Ken Burns.
+// Escena — imatges o vídeos de fons (diapositives) + text en subtítols (pestanya «Escena»
+// del panell «Mostrar als jugadors»). Va fusionar l'Expositor i el Revelador de text, que
+// la v5 va treure: en fa servir el motor de text (`RevealEngine`) i el Ken Burns.
 //
 // Sincronització SENSE canvis a la API: el servidor WS només reenvia una llista tancada
 // de tipus de missatge, així que l'escena viatja dins del `STATE` (que es reenvia opac):
 //  - `scene` (SceneShow | null): text, opcions i quin mèdia. Només quan canvia.
 //  - `sceneSync` (SceneSync): front del text i enquadrament de la imatge, ~30 fps.
-// El mèdia (binari) va pel WS com l'Expositor: `EXPOSITOR_SHOW_META` amb
+// El mèdia (binari) va pel WS amb la capçalera de l'antic Expositor: `EXPOSITOR_SHOW_META` amb
 // `target: 'scene'` + el frame binari; pel BroadcastChannel, `SCENE_MEDIA`.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -84,8 +84,9 @@ export function sceneFontPx(w: number, opts: SceneOpts, hasMedia: boolean): numb
   return hasMedia ? Math.max(13, px) : Math.max(14, Math.min(78, px));
 }
 
-// ── Ken Burns (mateixos quatre moviments que l'Expositor) ────────────────────
-export const KB_HALF_MS = 38000;
+// ── Ken Burns (els quatre moviments de l'antic Expositor, el doble de lents) ──
+// Mig cicle del moviment (anada o tornada). 76 s: el doble de lent que el de l'antic Expositor (v5 snapshot 19).
+export const KB_HALF_MS = 76000;
 const KB_VARIANTS = [
   (p: number) => ({ scale: 1 + p * 0.12, tx: 0, ty: 0 }),   // zoom
   (p: number) => ({ scale: 1.07, tx: p * 6, ty: 0 }),        // pan dreta

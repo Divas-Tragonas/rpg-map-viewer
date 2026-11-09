@@ -67,7 +67,7 @@ const say = (p: ParsedScript, i: number) => p.steps[i] as ScriptSay;
 
 export function useDialog(R: DMRefs, o: {
   broadcast: () => void;
-  /** Amaga l'Expositor i el Revelador de text als jugadors (el diàleg té prioritat). */
+  /** Amaga l'Escena als jugadors (el diàleg té prioritat). */
   hideOthers: () => void;
   launchBossIntro: (req: BossIntroRequest) => Promise<string | null>;
 }) {

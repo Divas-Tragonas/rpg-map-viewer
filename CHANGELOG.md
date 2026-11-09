@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5 snapshot 19 — L'Escena substitueix l'Expositor i el Revelador de text
+- **Fora les pestanyes «Imatge o vídeo» i «Text»** del panell «Mostrar als jugadors» (Expositor i Revelador de text), també a les pantalles de jugador: l'**Escena** en fa les dues coses. El panell queda amb Escena · Diàleg · Fitxa. El text que deixen els mòduls de la Història («llegir en veu alta», «Anteriorment…») va a la caixa de text de l'Escena
+- **Configuració de l'Escena reorganitzada**: dos grups (Text · Imatge) en una graella de tres columnes iguals, amb el nom de cada ajust a sobre. Els botons fan sempre la mateixa mida: canviar a L/R (sense imatge) ja no mou res. «Buida» passa al grup Imatge
+- **Carrusel centrat a la finestra**: ocupa tota l'amplada i la imatge que es veu queda al centre del panell. Sense números. El **«+»** és una diapositiva amb contorn de ratlles al final, que es mou amb el carrusel
+- **Moviment de les imatges el doble de lent**
+- La caixa de text s'encongeix una mica si no hi cap, en lloc de fer scroll
+- Sense canvis a la API
+
 ### v5 snapshot 18 — Escena: panell compacte i alineació sense imatge
 - **Tot el panell de l'Escena cap a la pantalla sense scroll** (1920×1080 a escala 125 %): configuració en files compactes, el progrés del text com una línia a sota de la previsualització i l'estat al costat dels botons
 - **Text i subtítols en un sol grup** de la configuració; el d'Imatge en una sola fila

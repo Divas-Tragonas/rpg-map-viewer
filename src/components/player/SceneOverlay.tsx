@@ -23,9 +23,9 @@ const KEEP_MEDIA = 3;
 
 /**
  * Escena a la pantalla del jugador: imatge o vídeo de fons i el text en subtítols (o a
- * pantalla completa si no hi ha imatge). Capa `zIndex 52`, per sobre de l'Expositor (50) i
- * del Revelador (51), amb el mateix fos d'entrada i sortida. Té el seu propi bucle: segueix
- * el `pos` que envia el DM amb el rellotge d'aquesta pantalla, com el Revelador.
+ * pantalla completa si no hi ha imatge). Capa `zIndex 52` (per sota dels diàlegs, 56) amb
+ * fos d'entrada i sortida (1,4 s / 0,3 s). Té el seu propi bucle: segueix el `pos` que envia
+ * el DM amb el rellotge d'aquesta pantalla (l'esvaïment continua suau durant les pauses).
  */
 export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject<SceneController | null> }) {
   const [shown, setShown] = useState<SceneShow | null>(null);

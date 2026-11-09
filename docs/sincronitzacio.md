@@ -21,10 +21,6 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `DELETE_SPELL` | DM→Jugador | Eliminar un spell d'àrea actiu |
 | `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal. `style` (absent = la de sempre) + `sprite` i `party` per a les de pixel art |
 | `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
-| `EXPOSITOR_SHOW/HIDE/SYNC` | DM→Jugador | Expositor d'imatge/vídeo (veure feature) |
-| `TEXTREVEAL_SHOW` | DM→Jugador | Revelador de text: text complet + `pos`, `cps`, `fadeMs` |
-| `TEXTREVEAL_SYNC` | DM→Jugador | Front de revelació (`pos`) streamejat a ~30fps |
-| `TEXTREVEAL_HIDE` | DM→Jugador | Amagar revelador de text |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
 | `VIEWPORT` | Jugador→DM | Mida del canvas d'aquella pantalla (`{id,w,h}`). El DM en fa la llista del menú de pantalles de la barra superior |
 | `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
@@ -51,15 +47,16 @@ Tots els tipus estan definits a `BCMessage` a `src/types/index.ts`.
 Cada missatge BC té un mirall WS (`src/lib/ws.ts` → endpoint `/sync?role=dm|client`
 de la API, port 3000; protocol documentat a `api-spec.txt`). **Tot `postMessage` nou
 al BC ha d'anar acompanyat del seu `wsRef.current?.send(JSON.stringify(...))`.** Els
-binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
+binaris (fons, mèdia de l'Escena) van com a frame `*_META` JSON + frame binari.
 
 > ⚠️ **El servidor només reenvia una llista tancada de tipus** (`ROUTABLE_TO_CLIENTS` a
 > `divas_tragonas_api/app/src/modules/sync/sync.routes.ts`): un tipus de missatge nou **no
 > arriba a la tablet** sense canviar la API. Per això les funcions noves viatgen com a camps
 > del `STATE` (diàlegs, fitxes, Escena). A la llista hi ha `STATE`, `STRUCT`, `BG_META`,
 > `EXPOSITOR_SHOW_META`, `STROKE`, `CLEAR_DRAW`, `UNDO_DRAW`, `POINTER`, `SPELL`, `TOKEN_RELAY`,
-> `BOSS_INTRO(_SKIP)`, `EXPOSITOR_HIDE` i `EXPOSITOR_SYNC` — **no** hi ha els `TEXTREVEAL_*`
-> (comprovat el 2026-11-08): el Revelador de text només arriba per BroadcastChannel.
+> `BOSS_INTRO(_SKIP)`, `EXPOSITOR_HIDE` i `EXPOSITOR_SYNC` (comprovat el 2026-11-08). Des de la
+> v5 snapshot 19 l'Expositor i el Revelador de text ja no existeixen: d'aquesta llista, el
+> frontend només fa servir `EXPOSITOR_SHOW_META` (amb `target: 'scene'`) per a l'Escena.
 
 - **URL del WS en runtime** (`resolveApiBase` a `ws.ts`): si `NEXT_PUBLIC_API_URL` no
   està definida (o apunta a localhost i la pàgina s'ha carregat des d'un altre host),
@@ -105,7 +102,7 @@ binaris (fons, expositor) van com a frame `*_META` JSON + frame binari.
   - ⚠️ **Criteri de la paleta: només proximitat** (v4.93). La v4.92 classificava per famílies (neutres foscos → blau, mitjans → verd, clars → taronja…) i l'usuari ho va rebutjar: «tot verd, taronja i blau, sense criteri». Una paleta nova: canviar `PHOSPHOR_PALETTE` (una paleta coherent, amb rampes de tots els tons), mai afegir-hi regles per tons.
   - ⚠️ **Cap comentari dins del GLSL**: només hi pot anar ASCII (els comentaris en català, fora de la cadena).
   - ⚠️ **El temps no entra al shader** (`mediump` no hi té prou precisió): el parpelleig es calcula a la CPU (`flick`).
-- **Capes**: el llenç del fòsfor és a `zIndex 2` (damunt del fons i del canvas del mapa, `pointer-events: none`: el drag dels tokens continua anant al canvas de sota) i per sota de rètols (20), fitxes (21), cortina (49), Expositor (50), Revelador (51), Escena (52) i diàlegs (56). El vidre de CSS (`.phosphor-glass` a `globals.css`, `zIndex 70`) posa línies fines, cantonades arrodonides i vinyeta damunt de TOT; és estàtic (res d'animar filtres).
+- **Capes**: el llenç del fòsfor és a `zIndex 2` (damunt del fons i del canvas del mapa, `pointer-events: none`: el drag dels tokens continua anant al canvas de sota) i per sota de rètols (20), fitxes (21), cortina (49), Escena (52) i diàlegs (56). El vidre de CSS (`.phosphor-glass` a `globals.css`, `zIndex 70`) posa línies fines, cantonades arrodonides i vinyeta damunt de TOT; és estàtic (res d'animar filtres).
 - **Animació d'apagar i encendre** (`_setPhosphor`): tot el contingut de la pantalla és dins del «tub» (`tubeRef`), que s'aplana amb la Web Animations API (`transform` només) i un flaix blanc (`flashRef`, `opacity`). El mode canvia a mig camí; si el DM el torna a tocar durant l'animació, en acabar se'n fa una altra. `prefers-reduced-motion`: canvi directe.
 - **Pla B**: sense WebGL o amb un fons d'un altre origen (no es pot pujar a la GPU) el llenç s'amaga i es veu l'escena normal amb el vidre a sobre.
 - Limitació coneguda: els noms dels tokens també passen per la paleta i, amb colors de jugador semblants al del text, es llegeixen pitjor.

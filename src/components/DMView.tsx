@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { CONDITIONS_BY_ID, SPELL_BY_TYPE, C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, FONT_SERIF, SHADOW } from '@/constants';
+import { CONDITIONS_BY_ID, SPELL_BY_TYPE, C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, SHADOW } from '@/constants';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
@@ -31,7 +31,6 @@ import { createSyncSocket } from '@/lib/ws';
 import { computeReachableCells, segmentBlocked, buildMovePath } from '@/lib/rooms/pathing';
 import { tileBlocker } from '@/lib/tilemap/render';
 import { effectiveWalls } from '@/lib/rooms/doors';
-import { RevealEngine, cpsFromSlider, fadeMsFromSlider, speedLabel, smoothLabel } from '@/lib/textreveal';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { RoomsPanel } from '@/components/dm/RoomsPanel';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
@@ -55,7 +54,6 @@ import { useDialog } from '@/hooks/useDialog';
 import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { ScrollArea } from '@/components/ui/ScrollArea';
-import { ImageIcon, CheckIcon, PlayIcon } from '@/components/icons';
 import { api, isApiConfigured } from '@/lib/api';
 import { budgetFor, firstActive, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
@@ -196,24 +194,6 @@ export function DMView() {
   const [newPName, setNewPName] = useState('');
   const [newPColor, setNewPColor] = useState('#60a5fa');
   const [newPHpMax, setNewPHpMax] = useState(20);
-  const [expositorOpen, setExpositorOpen] = useState(false);
-  const [expositorLocalSrc, setExpositorLocalSrc] = useState<string | null>(null);
-  const [expositorLocalType, setExpositorLocalType] = useState<'image' | 'video' | null>(null);
-  const [expositorActive, setExpositorActive] = useState(false);
-  const expositorFileRef = React.useRef<File | null>(null);
-  const expositorInputRef = React.useRef<HTMLInputElement>(null);
-  const expositorActiveRef = React.useRef(false);
-  const expositorZoom = React.useRef(1);
-  const expositorPan = React.useRef({ x: 0, y: 0 });
-  const expositorDragRef = React.useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
-  const expositorKbStartTime = React.useRef<number | null>(null);
-  const expositorKbVariant = React.useRef(0);
-  const expositorKbPhase = React.useRef(0);
-  const expositorKbPaused = React.useRef(false);
-  const expositorRafRef = React.useRef<number | null>(null);
-  const expositorLastSync = React.useRef(0);
-  const expositorInnerRef = React.useRef<HTMLDivElement | null>(null);
-  const expositorPreviewRef = React.useRef<HTMLDivElement | null>(null);
 
   // ── Partides al servidor ────────────────────────────────────────────────────
   const [showServerSessions, setShowServerSessions] = useState(false);
@@ -222,8 +202,7 @@ export function DMView() {
   // ── Opacitat del fons (només DM) ─────────────────────────────────────────────
   const [bgOpacity, setBgOpacity] = useState(1);
 
-  // ── Revelador de text ──────────────────────────────────────────────────────
-  const [textRevealOpen, setTextRevealOpen] = useState(false);
+  // ── Panell «Mostrar als jugadors»: Escena, Diàleg i Fitxa ──────────────────
   const [dialogOpen, setDialogOpen] = useState(false);
   // Pestanya «Fitxa» del panell Mostrar als jugadors: personatge triat, parts i quin es veu ara.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -233,39 +212,12 @@ export function DMView() {
   // Repartiment d'experiència pendent en acabar un combat.
   const [xpAward, setXpAward] = useState<XpAward | null>(null);
   const [xpBusy, setXpBusy] = useState(false);
-  // Acaba el diàleg en curs (l'Expositor i el Revelador el criden en mostrar-se).
+  // Acaba el diàleg en curs (l'Escena el crida en mostrar-se).
   const dialogEndRef = React.useRef<() => void>(() => {});
-  // «Mostrar als jugadors»: Expositor i Revelador són les dues pestanyes d'un sol panell.
-  // Cada pestanya continua obrint el seu estat de sempre (expositorOpen / textRevealOpen),
-  // així els seus bucles i dreceres de teclat no canvien; la pestanya recorda l'última.
-  const [showTab, setShowTab] = useState<ShowTab>('imatge');
-  const [textRevealActive, setTextRevealActive] = useState(false);
-  const [trDramatic, setTrDramatic] = useState(true);
-  const [trManual, setTrManual] = useState(false);
-  const trEngineRef = React.useRef<RevealEngine | null>(null);
-  const trStageRef = React.useRef<HTMLDivElement | null>(null);
-  const trTextRef = React.useRef<HTMLDivElement | null>(null);
-  const trSrcRef = React.useRef<HTMLTextAreaElement | null>(null);
-  const trSpeedRef = React.useRef<HTMLInputElement | null>(null);
-  const trSmoothRef = React.useRef<HTMLInputElement | null>(null);
-  const trSpeedLblRef = React.useRef<HTMLElement | null>(null);
-  const trSmoothLblRef = React.useRef<HTMLElement | null>(null);
-  const trCounterRef = React.useRef<HTMLSpanElement | null>(null);
-  const trProgRef = React.useRef<HTMLDivElement | null>(null);
-  const trPlayBtnRef = React.useRef<HTMLButtonElement | null>(null);
-  const trRunningRef = React.useRef(false);
-  const trPausedRef = React.useRef(true);
-  const trActiveRef = React.useRef(false);
-  const trDramaticRef = React.useRef(true);
-  const trManualRef = React.useRef(false);
-  const trRafRef = React.useRef<number | null>(null);
-  const trLastTsRef = React.useRef(0);
-  const trLastSyncRef = React.useRef(0);
-  // Reenviar TEXTREVEAL_SHOW quan un jugador (re)connecta: iOS Safari talla el WS
-  // en bloquejar la pantalla o canviar d'app, i sense això la tablet només rebria
-  // els TEXTREVEAL_SYNC (que ignora perquè no té el text). S'assigna més avall,
-  // quan trBroadcastShow ja existeix.
-  const trResendShowRef = React.useRef<() => void>(() => {});
+  // Pestanya recordada del panell (cada una té el seu estat d'obert: scene.open, dialogOpen…).
+  const [showTab, setShowTab] = useState<ShowTab>('escena');
+  // Tanca el panell en passar a Preparar (`applyMode` es crea abans que el panell).
+  const closeShowRef = React.useRef<() => void>(() => {});
   // Escena (imatge + subtítols, `useSceneShow`): el mateix reenviament en (re)connectar-se
   // una pantalla, i amagar-la quan es mostra una altra cosa. Via ref: els handlers que
   // les criden es creen abans que el hook.
@@ -275,9 +227,6 @@ export function DMView() {
   const [storyOpen, setStoryOpen] = useState(false);
   const [storyTab, setStoryTab] = useState<StoryTab>('modul');
   const [noteFocus, setNoteFocus] = useState(0);
-  // Text que un mòdul vol deixar al Revelador (s'hi escriu quan la pestanya és oberta).
-  const trPrefillRef = React.useRef<string | null>(null);
-  const [trPrefillNonce, setTrPrefillNonce] = useState(0);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const R = useDMRefs();
@@ -303,7 +252,7 @@ export function DMView() {
     modeRef.current = m; setMode(m);
     if (m === 'preparar') {
       setSidebarTab('mapa');
-      setExpositorOpen(false); setTextRevealOpen(false);
+      closeShowRef.current();
     } else {
       setSidebarTab(t => (t === 'mapa' ? 'escena' : t));
     }
@@ -839,7 +788,6 @@ export function DMView() {
       const msg = e.data as { type?: string; id?: string | number; w?: number; h?: number; x?: number; y?: number } | null;
       if (msg?.type === 'PLAYER_READY') {
         _sendFullState();
-        trResendShowRef.current();
         sceneResendRef.current();
       } else if (msg?.type === 'VIEWPORT' && msg.id) {
         _registerScreen(String(msg.id), msg.w ?? 0, msg.h ?? 0);
@@ -862,7 +810,6 @@ export function DMView() {
       try { msg = JSON.parse(ev.data as string); } catch { return; }
       if (msg.type === 'PLAYER_READY') {
         _sendFullState();
-        trResendShowRef.current();
         sceneResendRef.current();
       } else if (msg.type === 'VIEWPORT' && msg.id !== undefined && msg.w && msg.h) {
         _registerScreen(String(msg.id), msg.w, msg.h);
@@ -876,7 +823,6 @@ export function DMView() {
       // servidor refresqui el STRUCT en caché per als clients que es connectin
       // més tard, i els ja connectats recuperin l'estat si el DM havia caigut.
       _sendFullState();
-      trResendShowRef.current();
       sceneResendRef.current();
     });
     R.wsRef.current = ws;
@@ -1375,63 +1321,10 @@ export function DMView() {
     R.rZoom.current = z; setZoom(z); _broadcastState({});
   }, [_broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadExpositorFile = useCallback((file: File) => {
-    if (expositorLocalSrc) URL.revokeObjectURL(expositorLocalSrc);
-    const url = URL.createObjectURL(file);
-    setExpositorLocalSrc(url);
-    setExpositorLocalType(file.type.startsWith('video/') ? 'video' : 'image');
-    expositorFileRef.current = file;
-    expositorKbStartTime.current = null;
-    expositorKbVariant.current = Math.floor(Math.random() * 4);
-    expositorKbPhase.current = 0;
-    // Auto-send if already active on player
-    if (expositorActiveRef.current) {
-      file.arrayBuffer().then(buf => {
-        R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
-        R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_SHOW_META', mimeType: file.type }));
-        R.wsRef.current?.sendBinary(buf);
-      });
-    }
-  }, [expositorLocalSrc]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const hideTextRevealOnPlayer = useCallback(() => {
-    R.bcRef.current?.postMessage({ type: 'TEXTREVEAL_HIDE' });
-    R.wsRef.current?.send(JSON.stringify({ type: 'TEXTREVEAL_HIDE' }));
-    trActiveRef.current = false;
-    setTextRevealActive(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const sendExpositorToPlayer = useCallback(async () => {
-    const file = expositorFileRef.current;
-    if (!file) return;
-    // Sinergia: en mostrar una imatge/vídeo, amaguem el revelador de text (crossfade al jugador)
-    // i acabem el diàleg (cadascun amaga els altres).
-    if (trActiveRef.current) hideTextRevealOnPlayer();
-    sceneHideRef.current();
-    dialogEndRef.current();
-    const buf = await file.arrayBuffer();
-    R.bcRef.current?.postMessage({ type: 'EXPOSITOR_SHOW', buffer: buf, mimeType: file.type });
-    R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_SHOW_META', mimeType: file.type }));
-    R.wsRef.current?.sendBinary(buf);
-    expositorActiveRef.current = true;
-    setExpositorActive(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const hideExpositorOnPlayer = useCallback(() => {
-    R.bcRef.current?.postMessage({ type: 'EXPOSITOR_HIDE' });
-    R.wsRef.current?.send(JSON.stringify({ type: 'EXPOSITOR_HIDE' }));
-    expositorActiveRef.current = false;
-    setExpositorActive(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Escena: imatge o vídeo de fons + text en subtítols (pestanya «Escena») ───
   const scene = useSceneShow({
     bcRef: R.bcRef, wsRef: R.wsRef,
-    hideOthers: () => {
-      if (expositorActiveRef.current) hideExpositorOnPlayer();
-      if (trActiveRef.current) hideTextRevealOnPlayer();
-      dialogEndRef.current();
-    },
+    hideOthers: () => dialogEndRef.current(),
   });
   const { setOpen: setSceneOpen, hide: hideScene, resend: resendScene, activeRef: sceneActiveRef } = scene;
   useEffect(() => {
@@ -1439,26 +1332,21 @@ export function DMView() {
     sceneHideRef.current = () => { if (sceneActiveRef.current) hideScene(); };
   }, [resendScene, hideScene, sceneActiveRef]);
 
-  // ── Panell «Mostrar als jugadors» (pestanyes Imatge o vídeo / Text) ─────────
+  // ── Panell «Mostrar als jugadors» (pestanyes Escena / Diàleg / Fitxa) ───────
   const openShowTab = useCallback((t: ShowTab) => {
     setShowTab(t);
-    setExpositorOpen(t === 'imatge');
-    setTextRevealOpen(t === 'text');
     setSceneOpen(t === 'escena');
     setDialogOpen(t === 'dialeg');
     setSheetOpen(t === 'fitxa');
   }, [setSceneOpen]);
-  const closeShowPanel = useCallback(() => { setExpositorOpen(false); setTextRevealOpen(false); setSceneOpen(false); setDialogOpen(false); setSheetOpen(false); }, [setSceneOpen]);
-  const showPanelOpen = expositorOpen || textRevealOpen || scene.open || dialogOpen || sheetOpen;
+  const closeShowPanel = useCallback(() => { setSceneOpen(false); setDialogOpen(false); setSheetOpen(false); }, [setSceneOpen]);
+  useEffect(() => { closeShowRef.current = closeShowPanel; }, [closeShowPanel]);
+  const showPanelOpen = scene.open || dialogOpen || sheetOpen;
 
   // ── Diàlegs de personatges (pestanya «Diàleg», veure `useDialog`) ─────────
   const dlg = useDialog(R, {
     broadcast: () => _broadcastState({}),
-    hideOthers: () => {
-      if (expositorActiveRef.current) hideExpositorOnPlayer();
-      if (trActiveRef.current) hideTextRevealOnPlayer();
-      sceneHideRef.current();
-    },
+    hideOthers: () => sceneHideRef.current(),
     launchBossIntro,
   });
   useEffect(() => { dialogEndRef.current = () => { if (R.rDialog.current) dlg.end(); }; dialogsChangedRef.current = dlg.reloadDialogs; });
@@ -1485,8 +1373,8 @@ export function DMView() {
   const toggleShowPanel = useCallback(() => {
     if (showPanelOpen) closeShowPanel();
     // Si ara mateix s'està mostrant alguna cosa, s'obre per aquella pestanya.
-    else openShowTab(dlg.ui ? 'dialeg' : textRevealActive ? 'text' : scene.active ? 'escena' : expositorActive ? 'imatge' : sheetShowId ? 'fitxa' : showTab);
-  }, [showPanelOpen, closeShowPanel, openShowTab, textRevealActive, scene.active, expositorActive, showTab, dlg.ui, sheetShowId]);
+    else openShowTab(dlg.ui ? 'dialeg' : scene.active ? 'escena' : sheetShowId ? 'fitxa' : showTab);
+  }, [showPanelOpen, closeShowPanel, openShowTab, scene.active, showTab, dlg.ui, sheetShowId]);
 
   // ── Fitxa a les pantalles de jugador (camp pesat `sheet` del STATE) ────────
   /** Foto de la fitxa amb les parts triades; el retrat i el color, del jugador que la porta. */
@@ -1594,259 +1482,20 @@ export function DMView() {
     onShowSheet: (id: string) => { setSheetSel(id); openShowTab('fitxa'); },
   }), [chars, notify, setPlayerCharacter, openShowTab]);
 
-  // ── Expositor RAF loop: KB animation + EXPOSITOR_SYNC broadcast ───────────
-  useEffect(() => {
-    if (!expositorLocalSrc) return;
-    if (expositorKbStartTime.current === null) {
-      expositorKbStartTime.current = performance.now();
-    }
-
-    const KB_HALF = 38000;
-    const KB_VARIANTS = [
-      (p: number) => ({ scale: 1 + p * 0.12, tx: 0, ty: 0 }),       // zoom
-      (p: number) => ({ scale: 1.07, tx: p * 6, ty: 0 }),             // pan-right
-      (p: number) => ({ scale: 1.07, tx: -p * 6, ty: 0 }),            // pan-left
-      (p: number) => ({ scale: 1.07, tx: 0, ty: -p * 6 }),            // pan-up
-    ];
-
-    const tick = () => {
-      expositorRafRef.current = requestAnimationFrame(tick);
-
-      if (!expositorKbPaused.current) {
-        const elapsed = performance.now() - (expositorKbStartTime.current ?? performance.now());
-        const cycle = elapsed % (KB_HALF * 2);
-        const raw = cycle < KB_HALF ? cycle / KB_HALF : 2 - cycle / KB_HALF;
-        expositorKbPhase.current = (1 - Math.cos(raw * Math.PI)) / 2;
-      }
-
-      const kb = KB_VARIANTS[expositorKbVariant.current]?.(expositorKbPhase.current) ?? { scale: 1, tx: 0, ty: 0 };
-      const userZ = expositorZoom.current;
-      const userPx = expositorPan.current.x;
-      const userPy = expositorPan.current.y;
-
-      if (expositorInnerRef.current) {
-        expositorInnerRef.current.style.transform =
-          `translate(calc(-50% + ${userPx}px), calc(-50% + ${userPy}px)) scale(${userZ * kb.scale}) translate(${kb.tx}%, ${kb.ty}%)`;
-      }
-
-      if (expositorActiveRef.current) {
-        const now = performance.now();
-        if (now - expositorLastSync.current >= 33) {
-          expositorLastSync.current = now;
-          const pw = expositorPreviewRef.current?.clientWidth || 320;
-          const ph = expositorPreviewRef.current?.clientHeight || 260;
-          const expSync = {
-            type: 'EXPOSITOR_SYNC',
-            zoom: userZ * kb.scale,
-            panXNorm: userPx / pw,
-            panYNorm: userPy / ph,
-            kbTxPct: kb.tx,
-            kbTyPct: kb.ty,
-          };
-          R.bcRef.current?.postMessage(expSync);
-          R.wsRef.current?.send(JSON.stringify(expSync));
-        }
-      }
-    };
-
-    expositorRafRef.current = requestAnimationFrame(tick);
-    return () => { if (expositorRafRef.current) cancelAnimationFrame(expositorRafRef.current); };
-  }, [expositorLocalSrc]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Spacebar handler for expositor ───────────────────────────────────────
-  useEffect(() => {
-    if (!expositorOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      // (Abans la condició tenia la precedència malament i QUALSEVOL tecla fora d'un camp
-      // reiniciava el Ken Burns: també l'Enter de passar torn o les dreceres de les eines.)
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (e.code === 'Space' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
-        e.preventDefault();
-        expositorKbPaused.current = !expositorKbPaused.current;
-        expositorZoom.current = 1;
-        expositorPan.current = { x: 0, y: 0 };
-        expositorKbStartTime.current = performance.now();
-        expositorKbPhase.current = 0;
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [expositorOpen]);
-
-  // ── Revelador de text: helpers ─────────────────────────────────────────────
-  const trCps = useCallback(() => cpsFromSlider(+(trSpeedRef.current?.value ?? 50)), []);
-  const trFadeMs = useCallback(() => fadeMsFromSlider(+(trSmoothRef.current?.value ?? 55)), []);
-
-  const trUpdateStatus = useCallback(() => {
-    const eng = trEngineRef.current;
-    const n = eng?.n ?? 0;
-    if (trProgRef.current) trProgRef.current.style.width = (n ? (eng!.pos / n * 100) : 0) + '%';
-    if (trCounterRef.current) {
-      if (!n) trCounterRef.current.textContent = '—';
-      else if (trManualRef.current) trCounterRef.current.innerHTML = `Frase <b style="color:${C.bright}">${eng!.sentenceIndex()}</b> / ${eng!.bounds.length}`;
-      else trCounterRef.current.innerHTML = `<b style="color:${C.bright}">${Math.round(eng!.pos / n * 100)}%</b> revelat`;
-    }
-    if (trPlayBtnRef.current) {
-      const eng2 = trEngineRef.current;
-      const lbl = trManualRef.current ? 'Revela frase'
-        : (trRunningRef.current && !trPausedRef.current ? 'Pausa'
-          : (eng2 && eng2.pos > 0 && eng2.pos < eng2.n ? 'Continua' : 'Comença'));
-      trPlayBtnRef.current.textContent = lbl;
-    }
-  }, []);
-
-  const trBuild = useCallback(() => {
-    const container = trTextRef.current; if (!container) return;
-    const eng = trEngineRef.current ?? new RevealEngine();
-    trEngineRef.current = eng;
-    eng.setText(trSrcRef.current?.value ?? '', container);
-    if (trStageRef.current) trStageRef.current.scrollTop = 0;
-    trUpdateStatus();
-  }, [trUpdateStatus]);
-
-  const trBroadcastShow = useCallback(() => {
-    const eng = trEngineRef.current; if (!eng) return;
-    const payload = { type: 'TEXTREVEAL_SHOW' as const, text: trSrcRef.current?.value ?? '', pos: eng.pos, cps: trCps(), fadeMs: trFadeMs() };
-    R.bcRef.current?.postMessage(payload);
-    R.wsRef.current?.send(JSON.stringify(payload));
-  }, [trCps, trFadeMs]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Manté trResendShowRef apuntant a la versió actual (els handlers de BC/WS es
-  // creen abans que trBroadcastShow existeixi, per això va via ref).
-  useEffect(() => {
-    trResendShowRef.current = () => { if (trActiveRef.current) trBroadcastShow(); };
-  }, [trBroadcastShow]);
-
-  const sendTextRevealToPlayer = useCallback(() => {
-    let eng = trEngineRef.current;
-    if (!eng || eng.n === 0) { trBuild(); eng = trEngineRef.current; }
-    if (!eng || eng.n === 0) return;
-    // Sinergia: en llançar text, amaguem l'expositor d'imatge (crossfade al jugador) i el diàleg
-    if (expositorActiveRef.current) hideExpositorOnPlayer();
-    sceneHideRef.current();
-    dialogEndRef.current();
-    trBroadcastShow();
-    trActiveRef.current = true;
-    setTextRevealActive(true);
-    const shown = (trSrcRef.current?.value ?? '').replace(/\s+/g, ' ').trim();
-    logJournal('text', `Text als jugadors: «${shown.length > 70 ? `${shown.slice(0, 70).trimEnd()}…` : shown}»`);
-  }, [trBuild, trBroadcastShow, hideExpositorOnPlayer]);
-
-  const trPlay = useCallback(() => {
-    let eng = trEngineRef.current;
-    if (!eng || eng.n === 0) { trBuild(); eng = trEngineRef.current; }
-    if (!eng || eng.n === 0) return;
-    if (eng.pos >= eng.n) eng.reset();
-    trPausedRef.current = false; trRunningRef.current = true;
-    trUpdateStatus();
-  }, [trBuild, trUpdateStatus]);
-
-  const trPause = useCallback(() => {
-    trPausedRef.current = true; trUpdateStatus();
-  }, [trUpdateStatus]);
-
-  const trNextSentence = useCallback(() => {
-    let eng = trEngineRef.current;
-    if (!eng || eng.n === 0) { trBuild(); eng = trEngineRef.current; }
-    if (!eng || eng.n === 0) return;
-    const ref = Math.max(eng.pos, eng.target);
-    const nb = eng.nextBoundary(ref);
-    if (nb < 0) return;
-    eng.target = nb; trPausedRef.current = false; trRunningRef.current = true;
-    trUpdateStatus();
-  }, [trBuild, trUpdateStatus]);
-
-  const trPrevSentence = useCallback(() => {
-    const eng = trEngineRef.current; if (!eng || eng.n === 0) return;
-    eng.snapTo(eng.prevBoundary(Math.round(eng.pos)));
-    trUpdateStatus();
-  }, [trUpdateStatus]);
-
-  const trReset = useCallback(() => {
-    const eng = trEngineRef.current; if (!eng) return;
-    eng.reset(); trPausedRef.current = true;
-    if (trStageRef.current) trStageRef.current.scrollTop = 0;
-    trUpdateStatus();
-  }, [trUpdateStatus]);
-
-  // ── Revelador de text: text que deixa un mòdul de la Història ───────────────
-  // Obre la pestanya Text i hi escriu el text; el DM el mostra als jugadors quan vulgui.
-  const showTextInReveal = useCallback((text: string) => {
-    trPrefillRef.current = text;
-    openShowTab('text');
-    setTrPrefillNonce(n => n + 1);
-  }, [openShowTab]);
-  useEffect(() => {
-    const txt = trPrefillRef.current;
-    const ta = trSrcRef.current;
-    if (txt === null || !textRevealOpen || !ta) return;
-    trPrefillRef.current = null;
-    ta.value = txt;
-    trBuild();
-    trEngineRef.current?.reset();
-    trRunningRef.current = false; trPausedRef.current = true;
-    trUpdateStatus();
-  }, [textRevealOpen, trPrefillNonce, trBuild, trUpdateStatus]);
+  // ── Text que deixa un mòdul de la Història ─────────────────────────────────
+  // Obre la pestanya Escena i hi escriu el text; el DM el mostra als jugadors quan vulgui.
+  const { setText: setSceneText } = scene;
+  const showTextInScene = useCallback((text: string) => {
+    setSceneText(text);
+    openShowTab('escena');
+  }, [setSceneText, openShowTab]);
 
   // ── Història: el que un mòdul pot fer sobre l'escena, i el diari ───────────
   const story = useStory(R, {
     setLibEnemies, setPos, broadcast: () => _broadcastState({}), notify,
-    showText: showTextInReveal, startDialog: dlg.start, sceneTokens: sceneTokenList,
+    showText: showTextInScene, startDialog: dlg.start, sceneTokens: sceneTokenList,
   });
   useJournalWatchers(R, { rooms, defeated, players, bgLoaded, bgName });
-
-  // ── Revelador de text: RAF loop (preview + streaming TEXTREVEAL_SYNC) ───────
-  useEffect(() => {
-    if (!textRevealOpen) { trBuild(); return; }
-    trBuild();
-    const tick = (ts: number) => {
-      trRafRef.current = requestAnimationFrame(tick);
-      const eng = trEngineRef.current; if (!eng) return;
-      const dt = trLastTsRef.current ? Math.min(80, ts - trLastTsRef.current) : 16;
-      trLastTsRef.current = ts;
-      eng.tick(dt);
-
-      const cps = trCps();
-      const fadeMs = trFadeMs();
-      if (eng.n && trRunningRef.current && !trPausedRef.current) {
-        eng.advance(dt, cps, trDramaticRef.current, trManualRef.current);
-        const moving = trManualRef.current ? (eng.pos < eng.target - 1e-6) : (eng.pos < eng.n || eng.dwell > 0);
-        const fading = eng.solid < eng.passed;
-        if (!moving && !fading) {
-          trRunningRef.current = false;
-          if (!trManualRef.current && eng.pos >= eng.n) trPausedRef.current = true;
-        }
-      }
-      eng.render(fadeMs, trStageRef.current);
-      trUpdateStatus();
-
-      if (trActiveRef.current && ts - trLastSyncRef.current >= 33) {
-        trLastSyncRef.current = ts;
-        const payload = { type: 'TEXTREVEAL_SYNC' as const, pos: eng.pos, cps, fadeMs };
-        R.bcRef.current?.postMessage(payload);
-        R.wsRef.current?.send(JSON.stringify(payload));
-      }
-    };
-    trRafRef.current = requestAnimationFrame(tick);
-    return () => { if (trRafRef.current) cancelAnimationFrame(trRafRef.current); trLastTsRef.current = 0; };
-  }, [textRevealOpen, trBuild, trCps, trFadeMs, trUpdateStatus]);
-
-  // ── Revelador de text: teclat (només quan el panell és obert) ───────────────
-  useEffect(() => {
-    if (!textRevealOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return;
-      switch (e.key) {
-        case ' ': e.preventDefault(); trManualRef.current ? trNextSentence() : (trPausedRef.current ? trPlay() : trPause()); break;
-        case 'ArrowRight': e.preventDefault(); trManualRef.current ? trNextSentence() : trPlay(); break;
-        case 'ArrowLeft': e.preventDefault(); trManualRef.current ? trPrevSentence() : trReset(); break;
-        case 'r': case 'R': trReset(); break;
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [textRevealOpen, trNextSentence, trPlay, trPause, trPrevSentence, trReset]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   // Enemics de l'escena que poden entrar en una cinemàtica de grup (biblioteca).
@@ -1985,8 +1634,8 @@ export function DMView() {
           onDoubleClick={onDoubleClick}
         />
         <RightRail
-          canShow={mode === 'jugar' || showPanelOpen || expositorActive || textRevealActive || scene.active || !!dlg.ui || !!sheetShowId}
-          showOpen={showPanelOpen} showActive={expositorActive || textRevealActive || scene.active || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
+          canShow={mode === 'jugar' || showPanelOpen || scene.active || !!dlg.ui || !!sheetShowId}
+          showOpen={showPanelOpen} showActive={scene.active || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
           storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => !v)} />
         <CanvasHUD
           gridCalibrating={gridCalibrating} hasMap={bgLoaded}
@@ -2035,202 +1684,16 @@ export function DMView() {
           log={combatLog}
           pixel={pixel}
         />}
-        {/* Expositor floating panel */}
-        {expositorOpen && (
-          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', overflowY: 'auto', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="imatge" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
-              hint="Espai: reinicia / pausa el moviment" onClose={closeShowPanel} />
-            {/* Preview area with KB animation and pan/zoom */}
-            <div
-              ref={expositorPreviewRef}
-              style={{ height: 260, background: '#000', position: 'relative', overflow: 'hidden', cursor: expositorLocalSrc ? (expositorDragRef.current ? 'grabbing' : 'grab') : 'pointer' }}
-              onClick={e => { if (!expositorLocalSrc) expositorInputRef.current?.click(); e.stopPropagation(); }}
-              onDrop={e => { e.preventDefault(); e.stopPropagation(); fileDragDepth.current = 0; setFileOver(false); const f = e.dataTransfer.files[0]; if (f) loadExpositorFile(f); }}
-              onDragOver={e => e.preventDefault()}
-              onMouseDown={e => {
-                if (e.button !== 0 || !expositorLocalSrc) return;
-                e.preventDefault();
-                expositorDragRef.current = { sx: e.clientX, sy: e.clientY, px: expositorPan.current.x, py: expositorPan.current.y };
-              }}
-              onMouseMove={e => {
-                if (!expositorDragRef.current) return;
-                expositorPan.current = {
-                  x: expositorDragRef.current.px + (e.clientX - expositorDragRef.current.sx),
-                  y: expositorDragRef.current.py + (e.clientY - expositorDragRef.current.sy),
-                };
-              }}
-              onMouseUp={() => { expositorDragRef.current = null; }}
-              onMouseLeave={() => { expositorDragRef.current = null; }}
-              onWheel={e => {
-                if (!expositorLocalSrc) return;
-                e.preventDefault();
-                expositorZoom.current = Math.max(0.3, Math.min(6, expositorZoom.current * (e.deltaY < 0 ? 1.1 : 0.9)));
-              }}
-            >
-              {expositorLocalSrc && (
-                <>
-                  {expositorLocalType === 'image' && (
-                    <div style={{ position: 'absolute', inset: -40, backgroundImage: `url(${expositorLocalSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(28px) brightness(0.22) saturate(0.45)', transform: 'scale(1.1)', pointerEvents: 'none' }} />
-                  )}
-                  <div
-                    ref={expositorInnerRef}
-                    style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center', userSelect: 'none', pointerEvents: 'none' }}
-                  >
-                    {expositorLocalType === 'image' && (
-                      <img src={expositorLocalSrc} alt="" draggable={false} style={{ maxWidth: SHOW_PANEL_W, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
-                    )}
-                    {expositorLocalType === 'video' && (
-                      <video src={expositorLocalSrc} muted autoPlay loop playsInline draggable={false} style={{ maxWidth: SHOW_PANEL_W, maxHeight: 260, objectFit: 'contain', display: 'block' }} />
-                    )}
-                  </div>
-                  <div style={{ position: 'absolute', bottom: 6, right: 8, color: 'rgba(255,255,255,0.3)', fontSize: FS.xs, pointerEvents: 'none', letterSpacing: '0.08em' }}>
-                    roda: zoom · arrossega: mou · espai: reinicia
-                  </div>
-                </>
-              )}
-              {!expositorLocalSrc && (
-                <div title="Arrossega o clica per carregar imatge / vídeo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8, color: C.dim }}>
-                  <ImageIcon size={28} color={C.dim} />
-                </div>
-              )}
-            </div>
-            <input ref={expositorInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) loadExpositorFile(f); (e.target as HTMLInputElement).value = ''; }} />
-            <div style={{ padding: '8px 10px', display: 'flex', gap: 6 }}>
-              <button
-                onClick={sendExpositorToPlayer}
-                disabled={!expositorLocalSrc}
-                style={{ flex: 1, padding: '7px', borderRadius: RADIUS.md, border: 'none', background: expositorLocalSrc ? C.accent : 'rgba(255,255,255,0.05)', cursor: expositorLocalSrc ? 'pointer' : 'default', color: expositorLocalSrc ? C.onAccent : C.dim, fontWeight: 700, fontSize: FS.sm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                {expositorActive ? <><CheckIcon size={13} /> Mostrant als jugadors</> : <><PlayIcon size={12} /> Mostrar als jugadors</>}
-              </button>
-              <button
-                onClick={() => expositorInputRef.current?.click()}
-                style={{ padding: '7px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: C.dim, fontSize: FS.sm }}>
-                Fitxer
-              </button>
-              <button
-                onClick={hideExpositorOnPlayer}
-                disabled={!expositorActive}
-                style={{ padding: '7px 10px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: expositorActive ? 'pointer' : 'default', color: expositorActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: FS.sm }}>
-                Ocultar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Revelador de text floating panel */}
-        {textRevealOpen && (
-          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="text" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
-              hint="Espai: revela / pausa · ←→ navega · R reinicia" onClose={closeShowPanel} />
-
-            <div style={{ overflowY: 'auto', minHeight: 0 }}>
-              {/* Editor */}
-              <textarea
-                ref={trSrcRef}
-                placeholder="Enganxa aquí el text que vols anar revelant…&#10;&#10;Per exemple, la narració d'obertura d'una escena."
-                onChange={() => { if (trPausedRef.current && (trEngineRef.current?.pos ?? 0) === 0) trBuild(); }}
-                style={{ width: '100%', height: 110, resize: 'vertical', border: 'none', borderBottom: `1px solid ${C.border}`, outline: 'none', background: 'rgba(255,255,255,0.02)', color: C.text, fontFamily: FONT_SERIF, fontSize: FS.lg, lineHeight: 1.5, padding: '10px 12px', display: 'block' }}
-              />
-
-              {/* Controls */}
-              <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10, borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.sm, color: C.dim, marginBottom: 4 }}>
-                      <span>Velocitat</span><b ref={trSpeedLblRef} style={{ color: C.text, fontWeight: 600 }}>mitjana</b>
-                    </div>
-                    <input ref={trSpeedRef} type="range" min={1} max={100} defaultValue={50}
-                      onInput={e => { if (trSpeedLblRef.current) trSpeedLblRef.current.textContent = speedLabel(+(e.target as HTMLInputElement).value); }}
-                      style={{ width: '100%', accentColor: C.accent }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS.sm, color: C.dim, marginBottom: 4 }}>
-                      <span>Suavitat</span><b ref={trSmoothLblRef} style={{ color: C.text, fontWeight: 600 }}>suau</b>
-                    </div>
-                    <input ref={trSmoothRef} type="range" min={1} max={100} defaultValue={55}
-                      onInput={e => { if (trSmoothLblRef.current) trSmoothLblRef.current.textContent = smoothLabel(+(e.target as HTMLInputElement).value); if (!trRunningRef.current || trPausedRef.current) { trEngineRef.current?.recompute(); } }}
-                      style={{ width: '100%', accentColor: C.accent }} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => { const nv = !trDramatic; setTrDramatic(nv); trDramaticRef.current = nv; }}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: RADIUS.md, border: `1px solid ${trDramatic ? C.accent : C.border}`, background: trDramatic ? `${C.accent}18` : 'transparent', color: trDramatic ? C.accent : C.dim, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600 }}>
-                    Pauses dramàtiques
-                  </button>
-                  <button
-                    onClick={() => {
-                      const nv = !trManual; setTrManual(nv); trManualRef.current = nv;
-                      const eng = trEngineRef.current; if (eng) eng.target = eng.pos;
-                      trRunningRef.current = nv; trPausedRef.current = !nv;
-                      trUpdateStatus();
-                    }}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: RADIUS.md, border: `1px solid ${trManual ? C.accent : C.border}`, background: trManual ? `${C.accent}18` : 'transparent', color: trManual ? C.accent : C.dim, cursor: 'pointer', fontSize: FS.sm, fontWeight: 600 }}>
-                    Control manual (frase a frase)
-                  </button>
-                </div>
-              </div>
-
-              {/* Preview stage */}
-              <div
-                ref={trStageRef}
-                onClick={() => { if (trManualRef.current) trNextSentence(); }}
-                style={{ height: 300, overflowY: 'auto', scrollBehavior: 'smooth', padding: '8% 9% 16%', background: 'radial-gradient(130% 90% at 50% 0%, #1a1611 0%, #0a0806 62%)', cursor: trManual ? 'pointer' : 'default' }}
-              >
-                <div
-                  ref={trTextRef}
-                  style={{ fontFamily: FONT_SERIF, fontSize: '1.5rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', color: '#ece3d0' }}
-                />
-              </div>
-
-              {/* Status bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 12px', borderTop: `1px solid ${C.border}`, fontSize: FS.sm, color: C.dim }}>
-                <span ref={trCounterRef} style={{ minWidth: 80 }}>—</span>
-                <div style={{ flex: 1, height: 3, background: C.border, borderRadius: RADIUS.sm, overflow: 'hidden' }}>
-                  <div ref={trProgRef} style={{ height: '100%', width: '0%', background: C.text }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ padding: '8px 10px', display: 'flex', gap: 6, flexShrink: 0, borderTop: `1px solid ${C.border}` }}>
-              <button
-                ref={trPlayBtnRef}
-                onClick={() => { trManualRef.current ? trNextSentence() : (trPausedRef.current ? trPlay() : trPause()); }}
-                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.03)', color: C.text, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm }}>
-                Comença
-              </button>
-              <button
-                onClick={trReset}
-                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', color: C.dim, cursor: 'pointer', fontSize: FS.sm }}>
-                Reinicia
-              </button>
-              <div style={{ flex: 1 }} />
-              <button
-                onClick={sendTextRevealToPlayer}
-                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: 'none', background: C.accent, color: C.onAccent, cursor: 'pointer', fontWeight: 700, fontSize: FS.sm, display: 'flex', alignItems: 'center', gap: 6 }}>
-                {textRevealActive ? <><CheckIcon size={13} /> Mostrant als jugadors</> : <><PlayIcon size={12} /> Mostrar als jugadors</>}
-              </button>
-              <button
-                onClick={hideTextRevealOnPlayer}
-                disabled={!textRevealActive}
-                style={{ padding: '8px 12px', borderRadius: RADIUS.md, border: `1px solid ${C.border}`, background: 'transparent', cursor: textRevealActive ? 'pointer' : 'default', color: textRevealActive ? C.dim : 'rgba(255,255,255,0.15)', fontSize: FS.sm }}>
-                Ocultar
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Escena: imatge o vídeo + subtítols. Sempre muntada (el motor de text hi viu). */}
         <ScenePanel sc={scene} width={SHOW_PANEL_W}
           onFileDropped={() => { fileDragDepth.current = 0; setFileOver(false); }}
-          header={<ShowPanelHeader tab="escena" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+          header={<ShowPanelHeader tab="escena" onTab={openShowTab} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
             hint="Espai: text · ↓↑ imatge · ←→ frase · R reinicia" onClose={closeShowPanel} />} />
 
         {/* Diàleg: pestanya del panell «Mostrar als jugadors» */}
         {dialogOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="dialeg" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+            <ShowPanelHeader tab="dialeg" onTab={openShowTab} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Espai/→ avança · ← enrere · Esc acaba" onClose={closeShowPanel} />
             <DialogPanel draft={dialogDraft} onDraft={setDialogDraft} tokens={sceneTokenList} saved={dlg.dialogs}
               running={!!dlg.ui} onStart={startDraft} onEnd={dlg.end} onSave={saveDraft} onDelete={dlg.deleteDialog} />
@@ -2239,7 +1702,7 @@ export function DMView() {
         {/* Fitxa: pestanya del panell «Mostrar als jugadors» */}
         {sheetOpen && (
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: SHOW_PANEL_W, maxWidth: 'calc(100% - 24px)', maxHeight: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', background: 'rgba(13,17,23,0.97)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, boxShadow: '0 8px 32px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <ShowPanelHeader tab="fitxa" onTab={openShowTab} imageActive={expositorActive} textActive={textRevealActive} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
+            <ShowPanelHeader tab="fitxa" onTab={openShowTab} sceneActive={scene.active} dialogActive={!!dlg.ui} sheetActive={!!sheetShowId}
               hint="Una targeta al costat del mapa" onClose={closeShowPanel} />
             <SheetPanel characters={chars.characters} status={chars.status} pending={chars.pending}
               selected={sheetSel} onSelect={setSheetSel} parts={sheetParts} onParts={setSheetParts}

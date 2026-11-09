@@ -5,7 +5,7 @@ import { TurnBanner } from '@/components/player/TurnBanner';
 import { SheetCard } from '@/components/player/SheetCard';
 import { SceneOverlay, type SceneController } from '@/components/player/SceneOverlay';
 import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
-import { BC_CHANNEL, APP_VERSION, FONT_SERIF } from '@/constants';
+import { BC_CHANNEL, APP_VERSION } from '@/constants';
 import {
   renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
@@ -17,7 +17,6 @@ import { renderGrid, renderDifficult, renderDMPointer, renderMeasureRuler, rende
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
 import { relayToParent } from '@/lib/relay';
-import { RevealEngine } from '@/lib/textreveal';
 import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
@@ -240,9 +239,8 @@ export function PlayerView() {
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
   const pendingBgMetaRef = useRef<{ mimeType: string; withFade?: boolean } | null>(null);
-  const pendingExpMetaRef = useRef<{ mimeType: string } | null>(null);
-  // Escena (imatge + subtítols): el mèdia arriba pel WS amb la capçalera de l'Expositor
-  // marcada `target: 'scene'` (el servidor només reenvia tipus coneguts).
+  // Escena (imatge + subtítols): el mèdia arriba pel WS amb la capçalera `EXPOSITOR_SHOW_META`
+  // (de l'antic Expositor) marcada `target: 'scene'`: el servidor només reenvia tipus coneguts.
   const pendingSceneMetaRef = useRef<{ mimeType: string; id: string } | null>(null);
   const sceneCtlRef = useRef<SceneController | null>(null);
   const rafRef = useRef<number>(0);
@@ -252,20 +250,6 @@ export function PlayerView() {
 
   const [activeSpells, setActiveSpells] = useState<Spell[]>([]);
 
-  const [expositorVisible, setExpositorVisible] = useState(false);
-  const [expositorFading, setExpositorFading] = useState(false);
-  const [expositorSrc, setExpositorSrc] = useState<string | null>(null);
-  const [expositorType, setExpositorType] = useState<'image' | 'video' | null>(null);
-  // Mirall en ref de `expositorVisible`: el handler del BC es crea una sola vegada, així
-  // que llegir l'estat directament hi quedava congelat a `false` i el crossfade entre dues
-  // imatges consecutives no s'executava mai (mateix patró que textRevealVisibleRef).
-  const expositorVisibleRef = useRef(false);
-  const expositorObjectUrl = useRef<string | null>(null);
-  const expositorInnerRef = useRef<HTMLDivElement | null>(null);
-  const expTgt = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
-  const expCur = useRef({ zoom: 1, panX: 0, panY: 0, kbTx: 0, kbTy: 0 });
-
-  // ── Revelador de text ──────────────────────────────────────────────────────
   // Rètol de torn (TV i tablet): projecció del combat al que es veu, per no re-renderitzar
   // aquesta pantalla a cada STATE (n'arriben ~20/s mentre el DM fa pan o zoom).
   const [turnBanner, setTurnBanner] = useState<TurnBannerData>(EMPTY_BANNER);
@@ -276,17 +260,6 @@ export function PlayerView() {
     });
     setTurnBanner(prev => sameBanner(prev, next) ? prev : next);
   }, []);
-
-  const [textRevealVisible, setTextRevealVisible] = useState(false);
-  const [textRevealFading, setTextRevealFading] = useState(false);
-  const textRevealVisibleRef = useRef(false);
-  const textRevealStageRef = useRef<HTMLDivElement>(null);
-  const textRevealTextRef = useRef<HTMLDivElement>(null);
-  const trEngineRef = useRef<RevealEngine | null>(null);
-  const trTargetRef = useRef(0);
-  const trCpsRef = useRef(20);
-  const trFadeRef = useRef(450);
-  const trLastTsRef = useRef(0);
 
   // Dedupe del fons: el DM reenvia el BG sencer a cada PLAYER_READY (reconnexions del
   // WS cada pocs segons si la xarxa falla) i, en un mateix ordinador, el jugador el rep
@@ -744,72 +717,8 @@ export function PlayerView() {
         } else fallback();
       } else if (msg.type === 'BOSS_INTRO_SKIP') {
         skipBossIntroRef.current();
-      } else if (msg.type === 'EXPOSITOR_SHOW') {
-        const blob = new Blob([msg.buffer], { type: msg.mimeType });
-        const url = URL.createObjectURL(blob);
-        const newType = msg.mimeType.startsWith('video/') ? 'video' : 'image';
-        const doShow = (u: string) => {
-          if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
-          expositorObjectUrl.current = u;
-          setExpositorSrc(u);
-          setExpositorType(newType);
-          setExpositorFading(false);
-          expositorVisibleRef.current = true;
-          setExpositorVisible(true);
-        };
-        if (expositorVisibleRef.current) {
-          setExpositorFading(true);
-          setTimeout(() => doShow(url), 350);
-        } else {
-          doShow(url);
-        }
       } else if (msg.type === 'SCENE_MEDIA') {
         sceneCtlRef.current?.media(msg.buffer, msg.mimeType, msg.id);
-      } else if (msg.type === 'EXPOSITOR_HIDE') {
-        expositorVisibleRef.current = false;
-        setExpositorVisible(false);
-      } else if (msg.type === 'EXPOSITOR_SYNC') {
-        expTgt.current = {
-          zoom: msg.zoom,
-          panX: msg.panXNorm * window.innerWidth,
-          panY: msg.panYNorm * window.innerHeight,
-          kbTx: msg.kbTxPct,
-          kbTy: msg.kbTyPct,
-        };
-      } else if (msg.type === 'TEXTREVEAL_SHOW') {
-        // Reenviament del DM (PLAYER_READY d'un altre client o reconnexió WS) amb
-        // el text que ja estem mostrant: només resincronitzar el front, sense
-        // reconstruir els spans ni refer el crossfade.
-        if (textRevealVisibleRef.current && trEngineRef.current?.chars === msg.text) {
-          trTargetRef.current = msg.pos;
-          trCpsRef.current = msg.cps;
-          trFadeRef.current = msg.fadeMs;
-          return;
-        }
-        const doShow = () => {
-          const container = textRevealTextRef.current;
-          if (!container) return;
-          const eng = trEngineRef.current ?? new RevealEngine();
-          trEngineRef.current = eng;
-          eng.setText(msg.text, container);
-          trTargetRef.current = msg.pos;
-          trCpsRef.current = msg.cps;
-          trFadeRef.current = msg.fadeMs;
-          trLastTsRef.current = 0;
-          if (msg.pos > 0) eng.snapTo(msg.pos);
-          setTextRevealFading(false);
-          textRevealVisibleRef.current = true;
-          setTextRevealVisible(true);
-        };
-        if (textRevealVisibleRef.current) { setTextRevealFading(true); setTimeout(doShow, 350); }
-        else doShow();
-      } else if (msg.type === 'TEXTREVEAL_HIDE') {
-        textRevealVisibleRef.current = false;
-        setTextRevealVisible(false);
-      } else if (msg.type === 'TEXTREVEAL_SYNC') {
-        trTargetRef.current = msg.pos;
-        trCpsRef.current = msg.cps;
-        trFadeRef.current = msg.fadeMs;
       }
     };
 
@@ -833,10 +742,9 @@ export function PlayerView() {
   // ── WebSocket setup (receives same messages as BC, for cross-device iPad) ──
   useEffect(() => {
     const ws = createSyncSocket('client', async (ev: MessageEvent) => {
-      // Binary frame = BG image or expositor media
+      // Binary frame = BG image or the Scene's media
       if (ev.data instanceof ArrayBuffer) {
         const bgMeta = pendingBgMetaRef.current;
-        const expMeta = pendingExpMetaRef.current;
         const sceneMeta = pendingSceneMetaRef.current;
         if (sceneMeta) {
           pendingSceneMetaRef.current = null;
@@ -847,22 +755,6 @@ export function PlayerView() {
           const blob = new Blob([ev.data], { type: bgMeta.mimeType });
           const url = URL.createObjectURL(blob);
           _loadBgFromUrl(url, bgMeta.mimeType, !!bgMeta.withFade);
-        } else if (expMeta) {
-          pendingExpMetaRef.current = null;
-          const blob = new Blob([ev.data], { type: expMeta.mimeType });
-          const url = URL.createObjectURL(blob);
-          const newType = expMeta.mimeType.startsWith('video/') ? 'video' : 'image';
-          const doShow = () => {
-            if (expositorObjectUrl.current) URL.revokeObjectURL(expositorObjectUrl.current);
-            expositorObjectUrl.current = url;
-            setExpositorSrc(url);
-            setExpositorType(newType);
-            setExpositorFading(false);
-            expositorVisibleRef.current = true;
-            setExpositorVisible(true);
-          };
-          if (expositorVisibleRef.current) { setExpositorFading(true); setTimeout(doShow, 350); }
-          else doShow();
         }
         return;
       }
@@ -877,8 +769,8 @@ export function PlayerView() {
         }
         if (msg.type === 'EXPOSITOR_SHOW_META') {
           const meta = parsed as { mimeType: string; target?: string; id?: string };
+          // Només el de l'Escena (l'Expositor ja no existeix).
           if (meta.target === 'scene' && meta.id) pendingSceneMetaRef.current = { mimeType: meta.mimeType, id: meta.id };
-          else pendingExpMetaRef.current = meta;
           return;
         }
         // Synthesize a fake BroadcastChannel MessageEvent so the existing handler processes it
@@ -1035,22 +927,6 @@ export function PlayerView() {
         if (pix !== prevPixelated) { (media as HTMLElement).style.imageRendering = pix ? 'pixelated' : ''; prevPixelated = pix; }
       }
 
-      // Text reveal follower — independent del mapa: funciona sobre qualsevol escena.
-      // (Seguim el `pos` del DM amb rellotge local perquè l'esvaïment continuï durant les pauses.)
-      {
-        const trEng = trEngineRef.current;
-        if (trEng && textRevealVisibleRef.current) {
-          const now = performance.now();
-          const dt = trLastTsRef.current ? Math.min(80, now - trLastTsRef.current) : 16;
-          trLastTsRef.current = now;
-          trEng.tick(dt);
-          trEng.follow(trTargetRef.current, trCpsRef.current);
-          trEng.render(trFadeRef.current, textRevealStageRef.current);
-        } else {
-          trLastTsRef.current = 0;
-        }
-      }
-
       // Diàleg: abans del `if (!hasMap)` (el narrador també funciona sense mapa).
       dialogHostRef.current?.tick(performance.now(), p => ({ x: ox + p.x * sc, y: oy + p.y * sc }));
 
@@ -1142,18 +1018,6 @@ export function PlayerView() {
 
       cinematicRef.current?.tick(performance.now());
 
-      // Expositor smooth LERP
-      if (expositorInnerRef.current) {
-        const tgt = expTgt.current, cur = expCur.current;
-        const EL = 0.028;
-        cur.zoom += (tgt.zoom - cur.zoom) * EL;
-        cur.panX += (tgt.panX - cur.panX) * EL;
-        cur.panY += (tgt.panY - cur.panY) * EL;
-        cur.kbTx += (tgt.kbTx - cur.kbTx) * EL;
-        cur.kbTy += (tgt.kbTy - cur.kbTy) * EL;
-        expositorInnerRef.current.style.transform =
-          `translate(calc(-50% + ${cur.panX}px), calc(-50% + ${cur.panY}px)) scale(${cur.zoom}) translate(${cur.kbTx}%, ${cur.kbTy}%)`;
-      }
     };
 
     rafRef.current = requestAnimationFrame(tick);
@@ -1244,58 +1108,6 @@ export function PlayerView() {
         </div>
       )}
 
-      {/* Expositor overlay */}
-      <div
-        style={{
-          position: 'absolute', inset: 0, zIndex: 50,
-          background: '#080604',
-          opacity: (expositorVisible && !expositorFading) ? 1 : 0,
-          pointerEvents: expositorVisible ? 'auto' : 'none',
-          transition: expositorFading ? 'opacity 0.3s ease-in-out' : 'opacity 1.4s ease-in-out',
-          overflow: 'hidden',
-        }}
-      >
-        {/* blurred background */}
-        {expositorSrc && expositorType === 'image' && (
-          <div style={{ position: 'absolute', inset: -60, backgroundImage: `url(${expositorSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(36px) brightness(0.22) saturate(0.45)', transform: 'scale(1.12)', pointerEvents: 'none' }} />
-        )}
-        {/* main media — transform driven by EXPOSITOR_SYNC */}
-        <div ref={expositorInnerRef} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center', userSelect: 'none', pointerEvents: 'none' }}>
-          {expositorSrc && expositorType === 'image' && (
-            <img src={expositorSrc} alt="" draggable={false} style={{ maxWidth: '100vw', maxHeight: '100vh', objectFit: 'contain', display: 'block', userSelect: 'none' }} />
-          )}
-          {expositorSrc && expositorType === 'video' && (
-            <video src={expositorSrc} autoPlay loop muted playsInline draggable={false} style={{ maxWidth: '100vw', maxHeight: '100vh', objectFit: 'contain', display: 'block' }} />
-          )}
-        </div>
-      </div>
-
-      {/* Revelador de text overlay */}
-      <div
-        style={{
-          position: 'absolute', inset: 0, zIndex: 51,
-          background: 'radial-gradient(130% 90% at 50% 0%, #1a1611 0%, #0a0806 62%)',
-          opacity: (textRevealVisible && !textRevealFading) ? 1 : 0,
-          pointerEvents: textRevealVisible ? 'auto' : 'none',
-          transition: textRevealFading ? 'opacity 0.3s ease-in-out' : 'opacity 1.4s ease-in-out',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          ref={textRevealStageRef}
-          style={{ position: 'absolute', inset: 0, overflowY: 'auto', scrollBehavior: 'smooth', padding: '15vh 9% 32vh' }}
-        >
-          <div
-            ref={textRevealTextRef}
-            style={{
-              fontFamily: FONT_SERIF,
-              fontSize: 'clamp(2rem, 4.6vw, 4rem)', lineHeight: 1.55, whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word', maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em',
-              color: '#ece3d0', textShadow: '0 2px 24px rgba(0,0,0,0.6)',
-            }}
-          />
-        </div>
-      </div>
       {/* Escena: imatge o vídeo de fons + text en subtítols (zIndex 52) */}
       <SceneOverlay controllerRef={sceneCtlRef} />
       <div ref={flashRef} style={{ position: 'absolute', inset: 0, zIndex: 90, background: '#fff', opacity: 0, pointerEvents: 'none' }} />
