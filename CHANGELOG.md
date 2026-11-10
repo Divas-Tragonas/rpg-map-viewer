@@ -3,10 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
-### v5.03 — Habilitats de la fitxa al menú del token, amb usos i descans
-- **Habilitats a punt per usar**: `sheet.powers` (mateix format que els poders de les criatures) surt al menú del token dels jugadors com a «Habilitats». Yunquerin: **Expulsar Muertos Vivientes** (aura 30 ft, salvació SAB CD 13, espantats 1 min) i **Preservar Vida** (cura en aura 30 ft); Jaume: **Oleada de Acción** i **Segundo Aire**; Espardeny: **Segundo Aire**
-- **Usos limitats**: una pila de `sheet.ammo` amb `max` i `rest` fa de comptador d'usos (Canalizar Divinidad 1/descans curt, compartit pels dos efectes de Yunquerin). Fer servir l'habilitat en gasta un; a 0 el botó s'apaga. Al menú, «Munició i usos» amb − / + i els botons **Descans curt / llarg** que recuperen els usos
-- Les armes noves ja surten a «Atacs» (vénen de `sheet.attacks`). Back office: «Màx» i «Es recupera» a cada pila
+### v5.03 — Habilitats de la fitxa al menú del token, amb descans
+- **Habilitats a punt per usar**: `sheet.powers` (mateix format que els poders de les criatures) surt al menú del token dels jugadors com a «Habilitats». Yunquerin: **Expulsar Muertos Vivientes** (aura 30 ft, salvació SAB CD 13, espantats 1 min) i **Preservar Vida** (cura en aura 30 ft), que comparteixen l'ús de Canalizar Divinidad; Jaume: **Oleada de Acción** i **Segundo Aire**; Espardeny: **Segundo Aire**. Les armes noves ja surten a «Atacs»
+- **Es gasten com l'alè d'un drac**: en fer-les servir (en confirmar l'efecte) el botó s'apaga i marca ⟳, però es pot prémer igualment. Mateixa mecànica que els poders amb recàrrega, però amb `rest` ('short' | 'long') en lloc d'un d6; `uses` fa que dos poders comparteixin l'ús. Es queden gastades fora i dins de combat fins al descans
+- **Descans curt / llarg a tots els jugadors** (menú del token): el curt torna les habilitats de descans curt; el **llarg torna tota la vida** i totes les habilitats
+- Corregit el text de les habilitats al menú (es veia en vertical)
 - Sense canvis a la API
 
 ### v5.02 — Munició a mà i seccions només per al DM

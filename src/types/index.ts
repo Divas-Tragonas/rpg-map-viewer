@@ -214,6 +214,9 @@ export interface CastPower {
   attack?: number;
   dice?: string;
   recharge?: number;
+  /** Habilitat de jugador que torna amb un descans, i la clau de `powerSpent` (els que comparteixen ús, la mateixa). */
+  rest?: 'short' | 'long';
+  spentKey?: string;
 }
 
 export type DrawTool = 'none' | 'pen' | 'eraser' | 'shape' | 'pointer' | 'wall' | 'light' | 'tiles' | 'terrain';

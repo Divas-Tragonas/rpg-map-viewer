@@ -142,9 +142,19 @@ export interface MonsterPower {
   perDay?: number;
   /** Encanteri innat a voluntat. */
   atWill?: boolean;
-  /** Jugadors: pila de `sheet.ammo` que gasta (usos de Canalizar Divinidad, Oleada de Acción…). */
+  /**
+   * Habilitats de jugador (`sheet.powers`): torna amb un descans curt o llarg. Es gasta com l'alè d'un
+   * drac (el botó s'apaga però es pot tornar a prémer) i es recupera amb «Descans» del menú del token.
+   */
+  rest?: 'short' | 'long';
+  /** Poders que comparteixen l'ús (Canalizar Divinidad: Expulsar i Preservar): el mateix nom = es gasten junts. */
   uses?: string;
 }
+
+/** Valors de `powerSpent` d'un poder gastat que torna amb un descans (els de recàrrega són 2–6, un d6). */
+export const REST_SPENT = { short: 7, long: 8 } as const;
+/** Clau del poder a `powerSpent[token]`: els que comparteixen `uses` en comparteixen l'estat. */
+export const spentKey = (p: Pick<MonsterPower, 'id' | 'uses'>) => p.uses ?? p.id;
 
 /** Definició efectiva d'un poder (la seva o la del catàleg). Null si l'encanteri no és al catàleg. */
 export function powerDef(p: MonsterPower): PowerDef | null {

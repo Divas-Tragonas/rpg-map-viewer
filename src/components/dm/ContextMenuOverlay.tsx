@@ -14,7 +14,7 @@ import { type AmmoStack, ammoLeft, attacksOf, attackRanges, characterFor, sheetO
 import { monsterForEnemy } from '@/lib/db-enemies';
 import { enemyDefenses } from '@/lib/rules/damage';
 import { MonsterBlock } from '@/components/dm/MonsterBlock';
-import { powerDef, powerName, type MonsterPower } from '@/lib/monster-powers';
+import { powerDef, powerName, spentKey, REST_SPENT, type MonsterPower } from '@/lib/monster-powers';
 
 /** Posició d'un menú flotant, en píxels de la finestra (cantonada de dalt a l'esquerra). */
 export interface MenuPos { x: number; y: number }
@@ -239,29 +239,33 @@ function AttackList({ attacks, onPick, ammoOf }: { attacks: SheetAttack[]; onPic
   );
 }
 
+/** Descans d'un jugador (v5.03): el curt torna les habilitats de descans curt; el llarg, totes i tota la vida. */
+function RestButtons({ onRest }: { onRest: (kind: 'short' | 'long') => void }) {
+  return (
+    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 4 }}>
+      <Button size="sm" variant="tint" title="Torna les habilitats de descans curt" onMouseDown={e => { e.stopPropagation(); onRest('short'); }}>Descans curt</Button>
+      <Button size="sm" variant="tint" color={C.ok} title="Torna tota la vida i totes les habilitats" onMouseDown={e => { e.stopPropagation(); onRest('long'); }}>Descans llarg</Button>
+    </div>
+  );
+}
+
 /**
  * Munició del jugador (v5.02): una fila per pila amb − / + per recollir o perdre peces a mà (a banda
  * del tret, que en gasta una sola). Maj+clic = de 5 en 5. Es desa a la fitxa.
  */
-function AmmoControls({ stacks, onAdjust, onRest }: { stacks: AmmoStack[]; onAdjust: (name: string, delta: number) => void; onRest: (kind: 'short' | 'long') => void }) {
+function AmmoControls({ stacks, onAdjust }: { stacks: AmmoStack[]; onAdjust: (name: string, delta: number) => void }) {
   const btn: React.CSSProperties = { width: 24, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.dark, color: C.text, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, cursor: 'pointer', padding: 0, fontSize: FS.md, lineHeight: 1 };
   return (
     <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={sectionLabel}>Munició i usos</div>
+      <div style={sectionLabel}>Munició</div>
       {stacks.map(st => (
         <div key={st.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ flex: 1, minWidth: 0, color: C.text, fontSize: FS.sm, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.name}</span>
           <button type="button" title="Perd una (Maj = 5)" style={btn} onMouseDown={e => e.stopPropagation()} onClick={e => onAdjust(st.name, e.shiftKey ? -5 : -1)}>−</button>
-          <span style={{ minWidth: 26, textAlign: 'center', color: st.count === 0 ? C.enemy : C.bright, fontWeight: 700, fontSize: FS.sm }}>{st.count}{st.max !== undefined ? `/${st.max}` : ''}</span>
+          <span style={{ minWidth: 26, textAlign: 'center', color: st.count === 0 ? C.enemy : C.bright, fontWeight: 700, fontSize: FS.sm }}>{st.count}</span>
           <button type="button" title="Recupera una (Maj = 5)" style={btn} onMouseDown={e => e.stopPropagation()} onClick={e => onAdjust(st.name, e.shiftKey ? 5 : 1)}>+</button>
         </div>
       ))}
-      {stacks.some(x => x.rest && x.max !== undefined) && (
-        <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-          <Button size="sm" variant="tint" title="Recupera els usos de les habilitats de descans curt" onMouseDown={e => { e.stopPropagation(); onRest('short'); }}>Descans curt</Button>
-          <Button size="sm" variant="tint" title="Recupera tots els usos" onMouseDown={e => { e.stopPropagation(); onRest('long'); }}>Descans llarg</Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -271,7 +275,7 @@ function AmmoControls({ stacks, onAdjust, onRest }: { stacks: AmmoStack[]; onAdj
  * jugadors. Agrupats: accions (alès, mirades…), a voluntat i trucs, per nivell i per dia. Un poder amb
  * recàrrega gastat en combat surt apagat amb la recàrrega que cal; es pot fer servir igualment.
  */
-function PowerList({ powers, spent, onCast, usesLeft, title = 'Poders i conjurs' }: { powers: MonsterPower[]; spent: Record<string, number>; onCast: (p: MonsterPower) => void; usesLeft?: (p: MonsterPower) => number | null; title?: string }) {
+function PowerList({ powers, spent, onCast, title = 'Poders i conjurs' }: { powers: MonsterPower[]; spent: Record<string, number>; onCast: (p: MonsterPower) => void; title?: string }) {
   const groupOf = (p: MonsterPower) => p.def ? 'Accions' : p.atWill ? 'A voluntat' : p.perDay ? `${p.perDay}/dia` : p.level === 0 ? 'Trucs' : `Nivell ${p.level}`;
   const groups: { g: string; list: MonsterPower[] }[] = [];
   for (const p of powers) {
@@ -291,22 +295,19 @@ function PowerList({ powers, spent, onCast, usesLeft, title = 'Poders i conjurs'
             {list.map(p => {
               const d = powerDef(p)!;
               const meta = SPELL_BY_TYPE.get(d.anim);
-              const used = spent[p.id];
-              const left = usesLeft?.(p) ?? null;
-              const out = left === 0;
+              const used = spent[spentKey(p)];
+              const byRest = used !== undefined && used > 6;
               const reach = d.mode === 'self' ? (d.aoeFt ? `${d.aoeFt} ft al voltant` : 'personal') : d.lineFt ? `${d.lineFt} ft` : `${d.rangeFt} ft`;
-              const tags = [p.dc ? `CD ${p.dc}` : '', p.attack !== undefined ? `+${p.attack}` : '', d.dice ?? '', p.recharge ? `recàrrega ${p.recharge === 6 ? '6' : `${p.recharge}–6`}` : '', d.fx ? '' : 'sense efecte de joc'].filter(Boolean).join(' · ');
+              const tags = [p.dc ? `CD ${p.dc}` : '', p.attack !== undefined ? `+${p.attack}` : '', d.dice ?? '', p.recharge ? `recàrrega ${p.recharge === 6 ? '6' : `${p.recharge}–6`}` : '', p.rest ? `1 cop per descans ${p.rest === 'short' ? 'curt' : 'llarg'}` : '', d.fx ? '' : 'sense efecte de joc'].filter(Boolean).join(' · ');
               return (
                 <Button key={p.id} size="sm" variant="tint" color={meta?.color ?? C.magic}
-                  title={`${powerName(p)} · ${reach}${tags ? ` · ${tags}` : ''}${used ? `\nGastat: es recarrega amb ${used}–6 a l'inici del seu torn` : ''}\n${d.mode === 'self' ? 'Surt de la criatura' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
-                  disabled={out}
-                  onMouseDown={e => { e.stopPropagation(); if (!out) onCast(p); }}
-                  style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15, opacity: used || out ? 0.45 : 1 }}>
+                  title={`${powerName(p)} · ${reach}${tags ? ` · ${tags}` : ''}${used ? (byRest ? `\nGastat: torna amb un descans ${used === REST_SPENT.short ? 'curt' : 'llarg'} (es pot fer servir igualment)` : `\nGastat: es recarrega amb ${used}–6 a l'inici del seu torn`) : ''}\n${d.mode === 'self' ? 'Surt de la criatura' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
+                  onMouseDown={e => { e.stopPropagation(); onCast(p); }}
+                  style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15, opacity: used ? 0.45 : 1 }}>
                   {isUiIcon(d.anim) ? <PixelIcon name={d.anim} /> : <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>}
                   <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{powerName(p)}</span>
-                  {left !== null ? <span style={{ color: out ? C.enemy : C.dim, fontSize: FS.xs, flexShrink: 0 }}>{left}× {p.uses}</span>
-                    : used ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{used}–6</span>
-                    : p.recharge ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>⟳</span> : null}
+                  {used ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{byRest ? '⟳' : `${used}–6`}</span>
+                    : p.recharge || p.rest ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>⟳</span> : null}
                 </Button>
               );
             })}
@@ -608,13 +609,15 @@ export function ContextMenuOverlay({
           onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind, ammo: a.ammo });
           onClose();
         }} />
-        {ch && sheetOf(ch).ammo?.length ? <AmmoControls stacks={sheetOf(ch).ammo!} onAdjust={(name, d) => characters.onAdjustAmmo(ch.id, name, d)} onRest={k => characters.onRest(ch.id, k)} /> : null}</>;
+        {ch && sheetOf(ch).ammo?.length ? <AmmoControls stacks={sheetOf(ch).ammo!} onAdjust={(name, d) => characters.onAdjustAmmo(ch.id, name, d)} /> : null}</>;
       })()}
+
+      {pl && <RestButtons onRest={k => characters.onRest(pl.id, k)} />}
 
       {pl && (() => {
         const ch = characterFor(pl, characters.characters);
         const sh = ch ? sheetOf(ch) : null;
-        return sh?.powers?.length ? <PowerList title="Habilitats" powers={sh.powers} spent={{}} usesLeft={p => p.uses ? ammoLeft(sh, { ammo: p.uses }) : null}
+        return sh?.powers?.length ? <PowerList title="Habilitats" powers={sh.powers} spent={powerSpent[t.key] ?? {}}
           onCast={p => { onCastPower(t.key, p); onClose(); }} /> : null;
       })()}
 

@@ -43,23 +43,12 @@ export interface CharacterSheet {
   ammo?: AmmoStack[];
   /**
    * Habilitats i poders que surten al menú del token (Canalizar Divinidad, Oleada de Acción…): el
-   * mateix format que els poders de les criatures (`MonsterPower`, amb `def`); `uses` = pila d'`ammo` que gasten.
+   * mateix format que els poders de les criatures (`MonsterPower`, amb `def`); `rest` = quan es recuperen.
    */
   powers?: MonsterPower[];
 }
 
-/**
- * Una pila de `sheet.ammo`: munició (fletxes) o usos d'una habilitat (Canalizar Divinidad, 1/descans).
- * `max` + `rest` = els usos es recuperen en aquest tipus de descans (curt: només els curts; llarg: tots).
- */
-export interface AmmoStack { name: string; count: number; max?: number; rest?: 'short' | 'long' }
-
-/** Pilas amb els usos recuperats després d'un descans (`null` = res a recuperar). */
-export function restAmmo(sheet: CharacterSheet, kind: 'short' | 'long'): AmmoStack[] | null {
-  const st = sheet.ammo;
-  if (!st?.some(x => x.rest && x.max !== undefined)) return null;
-  return st.map(x => x.rest && x.max !== undefined && (kind === 'long' || x.rest === 'short') ? { ...x, count: x.max } : x);
-}
+export interface AmmoStack { name: string; count: number }
 
 // ── Atacs (només informació: l'app mesura l'abast, els daus es tiren a la taula) ──────────
 

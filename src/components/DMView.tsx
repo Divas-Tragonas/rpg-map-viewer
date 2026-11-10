@@ -7,7 +7,7 @@ import { tokenMenuFor } from '@/lib/token-menu';
 import { DamagePopup } from '@/components/dm/DamagePopup';
 import { SpellEffectPopup, type SpellTarget } from '@/components/dm/SpellEffectPopup';
 import { spellTargets, SPELL_EFFECTS } from '@/lib/rules/spell-effects';
-import { powerDef, powerName, type MonsterPower } from '@/lib/monster-powers';
+import { powerDef, powerName, REST_SPENT, spentKey, type MonsterPower } from '@/lib/monster-powers';
 import { spellImpactS } from '@/lib/render/spells';
 import { tickTurnStart, onDamaged, type TimedEffect } from '@/lib/rules/timed-effects';
 import { gridOf } from '@/lib/rules/cells';
@@ -75,7 +75,7 @@ import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, adjustAmmo, restAmmo, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
+import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
 import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
 import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
@@ -926,7 +926,13 @@ export function DMView() {
   useEffect(() => {
     if (!turn.active) {
       // Fora de combat els poders no es gasten: en acabar, tots tornen a estar a punt.
-      if (Object.keys(rPowerSpent.current).length) setSpent({});
+      // (les habilitats que tornen amb un descans es queden gastades fins al descans)
+      const rest: Record<string, Record<string, number>> = {};
+      for (const [k, m] of Object.entries(rPowerSpent.current)) {
+        const keep = Object.fromEntries(Object.entries(m).filter(([, v]) => v > 6));
+        if (Object.keys(keep).length) rest[k] = keep;
+      }
+      if (JSON.stringify(rest) !== JSON.stringify(rPowerSpent.current)) setSpent(rest);
       if (lastTurnSig.current) setCombatLog(l => [...l, { id: ++logIdRef.current, round: l.length ? l[l.length - 1].round : 1, text: 'Fi del combat', tone: 'info' }]);
       lastTurnSig.current = '';
       const all = R.rTimedEffects.current;
@@ -957,6 +963,7 @@ export function DMView() {
       const powers = en ? monsterForEnemy(en)?.powers ?? [] : [];
       const still: Record<string, number> = {};
       for (const [pid, need] of Object.entries(spent)) {
+        if (need > 6) { still[pid] = need; continue; }  // de descans: no es tira res
         const roll = 1 + Math.floor(Math.random() * 6);
         const p = powers.find(x => x.id === pid);
         const nm = p ? powerName(p) : pid;
@@ -983,9 +990,11 @@ export function DMView() {
   const rPowerSpent = useRef(powerSpent);
   const setSpent = useCallback((next: Record<string, Record<string, number>>) => { rPowerSpent.current = next; setPowerSpent(next); }, []);
   const markPowerUsed = useCallback((p: import('@/types').CastPower | undefined) => {
-    if (!p?.recharge || !R.rTurn.current.active) return;
+    // Recàrrega (d6): només en combat. Descans (habilitats dels jugadors): sempre.
+    const val = p?.rest ? REST_SPENT[p.rest] : p?.recharge && R.rTurn.current.active ? p.recharge : 0;
+    if (!p || !val) return;
     const cur = rPowerSpent.current;
-    setSpent({ ...cur, [p.key]: { ...(cur[p.key] ?? {}), [p.powerId]: p.recharge } });
+    setSpent({ ...cur, [p.key]: { ...(cur[p.key] ?? {}), [p.spentKey ?? p.powerId]: val } });
   }, [R, setSpent]);
 
   // També fora de combat: el DM pot voler el dany sense començar els torns.
@@ -1040,11 +1049,9 @@ export function DMView() {
     const origin = { x: me.x, y: me.y };
     const cast: import('@/types').CastPower = {
       key, powerId: mp.id, title: powerName(mp), fx: def.fx, rangeFt: def.rangeFt, aoeFt: def.aoeFt, lineFt: def.lineFt,
-      dc: mp.dc, attack: mp.attack, dice: def.dice, recharge: mp.recharge,
+      dc: mp.dc, attack: mp.attack, dice: def.dice, recharge: mp.recharge, rest: mp.rest, spentKey: spentKey(mp),
     };
     R.rAttackPending.current = null;
-    // Habilitat d'un jugador amb usos limitats (Canalizar Divinidad…): gasta un ús en triar-la.
-    if (mp.uses) spendAmmo(key, mp.uses);
     if (def.mode === 'self') {
       R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
       if (!onSpellCast(def.anim, [origin, origin], cast)) addSpell(def.anim, [origin, origin], () => {}, def.aoeFt);
@@ -1055,7 +1062,7 @@ export function DMView() {
     R.rSpellPreview.current = mode === 'area'
       ? { mode: 'area_place', origin, center: origin, spellType: def.anim, aoeFt: def.aoeFt ?? 2.5, rangeFt: def.rangeFt }
       : { mode: 'line', start: origin, end: origin, rangeFt: def.rangeFt };
-  }, [R, onSpellCast, addSpell, spendAmmo]);
+  }, [R, onSpellCast, addSpell]);
 
   const mouseSetters = useMemo(() => ({
     setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
@@ -1497,10 +1504,17 @@ export function DMView() {
       void chars.update(id, { level }).then(c => { if (c) notify(`${c.name} puja a nivell ${level}.`, 'info'); });
     },
     onShowSheet: (id: string) => { setSheetSel(id); openShowTab('fitxa'); },
-    onRest: (id: string, kind: 'short' | 'long') => {
-      const ch = chars.characters.find(c => c.id === id);
-      const next = ch ? restAmmo(sheetOf(ch), kind) : null;
-      if (ch && next) { void chars.update(id, { sheet: { ...ch.sheet, ammo: next } }); notify(`${ch.name}: descans ${kind === 'short' ? 'curt' : 'llarg'}, usos recuperats.`, 'info'); }
+    onRest: (playerId: number, kind: 'short' | 'long') => {
+      const pl = R.rPlayers.current.find(p => p.id === playerId);
+      if (!pl) return;
+      const key = `pl_${playerId}`;
+      // Curt: torna el que és de descans curt (7). Llarg: tot el que té gastat.
+      const cur = rPowerSpent.current;
+      const mine = Object.fromEntries(Object.entries(cur[key] ?? {}).filter(([, v]) => kind === 'long' ? false : v !== REST_SPENT.short));
+      const next = { ...cur }; if (Object.keys(mine).length) next[key] = mine; else delete next[key];
+      setSpent(next);
+      if (kind === 'long' && pl.hp < pl.hpMax) adjustPlayerHp(playerId, pl.hpMax - pl.hp);
+      notify(kind === 'long' ? `${pl.name}: descans llarg (vida i habilitats recuperades).` : `${pl.name}: descans curt (habilitats recuperades).`, 'info');
     },
     onAdjustAmmo: (id: string, name: string, delta: number) => {
       const ch = chars.characters.find(c => c.id === id);
