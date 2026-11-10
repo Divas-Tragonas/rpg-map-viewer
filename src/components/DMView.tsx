@@ -75,7 +75,7 @@ import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
+import { buildSheetShow, characterFor, adjustAmmo, restAmmo, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
 import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
 import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
@@ -1013,6 +1013,21 @@ export function DMView() {
     return true;
   }, [R, markPowerUsed]);
 
+  // Munició: cada tret d'un jugador (l'atac apuntat a un objectiu) en gasta una peça de la seva fitxa.
+  const charsRef = useRef(chars); charsRef.current = chars;
+  const spendAmmo = useCallback((attackerKey: string, ammo: string) => {
+    const pl = R.rPlayers.current.find(p => `pl_${p.id}` === attackerKey);
+    const cs = charsRef.current;
+    const ch = pl ? characterFor(pl, cs.characters) : null;
+    if (!pl || !ch) return;
+    const sheet = sheetOf(ch);
+    const next = adjustAmmo(sheet, ammo, -1);
+    if (!next) return;
+    const left = next.find(x => x.name.trim().toLowerCase() === ammo.trim().toLowerCase())?.count ?? 0;
+    void cs.update(ch.id, { sheet: { ...ch.sheet, ammo: next } });
+    if (left === 0) notify(`${pl.name} es queda sense ${ammo.toLowerCase()}.`, 'warn');
+  }, [R, notify]);
+
   /**
    * Llança un poder del menú d'una criatura: personals ja (amb el pop-up si afecta algú); la resta
    * esperen el clic de destí, com el grimori dels jugadors.
@@ -1028,6 +1043,8 @@ export function DMView() {
       dc: mp.dc, attack: mp.attack, dice: def.dice, recharge: mp.recharge,
     };
     R.rAttackPending.current = null;
+    // Habilitat d'un jugador amb usos limitats (Canalizar Divinidad…): gasta un ús en triar-la.
+    if (mp.uses) spendAmmo(key, mp.uses);
     if (def.mode === 'self') {
       R.rAreaPlacementPending.current = null; R.rSpellPreview.current = null;
       if (!onSpellCast(def.anim, [origin, origin], cast)) addSpell(def.anim, [origin, origin], () => {}, def.aoeFt);
@@ -1038,22 +1055,7 @@ export function DMView() {
     R.rSpellPreview.current = mode === 'area'
       ? { mode: 'area_place', origin, center: origin, spellType: def.anim, aoeFt: def.aoeFt ?? 2.5, rangeFt: def.rangeFt }
       : { mode: 'line', start: origin, end: origin, rangeFt: def.rangeFt };
-  }, [R, onSpellCast, addSpell]);
-
-  // Munició: cada tret d'un jugador (l'atac apuntat a un objectiu) en gasta una peça de la seva fitxa.
-  const charsRef = useRef(chars); charsRef.current = chars;
-  const spendAmmo = useCallback((attackerKey: string, ammo: string) => {
-    const pl = R.rPlayers.current.find(p => `pl_${p.id}` === attackerKey);
-    const cs = charsRef.current;
-    const ch = pl ? characterFor(pl, cs.characters) : null;
-    if (!pl || !ch) return;
-    const sheet = sheetOf(ch);
-    const next = adjustAmmo(sheet, ammo, -1);
-    if (!next) return;
-    const left = next.find(x => x.name.trim().toLowerCase() === ammo.trim().toLowerCase())?.count ?? 0;
-    void cs.update(ch.id, { sheet: { ...ch.sheet, ammo: next } });
-    if (left === 0) notify(`${pl.name} es queda sense ${ammo.toLowerCase()}.`, 'warn');
-  }, [R, notify]);
+  }, [R, onSpellCast, addSpell, spendAmmo]);
 
   const mouseSetters = useMemo(() => ({
     setPos, setActiveDrag, setSelectedToken, setShapeMenu, setSpellMenu,
@@ -1495,6 +1497,11 @@ export function DMView() {
       void chars.update(id, { level }).then(c => { if (c) notify(`${c.name} puja a nivell ${level}.`, 'info'); });
     },
     onShowSheet: (id: string) => { setSheetSel(id); openShowTab('fitxa'); },
+    onRest: (id: string, kind: 'short' | 'long') => {
+      const ch = chars.characters.find(c => c.id === id);
+      const next = ch ? restAmmo(sheetOf(ch), kind) : null;
+      if (ch && next) { void chars.update(id, { sheet: { ...ch.sheet, ammo: next } }); notify(`${ch.name}: descans ${kind === 'short' ? 'curt' : 'llarg'}, usos recuperats.`, 'info'); }
+    },
     onAdjustAmmo: (id: string, name: string, delta: number) => {
       const ch = chars.characters.find(c => c.id === id);
       const next = ch ? adjustAmmo(sheetOf(ch), name, delta) : null;

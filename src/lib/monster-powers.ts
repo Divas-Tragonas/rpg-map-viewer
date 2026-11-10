@@ -142,6 +142,8 @@ export interface MonsterPower {
   perDay?: number;
   /** Encanteri innat a voluntat. */
   atWill?: boolean;
+  /** Jugadors: pila de `sheet.ammo` que gasta (usos de Canalizar Divinidad, Oleada de Acción…). */
+  uses?: string;
 }
 
 /** Definició efectiva d'un poder (la seva o la del catàleg). Null si l'encanteri no és al catàleg. */

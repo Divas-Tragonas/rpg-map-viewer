@@ -20,6 +20,8 @@ export interface CharacterMenuProps {
   onLevelUp: (characterId: string, level: number) => void;
   onShowSheet: (characterId: string, playerKey: string) => void;
   /** Suma o resta peces a una pila de munició de la fitxa (recollir o perdre fletxes). */
+  /** Descans: recupera els usos de les habilitats que es recuperen (curt: els curts; llarg: tots). */
+  onRest: (characterId: string, kind: 'short' | 'long') => void;
   onAdjustAmmo: (characterId: string, name: string, delta: number) => void;
 }
 

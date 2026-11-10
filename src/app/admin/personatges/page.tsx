@@ -323,11 +323,17 @@ function AmmoEditor({ ammo, onChange }: { ammo: AmmoStack[]; onChange: (a: AmmoS
   const setRow = (i: number, patch: Partial<AmmoStack>) => onChange(ammo.map((a, j) => j === i ? { ...a, ...patch } : a));
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <span style={label}>Munició · baixa sola en disparar un atac que la gasta (sense pila = il·limitada)</span>
+      <span style={label}>Munició i usos · baixa sola en disparar un atac o fer servir una habilitat que la gasta (sense pila = il·limitada). «Màx» + «Es recupera» = usos d'habilitat que tornen amb el descans</span>
       {ammo.map((a, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr auto', gap: 6, alignItems: 'end', maxWidth: 420 }}>
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1.4fr auto', gap: 6, alignItems: 'end', maxWidth: 620 }}>
           <Field label="Nom"><input value={a.name} onChange={e => setRow(i, { name: e.target.value })} style={small} /></Field>
           <Field label="Queden"><input type="number" min={0} value={a.count} onChange={e => setRow(i, { count: Math.max(0, parseInt(e.target.value) || 0) })} style={small} /></Field>
+          <Field label="Màx"><input type="number" min={0} value={a.max ?? ''} placeholder="—" onChange={e => setRow(i, { max: e.target.value === '' ? undefined : Math.max(0, parseInt(e.target.value) || 0) })} style={small} /></Field>
+          <Field label="Es recupera">
+            <select value={a.rest ?? ''} onChange={e => setRow(i, { rest: (e.target.value || undefined) as AmmoStack['rest'] })} style={small}>
+              <option value="">—</option><option value="short">Descans curt</option><option value="long">Descans llarg</option>
+            </select>
+          </Field>
           <Button variant="ghost" onClick={() => onChange(ammo.filter((_, j) => j !== i))}>Treure</Button>
         </div>
       ))}

@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.03 — Habilitats de la fitxa al menú del token, amb usos i descans
+- **Habilitats a punt per usar**: `sheet.powers` (mateix format que els poders de les criatures) surt al menú del token dels jugadors com a «Habilitats». Yunquerin: **Expulsar Muertos Vivientes** (aura 30 ft, salvació SAB CD 13, espantats 1 min) i **Preservar Vida** (cura en aura 30 ft); Jaume: **Oleada de Acción** i **Segundo Aire**; Espardeny: **Segundo Aire**
+- **Usos limitats**: una pila de `sheet.ammo` amb `max` i `rest` fa de comptador d'usos (Canalizar Divinidad 1/descans curt, compartit pels dos efectes de Yunquerin). Fer servir l'habilitat en gasta un; a 0 el botó s'apaga. Al menú, «Munició i usos» amb − / + i els botons **Descans curt / llarg** que recuperen els usos
+- Les armes noves ja surten a «Atacs» (vénen de `sheet.attacks`). Back office: «Màx» i «Es recupera» a cada pila
+- Sense canvis a la API
+
 ### v5.02 — Munició a mà i seccions només per al DM
 - **Munició a mà**: al menú del token d'un jugador surt «Munició» amb − / + per pila (Maj = 5 en 5), per quan recuperen o perden fletxes a banda del tret. Es desa a la fitxa (API)
 - **Seccions «Només DM»**: una secció de la fitxa amb el títol començat per «Només DM» no viatja mai a les pantalles de jugador (ni encara que es demani) i no surt al panell «Fitxa» per triar què s'ensenya. Cigarramic hi té la ranura màgica del bastó, encara no pública
