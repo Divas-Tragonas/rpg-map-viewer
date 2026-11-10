@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { PenLine, Upload, X } from '@/components/icons';
 import { ModuleEditor } from './ModuleEditor';
+import { deleteModuleCapsules } from '@/lib/capsules';
 import type { StoryActions } from '@/hooks/useStory';
 import {
   importModules, removeModule, setModuleStatus, sortedModules, STATUS_LABEL, STATUS_ORDER,
@@ -103,7 +104,7 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
                     <PenLine size={12} />
                   </button>
                   {confirmDel === m.pack.id ? (
-                    <Button size="sm" variant="danger" onClick={() => { removeModule(m.pack.id); setConfirmDel(null); }} onBlur={() => setConfirmDel(null)} autoFocus>Eliminar</Button>
+                    <Button size="sm" variant="danger" onClick={() => { removeModule(m.pack.id); void deleteModuleCapsules(m.pack.id); setConfirmDel(null); }} onBlur={() => setConfirmDel(null)} autoFocus>Eliminar</Button>
                   ) : (
                     <button onClick={() => setConfirmDel(m.pack.id)} aria-label={`Eliminar ${m.pack.title} de la biblioteca`} title="Eliminar de la biblioteca"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, display: 'flex', padding: 3 }}>

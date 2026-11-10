@@ -13,7 +13,7 @@ duplicar res:
 - **Diari** (app → Notion): l'app anota sola el que passa i en fa el resum, amb un bloc JSON que Claude
   passa a la pàgina de **SESSIONS** de Notion sense preguntar res.
 
-**Notion continua sent on s'escriu la prosa llarga**, però des de la v5.01 el DM també pot crear i editar
+**Notion continua sent on s'escriu la prosa llarga**, però des de la v5.04 el DM també pot crear i editar
 mòduls dins l'app amb un formulari (sense JSON ni Claude): `ModuleEditor`. No és un editor de campanya
 (res de wiki ni de pàgines): només els camps del paquet.
 
@@ -27,6 +27,7 @@ substitueix tot l'estat de joc. Tampoc viatgen a les pantalles de jugador: és t
 |---|---|---|
 | `rpg_modules_v1` | Biblioteca de mòduls (paquets + estat de joc + mòdul actiu) | `lib/modules.ts` |
 | `rpg_journal_v1` | Sessió actual + arxiu de les últimes 20 tancades (el resum en markdown) | `lib/journal.ts` |
+| IndexedDB `rpg_capsules_v1` | Càpsules (enemics + Escena amb les imatges com a `Blob`) | `lib/capsules.ts` |
 
 Si es canvia el format d'un d'aquests, **pujar la versió de la clau** (`_v2`) o fer-ho tolerant a
 `revive` (ja ho és: llegeix defensivament i descarta el que no entén). Sense `localStorage` (mode privat)
@@ -66,7 +67,25 @@ la biblioteca amb `saveModule(draft, editingId?)`:
 - Mòdul nou: `id` = `slugify(títol)`, amb `-2`, `-3`… si ja existeix.
 - Edició: l'`id` **no canvia mai** (les sortides `to` dels altres mòduls hi apunten) i es conserva l'estat de joc.
 - Els enemics suggereixen plantilles i criatures Oryx (`datalist`); per a un nom lliure cal posar-hi PV i XP.
-- Pendent: el format no té encara imatges d'Escena ni cinemàtiques (veure `docs/millores.md` si s'hi afegeix).
+- Les imatges i els enemics col·locats no van al formulari: es preparen al mapa i a l'Escena i es desen amb les **càpsules**.
+
+### Càpsules (`lib/capsules.ts`, `ModuleCapsules.tsx`)
+Una «foto» d'un moment preparat, lligada al mòdul on es captura (`moduleId`). Es disparen des de la
+secció **Càpsules** del mòdul actiu.
+- **Capturar** (`useStory.capture`): els enemics de l'escena que tenen posició (`LibEnemy` sense `id`,
+  `hp` ni `hpHit`, + `x`/`y` del mapa; es conserva `visible`, així una emboscada amagada es dispara amagada)
+  i/o l'Escena (`useSceneShow.snapshot`: text, `opts`, diapositives com a `Blob`, manual/velocitat/suavitat/
+  pauses/bucle). Opció de **treure'ls del mapa** després (passa per `removeLibEnemy`, amb desfer) i
+  `autoShow` (mostrar l'Escena en disparar).
+- **Disparar** (`useStory.fireCapsule`): enemics nous (`id` nou, vida sencera, `addEnemyNumbered`) a les
+  coordenades desades; l'Escena es carrega amb `loadPreset` i s'obre la pestanya; amb `autoShow`,
+  `show()` + `primary()` als 250 ms (el panell ha de muntar-se i el motor de text construir-se).
+  S'anota al diari (`module`). Si el mapa actual no és el de la captura (`mapName`), avís: les
+  coordenades són les del mapa on es va capturar.
+- **On viuen**: IndexedDB (les imatges no caben a `localStorage`); la llista lleugera (`CapsuleMeta`) es
+  manté en memòria per a la UI (`useCapsules`, `useSyncExternalStore`). Sense IndexedDB, en memòria fins
+  que es tanca la pàgina (avís en capturar). **No viatgen** al paquet JSON ni entre dispositius.
+- Eliminar un mòdul de la biblioteca n'elimina les càpsules (`deleteModuleCapsules`).
 
 ### Enemics (`foes`) → biblioteca de l'escena
 `templateForFoe` (`hooks/useStory.ts`) tria la plantilla per aquest ordre: **id de plantilla** (`goblin`,

@@ -19,6 +19,10 @@ import { CREATURES } from '@/lib/sprites/manifest';
 import { matchCast, norm, parseScript } from '@/lib/dialog/script';
 import { logJournal } from '@/lib/journal';
 import {
+  getCapsule, newCapsuleId, saveCapsule,
+  type Capsule, type CapsuleEnemy, type CapsuleScene,
+} from '@/lib/capsules';
+import {
   modulesStore, setActiveModule, setModuleStatus, slugify,
   type ModuleDialog, type ModuleExit, type ModuleFoe,
 } from '@/lib/modules';
@@ -33,7 +37,18 @@ interface Deps {
   startDialog: (s: DialogStart) => boolean;
   /** Tokens de l'escena per relacionar-hi els noms del guió. */
   sceneTokens: { key: string; name: string }[];
+  /** Treu un enemic de l'escena (amb desfer), per netejar-la després de capturar. */
+  removeLibEnemy: (id: number) => void;
+  /** El que hi ha ara a la pestanya Escena. */
+  sceneSnapshot: () => CapsuleScene;
+  /** Carrega una Escena desada al panell i, amb `autoShow`, la mostra als jugadors. */
+  playScene: (s: CapsuleScene, autoShow: boolean) => void;
+  mapName: string;
 }
+
+/** El que es pot capturar ara mateix (per al formulari de «Capturar»). */
+export interface CaptureInfo { enemies: number; hidden: number; slides: number; hasText: boolean }
+export interface CaptureOpts { name: string; enemies: boolean; scene: boolean; removeAfter: boolean; autoShow: boolean }
 
 /** La plantilla de la biblioteca que millor encaixa amb el que diu el paquet. */
 export function templateForFoe(f: ModuleFoe): EnemyTemplate {
@@ -139,7 +154,63 @@ export function useStory(R: DMRefs, deps: Deps) {
     if (to) open(to.pack.id);
   }, [finish, open]);
 
-  return { note, open, finish, readAloud, placeFoes, playDialog, takeExit };
+  // ── Càpsules (`lib/capsules`) ───────────────────────────────────────────────
+  const captureInfo = useCallback((): CaptureInfo => {
+    const Rf = refs.current;
+    const ens = Rf.rLibEnemies.current.filter(e => Rf.rPos.current[`lib_${e.id}`]);
+    const sc = dRef.current.sceneSnapshot();
+    return { enemies: ens.length, hidden: ens.filter(e => !e.visible).length, slides: sc.slides.length, hasText: !!sc.text.trim() };
+  }, []);
+
+  /** Desa el moment actual (enemics de l'escena i/o l'Escena) com una càpsula del mòdul. */
+  const capture = useCallback(async (moduleId: string, o: CaptureOpts): Promise<string | null> => {
+    const Rf = refs.current, d = dRef.current;
+    const taken = o.enemies ? Rf.rLibEnemies.current.filter(e => Rf.rPos.current[`lib_${e.id}`]) : [];
+    const enemies: CapsuleEnemy[] = taken.map(e => {
+      const { id, hp: _hp, hpHit: _hit, ...enemy } = e; // eslint-disable-line @typescript-eslint/no-unused-vars
+      const p = Rf.rPos.current[`lib_${id}`];
+      return { enemy, x: p.x, y: p.y };
+    });
+    const sc = o.scene ? d.sceneSnapshot() : null;
+    const scene = sc && (sc.text.trim() || sc.slides.length) ? sc : undefined;
+    if (!enemies.length && !scene) { d.notify('No hi ha res per capturar: col·loca enemics o prepara l\'Escena.', 'warn'); return null; }
+    const c: Capsule = {
+      id: newCapsuleId(), moduleId, name: o.name.trim() || 'Càpsula', createdAt: Date.now(),
+      mapName: d.mapName || undefined, ...(enemies.length ? { enemies } : {}), ...(scene ? { scene, autoShow: o.autoShow } : {}),
+    };
+    const persisted = await saveCapsule(c);
+    if (o.removeAfter) for (const e of taken) d.removeLibEnemy(e.id);
+    d.notify(persisted ? `Càpsula «${c.name}» desada.` : `Càpsula «${c.name}» desada només fins que tanquis la pàgina (el navegador no deixa desar-la).`, persisted ? 'info' : 'warn');
+    return c.id;
+  }, []);
+
+  /** Dispara una càpsula: els enemics tornen on eren i l'Escena es carrega (o es mostra). */
+  const fireCapsule = useCallback(async (id: string) => {
+    const Rf = refs.current, d = dRef.current;
+    const c = await getCapsule(id);
+    if (!c) { d.notify('No s\'ha trobat la càpsula (potser es va desar en una altra pestanya o navegador).', 'error'); return; }
+    if (c.enemies?.length) {
+      let ens = Rf.rLibEnemies.current;
+      const pos = { ...Rf.rPos.current };
+      const base = Date.now();
+      c.enemies.forEach((ce, k) => {
+        const en: LibEnemy = { ...ce.enemy, id: base + k, hp: ce.enemy.hpMax };
+        ens = addEnemyNumbered(ens, en);
+        pos[`lib_${en.id}`] = { x: ce.x, y: ce.y };
+      });
+      Rf.rLibEnemies.current = ens; d.setLibEnemies(ens);
+      Rf.rPos.current = pos; d.setPos(pos);
+      d.broadcast();
+    }
+    if (c.scene) d.playScene(c.scene, !!c.autoShow);
+    const title = modulesStore.get().library[c.moduleId]?.pack.title;
+    logJournal('module', `${title ? `${title}: ` : ''}càpsula «${c.name}»${c.enemies?.length ? ` · ${c.enemies.length} enemics` : ''}`, { data: { id: c.moduleId, capsule: c.id } });
+    if (c.mapName && d.mapName && c.mapName !== d.mapName && c.enemies?.length) {
+      d.notify(`La càpsula es va capturar al mapa «${c.mapName}»: els enemics surten a les mateixes coordenades.`, 'warn');
+    }
+  }, []);
+
+  return { note, open, finish, readAloud, placeFoes, playDialog, takeExit, captureInfo, capture, fireCapsule };
 }
 
 export type StoryActions = ReturnType<typeof useStory>;

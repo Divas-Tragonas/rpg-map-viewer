@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.05 — Càpsules: capturar un moment i disparar-lo des de la Història
+- **Història → Mòdul → «+ Capturar el moment»**: desa el que hi ha ara en una càpsula del mòdul: els **enemics de l'escena amb la seva posició** (també els amagats) i/o l'**Escena** de «Mostrar als jugadors» (imatges, text i ajustos)
+- Opcions en capturar: treure els enemics del mapa (per preparar-los sense que es vegin) i mostrar l'Escena als jugadors en disparar
+- **«Disparar»** torna a posar els enemics on eren (vida sencera, numerats) i carrega l'Escena; amb l'opció, la mostra als jugadors i el text comença sol. Queda al diari
+- Les càpsules es desen al navegador (IndexedDB, amb les imatges) i sobreviuen a recarregar la pàgina; es poden reanomenar i eliminar. Eliminar un mòdul n'elimina les càpsules
+- Corregit: un mòdul «En joc» tornava a «Preparat» en recarregar la pàgina
+- Sense canvis a la API
+
 ### v5.04 — Editor de mòduls dins l'app
 - **Història → Mòduls → «+ Nou mòdul»**: formulari per crear un mòdul sense JSON ni Claude (títol, disparador, escena, textos per llegir, enemics amb suggeriments del bestiari, diàlegs en format teatre, sortides cap a altres mòduls, NPCs i notes del DM)
 - **Llapis a cada mòdul** de la biblioteca per editar-lo (l'`id` i l'estat de joc es conserven, així les sortides dels altres mòduls segueixen funcionant)

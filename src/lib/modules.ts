@@ -84,7 +84,8 @@ export function slugify(s: string): string {
 
 /** Accepta el text d'una propietat «Estat» de Notion (`✅ Preparat`, `🎲 Jugat`…) o el nostre. */
 export function normStatus(v: unknown): ModuleStatus {
-  const s = (str(v) ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  // Guions com a espais: el nostre propi valor és `en-joc` (abans es perdia en recarregar la pàgina).
+  const s = (str(v) ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/-/g, ' ');
   if (s.includes('en part') || s.includes('en joc')) return 'en-joc';
   if (s.includes('jugat')) return 'jugat';
   if (s.includes('esborrany')) return 'esborrany';

@@ -7,6 +7,7 @@ import {
 } from '@/lib/scene';
 import { logJournal } from '@/lib/journal';
 import type { SyncSocket } from '@/lib/ws';
+import type { CapsuleScene } from '@/lib/capsules';
 
 export interface SceneMedia { id: string; url: string; mimeType: string; file: File; buffer: ArrayBuffer | null }
 
@@ -378,6 +379,29 @@ export function useSceneShow(io: {
     return () => cancelAnimationFrame(raf);
   }, [open, active, post, updateStatus]);
 
+  // ── Càpsules de la Història (`lib/capsules`) ───────────────────────────────
+  /** El que hi ha ara a l'Escena, per desar-ho en una càpsula. */
+  const snapshot = useCallback((): CapsuleScene => ({
+    text: textValRef.current, opts: optsRef.current,
+    slides: slidesRef.current.map(m => ({ blob: m.file, mimeType: m.mimeType, name: m.file.name })),
+    manual: manualRef.current, speed: speedRef.current, smooth: smoothRef.current, dramatic: dramaticRef.current, loop: loopRef.current,
+  }), []);
+
+  /** Substitueix l'Escena pel contingut d'una càpsula (no la mostra: d'això se n'encarrega `show`). */
+  const loadPreset = useCallback((p: CapsuleScene) => {
+    for (const m of slidesRef.current) URL.revokeObjectURL(m.url);
+    sentRef.current.clear();
+    const list: SceneMedia[] = p.slides.map(sl => {
+      const file = sl.blob instanceof File ? sl.blob : new File([sl.blob], sl.name || 'escena', { type: sl.mimeType });
+      return { id: newSceneId(), url: URL.createObjectURL(file), mimeType: sl.mimeType, file, buffer: null };
+    });
+    commitSlides(list, 0);
+    textValRef.current = p.text; setText(p.text);
+    optsRef.current = p.opts; setOptsState(p.opts);
+    setLoop(p.loop); setDramatic(p.dramatic); setSpeed(p.speed); setSmooth(p.smooth);
+    reset(); setManual(p.manual);
+  }, [commitSlides, setLoop, setDramatic, setSpeed, setSmooth, setManual, reset]);
+
   // ── Teclat (només amb la pestanya oberta) ────────────────────────────────────
   useEffect(() => {
     if (!open) return;
@@ -402,7 +426,7 @@ export function useSceneShow(io: {
     text, setText, opts, setOpts, media, slides, cur, loop, setLoop, addFiles, goTo, nextSlide, prevSlide, removeSlide, moveSlide, clearSlides,
     restartMotion, panBy, zoomBy,
     dramatic, setDramatic, manual, setManual, speed, setSpeed, smooth, setSmooth,
-    primary, reset, nextSentence,
+    primary, reset, nextSentence, snapshot, loadPreset,
     refs: { mediaInnerRef, boxRef, textRef, sizeRef, counterRef, progRef, playBtnRef },
   };
 }
