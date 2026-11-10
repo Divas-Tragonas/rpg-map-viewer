@@ -10,7 +10,7 @@ import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/com
 import { CharacterSection, type CharacterMenuProps } from '@/components/dm/CharacterSection';
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog, AttackPending } from '@/types';
-import { ammoLeft, attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
+import { type AmmoStack, ammoLeft, attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
 import { monsterForEnemy } from '@/lib/db-enemies';
 import { enemyDefenses } from '@/lib/rules/damage';
 import { MonsterBlock } from '@/components/dm/MonsterBlock';
@@ -235,6 +235,27 @@ function AttackList({ attacks, onPick, ammoOf }: { attacks: SheetAttack[]; onPic
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Munició del jugador (v5.02): una fila per pila amb − / + per recollir o perdre peces a mà (a banda
+ * del tret, que en gasta una sola). Maj+clic = de 5 en 5. Es desa a la fitxa.
+ */
+function AmmoControls({ stacks, onAdjust }: { stacks: AmmoStack[]; onAdjust: (name: string, delta: number) => void }) {
+  const btn: React.CSSProperties = { width: 24, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.dark, color: C.text, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, cursor: 'pointer', padding: 0, fontSize: FS.md, lineHeight: 1 };
+  return (
+    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={sectionLabel}>Munició</div>
+      {stacks.map(st => (
+        <div key={st.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ flex: 1, minWidth: 0, color: C.text, fontSize: FS.sm, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.name}</span>
+          <button type="button" title="Perd una (Maj = 5)" style={btn} onMouseDown={e => e.stopPropagation()} onClick={e => onAdjust(st.name, e.shiftKey ? -5 : -1)}>−</button>
+          <span style={{ minWidth: 26, textAlign: 'center', color: st.count === 0 ? C.enemy : C.bright, fontWeight: 700, fontSize: FS.sm }}>{st.count}</span>
+          <button type="button" title="Recupera una (Maj = 5)" style={btn} onMouseDown={e => e.stopPropagation()} onClick={e => onAdjust(st.name, e.shiftKey ? 5 : 1)}>+</button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -572,11 +593,12 @@ export function ContextMenuOverlay({
         const reach = lib ? enemyDefenses(lib)?.reachFt : undefined;
         const generic = reach !== undefined ? { ...GENERIC_MELEE, reachFt: reach } : GENERIC_MELEE;
         const list = own.length > 0 ? own : [generic];
-        return <AttackList attacks={list} ammoOf={ch ? a => ammoLeft(sheetOf(ch), a) : undefined} onPick={a => {
+        return <><AttackList attacks={list} ammoOf={ch ? a => ammoLeft(sheetOf(ch), a) : undefined} onPick={a => {
           const { normalFt, longFt } = attackRanges(a);
           onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind, ammo: a.ammo });
           onClose();
-        }} />;
+        }} />
+        {ch && sheetOf(ch).ammo?.length ? <AmmoControls stacks={sheetOf(ch).ammo!} onAdjust={(name, d) => characters.onAdjustAmmo(ch.id, name, d)} /> : null}</>;
       })()}
 
       {lib && (() => {

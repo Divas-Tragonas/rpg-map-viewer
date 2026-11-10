@@ -75,7 +75,7 @@ import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, spendAmmo as spendAmmoOf, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
+import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
 import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
 import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
@@ -1048,7 +1048,7 @@ export function DMView() {
     const ch = pl ? characterFor(pl, cs.characters) : null;
     if (!pl || !ch) return;
     const sheet = sheetOf(ch);
-    const next = spendAmmoOf(sheet, ammo);
+    const next = adjustAmmo(sheet, ammo, -1);
     if (!next) return;
     const left = next.find(x => x.name.trim().toLowerCase() === ammo.trim().toLowerCase())?.count ?? 0;
     void cs.update(ch.id, { sheet: { ...ch.sheet, ammo: next } });
@@ -1495,6 +1495,11 @@ export function DMView() {
       void chars.update(id, { level }).then(c => { if (c) notify(`${c.name} puja a nivell ${level}.`, 'info'); });
     },
     onShowSheet: (id: string) => { setSheetSel(id); openShowTab('fitxa'); },
+    onAdjustAmmo: (id: string, name: string, delta: number) => {
+      const ch = chars.characters.find(c => c.id === id);
+      const next = ch ? adjustAmmo(sheetOf(ch), name, delta) : null;
+      if (ch && next) void chars.update(id, { sheet: { ...ch.sheet, ammo: next } });
+    },
   }), [chars, notify, setPlayerCharacter, openShowTab]);
 
   // ── Text que deixa un mòdul de la Història ─────────────────────────────────

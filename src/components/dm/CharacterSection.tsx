@@ -19,6 +19,8 @@ export interface CharacterMenuProps {
   onAward: (characterId: string, amount: number, reason: string) => void;
   onLevelUp: (characterId: string, level: number) => void;
   onShowSheet: (characterId: string, playerKey: string) => void;
+  /** Suma o resta peces a una pila de munició de la fitxa (recollir o perdre fletxes). */
+  onAdjustAmmo: (characterId: string, name: string, delta: number) => void;
 }
 
 const label: React.CSSProperties = { fontSize: FS.xs, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.08em' };

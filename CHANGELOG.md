@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.02 — Munició a mà i seccions només per al DM
+- **Munició a mà**: al menú del token d'un jugador surt «Munició» amb − / + per pila (Maj = 5 en 5), per quan recuperen o perden fletxes a banda del tret. Es desa a la fitxa (API)
+- **Seccions «Només DM»**: una secció de la fitxa amb el títol començat per «Només DM» no viatja mai a les pantalles de jugador (ni encara que es demani) i no surt al panell «Fitxa» per triar què s'ensenya. Cigarramic hi té la ranura màgica del bastó, encara no pública
+- Sense canvis a la API
+
 ### v5.01 — Fitxes d'Espardeny i Cigarramic, i munició que es gasta
 - **Espardeny**: 21 PV màxims, ballesta (1d8 amb Destresa, 80/320 ft), 20 fletxes i 25 fletxes de ballesta, 702 d'XP (a la còpia local; a la API, des del back office)
 - **Cigarramic**: 17 PV màxims, **Bastó pelegrí** (arma especial amb una ranura màgica: bastó 1d4 o espasa 1d6, amb Destresa) i ballesta (1d8)

@@ -4,7 +4,7 @@ import { C, FS, RADIUS, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import type { ApiCharacter } from '@/lib/api';
 import type { CharactersStatus } from '@/hooks/useCharacters';
-import { STATS_PART, sheetOf } from '@/lib/characters';
+import { STATS_PART, isPrivateSection, sheetOf } from '@/lib/characters';
 import { XpBar, OfflineNote } from '@/components/dm/CharacterSection';
 
 /**
@@ -27,7 +27,7 @@ export function SheetPanel({ characters, status, pending, selected, onSelect, pa
   onHide: () => void;
 }) {
   const c = characters.find(ch => ch.id === selected) ?? null;
-  const all = c ? [STATS_PART, ...(sheetOf(c).sections ?? []).filter(s => s.text.trim()).map(s => s.title)] : [];
+  const all = c ? [STATS_PART, ...(sheetOf(c).sections ?? []).filter(s => s.text.trim() && !isPrivateSection(s.title)).map(s => s.title)] : [];
   const toggle = (part: string) => onParts(parts.includes(part) ? parts.filter(p => p !== part) : [...parts, part]);
   const showing = !!showingId;
   return (

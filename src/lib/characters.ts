@@ -86,11 +86,14 @@ export function ammoLeft(sheet: CharacterSheet, a: Pick<SheetAttack, 'ammo'>): n
   return st ? st.count : null;
 }
 
-/** La munició d'una fitxa amb una peça menys de la pila `name` (mai per sota de 0). `null` = res a canviar. */
-export function spendAmmo(sheet: CharacterSheet, name: string): AmmoStack[] | null {
+/**
+ * La munició d'una fitxa amb `delta` peces més (o menys) a la pila `name`, mai per sota de 0.
+ * Un tret és `-1`; recollir o perdre fletxes, qualsevol quantitat. `null` = la pila no hi és.
+ */
+export function adjustAmmo(sheet: CharacterSheet, name: string, delta: number): AmmoStack[] | null {
   const st = sheet.ammo;
   if (!st?.some(x => sameAmmo(x.name, name))) return null;
-  return st.map(x => sameAmmo(x.name, name) ? { ...x, count: Math.max(0, x.count - 1) } : x);
+  return st.map(x => sameAmmo(x.name, name) ? { ...x, count: Math.max(0, x.count + delta) } : x);
 }
 
 /** Abast «bo» (sense desavantatge) i llarg d'un atac, en peus. */
@@ -146,6 +149,13 @@ export function attacksOf(sheet: CharacterSheet): SheetAttack[] {
 }
 
 /** Seccions que s'ofereixen en una fitxa nova (el DM en pot afegir o treure). */
+/**
+ * Seccions només per al DM: el títol comença per «Només DM». Mai viatgen a les pantalles de
+ * jugador (`buildSheetShow` les treu encara que se'n demanin) ni surten al panell «Fitxa» per
+ * triar què s'ensenya. Per apuntar-hi secrets de la fitxa (coses encara no públiques).
+ */
+export const isPrivateSection = (title: string) => /^només dm/i.test(title.trim());
+
 export const DEFAULT_SECTIONS = ['Habilitats', 'Atacs', 'Màgia', 'Equip', 'Trets', 'Idiomes i competències', 'Personalitat', 'Trasfons'];
 
 export function sheetOf(c: Pick<ApiCharacter, 'sheet'>): CharacterSheet {
@@ -244,7 +254,7 @@ export function buildSheetShow(c: ApiCharacter, parts: readonly string[], look: 
     abilities: parts.includes(STATS_PART) && sh.abilities
       ? ABILITIES.filter(a => typeof sh.abilities?.[a.id] === 'number').map(a => ({ label: a.label, score: sh.abilities![a.id]!, save: !!sh.saves?.includes(a.id) }))
       : [],
-    sections: (sh.sections ?? []).filter(s => parts.includes(s.title) && s.text.trim()),
+    sections: (sh.sections ?? []).filter(s => !isPrivateSection(s.title) && parts.includes(s.title) && s.text.trim()),
     color: look.color ?? '#c9a227',
     sprite: look.sprite,
     portrait: look.portrait || c.portrait || undefined,

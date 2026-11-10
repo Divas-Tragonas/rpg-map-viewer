@@ -52,3 +52,6 @@
 - **Text des d'un mòdul** de la Història (llegir en veu alta, «Anteriorment…»): `showTextInScene` el posa a la caixa de l'Escena i n'obre la pestanya.
 - Al jugador, capa `zIndex 52` amb fos d'entrada i sortida (1,4 s / 0,3 s). No es desa a la partida. Queda al diari com a «Escena als jugadors».
 - **No posar `will-change` als spans per caràcter** (`RevealEngine.setText`): iOS Safari promou cada span a capa compositada i amb textos llargs supera el límit de memòria de capes → el text no es pinta (pantalla en blanc a la tablet).
+
+## Seccions només per al DM (v5.02)
+- Una secció de `sheet.sections` amb el títol començat per «Només DM» (`isPrivateSection`, `lib/characters.ts`) és de consulta del DM: `buildSheetShow` la treu sempre del que viatja a les pantalles (encara que el títol sigui a `parts`) i `SheetPanel` no la ofereix per triar. Fer-ho servir per a secrets de la fitxa encara no públics (p. ex. la ranura màgica del Bastó pelegrí de Cigarramic). **No** posar aquests secrets a «Atacs», «Equip», «Trets»… que sí es poden ensenyar.

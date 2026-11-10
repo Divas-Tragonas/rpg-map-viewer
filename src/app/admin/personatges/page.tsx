@@ -294,7 +294,7 @@ function CharacterForm({ modal, saving, onChange, onSave, onClose }: {
                 style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.45 }} />
             </div>
           ))}
-          <div><Button variant="secondary" onClick={() => setSheet({ sections: [...sections, { title: 'Secció nova', text: '' }] })}>Afegir una secció</Button></div>
+          <div><Button variant="secondary" onClick={() => setSheet({ sections: [...sections, { title: 'Secció nova', text: '' }] })}>Afegir una secció</Button> <span style={{ fontSize: 12, color: C.dim }}>Una secció que es digui «Només DM…» no surt mai a les pantalles de jugador.</span></div>
         </div>
 
         <Field label="Enllaç a Notion"><input value={d.notionUrl} onChange={e => set('notionUrl', e.target.value)} style={inputStyle} /></Field>
