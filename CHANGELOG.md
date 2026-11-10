@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.01 — Editor de mòduls dins l'app
+- **Història → Mòduls → «+ Nou mòdul»**: formulari per crear un mòdul sense JSON ni Claude (títol, disparador, escena, textos per llegir, enemics amb suggeriments del bestiari, diàlegs en format teatre, sortides cap a altres mòduls, NPCs i notes del DM)
+- **Llapis a cada mòdul** de la biblioteca per editar-lo (l'`id` i l'estat de joc es conserven, així les sortides dels altres mòduls segueixen funcionant)
+- `saveModule` a `lib/modules.ts`; sense canvis a la API
+
 ### v5.00 — Versió 5
 - Publicació de la **versió 5**: tot el que s'ha fet de la v5 snapshot 1 a la 19. Resum de les novetats al [README](README.md#novetats-de-la-v5)
 - Combat amb regles de 5e (dany amb defenses, conjurs amb salvacions, estats i durades), bestiari de 5e complet amb poders i historial del combat, animacions de pixel art noves i l'Escena (imatges en diapositives amb subtítols) en lloc de l'Expositor i el Revelador de text

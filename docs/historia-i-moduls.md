@@ -13,8 +13,9 @@ duplicar res:
 - **Diari** (app → Notion): l'app anota sola el que passa i en fa el resum, amb un bloc JSON que Claude
   passa a la pàgina de **SESSIONS** de Notion sense preguntar res.
 
-**Notion continua sent on s'escriu la prosa.** L'app consumeix paquets i només hi retorna el diari i
-l'estat. No hi ha cap editor de text de campanya dins l'app (decisió: seria duplicar Notion i la wiki).
+**Notion continua sent on s'escriu la prosa llarga**, però des de la v5.01 el DM també pot crear i editar
+mòduls dins l'app amb un formulari (sense JSON ni Claude): `ModuleEditor`. No és un editor de campanya
+(res de wiki ni de pàgines): només els camps del paquet.
 
 ## On viu cada cosa (⚠️ fora de la partida)
 `lib/localStore.ts` (`createJsonStore` + `useJsonStore`) desa a `localStorage`, amb còpia en memòria i
@@ -57,6 +58,15 @@ Un fitxer `.json` pot contenir un mòdul, una llista o `{ "modules": [...] }`.
 
 `parseModulePacks` és **tolerant**: ignora el que no entén, arrodoneix `count` a [1, 30], i només
 rebutja un mòdul sense `title`. Els errors surten sota el botó d'importar.
+
+### Editor de mòduls (`ModuleEditor.tsx`, `saveModule`)
+Pestanya **Mòduls** → **+ Nou mòdul**, o el llapis de cada fila. El formulari té els mateixos camps que el
+paquet; el que es desa passa per `parseModulePacks` (mateixa normalització que una importació) i entra a
+la biblioteca amb `saveModule(draft, editingId?)`:
+- Mòdul nou: `id` = `slugify(títol)`, amb `-2`, `-3`… si ja existeix.
+- Edició: l'`id` **no canvia mai** (les sortides `to` dels altres mòduls hi apunten) i es conserva l'estat de joc.
+- Els enemics suggereixen plantilles i criatures Oryx (`datalist`); per a un nom lliure cal posar-hi PV i XP.
+- Pendent: el format no té encara imatges d'Escena ni cinemàtiques (veure `docs/millores.md` si s'hi afegeix).
 
 ### Enemics (`foes`) → biblioteca de l'escena
 `templateForFoe` (`hooks/useStory.ts`) tria la plantilla per aquest ordre: **id de plantilla** (`goblin`,
