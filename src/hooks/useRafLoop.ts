@@ -8,9 +8,12 @@ import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { renderGrid, renderDifficult, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
-import { drawTileLive, drawTileDoorsOver } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver, doorOpenById } from '@/lib/tilemap/render';
 import { TILE } from '@/lib/tilemap/model';
 import { WALL_BY_ID } from '@/lib/tilemap/palette';
+import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
+import { spellsSettled } from '@/lib/render/spells';
+import { subscribePack } from '@/lib/sprites/pack';
 import type { DMRefs } from './useDMRefs';
 import type { Spell, SpellPreview } from '@/types';
 
@@ -23,9 +26,17 @@ interface RafLoopOpts {
 export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
   const { setActiveSpells, setDmPrivateActive, broadcastDmPreview } = opts;
 
+  // Qualsevol render de React (un `setState` de qualsevol panell) pot haver canviat el que
+  // es pinta: ritme ple una estona (veure `lib/render/wake.ts`).
+  useEffect(() => { wake(); });
+
   useEffect(() => {
     const canvas = R.canvasRef.current; if (!canvas) return;
     let alive = true;
+    const pacer = new FramePacer();
+    const unWake = installWakeListeners();
+    const unPack = subscribePack(wake);
+    let paceSig = '';
     let prevBgStyle = '';
     let prevBgEl: HTMLElement | null = null;
     let prevBgOpacity = -1;
@@ -40,6 +51,31 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       R.rafRef.current = requestAnimationFrame(tick);
       const W = canvas.clientWidth, H = canvas.clientHeight;
       if (!W || !H) return;
+      // ── Ritme (veure `lib/render/wake.ts`): toca pintar aquest fotograma? ──
+      {
+        const md = R.mediaRef.current as (HTMLImageElement & HTMLVideoElement) | null;
+        // Mida de la finestra o fons nou (o que acaba de saber la seva mida): despertar.
+        const sig = `${W}x${H}|${md ? (md.naturalWidth || md.videoWidth || 0) : -1}`;
+        if (sig !== paceSig) { paceSig = sig; wake(); }
+        if (R.rSpellPreview.current !== sentPreview) wake();
+        const spells = R.rActiveSpells.current;
+        const tool = R.rDrawTool.current;
+        const hot = R.dmPrivateReturnAnim.current || R.cinematicCamRef.current.active || !!R.cinematicRef.current
+          || !!R.dialogHostRef.current?.active || !!R.dragRef.current
+          || !!R.activeStrokeAnim.current || R.strokeQueueRef.current.length > 0
+          || anyKey(R.rMovePath.current)
+          || !!R.rEnemyHighlight.current || R.rHighlightAlpha.current > 0
+          || !!R.rSpellPreview.current || tool === 'pointer' || R.rGridCalibrating.current
+          || (spells.length > 0 && !spellsSettled(spells));
+        const ambient = hot || tool !== 'none'
+          || R.rSelectedToken.current != null || R.rMultiSelected.current.size > 0
+          || !!R.rTurn.current?.active || anyKey(R.rConditions.current)
+          || R.rPaintedZones.current.length > 0 || spells.length > 0
+          || (R.rTileLive.current?.anims.length ?? 0) > 0
+          || !!R.rLightSelected.current
+          || (R.rAppStyle.current === 'pixel' && (R.rPlayers.current.length > 0 || R.rLibEnemies.current.length > 0));
+        if (!pacer.due(performance.now(), hot, ambient)) return;
+      }
       if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; R._ctx2dRef.current = null; }
       if (!R._ctx2dRef.current) R._ctx2dRef.current = canvas.getContext('2d');
       const ctx = R._ctx2dRef.current!;
@@ -213,13 +249,13 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       // Parts vives del mapa de caselles (aigua, torxes, portes obertes o tancades).
       if (R.rTileLive.current) {
         const doors = R.rDoors.current;
-        drawTileLive(ctx, R.rTileLive.current, id => doors.find(d => d.id === id)?.open !== false, performance.now());
+        drawTileLive(ctx, R.rTileLive.current, doorOpenById(doors), performance.now());
       }
       renderRooms(ctx, fc);
       // Portes del mapa de caselles per sobre del vel de les sales fosques (com al jugador).
       if (R.rTileLive.current) {
         const doors = R.rDoors.current;
-        drawTileDoorsOver(ctx, R.rTileLive.current, id => doors.find(d => d.id === id)?.open !== false);
+        drawTileDoorsOver(ctx, R.rTileLive.current, doorOpenById(doors));
       }
       renderWalls(ctx, fc);
       renderLightSources(ctx, fc);
@@ -374,6 +410,6 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
     };
 
     R.rafRef.current = requestAnimationFrame(tick);
-    return () => { alive = false; cancelAnimationFrame(R.rafRef.current); };
+    return () => { alive = false; cancelAnimationFrame(R.rafRef.current); unWake(); unPack(); };
   }, []);
 }

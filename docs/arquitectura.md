@@ -107,6 +107,7 @@ src/
 │   └── useWheelZoom.ts
 ├── lib/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
+│   ├── bg-reduce.ts        # Còpia reduïda del fons per a les pantalles de jugador (4096 px, WebP)
 │   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
 │   ├── relay.ts            # Pont del canal amb el tauler de missions de la wiki (postMessage, sense API)
 │   ├── token-menu.ts       # tokenMenuFor: estat del menú del clic dret d'un token (mapa i files del lateral)
@@ -133,6 +134,7 @@ src/
 │   │   └── pathing.ts      # Camins i caselles abastables (Dijkstra amb parets)
 │   ├── render/
 │   │   ├── types.ts        # FrameContext interface
+│   │   ├── wake.ts         # Ritme del bucle: wake(), FramePacer (ple / ~30 fps / adormit) i sostre de fotogrames
 │   │   ├── zones.ts        # renderPaintedZones, renderShapePreview
 │   │   ├── drawing.ts      # advanceStrokeAnim, replayStroke
 │   │   ├── spells.ts       # renderSpells (dispatcher de tots els spells + preview)
@@ -182,7 +184,20 @@ DMView (component React)
 
 ## Render loop — tick() (`src/hooks/useRafLoop.ts`)
 
-`tick()` s'executa cada frame via `requestAnimationFrame`:
+`tick()` es crida a cada `requestAnimationFrame`, però **no sempre pinta** (v5.06, `src/lib/render/wake.ts`):
+
+| Graó | Quan | Ritme |
+|---|---|---|
+| Despert | 4 s després de l'últim `wake()` (missatge, interacció, `setState` del DM, `_broadcastState`, imatge carregada) o amb una animació «calenta» (màgia en vol, cinemàtica, diàleg, token caminant, ressaltat, punter) | Ple |
+| Ambient | Res no canvia, però hi ha animacions perpètues i lentes (figuretes de l'estil Píxel, aigua, zones màgiques, estats, pols del torn o de la selecció, una eina activa) | ~30 fps |
+| Adormit | Res a animar | No es toca el canvas |
+
+- Les llistes «calenta» i «ambient» són al principi de `tick()` (DM) i a `framePace` (`PlayerView`).
+- **Sostre**: mai més d'un fotograma cada 10,5 ms (els LERP van per fotograma, afinats a 60 fps: a 120–144 Hz es pinta un de cada dos).
+- ⚠️ **Tot el que canviï el que es veu sense passar per un missatge, una interacció o un `setState` ha de cridar `wake()`**, i una animació nova que duri més de 4 s ha d'entrar a una de les dues llistes. Si no, es queda congelada fins que es mou el ratolí.
+- `IDLE_PACING = false` (a `wake.ts`) apaga els graons ambient/adormit i torna al repintat continu.
+
+Quan toca pintar, `tick()` fa:
 
 1. Resize canvas si cal
 2. Obtenció del `ctx` (cached a `_ctx2dRef`)

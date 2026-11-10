@@ -11,7 +11,7 @@ import {
 } from '@/lib/render/zones';
 import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
-import { renderSpells, spellShake, followSpellPreview } from '@/lib/render/spells';
+import { renderSpells, spellShake, followSpellPreview, spellsSettled } from '@/lib/render/spells';
 import { renderPlayerTokens, renderLibEnemyTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
 import { renderGrid, renderDifficult, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
@@ -21,13 +21,14 @@ import { usePlayerTokenDrag } from '@/hooks/usePlayerTokenDrag';
 import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
-import { camToView, mediaSize, viewRect } from '@/lib/camera';
+import { camToView, mapSizeFor, viewRect } from '@/lib/camera';
 import type { MapSize, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle, SheetShow } from '@/types';
-import { ensurePack, packReady } from '@/lib/sprites/pack';
+import { ensurePack, packReady, subscribePack } from '@/lib/sprites/pack';
+import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
 import { DialogHost } from '@/lib/dialog/host';
-import { drawTileLive, drawTileDoorsOver, tileBlocker, type TileLive } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver, doorOpenById, tileBlocker, type TileLive } from '@/lib/tilemap/render';
 import { PhosphorScreen, scanlinePx } from '@/lib/phosphor/screen';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -123,6 +124,8 @@ export function PlayerView() {
 
   // Mida del mapa que ha comunicat el DM; `null` = encara no hi ha mapa (no es pinta res).
   const rMapSize     = useRef<MapSize | null>(null);
+  /** Mida real del fons del DM (coordenades de mapa); `null` = la de la imatge rebuda. */
+  const rBgSize      = useRef<MapSize | null>(null);
   const rPos         = useRef<PosMap>({});
   const rZoom        = useRef(1);
   const rPlayers     = useRef<Player[]>([]);
@@ -304,6 +307,7 @@ export function PlayerView() {
     const base = strokeBaseImgRef.current;
     if (base) ctx2.drawImage(base, 0, 0, oc.width, oc.height);
     for (const stroke of hist) _replayStroke(ctx2, stroke);
+    wake();  // la base arriba de manera asíncrona: repintar
   }, []);
   const _bgChanged = useCallback((buf: ArrayBuffer, mime: string) => {
     const u8 = new Uint8Array(buf);
@@ -426,7 +430,7 @@ export function PlayerView() {
     let cam = d.cam ?? null;
     if (!cam && d.tokenPos && !pixel) {
       // DM antic (sense `cam`): es calcula aquí a partir de l'enquadrament compartit.
-      const { mw, mh } = mediaSize(mediaRef.current);
+      const { mw, mh } = mapSizeFor(mediaRef.current, rBgSize.current);
       const cvs = canvasRef.current;
       const cur = rCam.current ?? (cvs?.clientWidth ? viewRect(cvs.clientWidth, cvs.clientHeight, mw, mh, rZoom.current, rPanOffset.current) : null);
       if (cur) cam = bossCamRect(d.tokenPos, cur, mw, mh);
@@ -467,14 +471,12 @@ export function PlayerView() {
     const oc = document.createElement('canvas');
     oc.width = 1; oc.height = 1;
     drawCanvasRef.current = oc;
-    // Paquet de sprites: els fulls de `public/sprites/`, del mateix lloc que l'app.
-    void ensurePack().then(() => refreshTurnBanner());
     const host = new DialogHost(() => stageRef.current, {
       rPos, rPlayers, rLibEnemies, rTokenSizeOverride, rDefeated, rConditions, rRooms, visualPosRef,
     }, () => rAppStyle.current === 'pixel');
     dialogHostRef.current = host;
     return () => { host.dispose(); dialogHostRef.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Drag de tokens de jugador (només pl_*) amb ratolí o tacte (mòbil/tablet)
   const tokenDrag = usePlayerTokenDrag(
@@ -495,12 +497,32 @@ export function PlayerView() {
     rTileLive,
     rAppStyle,
     rDifficult,
+    rBgSize,
   );
   const tokenDragRef = tokenDrag.dragRef;
 
+  /**
+   * El STATE no repeteix la imatge (base64) dels enemics que aquesta pantalla ja té: un enemic
+   * que arriba sense el camp `imageData` conserva la que tenia (`null` vol dir «sense imatge»).
+   */
+  const _keepEnemyImages = (list: LibEnemy[], prev: LibEnemy[]): LibEnemy[] => {
+    if (!list.some(e => e.imageData === undefined)) return list;
+    const had = new Map(prev.map(e => [e.id, e.imageData]));
+    return list.map(e => e.imageData === undefined ? { ...e, imageData: had.get(e.id) ?? null } : e);
+  };
+
   useEffect(() => {
+    let packAsked = false;
     const handleMsg = async (ev: MessageEvent) => {
       const msg = ev.data;
+      wake();  // tot missatge pot canviar el que es pinta (veure `lib/render/wake.ts`)
+      // Paquet de sprites (`public/sprites/`, ~720 KB en 15 fulls): només quan cal. Una partida
+      // en estil Clàssic no en pinta cap; el demanen l'estil Píxel, una fitxa, un diàleg o una
+      // cinemàtica. `ensurePack` és idempotent (un sol intent de càrrega).
+      if (!packAsked && (msg.appStyle === 'pixel' || msg.sheet || msg.dialog || msg.type === 'BOSS_INTRO')) {
+        packAsked = true;
+        void ensurePack().then(() => { if (!packReady()) packAsked = false; refreshTurnBanner(); });
+      }
 
       if (msg.type === 'BG') {
         if (!_bgChanged(msg.buffer, msg.mimeType)) return;
@@ -509,6 +531,7 @@ export function PlayerView() {
         _loadBgFromUrl(url, msg.mimeType, !!msg.withFade);
       } else if (msg.type === 'STRUCT') {
         rMapSize.current = msg.mapSize ?? null;
+        if (msg.bgSize !== undefined) rBgSize.current = msg.bgSize;
         rPos.current    = msg.pos   || {};
         rZoom.current   = msg.zoom  ?? 1;
         rPlayers.current = msg.players || [];
@@ -632,7 +655,7 @@ export function PlayerView() {
         }
         if (msg.highlightLocked !== undefined) rHighlightLocked.current = msg.highlightLocked;
         if (msg.tokenSizeOverride !== undefined) rTokenSizeOverride.current = msg.tokenSizeOverride;
-        if (msg.libEnemies) rLibEnemies.current = msg.libEnemies;
+        if (msg.libEnemies) rLibEnemies.current = _keepEnemyImages(msg.libEnemies, rLibEnemies.current);
         if (msg.appStyle) { rAppStyle.current = msg.appStyle; setPixel(msg.appStyle === 'pixel'); }
         // Mode Fòsfor (lleuger, sempre). Absent → DM antic: no tocar res.
         if (msg.phosphor !== undefined) _setPhosphor(!!msg.phosphor);
@@ -827,23 +850,55 @@ export function PlayerView() {
 
     // Mode Fòsfor: es fa després de pintar l'escena (passi el que passi dins de `frame`).
     let glassLine = 0;
-    const phosphorPass = () => {
+    const phosphorPass = (fresh: boolean) => {
       const scr = phosphorScreenRef.current;
       if (!scr) return;
       if (!phosphorRef.current) { scr.hide(); glassLine = 0; return; }
       const W = canvas.clientWidth, H = canvas.clientHeight;
       if (!W || !H) return;
-      scr.draw(mediaRef.current as HTMLImageElement | HTMLVideoElement | null, canvas, W, H, performance.now());
+      scr.draw(mediaRef.current as HTMLImageElement | HTMLVideoElement | null, canvas, W, H, performance.now(), fresh);
       // Les línies fines de damunt de tot, a la mateixa alçada que les del tub.
       const g = phosphorGlassRef.current, lp = scanlinePx(H);
       if (g && glassLine !== lp) { g.style.backgroundSize = `100% ${lp}px`; glassLine = lp; }
     };
 
+    const pacer = new FramePacer();
+    const unWake = installWakeListeners();
+    const unPack = subscribePack(wake);
+    let paceSig = '';
+    let phosAt = 0;
+    // Ritme del bucle (veure `lib/render/wake.ts`): ple mentre hi ha canvis o una animació
+    // «calenta», ~30 fps amb només animacions perpètues i lentes, i res si tot és quiet.
+    const framePace = (now: number): boolean => {
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      const md = mediaRef.current as (HTMLImageElement & HTMLVideoElement) | null;
+      const sig = `${W}x${H}|${md ? (md.naturalWidth || md.videoWidth || 0) : -1}`;
+      if (sig !== paceSig) { paceSig = sig; wake(); }
+      const spells = rActiveSpells.current;
+      const hot = !!cinematicRef.current || !!cinematicCamRef.current.rect || !!dialogHostRef.current?.active
+        || !!activeStrokeAnim.current || strokeQueueRef.current.length > 0
+        || anyKey(rMovePath.current) || !!tokenDragRef.current || embedRef.current.glide
+        || !!rEnemyHighlight.current || rHighlightAlpha.current > 0
+        || !!rSpellPreview.current || !!rSpellPreviewTarget.current || !!rPointerPos.current
+        || (spells.length > 0 && !spellsSettled(spells, now));
+      const ambient = hot || !!rTurn.current?.active || anyKey(rConditions.current)
+        || rPaintedZones.current.length > 0 || spells.length > 0
+        || (rTileLive.current?.anims.length ?? 0) > 0
+        // Vídeo de fons amb sales fosques: el terreny memoritzat es pinta al canvas a partir del vídeo.
+        || (md?.tagName === 'VIDEO' && rRooms.current.some(r => r.dark && !r.revealed))
+        || (rAppStyle.current === 'pixel' && (rPlayers.current.length > 0 || rLibEnemies.current.length > 0));
+      return pacer.due(now, hot, ambient);
+    };
+
     const tick = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(tick);
-      frame();
-      phosphorPass();
+      const now = performance.now();
+      const painted = framePace(now);
+      if (painted) frame();
+      // El Fòsfor té el seu parpelleig: segueix viu encara que el mapa no s'hagi repintat,
+      // però sense tornar a pujar el canvas a la GPU (`fresh`) i mai a més de ~60 fps.
+      if (painted || now - phosAt >= 15) { phosAt = now; phosphorPass(painted); }
     };
 
     const frame = () => {
@@ -857,9 +912,9 @@ export function PlayerView() {
       const pp = rPos.current;
       const media = mediaRef.current as HTMLImageElement & HTMLVideoElement | null;
 
-      let mw = 1920, mh = 1080;
-      if (media?.tagName === 'IMG'   && media.naturalWidth)  { mw = media.naturalWidth;  mh = media.naturalHeight; }
-      if (media?.tagName === 'VIDEO' && media.videoWidth)    { mw = media.videoWidth;    mh = media.videoHeight; }
+      // Mida del mapa en coordenades de mapa: la del fons ORIGINAL del DM (`bgSize` del STRUCT),
+      // que pot no ser la de la imatge rebuda (còpia reduïda, veure `mapSizeFor`).
+      const { mw, mh } = mapSizeFor(media, rBgSize.current);
 
       // Càmera: l'autoritat és l'enquadrament de MAPA del DM (`rCam`), que es tradueix al
       // zoom/pan d'aquesta finestra amb la seva mida REAL d'ara. Es recalcula cada frame,
@@ -961,7 +1016,7 @@ export function PlayerView() {
       // Parts vives del mapa de caselles: sota de tot (la foscor de les sales les tapa).
       if (rTileLive.current) {
         const doors = rDoors.current;
-        drawTileLive(ctx, rTileLive.current, id => doors.find(d => d.id === id)?.open !== false, performance.now());
+        drawTileLive(ctx, rTileLive.current, doorOpenById(doors), performance.now());
       }
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
@@ -997,7 +1052,7 @@ export function PlayerView() {
       // en tapava la meitat de la casella (cada meitat és d'una sala).
       if (rTileLive.current) {
         const doors = rDoors.current;
-        drawTileDoorsOver(ctx, rTileLive.current, id => doors.find(d => d.id === id)?.open !== false);
+        drawTileDoorsOver(ctx, rTileLive.current, doorOpenById(doors));
       }
 
       // Les caselles de moviment (groc) i el ghost del destí es pinten SOBRE la foscor: el
@@ -1021,7 +1076,7 @@ export function PlayerView() {
     };
 
     rafRef.current = requestAnimationFrame(tick);
-    return () => { alive = false; cancelAnimationFrame(rafRef.current); };
+    return () => { alive = false; cancelAnimationFrame(rafRef.current); unWake(); unPack(); };
   }, []);
 
   // Mode Fòsfor: el llenç de WebGL es crea un sol cop (s'amaga quan el mode és apagat).
@@ -1047,6 +1102,7 @@ export function PlayerView() {
       if (d?.rpg !== 'embed' || typeof d.fit !== 'boolean') return;
       if (em.fit !== d.fit) em.glide = true;
       em.fit = d.fit;
+      wake();
     };
     window.addEventListener('message', onMsg);
     const relay = relayToParent(bcRef.current, e => { void bcHandlerRef.current?.(e as MessageEvent); });

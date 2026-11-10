@@ -235,6 +235,22 @@ export function tileBlocker(live: TileLive | null | undefined, doors: { id: stri
 }
 
 /**
+ * «Aquesta porta és oberta?» per id, per a `drawTileLive` i `drawTileDoorsOver`. Abans cada
+ * porta feia un `doors.find` dos cops per fotograma; l'índex es refà només quan canvia la
+ * llista (les portes no es muten mai al lloc: cada canvi en crea una de nova).
+ */
+let _doorIdxOf: readonly { id: string; open?: boolean }[] | null = null;
+let _doorIdx = new Map<string, { open?: boolean }>();
+export function doorOpenById(doors: readonly { id: string; open?: boolean }[]): (id: string) => boolean {
+  if (doors !== _doorIdxOf) {
+    _doorIdxOf = doors;
+    _doorIdx = new Map(doors.map(d => [d.id, d]));
+  }
+  const idx = _doorIdx;
+  return id => idx.get(id)?.open !== false;
+}
+
+/**
  * Pinta les parts vives en coords de mapa (dins de la transformació del mapa). `openById`
  * diu l'estat actual de cada porta (`rDoors`, que es pot obrir i tancar a mitja partida).
  */

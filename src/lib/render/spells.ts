@@ -328,6 +328,18 @@ export function followSpellPreview(cur: SpellPreview | null, tgt: SpellPreview |
 // ── Main render ──────────────────────────────────────────────────────────────
 
 /**
+ * Totes les màgies actives són àrees persistents que ja han acabat d'aparèixer (dormir, greix…)?
+ * El bucle ho fa servir per baixar al ritme ambient (`lib/render/wake.ts`): una màgia en vol
+ * o una àrea que encara s'està obrint demanen ritme ple.
+ */
+export function spellsSettled(spells: Spell[], now = performance.now()): boolean {
+  for (const sp of spells) {
+    if (!PERSISTENT_SPELLS.has(sp.type as string) || now - sp.startTime < 6000 * FX_SLOW) return false;
+  }
+  return true;
+}
+
+/**
  * Two-pass rendering: 'ground' draws area spells (sleep, grease — floor effects,
  * called before the token phases so tokens stand on top of them) and 'air' draws
  * everything else (projectiles, bolts, cones — called after the tokens so they

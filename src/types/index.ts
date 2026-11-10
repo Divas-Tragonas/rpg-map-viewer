@@ -486,6 +486,8 @@ export interface BCStructMessage {
   zoom: number;
   players: Player[];
   mapSize: MapSize | null;
+  /** Mida real del fons del DM (coordenades de mapa): el jugador pot tenir-ne una còpia reduïda. */
+  bgSize?: MapSize | null;
   conditions: ConditionsMap;
   defeated: DefeatedMap;
   paintedZones: PaintedZone[];

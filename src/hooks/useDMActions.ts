@@ -18,6 +18,8 @@ import type { ApiEnemy } from '@/lib/api';
 import type { DMRefs } from './useDMRefs';
 import { previewForPlayers } from '@/lib/spellcast';
 import { defensesOf, libEnemiesForPlayers } from '@/lib/rules/damage';
+import { wake } from '@/lib/render/wake';
+import { reduceBgForPlayers, type BgCopy } from '@/lib/bg-reduce';
 import { monsterFromApi } from '@/lib/db-enemies';
 import { snapTokenCenter } from '@/lib/rules/cells';
 import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
@@ -97,6 +99,42 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rMeasure, rPointerPos, rWalls, rRooms, rDoors, rLights, rDoorPlacement, rDoorPreview,
     rWallPenLast, rWallChain, rWallCursor, rTurn, rSpellPreview,
   } = R;
+
+  /** Còpia reduïda del fons per a les pantalles de jugador (`lib/bg-reduce.ts`); `src` és el
+   *  fitxer original de què surt, per saber si encara val. */
+  const bgPlayerRef = useRef<(BgCopy & { src: ArrayBuffer }) | null>(null);
+  /** El que s'envia als jugadors: la còpia reduïda si és la del fons d'ara, o l'original. */
+  const _playerBg = (): BgCopy | null => {
+    const bg = bgBufferRef.current;
+    if (!bg) return null;
+    const cp = bgPlayerRef.current;
+    return cp && cp.src === bg.buffer ? cp : bg;
+  };
+  /** Mida real del fons del DM (coordenades de mapa), per al `bgSize` del STRUCT. */
+  const _bgSize = () => {
+    const m = mediaRef.current as (HTMLImageElement & HTMLVideoElement) | null;
+    if (!m || !(m.naturalWidth || m.videoWidth)) return null;
+    const { mw, mh } = mediaSize(m);
+    return { width: mw, height: mh };
+  };
+  /** Imatge de cada enemic que les pantalles de jugador ja tenen (veure `_leanEnemies`). */
+  const sentEnemyImgRef = useRef(new Map<number | string, string | null>());
+  /**
+   * Enemics per a un STATE, sense la `imageData` (base64) dels que el jugador ja té: cada
+   * canvi de vida reenviava la llista sencera amb TOTES les imatges. El jugador conserva la
+   * que tenia quan el camp no ve (`_keepEnemyImages` a `PlayerView`); el STRUCT les porta totes.
+   */
+  const _leanEnemies = (list: LibEnemy[]): LibEnemy[] => {
+    const known = sentEnemyImgRef.current, next = new Map<number | string, string | null>();
+    const out = list.map(e => {
+      next.set(e.id, e.imageData ?? null);
+      if (!e.imageData || known.get(e.id) !== e.imageData) return e;
+      const { imageData: _img, ...rest } = e; void _img;
+      return rest as LibEnemy;
+    });
+    sentEnemyImgRef.current = next;
+    return out;
+  };
 
   /** Object URL del fons actual, per poder-lo revocar quan se'n carrega un altre. */
   const bgUrlRef = useRef<string | null>(null);
@@ -205,6 +243,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
     // Tota mutació d'estat del DM passa per aquí, o sigui que és el lloc natural per
     // marcar que hi ha canvis sense desar (`useAutosave` no escriu res si això és false).
     R.rAutosaveDirty.current = true;
+    // …i que el que es pinta pot haver canviat: el bucle torna al ritme ple (`lib/render/wake.ts`).
+    wake();
     const _isDMPrev = dmLocalPan.current.x !== 0 || dmLocalPan.current.y !== 0 || dmLocalZoom.current !== 1;
     const msg: Record<string, unknown> = {
       type: 'STATE',
@@ -251,7 +291,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (lastSentHeavyRef.current[k] !== heavy[k]) { msg[k] = heavy[k]; lastSentHeavyRef.current[k] = heavy[k]; }
     }
     Object.assign(msg, extra);
-    if (Array.isArray(msg.libEnemies)) msg.libEnemies = libEnemiesForPlayers(msg.libEnemies as LibEnemy[]);
+    if (Array.isArray(msg.libEnemies)) msg.libEnemies = _leanEnemies(libEnemiesForPlayers(msg.libEnemies as LibEnemy[]));
     bcRef.current?.postMessage(msg);
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
@@ -291,8 +331,12 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // era quan es van dibuixar no els tenia). Els traços vells van rasteritzats a la base.
       strokeHistory: strokeHistoryRef.current,
       strokeBaseline: _strokeBaseline(),
+      // Mida real del fons (coordenades de mapa): el jugador pot tenir-ne una còpia reduïda.
+      bgSize: _bgSize(),
     };
     sentBaseVerRef.current = strokeBaseVerRef.current;
+    // El STRUCT porta totes les imatges dels enemics: a partir d'ara el STATE les pot ometre.
+    sentEnemyImgRef.current = new Map(rLibEnemies.current.map(e => [e.id, e.imageData ?? null]));
     bcRef.current?.postMessage(structMsg);
     wsRef.current?.send(JSON.stringify(structMsg));
     // El STRUCT ja porta l'estat complet: sincronitza el detector de canvis del STATE.
@@ -300,10 +344,11 @@ export function useDMActions(R: DMRefs, S: Setters) {
   }, [_syncHeavySent, _strokeBaseline]);
 
   const _sendFullState = useCallback(() => {
-    if (bgBufferRef.current) {
-      bcRef.current?.postMessage({ type: 'BG', buffer: bgBufferRef.current.buffer, mimeType: bgBufferRef.current.mimeType });
-      wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: bgBufferRef.current.mimeType, withFade: false }));
-      wsRef.current?.sendBinary(bgBufferRef.current.buffer);
+    const bg = _playerBg();
+    if (bg) {
+      bcRef.current?.postMessage({ type: 'BG', buffer: bg.buffer, mimeType: bg.mimeType });
+      wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: bg.mimeType, withFade: false }));
+      wsRef.current?.sendBinary(bg.buffer);
     }
     _sendStructState();
   }, [_sendStructState]);
@@ -577,9 +622,19 @@ export function useDMActions(R: DMRefs, S: Setters) {
     else { (el as HTMLImageElement).addEventListener('load', onMediaReady, { once: true }); }
     S.setBgLoaded(true); S.setBgName(file.name);
     _broadcastState({});
-    bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: mime, withFade: true });
-    wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: mime, withFade: true }));
-    wsRef.current?.sendBinary(buf);
+    // Les pantalles de jugador reben una còpia reduïda de les imatges grosses (`lib/bg-reduce.ts`).
+    // A l'app Píxel no: el mapa és pixel art i reduir-lo o recomprimir-lo l'embrutaria.
+    let out: BgCopy = { buffer: buf, mimeType: mime };
+    bgPlayerRef.current = null;
+    if (!isVid && R.rAppStyle.current !== 'pixel') {
+      const copy = await reduceBgForPlayers(buf, mime);
+      // Mentre es preparava la còpia s'ha carregat un altre fons: aquest ja no s'ha d'enviar.
+      if (bgBufferRef.current?.buffer !== buf) return;
+      if (copy) { bgPlayerRef.current = { ...copy, src: buf }; out = copy; }
+    }
+    bcRef.current?.postMessage({ type: 'BG', buffer: out.buffer, mimeType: out.mimeType, withFade: true });
+    wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: out.mimeType, withFade: true }));
+    wsRef.current?.sendBinary(out.buffer);
   }, [_broadcastState, _applyMapSize]);
 
   // Canvia la imatge del fons sense refer res més (mapa de caselles mentre s'edita): mateix

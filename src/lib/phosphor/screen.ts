@@ -190,6 +190,8 @@ export class PhosphorScreen {
   private palW = 0; private palH = 0;
   /** Fons ja pujat a la GPU (una imatge es puja un sol cop; un vídeo, cada fotograma). */
   private mediaUp: Media | null = null;
+  /** El canvas del mapa ja és a la textura (amb la mida d'ara)? */
+  private mapUp = false;
   private u: { hasMedia: U; rect: U; texel: U; res: U; line: U; flick: U } = { hasMedia: null, rect: null, texel: null, res: null, line: null, flick: null };
   private shown: boolean | null = null;
   /** `false` = sense WebGL: el llenç s'amaga i es veu l'escena normal. */
@@ -206,6 +208,7 @@ export class PhosphorScreen {
     this.gl = gl;
     this.gpu = false;
     this.mediaUp = null;
+    this.mapUp = false;
     if (!gl) return;
     this.progPal = compile(gl, FS_PALETTE);
     this.progCrt = compile(gl, FS_CRT);
@@ -250,11 +253,11 @@ export class PhosphorScreen {
    * Un fotograma. `media` és el fons (posicionat amb `left/top/width/height` en px CSS, el mateix
    * espai que el canvas del mapa) i `map` el canvas del mapa, de mida `W×H`.
    */
-  draw(media: Media | null, map: HTMLCanvasElement, W: number, H: number, now: number) {
+  draw(media: Media | null, map: HTMLCanvasElement, W: number, H: number, now: number, fresh = true) {
     const gl = this.gl;
     if (!this.gpu || !gl) { this.show(false); return; }
     this.show(true);
-    if (this.out.width !== W || this.out.height !== H) { this.out.width = W; this.out.height = H; }
+    if (this.out.width !== W || this.out.height !== H) { this.out.width = W; this.out.height = H; this.mapUp = false; }
     try {
       // Fons: on és i, si cal, pujar-lo.
       let hasMedia = 0;
@@ -285,7 +288,11 @@ export class PhosphorScreen {
         this.palW = W; this.palH = H;
       }
       gl.bindTexture(gl.TEXTURE_2D, this.texMap);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, map);
+      // Pujar el canvas del mapa és el gruix del cost: només quan s'ha repintat (`fresh`).
+      if (fresh || !this.mapUp) {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, map);
+        this.mapUp = true;
+      }
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
       gl.viewport(0, 0, W, H);
       gl.useProgram(this.progPal);

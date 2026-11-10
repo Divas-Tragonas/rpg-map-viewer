@@ -30,6 +30,21 @@ export function mediaSize(el: HTMLElement | null | undefined): { mw: number; mh:
   return { mw: 1920, mh: 1080 };
 }
 
+/**
+ * Mida del mapa en COORDENADES DE MAPA a la pantalla de jugador. Les coordenades (tokens,
+ * parets, càmera) són les del fitxer original del DM, però el jugador pot haver rebut una
+ * còpia reduïda del fons (`lib/bg-reduce.ts`): la mida bona és la que el DM envia al STRUCT
+ * (`bgSize`), no la de la imatge que té. Només s'accepta si té la mateixa proporció que el
+ * fons que hi ha ara (durant un canvi de mapa, el `bgSize` vell no val per al fons nou).
+ */
+export function mapSizeFor(el: HTMLElement | null | undefined, bgSize: { width: number; height: number } | null | undefined): { mw: number; mh: number } {
+  const nat = mediaSize(el);
+  if (!bgSize || !(bgSize.width > 1) || !(bgSize.height > 1)) return nat;
+  const a = nat.mw / nat.mh, b = bgSize.width / bgSize.height;
+  if (Math.abs(a - b) > 0.02 * a) return nat;
+  return { mw: bgSize.width, mh: bgSize.height };
+}
+
 /** Rectangle de mapa que ocupa una finestra W×H amb el zoom i el pan (en píxels) donats. */
 export function viewRect(W: number, H: number, mw: number, mh: number, zoom: number, pan: Point): CamRect {
   const sc = baseScale(W, H, mw, mh) * zoom;

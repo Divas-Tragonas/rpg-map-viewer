@@ -1,6 +1,7 @@
 import type { FrameContext } from './types';
 import type { HpHit } from '@/types';
 import { TOKEN_LERP, C } from '@/constants';
+import { wake } from './wake';
 import { drawConditionRingFor } from '@/lib/conditions';
 import { drawCreature, grayCreature } from '@/lib/sprites/draw';
 import { drawFigureState, figureLook, reducedMotion } from '@/lib/sprites/states';
@@ -143,10 +144,30 @@ export interface NameTag {
 /** Tots els noms van en negreta (DM i jugador): a la TV, la lletra prima es perdia damunt del mapa. */
 const nameFont = (t: NameTag, u: number) => `bold ${t.size * u}px system-ui`;
 
+/**
+ * Amplada d'un text amb la lletra dels noms. `measureText` es cridava un o dos cops per token a
+ * cada fotograma; l'amplada és proporcional a la mida de la lletra, o sigui que es mesura un
+ * sol cop per text a una mida de referència i s'escala (així tampoc no depèn del zoom).
+ */
+const NAME_REF_PX = 100;
+const _nameW = new Map<string, number>();
+function nameWidth(ctx: CanvasRenderingContext2D, text: string, px: number): number {
+  let w = _nameW.get(text);
+  if (w === undefined) {
+    if (_nameW.size > 500) _nameW.clear();
+    const prev = ctx.font;
+    ctx.font = `bold ${NAME_REF_PX}px system-ui`;
+    w = ctx.measureText(text).width;
+    ctx.font = prev;
+    _nameW.set(text, w);
+  }
+  return w * px / NAME_REF_PX;
+}
+
 /** Pinta el nom centrat a `x` amb el fons a partir de `top` (px de mapa). */
 function drawNameTag(ctx: CanvasRenderingContext2D, t: NameTag, u: number, x: number, top: number) {
   ctx.font = nameFont(t, u); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  const tw = ctx.measureText(t.text).width;
+  const tw = nameWidth(ctx, t.text, t.size * u);
   ctx.globalAlpha = t.alpha;
   ctx.fillStyle = t.bg; ctx.fillRect(x - tw / 2 - 4 * u, top, tw + 8 * u, t.boxH * u);
   ctx.fillStyle = t.color; ctx.fillText(t.text, x, top + (12 - t.gap) * u);
@@ -164,9 +185,15 @@ function drawHpBar(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: num
   ctx.fillStyle = ratio > 0.5 ? C.hpHigh : ratio > 0.25 ? C.hpMid : C.enemy;
   ctx.fillRect(barX, barY, barW * ratio, barH);
   ctx.font = `bold ${Math.max(9 / sc, barH * 0.62)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 2 / sc;
+  // Contorn fosc en lloc de `shadowBlur`: l'ombra difuminada es calculava per token i fotograma
+  // (cara, sobretot a Safari) per a un efecte de 2 px que el contorn fa igual.
+  const join = ctx.lineJoin;
+  ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 2.5 / sc; ctx.lineJoin = 'round';
+  ctx.strokeText(`${hp}/${hpMax}`, cx, barY + barH / 2);
+  ctx.lineJoin = join;
+  ctx.fillStyle = '#fff';
   ctx.fillText(`${hp}/${hpMax}`, cx, barY + barH / 2);
-  ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
 }
 
 /** Al DM, el nom es pinta on toca; a la pantalla de jugador (`fc.nameTags`) es pinten tots junts a `renderNameTags`. */
@@ -204,9 +231,8 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
   const dark = (fc.rRooms?.current ?? []).filter(r => r.dark && !r.revealed && r.points.length >= 3);
   ctx.save();
   const items = tags.map((t, i) => {
-    ctx.font = nameFont(t, u);
     const pri = t.pri > 0 && dark.some(r => pointInPolygon(t.cx, t.cy, r.points)) ? 2 : t.pri;
-    return { t, i, pri, w: ctx.measureText(t.text).width + 8 * u, h: t.boxH * u, body: tokenBody(t), x: t.cx, top: 0, slot: 0 };
+    return { t, i, pri, w: nameWidth(ctx, t.text, t.size * u) + 8 * u, h: t.boxH * u, body: tokenBody(t), x: t.cx, top: 0, slot: 0 };
   });
   items.sort((a, b) => a.pri - b.pri || a.body.b - b.body.b || a.t.cx - b.t.cx || a.i - b.i);
   const placed: Box[] = [];
@@ -388,10 +414,35 @@ function getTokenImg(src: string): HTMLImageElement {
   let img = _tokenImgCache.get(src);
   if (!img) {
     img = new Image();
+    // La imatge arriba un moment després: despertar el bucle perquè la pinti (`lib/render/wake.ts`).
+    img.onload = wake;
     img.src = src;
     _tokenImgCache.set(src, img);
   }
   return img;
+}
+
+/**
+ * Retrat d'un token de disc ja retallat en rodó. Abans cada token feia `save → arc → clip →
+ * drawImage → restore` a cada fotograma, i el `clip` és de les operacions més cares del canvas
+ * 2D: amb una colla d'enemics amb imatge era el gruix del cost dels tokens. Ara el retall es
+ * fa un sol cop per imatge i cada fotograma és un `drawImage`. `null` mentre no ha carregat.
+ */
+const DISC_MAX_PX = 256;
+const _tokenDiscCache = new Map<string, HTMLCanvasElement>();
+function getTokenDisc(src: string): HTMLCanvasElement | null {
+  const hit = _tokenDiscCache.get(src);
+  if (hit) return hit;
+  const img = getTokenImg(src);
+  if (!img.complete || img.naturalWidth === 0) return null;
+  const n = Math.max(32, Math.min(DISC_MAX_PX, Math.max(img.naturalWidth, img.naturalHeight)));
+  const cv = document.createElement('canvas'); cv.width = n; cv.height = n;
+  const c = cv.getContext('2d');
+  if (!c) return null;
+  c.beginPath(); c.arc(n / 2, n / 2, n / 2, 0, Math.PI * 2); c.clip();
+  c.drawImage(img, 0, 0, n, n);
+  _tokenDiscCache.set(src, cv);
+  return cv;
 }
 
 
@@ -492,11 +543,8 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.fillStyle = en.color;
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.fill();
       if (en.imageData) {
-        const dtImg = getTokenImg(en.imageData);
-        if (dtImg.complete && dtImg.naturalWidth > 0) {
-          ctx.save(); ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.clip();
-          ctx.drawImage(dtImg, ep.x - R, ep.y - R, R * 2, R * 2); ctx.restore();
-        }
+        const dtImg = getTokenDisc(en.imageData);
+        if (dtImg) ctx.drawImage(dtImg, ep.x - R, ep.y - R, R * 2, R * 2);
       }
       ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 / sc;
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.stroke();
@@ -509,11 +557,8 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
       ctx.fillStyle = en.color;
       ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.fill();
       if (en.imageData) {
-        const tImg = getTokenImg(en.imageData);
-        if (tImg.complete && tImg.naturalWidth > 0) {
-          ctx.save(); ctx.beginPath(); ctx.arc(ep.x, ep.y, R, 0, Math.PI * 2); ctx.clip();
-          ctx.drawImage(tImg, ep.x - R, ep.y - R, R * 2, R * 2); ctx.restore();
-        }
+        const tImg = getTokenDisc(en.imageData);
+        if (tImg) ctx.drawImage(tImg, ep.x - R, ep.y - R, R * 2, R * 2);
       }
       ctx.strokeStyle = isInvis ? 'rgba(100,180,255,.6)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.5 / sc;
       if (isInvis) ctx.setLineDash([5 / sc, 3 / sc]);

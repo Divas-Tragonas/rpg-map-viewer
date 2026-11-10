@@ -9,6 +9,7 @@ import { effectiveWalls } from '@/lib/rooms/doors';
 import { movementLimit } from '@/lib/rules/conditions';
 import type { PosMap, Player, TokenSizeMap, TurnState, Wall, Door, Point, ConditionsMap } from '@/types';
 import type { SyncSocket } from '@/lib/ws';
+import { mapSizeFor } from '@/lib/camera';
 import { clearTokenSpread, insideTokenSpread, openTokenSpreadNow, spreadOffset, stackAt, tokenSpreadOpen, type TokenRefs } from '@/lib/render/token-geom';
 
 /** Pulsació llarga (ms) que obre el ventall dels tokens apilats, i el moviment (px) que la cancel·la. */
@@ -52,18 +53,9 @@ interface DragState {
   blocked?: CellBlocker;
 }
 
-function getMediaDimensions(media: HTMLElement | null): { mw: number; mh: number } {
-  if (!media) return { mw: 1920, mh: 1080 };
-  if (media.tagName === 'IMG') {
-    const img = media as HTMLImageElement;
-    if (img.naturalWidth) return { mw: img.naturalWidth, mh: img.naturalHeight };
-  }
-  if (media.tagName === 'VIDEO') {
-    const vid = media as HTMLVideoElement;
-    if (vid.videoWidth) return { mw: vid.videoWidth, mh: vid.videoHeight };
-  }
-  return { mw: 1920, mh: 1080 };
-}
+/** Mida del mapa en coordenades de mapa (la del fons original del DM, veure `mapSizeFor`). */
+type BgSize = { width: number; height: number } | null | undefined;
+const getMediaDimensions = (media: HTMLElement | null, bgSize?: BgSize) => mapSizeFor(media, bgSize);
 
 function toMapCoords(
   clientX: number,
@@ -72,9 +64,10 @@ function toMapCoords(
   media: HTMLElement | null,
   zoom: number,
   pan: { x: number; y: number },
+  bgSize?: BgSize,
 ): { mx: number; my: number } {
   const r = canvas.getBoundingClientRect();
-  const { mw, mh } = getMediaDimensions(media);
+  const { mw, mh } = getMediaDimensions(media, bgSize);
   const sc = Math.min(r.width / mw, r.height / mh) * zoom;
   return {
     mx: (clientX - r.left - (r.width - mw * sc) / 2 - pan.x) / sc,
@@ -151,6 +144,8 @@ export function usePlayerTokenDrag(
   rAppStyle?: RefObject<string>,
   // Terreny difícil: caselles que costen el doble (`lib/rules/terrain.ts`).
   rDifficult?: RefObject<readonly string[]>,
+  // Mida real del fons del DM (`bgSize` del STRUCT): el jugador pot tenir-ne una còpia reduïda.
+  rBgSize?: RefObject<BgSize>,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -171,7 +166,7 @@ export function usePlayerTokenDrag(
   });
   const scaleOf = (canvas: HTMLCanvasElement) => {
     const r = canvas.getBoundingClientRect();
-    const { mw, mh } = getMediaDimensions(mediaRef.current);
+    const { mw, mh } = getMediaDimensions(mediaRef.current, rBgSize?.current);
     return Math.min(r.width / mw, r.height / mh) * rZoom.current;
   };
   const cancelPress = () => {
@@ -195,7 +190,7 @@ export function usePlayerTokenDrag(
     if (pressRef.current) { cancelPress(); return; }
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
+    const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current, rBgSize?.current);
     // Amb el dit el hit ha de ser més generós que amb el ratolí
     const slop = e.pointerType === 'touch' ? 16 : 4;
     const hit = hitTest(mx, my, slop, rPos, rPlayers, rTokenSizeOverride);
@@ -281,7 +276,7 @@ export function usePlayerTokenDrag(
     if (!dragRef.current || e.pointerId !== pointerIdRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current);
+    const { mx, my } = toMapCoords(e.clientX, e.clientY, canvas, mediaRef.current, rZoom.current, rPanOffset.current, rBgSize?.current);
     const { id, ox, oy, R, range } = dragRef.current;
     let cx = mx - ox + R, cy = my - oy + R;
     if (range) {

@@ -3,6 +3,17 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.06 — Rendiment: el bucle descansa quan no passa res
+- **Ritme del bucle de render** (`lib/render/wake.ts`, DM i jugador): ple mentre hi ha canvis o una animació en marxa, **~30 fps** amb només animacions lentes (figuretes en espera, aigua, zones, pols del torn) i **cap repintat** amb l'escena quieta. Abans es repintava tot a 60 fps sempre. Si alguna cosa es quedés congelada, `IDLE_PACING = false` torna al comportament d'abans
+- **Sostre de fotogrames**: a pantalles de 100 Hz o més es pinta un fotograma de cada dos (les animacions van per fotograma i anaven al doble de velocitat fent el doble de feina)
+- **Mode Fòsfor**: el canvas del mapa només es torna a pujar a la GPU quan s'ha repintat
+- **Fons reduït per als jugadors** (`lib/bg-reduce.ts`, només estil Clàssic): les imatges PNG/JPEG de més d'1,5 MB s'envien reduïdes a 4096 px de costat i en WebP; el DM i els desats segueixen amb l'original. El STRUCT porta `bgSize` (mida real del mapa)
+- **Vida dels enemics**: el STATE ja no repeteix la imatge (base64) dels enemics que el jugador ja té
+- **Tokens**: retrat dels enemics retallat un sol cop (sense `clip` per fotograma), amplada dels noms sense `measureText` per fotograma i punts de vida amb contorn en lloc de `shadowBlur`
+- **Pantalla de jugador**: els fulls de sprites (~720 KB) només es carreguen si la partida és en estil Píxel (o arriba una fitxa, un diàleg o una cinemàtica)
+- Portes del mapa de caselles: índex per id en lloc d'un `find` per porta i fotograma
+- Sense canvis a la API (`bgSize` és un camp més del `STRUCT`, que el servidor reenvia tal qual)
+
 ### v5.05 — Càpsules: capturar un moment i disparar-lo des de la Història
 - **Història → Mòdul → «+ Capturar el moment»**: desa el que hi ha ara en una càpsula del mòdul: els **enemics de l'escena amb la seva posició** (també els amagats) i/o l'**Escena** de «Mostrar als jugadors» (imatges, text i ajustos)
 - Opcions en capturar: treure els enemics del mapa (per preparar-los sense que es vegin) i mostrar l'Escena als jugadors en disparar

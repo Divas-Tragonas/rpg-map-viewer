@@ -74,6 +74,22 @@ binaris (fons, mèdia de l'Escena) van com a frame `*_META` JSON + frame binari.
   trossos separats per punts**, així que un comodí ha de ser un tros sencer
   (`192.168.*.*` sí, `172.2*.*.*` no).
 
+## Pes del que viatja (v5.06)
+
+- **Fons reduït** (`src/lib/bg-reduce.ts`): a l'estil Clàssic, una imatge PNG/JPEG de més d'1,5 MB s'envia als
+  jugadors reduïda (costat màxim 4096 px) i en WebP; si no s'hi guanya un 20 %, s'envia l'original. Ni vídeos, ni
+  GIF/WebP (poden ser animats), ni l'estil Píxel (pixel art). El DM, el `.json` i el desat automàtic guarden
+  l'original (`bgBufferRef`); la còpia és a `bgPlayerRef` i l'envien `loadBg` i `_sendFullState` (`_playerBg`).
+- **`STRUCT.bgSize`**: mida real del fons del DM. Les coordenades de mapa són les del fitxer original, o sigui
+  que el jugador **no pot deduir-les de la imatge que rep**: `mapSizeFor(media, bgSize)` (`lib/camera.ts`) al
+  bucle i a `usePlayerTokenDrag`. ⚠️ Codi nou del jugador que necessiti la mida del mapa: `mapSizeFor`, mai
+  `naturalWidth`.
+- **Imatges dels enemics**: el `STATE` omet `imageData` dels enemics que el jugador ja té (`_leanEnemies` al DM,
+  `_keepEnemyImages` al jugador: camp absent = «conserva la que tens», `null` = sense imatge). El `STRUCT` les
+  porta sempre totes.
+- **Sprites a la pantalla de jugador**: `ensurePack()` es crida quan arriba `appStyle: 'pixel'`, una fitxa, un
+  diàleg o una cinemàtica, no en obrir la pàgina.
+
 ## Càmera compartida — independent de la mida i el format de finestra (`src/lib/camera.ts`)
 - **Problema que resol**: la càmera es sincronitzava com `{ zoom, panOffset }` amb `panOffset` en **píxels de pantalla del DM**, i cada pantalla hi aplicava després la seva pròpia escala d'ajust `min(W/mw, H/mh)`. Amb finestres de mida o format diferents, el mateix `panOffset` desplaçava una quantitat de mapa diferent i el rectangle visible depenia del format: en fer zoom, **cada pantalla retallava per un costat diferent**. El DM tenia contingut a la vora de la seva pantalla i els jugadors no el veien, sense cap indici.
 - **Model**: el que viatja és `cam: CamRect { cx, cy, w, h }` — el **rectangle de MAPA** que enquadra el DM. Camp lleuger de `STATE`/`STRUCT` (4 números, s'envia sempre). `zoom`/`panOffset` es continuen enviant **només per compatibilitat amb clients antics**.
