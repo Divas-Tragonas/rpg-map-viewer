@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.04 — Editor de mòduls dins l'app
+- **Història → Mòduls → «+ Nou mòdul»**: formulari per crear un mòdul sense JSON ni Claude (títol, disparador, escena, textos per llegir, enemics amb suggeriments del bestiari, diàlegs en format teatre, sortides cap a altres mòduls, NPCs i notes del DM)
+- **Llapis a cada mòdul** de la biblioteca per editar-lo (l'`id` i l'estat de joc es conserven, així les sortides dels altres mòduls segueixen funcionant)
+- `saveModule` a `lib/modules.ts`; sense canvis a la API
+
 ### v5.03 — Habilitats de la fitxa al menú del token, amb descans
 - **Habilitats a punt per usar**: `sheet.powers` (mateix format que els poders de les criatures) surt al menú del token dels jugadors com a «Habilitats». Yunquerin: **Expulsar Muertos Vivientes** (aura 30 ft, salvació SAB CD 13, espantats 1 min) i **Preservar Vida** (cura en aura 30 ft), que comparteixen l'ús de Canalizar Divinidad; Jaume: **Oleada de Acción** i **Segundo Aire**; Espardeny: **Segundo Aire**. Les armes noves ja surten a «Atacs»
 - **Es gasten com l'alè d'un drac**: en fer-les servir (en confirmar l'efecte) el botó s'apaga i marca ⟳, però es pot prémer igualment. Mateixa mecànica que els poders amb recàrrega, però amb `rest` ('short' | 'long') en lloc d'un d6; `uses` fa que dos poders comparteixin l'ús. Es queden gastades fora i dins de combat fins al descans

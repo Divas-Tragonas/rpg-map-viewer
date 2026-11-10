@@ -203,6 +203,41 @@ export function importModules(text: string): ImportResult {
   return { added, updated, errors };
 }
 
+/** Un mòdul en blanc per a l'editor («Nou mòdul»). */
+export function blankModule(): ModulePack {
+  return {
+    format: MODULE_FORMAT, version: MODULE_VERSION, id: '', title: '', status: 'preparat', quests: [], scene: [],
+    readAloud: [], foes: [], npcs: [], dialogs: [], exits: [],
+  };
+}
+
+export interface SaveResult { id?: string; errors: string[] }
+
+/**
+ * Desa un mòdul fet a l'editor. `editingId`: l'`id` del mòdul que s'edita (es manté estable perquè
+ * les sortides dels altres mòduls hi segueixin apuntant); sense ell, és un mòdul nou i l'`id`
+ * surt del títol (amb `-2`, `-3`… si ja n'hi ha un de igual). L'estat de joc es conserva.
+ */
+export function saveModule(draft: unknown, editingId?: string): SaveResult {
+  const { modules, errors } = parseModulePacks(isObj(draft) ? { ...draft, id: editingId ?? '' } : draft);
+  const pack = modules[0];
+  if (!pack) return { errors };
+  let result: SaveResult = { errors: [] };
+  modulesStore.update(d => {
+    const library = { ...d.library }; const order = [...d.order];
+    let id = editingId ?? pack.id;
+    if (!editingId) { const base = id; let n = 2; while (library[id]) id = `${base}-${n++}`; }
+    const cur = editingId ? library[editingId] : undefined;
+    const saved = { ...pack, id };
+    if (cur) library[id] = { ...cur, pack: saved, status: pack.status };
+    else { library[id] = { pack: saved, importedAt: Date.now(), status: pack.status }; order.push(id); }
+    if (library[id].status === 'jugat' && !library[id].playedAt) library[id] = { ...library[id], playedAt: Date.now() };
+    result = { id, errors: [] };
+    return { ...d, library, order };
+  });
+  return result;
+}
+
 export function setActiveModule(id: string | null) {
   modulesStore.update(d => (d.active === id || (id && !d.library[id]) ? d : { ...d, active: id }));
 }

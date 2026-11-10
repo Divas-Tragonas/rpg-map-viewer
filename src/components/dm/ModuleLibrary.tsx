@@ -3,7 +3,8 @@ import React, { useRef, useState } from 'react';
 import { C, FS, RADIUS, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
-import { Upload, X } from '@/components/icons';
+import { PenLine, Upload, X } from '@/components/icons';
+import { ModuleEditor } from './ModuleEditor';
 import type { StoryActions } from '@/hooks/useStory';
 import {
   importModules, removeModule, setModuleStatus, sortedModules, STATUS_LABEL, STATUS_ORDER,
@@ -26,6 +27,8 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
   const [text, setText] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  /** `'new'` = mòdul nou; un `id` = editar aquell mòdul; null = veure la llista. */
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
 
   const run = (source: string) => {
     const r = importModules(source);
@@ -43,10 +46,15 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
   };
 
   const mods = sortedModules(lib);
+  if (editing) {
+    const initial = editing === 'new' ? undefined : lib.library[editing]?.pack;
+    return <ModuleEditor key={editing} initial={initial} lib={lib} onDone={() => setEditing(null)} />;
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <Button size="md" variant="primary" onClick={() => setEditing('new')}>+ Nou mòdul</Button>
           <Button size="md" onClick={() => fileRef.current?.click()}><Upload size={12} /> Importar fitxer…</Button>
           <Button size="md" active={paste} onClick={() => setPaste(v => !v)}>Enganxar JSON</Button>
           <input ref={fileRef} type="file" accept=".json,application/json" multiple hidden onChange={e => void onFiles(e.target.files)} />
@@ -65,9 +73,8 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
       </div>
 
       {mods.length === 0 ? (
-        <div style={{ padding: 16, fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}
-          title="Un paquet és un JSON amb el disparador, els textos per llegir, els enemics i les sortides d'una pàgina de la base MÒDULS de Notion. Demana a Claude que et generi el de la sessió.">
-          Cap mòdul importat.
+        <div style={{ padding: 16, fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}>
+          Cap mòdul encara. Crea un mòdul amb «Nou mòdul» o importa un paquet.
         </div>
       ) : (
         <ScrollArea style={{ flex: 1, minHeight: 0 }}>
@@ -91,6 +98,10 @@ export function ModuleLibrary({ lib, story, onOpened }: { lib: ModulesData; stor
                     style={{ ...field, padding: '3px 4px' }}>
                     {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                   </select>
+                  <button onClick={() => setEditing(m.pack.id)} aria-label={`Editar ${m.pack.title}`} title="Editar"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, display: 'flex', padding: 3 }}>
+                    <PenLine size={12} />
+                  </button>
                   {confirmDel === m.pack.id ? (
                     <Button size="sm" variant="danger" onClick={() => { removeModule(m.pack.id); setConfirmDel(null); }} onBlur={() => setConfirmDel(null)} autoFocus>Eliminar</Button>
                   ) : (
