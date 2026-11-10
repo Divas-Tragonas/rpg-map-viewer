@@ -7,6 +7,7 @@ import { BookIcon, CheckIcon, ChevronDown, ChevronRight, PlayIcon, SpeechIcon, S
 import type { StoryActions } from '@/hooks/useStory';
 import { templateForFoe } from '@/hooks/useStory';
 import { STATUS_LABEL, type ModulesData, type StoredModule } from '@/lib/modules';
+import { ModuleCapsules } from './ModuleCapsules';
 
 const label: React.CSSProperties = { fontSize: FS.xs, color: C.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' };
 const row: React.CSSProperties = {
@@ -53,6 +54,8 @@ export function ModuleView({ mod, lib, story, onGoLibrary }: {
             {STATUS_LABEL[mod.status]}{meta ? ` · ${meta}` : ''}{p.quests.length ? ` · ${p.quests.join(', ')}` : ''}
           </span>
         </div>
+
+        <ModuleCapsules moduleId={p.id} story={story} />
 
         {p.trigger && <Section title="Disparador"><span style={{ fontSize: FS.md, color: C.text, lineHeight: 1.45 }}>{p.trigger}</span></Section>}
 

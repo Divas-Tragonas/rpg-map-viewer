@@ -82,6 +82,7 @@ import { monsterSave } from '@/lib/monsters';
 import { creatureStats } from '@/lib/bestiary';
 import { RightRail } from '@/components/dm/RightRail';
 import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
+import type { CapsuleScene } from '@/lib/capsules';
 import { useStory } from '@/hooks/useStory';
 import { useJournalWatchers } from '@/hooks/useJournalWatchers';
 import { logJournal } from '@/lib/journal';
@@ -1491,9 +1492,19 @@ export function DMView() {
   }, [setSceneText, openShowTab]);
 
   // ── Història: el que un mòdul pot fer sobre l'escena, i el diari ───────────
+  // Càpsules: l'Escena desada es carrega al panell i, si cal, es mostra i el text comença sol.
+  const { snapshot: sceneSnapshot, loadPreset: loadScenePreset, show: showScene, primary: scenePrimary } = scene;
+  const playCapsuleScene = useCallback((s: CapsuleScene, autoShow: boolean) => {
+    loadScenePreset(s);
+    openShowTab('escena');
+    // Deixa que el panell es munti i el motor de text es construeixi abans de mostrar.
+    if (autoShow) setTimeout(() => { showScene(); if (s.text.trim()) scenePrimary(); }, 250);
+  }, [loadScenePreset, openShowTab, showScene, scenePrimary]);
+
   const story = useStory(R, {
     setLibEnemies, setPos, broadcast: () => _broadcastState({}), notify,
     showText: showTextInScene, startDialog: dlg.start, sceneTokens: sceneTokenList,
+    removeLibEnemy, sceneSnapshot, playScene: playCapsuleScene, mapName: bgName,
   });
   useJournalWatchers(R, { rooms, defeated, players, bgLoaded, bgName });
 
