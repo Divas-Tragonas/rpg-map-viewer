@@ -6,7 +6,7 @@ La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/
 ### v5.08 — Historial de combat més llegible, fitxa dels jugadors i diari amb combats plegats
 - **Historial de combat** (botó de la barra de torns): cada missatge va en un petit requadre amb una vora del color del seu tipus (atac, conjur, efecte, cura, informació); les rondes en un títol a part
 - **Fitxa 5e als tokens dels jugadors de DIVAS**: el menú del token porta la mateixa «Fitxa 5e» plegable que els enemics (CA · nivell · velocitat; característiques, salvacions amb competència, atacs i trets), feta a partir de la seva fitxa de personatge
-- **Logotip del mode Píxel fora**: la barra superior i la pantalla de benvinguda ja no canvien d'icona (l'espasa no es deia què era); el selector Clàssica/Píxel del menú principal es queda
+- **Logotip del mode Píxel fora de tot arreu** (l'espasa no es deia què era): barra superior, pantalla de benvinguda, selector Clàssica/Píxel del menú principal (ara només text) i avís de «Carregant els sprites…»; la icona s'ha esborrat d'`icons.tsx`
 - **Diari de la sessió**: cada combat (de «Comença» a «Combat acabat») és una sola fila desplegable amb el detall, ronda per ronda; en acabar, el combat desa el seu historial al diari (també al bloc JSON del resum). Els combats d'abans es desplegaran amb el que s'havia anotat
 - Sense canvis a la API
 

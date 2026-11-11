@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   Monitor, Maximize2, Copy, SaveIcon, ChevronDown, MenuIcon, Keyboard,
   ExternalLink, AlertTriangle, Download, FolderOpen, Cloud, CheckIcon, TargetIcon, LockIcon, UnlockIcon, DieIcon,
-  HammerIcon, SwordsIcon, GridIcon, RotateCcw, RedoIcon, PanelLeftIcon, PixelSwordIcon, MapIcon, DashboardIcon,
+  HammerIcon, SwordsIcon, GridIcon, RotateCcw, RedoIcon, PanelLeftIcon, MapIcon, DashboardIcon,
 } from '@/components/icons';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
@@ -445,13 +445,13 @@ function ModeSwitch({ mode, onChange }: { mode: DMMode; onChange: (m: DMMode) =>
  * mapes de caselles). Les dues comparteixen la partida: és com es pinta i quines eines hi ha.
  */
 function AppSwitch({ pixel, onChange }: { pixel: boolean; onChange: (v: boolean) => void }) {
-  const opts: [boolean, string, React.ReactNode, string][] = [
-    [false, 'Clàssica', <DieIcon key="c" size={13} />, 'Mapes d\'imatge i tokens rodons'],
-    [true, 'Píxel', <PixelSwordIcon key="p" size={13} />, 'Sprites de pixel art i mapes de caselles (també a les pantalles de jugador)'],
+  const opts: [boolean, string, string][] = [
+    [false, 'Clàssica', 'Mapes d\'imatge i tokens rodons'],
+    [true, 'Píxel', 'Sprites de pixel art i mapes de caselles (també a les pantalles de jugador)'],
   ];
   return (
     <div role="radiogroup" aria-label="App" style={{ display: 'flex', gap: 2, padding: 2, borderRadius: RADIUS.md + 2, background: C.bg, border: `1px solid ${C.border}`, flexShrink: 0 }}>
-      {opts.map(([v, label, icon, title]) => {
+      {opts.map(([v, label, title]) => {
         const on = pixel === v;
         return (
           <button key={label} role="radio" aria-checked={on} onClick={() => onChange(v)} title={title}
@@ -460,7 +460,7 @@ function AppSwitch({ pixel, onChange }: { pixel: boolean; onChange: (v: boolean)
               background: on ? tint(C.accent, 0.16) : 'transparent', color: on ? C.accent : C.dim,
               fontSize: FS.sm, fontWeight: 700, cursor: 'pointer', transition: 'background .15s, color .15s',
             }}>
-            {icon} {label}
+            {label}
           </button>
         );
       })}

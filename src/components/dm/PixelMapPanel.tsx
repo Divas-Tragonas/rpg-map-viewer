@@ -3,7 +3,7 @@ import React, { useRef, useState } from 'react';
 import { C, FS, RADIUS } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
 import { Button } from '@/components/ui/Button';
-import { TilesIcon, PixelSwordIcon } from '@/components/icons';
+import { TilesIcon } from '@/components/icons';
 import { useSpritePack } from '@/hooks/useSpritePack';
 
 interface Props {
@@ -34,7 +34,6 @@ export function PixelMapPanel({ tileMapSize, onCreate, onImportTmx, onEdit }: Pr
     <>
       {pack.status !== 'ready' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', fontSize: FS.sm, color: pack.status === 'error' ? C.enemy : C.dim }}>
-          <PixelSwordIcon size={13} />
           {pack.status === 'error' ? 'No s\'han pogut carregar els sprites (public/sprites/).' : 'Carregant els sprites…'}
         </div>
       )}
