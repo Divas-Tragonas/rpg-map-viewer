@@ -10,7 +10,7 @@ import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/com
 import { CharacterSection, type CharacterMenuProps } from '@/components/dm/CharacterSection';
 import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
 import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog, AttackPending } from '@/types';
-import { type AmmoStack, ammoLeft, attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
+import { type AmmoStack, ammoLeft, attacksOf, attackRanges, characterFor, monsterFromCharacter, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
 import { monsterForEnemy } from '@/lib/db-enemies';
 import { enemyDefenses } from '@/lib/rules/damage';
 import { MonsterBlock } from '@/components/dm/MonsterBlock';
@@ -632,6 +632,10 @@ export function ContextMenuOverlay({
       })()}
 
       {lib && <MonsterBlock monster={monsterForEnemy(lib)} defenses={enemyDefenses(lib)} />}
+      {pl && (() => {
+        const ch = characterFor(pl, characters.characters);
+        return ch ? <MonsterBlock player monster={monsterFromCharacter(ch)} /> : null;
+      })()}
 
       <ConditionPicker
         active={conditions[id] || []}

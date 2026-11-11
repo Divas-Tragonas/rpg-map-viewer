@@ -896,6 +896,9 @@ export function DMView() {
   // els moviments. Els avisos (pop-ups) són a part: només el que s'ha de veure en aquell moment.
   const [combatLog, setCombatLog] = useState<CombatLogEntry[]>([]);
   const logIdRef = useRef(0);
+  // El diari s'endu l'historial sencer quan el combat acaba (`finishCombat`).
+  const combatLogRef = useRef<CombatLogEntry[]>([]);
+  useEffect(() => { combatLogRef.current = combatLog; }, [combatLog]);
   const logCombat = useCallback((text: string, tone: CombatLogEntry['tone']) => {
     const t = R.rTurn.current;
     if (!t.active) return;
@@ -1476,7 +1479,7 @@ export function DMView() {
       const fallen = keys.filter(k => k.startsWith('pl_')).flatMap(k => nameOf(k) ?? []);
       logJournal('combat',
         `Combat acabat · ${t.round} ${t.round === 1 ? 'ronda' : 'rondes'}${foes.length ? ` · derrotats: ${foes.join(', ')}` : ''}${fallen.length ? ` · a terra: ${fallen.join(', ')}` : ''}`,
-        { data: { ended: true, rounds: t.round, defeated: foes, fallen } });
+        { data: { ended: true, rounds: t.round, defeated: foes, fallen, log: combatLogRef.current.map(({ round, text, tone }) => ({ round, text, tone })) } });
     }
     endTurnCombat();
   }, [R, chars.status, chars.characters, endTurnCombat]);

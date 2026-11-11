@@ -606,7 +606,7 @@ export function TurnTracker({
   );
 }
 
-const TONE: Record<CombatLogEntry['tone'], string> = { hit: '#f0883e', spell: '#a371f7', effect: '#58a6ff', heal: '#3fb950', info: '#8b949e' };
+export const LOG_TONE: Record<CombatLogEntry['tone'], string> = { hit: '#f0883e', spell: '#a371f7', effect: '#58a6ff', heal: '#3fb950', info: '#8b949e' };
 
 /**
  * Botó d'historial (fora de la barra, a la dreta) i, obert, la llista del que ha passat al combat:
@@ -637,11 +637,14 @@ function LogButton({ log, open, onToggle }: { log: CombatLogEntry[]; open: boole
             {log.map((e, i) => (
               <React.Fragment key={e.id}>
                 {(i === 0 || log[i - 1].round !== e.round) && (
-                  <div style={{ fontSize: FS.xs, color: C.dim, marginTop: i ? 4 : 0, borderTop: i ? `1px solid ${C.border}` : 'none', paddingTop: i ? 4 : 0 }}>Ronda {e.round}</div>
+                  <div style={{ fontSize: FS.xs, color: C.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: i ? 6 : 0 }}>Ronda {e.round}</div>
                 )}
-                <div style={{ display: 'flex', gap: 6, fontSize: FS.sm, color: C.text, lineHeight: 1.4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 3, background: TONE[e.tone], flexShrink: 0, marginTop: 6 }} />
-                  <span>{e.text}</span>
+                {/* Cada missatge, en el seu requadre: es llegeix un a un. */}
+                <div style={{
+                  display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: FS.sm, color: C.text, lineHeight: 1.4,
+                  padding: '5px 8px', background: C.dark, border: `1px solid ${C.border}`, borderLeft: `3px solid ${LOG_TONE[e.tone]}`, borderRadius: RADIUS.sm,
+                }}>
+                  <span style={{ wordBreak: 'break-word', minWidth: 0 }}>{e.text}</span>
                 </div>
               </React.Fragment>
             ))}

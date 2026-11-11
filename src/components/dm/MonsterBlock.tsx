@@ -12,9 +12,11 @@ const mod = (s: number) => Math.floor((s - 10) / 2);
 /**
  * Fitxa de 5e d'un enemic al menú del token (v5 snapshot 6): plegada per defecte, una línia amb
  * CA · PV · VD i, desplegada, característiques, salvacions, defenses, immunitats a estats, atacs i
- * trets. Del bestiari de l'app (`MONSTERS`) o, per als enemics de la BD, només les defenses.
+ * trets. Del bestiari de l'app (`MONSTERS`) o, per als enemics de la BD, només les defenses. Els
+ * jugadors de DIVAS hi tenen la mateixa fitxa feta des de la seva fitxa de personatge
+ * (`monsterFromCharacter`, `player`: surt el nivell en lloc del valor de repte).
  */
-export function MonsterBlock({ monster, defenses }: { monster: Monster | null; defenses?: Defenses }) {
+export function MonsterBlock({ monster, defenses, player }: { monster: Monster | null; defenses?: Defenses; player?: boolean }) {
   const [open, setOpen] = useState(false);
   if (!monster && !defenses) return null;
   const d = defenses;
@@ -28,7 +30,7 @@ export function MonsterBlock({ monster, defenses }: { monster: Monster | null; d
       <button type="button" onMouseDown={e => { e.stopPropagation(); setOpen(o => !o); }}
         style={{ all: 'unset', cursor: 'pointer', display: 'flex', width: '100%', alignItems: 'center', gap: 6, fontSize: FS.xs, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
         <span>{open ? '▾' : '▸'} Fitxa 5e</span>
-        {monster && <span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0, color: C.text }}>CA {monster.ac} · VD {monster.cr} · {monster.speed} ft</span>}
+        {monster && <span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0, color: C.text }}>CA {monster.ac} · {player ? monster.cr : `VD ${monster.cr}`} · {monster.speed} ft</span>}
       </button>
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 5 }}>

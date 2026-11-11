@@ -142,6 +142,14 @@ repeteix; màxim 1500 entrades (cauen primer les menys importants: les notes i l
 
 Cada entrada porta el `module` actiu en aquell moment.
 
+### Combats agrupats (`groupCombats`, `JournalView`)
+Un combat (entrada `combat` amb `data.started` fins a la següent amb `data.ended`) es mostra com **una sola fila**
+desplegable, al lloc on va acabar: el resum («Combat acabat · rondes · derrotats…») i, desplegat, l'historial del
+combat per rondes. L'entrada de final porta `data.log` (`{round, text, tone}[]`, una còpia de l'historial de la barra
+de torns que fa `finishCombat`). Els combats anteriors a la v5.08 no en tenen: es desplega l'inici i els jugadors que
+van caure pel mig. Un combat sense final es queda com a entrades soltes. L'estrella i l'esborrar van pel grup sencer
+(`removeEntries`). El markdown i el JSON del resum no canvien (el JSON de `combats` hi afegeix el `log`).
+
 ### El resum (`journalToMarkdown`)
 Capçalera (data, hora, durada), **Mòduls** (els que han sortit al diari, amb l'estat i l'URL de Notion),
 **Cronologia** (checklist `- [x] HH:MM — …`, com el TIMELINE de la pàgina de sessió), **Combats**,

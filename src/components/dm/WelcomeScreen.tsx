@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { Button } from '@/components/ui/Button';
-import { DieIcon, FolderOpen, MapIcon, PixelSwordIcon, RotateCcw, TilesIcon } from '@/components/icons';
+import { DieIcon, FolderOpen, MapIcon, RotateCcw, TilesIcon } from '@/components/icons';
 import { C, FS, FONT_SERIF, APP_VERSION } from '@/constants';
 import { agoLabel, type AutosaveMeta } from '@/lib/autosave';
 
@@ -45,7 +45,7 @@ export function WelcomeScreen(p: Props) {
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 3, overflowY: 'auto', padding: p.compact ? '16px 14px' : 24 }}>
       <div style={{ textAlign: 'center', color: C.dim, maxWidth: 440, width: '100%', margin: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: pixel ? C.accent : C.dim, opacity: pixel ? 0.9 : 0.5 }}>{pixel ? <PixelSwordIcon size={34} /> : <MapIcon size={34} />}</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: C.dim, opacity: 0.5 }}><MapIcon size={34} /></div>
         <div style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1, color: C.bright }}>{pixel ? 'Comença una partida en píxel' : 'Comença una partida'}</div>
         <div style={{ fontSize: FS.md, marginTop: 6, lineHeight: 1.5 }}>
           Obre el mapa (una imatge o un vídeo) o arrossega&apos;l a qualsevol lloc d&apos;aquesta pantalla.

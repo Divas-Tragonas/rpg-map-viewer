@@ -502,7 +502,7 @@ export function TopBar(p: Props) {
         </IconButton>
       ) : (
       <div style={{ width: IDENTITY_W, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-        {p.pixel ? <PixelSwordIcon size={20} color={C.accent} /> : <DieIcon size={20} color={C.accent} />}
+        <DieIcon size={20} color={C.accent} />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
           {/* El nom del mapa és un títol: tipografia de títols (EB Garamond, `FONT_SERIF`). */}
           <span title={p.mapName ?? undefined}

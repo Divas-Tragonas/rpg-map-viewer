@@ -114,6 +114,12 @@ export function removeEntry(id: string) {
   journalStore.update(d => ({ ...d, current: { ...d.current, entries: d.current.entries.filter(e => e.id !== id) } }));
 }
 
+/** Esborra diverses anotacions d'un cop (un combat agrupat n'és unes quantes). */
+export function removeEntries(ids: string[]) {
+  const gone = new Set(ids);
+  journalStore.update(d => ({ ...d, current: { ...d.current, entries: d.current.entries.filter(e => !gone.has(e.id)) } }));
+}
+
 export function toggleStar(id: string) {
   journalStore.update(d => ({
     ...d, current: { ...d.current, entries: d.current.entries.map(e => e.id === id ? { ...e, star: e.star ? undefined : true } : e) },
@@ -140,6 +146,60 @@ export function closeSession(): string {
 
 export function removeArchived(id: string) {
   journalStore.update(d => ({ ...d, archive: d.archive.filter(a => a.id !== id) }));
+}
+
+// ── Combats agrupats ─────────────────────────────────────────────────────────
+
+/** Una línia de l'historial d'un combat tal com la desa `finishCombat` (`data.log` del final). */
+export interface CombatLogLine { round: number; text: string; tone: 'hit' | 'spell' | 'effect' | 'heal' | 'info' }
+
+export type JournalItem =
+  | { type: 'entry'; e: JournalEntry }
+  | { type: 'combat'; start: JournalEntry; end: JournalEntry; inner: JournalEntry[]; log: CombatLogLine[] };
+
+const TONES = new Set(['hit', 'spell', 'effect', 'heal', 'info']);
+const isCombatStart = (e: JournalEntry) => e.kind === 'combat' && !!e.data?.started;
+const isCombatEnd = (e: JournalEntry) => e.kind === 'combat' && !!e.data?.ended;
+
+/** L'historial detallat que el combat va deixar en acabar (buit si és un combat d'abans que es desés). */
+function logOf(e: JournalEntry): CombatLogLine[] {
+  const raw = e.data?.log;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((l): CombatLogLine[] => (isObj(l) && typeof l.text === 'string' && typeof l.round === 'number'
+    ? [{ round: l.round, text: l.text, tone: (typeof l.tone === 'string' && TONES.has(l.tone) ? l.tone : 'info') as CombatLogLine['tone'] }] : []));
+}
+
+/**
+ * Les anotacions en ordre cronològic, amb cada combat (de «Comença» a «Combat acabat») plegat en
+ * un sol element: surt al lloc on va acabar i duu a dins el detall (l'historial del combat o, si
+ * és un d'abans, les anotacions que hi va haver pel mig: els jugadors que cauen). Un combat sense
+ * final (encara en curs o tancat sense anotar) es queda com a anotacions soltes.
+ */
+export function groupCombats(entries: JournalEntry[]): JournalItem[] {
+  const groups = new Map<string, Extract<JournalItem, { type: 'combat' }>>();
+  const eaten = new Set<string>();
+  for (let i = 0; i < entries.length; i++) {
+    if (!isCombatStart(entries[i])) continue;
+    let end = -1;
+    for (let j = i + 1; j < entries.length; j++) {
+      if (isCombatStart(entries[j])) break;
+      if (isCombatEnd(entries[j])) { end = j; break; }
+    }
+    if (end < 0) continue;
+    const inner = entries.slice(i + 1, end).filter(e => e.kind === 'down');
+    const g = { type: 'combat' as const, start: entries[i], end: entries[end], inner, log: logOf(entries[end]) };
+    groups.set(entries[end].id, g);
+    eaten.add(entries[i].id);
+    inner.forEach(e => eaten.add(e.id));
+    i = end;
+  }
+  const out: JournalItem[] = [];
+  for (const e of entries) {
+    const g = groups.get(e.id);
+    if (g) out.push(g);
+    else if (!eaten.has(e.id)) out.push({ type: 'entry', e });
+  }
+  return out;
 }
 
 // ── Format ───────────────────────────────────────────────────────────────────

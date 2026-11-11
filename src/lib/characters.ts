@@ -5,6 +5,7 @@
  */
 import type { ApiCharacter } from '@/lib/api';
 import type { Player, SheetShow } from '@/types';
+import type { Monster } from '@/lib/monsters';
 import type { MonsterPower } from '@/lib/monster-powers';
 
 export type AbilityId = 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha';
@@ -279,4 +280,30 @@ export function sheetSave(sheet: CharacterSheet, ab: AbilityId, level: number): 
   if (score === undefined) return null;
   const prof = parseInt((sheet.profBonus ?? '').replace(/[^-\d]/g, '')) || (2 + Math.floor((Math.max(1, level) - 1) / 4));
   return abilityMod(score) + (sheet.saves?.includes(ab) ? prof : 0);
+}
+
+/**
+ * La fitxa d'un jugador com a bloc d'estadístiques (el mateix `Monster` que fan servir els enemics),
+ * per al «Fitxa 5e» plegable del menú del seu token (`MonsterBlock`): CA, velocitat, característiques,
+ * salvacions amb competència, atacs i trets. Les característiques només hi són si la fitxa en té
+ * les sis; `cr` porta el nivell (`Nv 3`) perquè no és un valor de repte.
+ */
+export function monsterFromCharacter(c: ApiCharacter): Monster {
+  const sh = sheetOf(c);
+  const scores = ABILITIES.map(a => sh.abilities?.[a.id]);
+  const abilities = scores.every((v): v is number => typeof v === 'number')
+    ? (scores as unknown as Monster['abilities']) : undefined;
+  const saves: Partial<Record<AbilityId, number>> = {};
+  for (const id of sh.saves ?? []) {
+    const v = sheetSave(sh, id, c.level);
+    if (v !== null) saves[id] = v;
+  }
+  const traits = (sh.sections?.find(s => s.title.trim().toLowerCase() === 'trets')?.text ?? '')
+    .split('\n').map(l => l.replace(/\*\*/g, '').replace(/^[-•*\s]+/, '').trim()).filter(Boolean).slice(0, 8);
+  return {
+    name: [c.className, c.race].filter(Boolean).join(' · ') || c.name,
+    cr: `Nv ${c.level}`, hp: c.hpMax, ac: c.ac, speed: c.speed,
+    ...(abilities ? { abilities } : {}), ...(Object.keys(saves).length ? { saves } : {}),
+    attacks: attacksOf(sh), ...(traits.length ? { traits } : {}),
+  };
 }

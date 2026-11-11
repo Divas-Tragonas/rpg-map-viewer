@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.08 — Historial de combat més llegible, fitxa dels jugadors i diari amb combats plegats
+- **Historial de combat** (botó de la barra de torns): cada missatge va en un petit requadre amb una vora del color del seu tipus (atac, conjur, efecte, cura, informació); les rondes en un títol a part
+- **Fitxa 5e als tokens dels jugadors de DIVAS**: el menú del token porta la mateixa «Fitxa 5e» plegable que els enemics (CA · nivell · velocitat; característiques, salvacions amb competència, atacs i trets), feta a partir de la seva fitxa de personatge
+- **Logotip del mode Píxel fora**: la barra superior i la pantalla de benvinguda ja no canvien d'icona (l'espasa no es deia què era); el selector Clàssica/Píxel del menú principal es queda
+- **Diari de la sessió**: cada combat (de «Comença» a «Combat acabat») és una sola fila desplegable amb el detall, ronda per ronda; en acabar, el combat desa el seu historial al diari (també al bloc JSON del resum). Els combats d'abans es desplegaran amb el que s'havia anotat
+- Sense canvis a la API
+
 ### v5.07 — Alè de foc del drac i raig necròtic, refets
 - **Alè de foc** (poder de criatura, app Clàssica): la gola s'encén, un front de flames escombra el con i el raig es manté amb flames que es refreden i s'inflen a mesura que s'obre; guspires, tremolor suau de la càmera, i el terra queda socarrimat amb flametes i brases que s'apaguen sota les figures. Abans eren tres falques planes
 - **Raig necròtic** (Dit de la mort, Danyar, Marcir…): un fuet negre amb la vora verda que es retorça; a l'objectiu no esclata sinó que implosiona, i les espurnes de vida viatgen de la víctima cap a qui l'ha llançat. Abans era una boleta grisa i tres anells

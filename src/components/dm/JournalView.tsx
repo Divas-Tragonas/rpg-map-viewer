@@ -6,9 +6,10 @@ import { ScrollArea } from '@/components/ui/ScrollArea';
 import { ChevronDown, ChevronRight, Copy, Download, PlayIcon, StarIcon, X } from '@/components/icons';
 import type { StoryActions } from '@/hooks/useStory';
 import {
-  closeSession, durationLabel, journalToMarkdown, KIND_LABEL, recapText, removeArchived, removeEntry,
-  renameSession, sessionName, toggleStar, type JournalData, type JournalEntry,
+  closeSession, durationLabel, groupCombats, journalToMarkdown, KIND_LABEL, recapText, removeArchived, removeEntries, removeEntry,
+  renameSession, sessionName, toggleStar, type JournalData, type JournalEntry, type JournalItem,
 } from '@/lib/journal';
+import { LOG_TONE } from '@/components/dm/TurnTracker';
 import type { ModulesData } from '@/lib/modules';
 
 const field: React.CSSProperties = {
@@ -46,6 +47,55 @@ function Row({ e }: { e: JournalEntry }) {
   );
 }
 
+const iconBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', padding: 3, display: 'flex', color: C.dim };
+
+/**
+ * Un combat sencer en una sola fila: el resum de com ha acabat i, desplegat, el detall (l'historial
+ * del combat per rondes, cada missatge en el seu requadre). Les estrelles i l'esborrar van pel combat sencer.
+ */
+function CombatRow({ g }: { g: Extract<JournalItem, { type: 'combat' }> }) {
+  const [open, setOpen] = useState(false);
+  const { start, end, inner, log } = g;
+  const span = hhmm(start.t) === hhmm(end.t) ? hhmm(end.t) : `${hhmm(start.t)}–${hhmm(end.t)}`;
+  // Sense historial desat (combat d'abans): el que el diari va anotar pel mig.
+  const fallback = [start, ...inner].map(e => e.text);
+  return (
+    <div className="journal-row" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '5px 6px', borderRadius: RADIUS.sm }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: FS.xs, color: C.dim, fontVariantNumeric: 'tabular-nums', paddingTop: 2, flexShrink: 0 }}>{span}</span>
+        <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} title={open ? 'Plegar el detall del combat' : 'Desplegar el detall del combat'}
+          style={{ all: 'unset', cursor: 'pointer', flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.xs, color: C.dim, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />} {KIND_LABEL.combat}
+          </span>
+          <span style={{ fontSize: FS.md, color: C.text, lineHeight: 1.4, wordBreak: 'break-word' }}>{end.text}</span>
+        </button>
+        <button onClick={() => toggleStar(end.id)} aria-pressed={!!end.star} aria-label="Marcar per al «Anteriorment…»" title="Marcar per al «Anteriorment…» dels jugadors"
+          style={{ ...iconBtn, color: end.star ? C.accent : C.dim }}>
+          <StarIcon size={13} />
+        </button>
+        <button onClick={() => removeEntries([start.id, end.id, ...inner.map(e => e.id)])} aria-label="Esborrar el combat" title="Esborrar el combat" style={iconBtn}>
+          <X size={12} />
+        </button>
+      </div>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginLeft: 8 }}>
+          {log.length > 0 ? log.map((l, i) => (
+            <React.Fragment key={i}>
+              {(i === 0 || log[i - 1].round !== l.round) && (
+                <div style={{ fontSize: FS.xs, color: C.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: i ? 6 : 0 }}>Ronda {l.round}</div>
+              )}
+              <div style={{ fontSize: FS.sm, color: C.text, lineHeight: 1.4, padding: '5px 8px', background: C.dark, border: `1px solid ${C.border}`, borderLeft: `3px solid ${LOG_TONE[l.tone]}`, borderRadius: RADIUS.sm, wordBreak: 'break-word' }}>{l.text}</div>
+            </React.Fragment>
+          )) : fallback.map((t, i) => (
+            <div key={i} style={{ fontSize: FS.sm, color: C.text, lineHeight: 1.4, padding: '5px 8px', background: C.dark, border: `1px solid ${C.border}`, borderLeft: `3px solid ${LOG_TONE.info}`, borderRadius: RADIUS.sm }}>{t}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** El diari de la sessió: el que va passant, notes ràpides i el resum final per a Notion. */
 export function JournalView({ journal, lib, story, notify, noteFocus }: {
   journal: JournalData; lib: ModulesData; story: StoryActions;
@@ -65,7 +115,7 @@ export function JournalView({ journal, lib, story, notify, noteFocus }: {
     return () => window.clearTimeout(t);
   }, [noteFocus]);
 
-  const entries = useMemo(() => [...s.entries].reverse(), [s.entries]);
+  const items = useMemo(() => groupCombats(s.entries).reverse(), [s.entries]);
   const last = s.entries[s.entries.length - 1];
   const recap = recapText(s);
   const copy = (md: string) => {
@@ -96,7 +146,7 @@ export function JournalView({ journal, lib, story, notify, noteFocus }: {
         </div>
       </div>
 
-      {entries.length === 0 ? (
+      {items.length === 0 ? (
         <div style={{ padding: 16, fontSize: FS.sm, color: C.dim, lineHeight: 1.5 }}
           title="El diari anota sol les escenes, els combats, l'XP, els diàlegs, les cinemàtiques i les sales que reveles. Quan la sessió acabi, en surt el resum per a Notion.">
           El diari s&apos;omple sol mentre jugues.
@@ -104,7 +154,7 @@ export function JournalView({ journal, lib, story, notify, noteFocus }: {
       ) : (
         <ScrollArea style={{ flex: 1, minHeight: 120 }}>
           <div style={{ padding: 6, display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {entries.map(e => <Row key={e.id} e={e} />)}
+            {items.map(it => it.type === 'combat' ? <CombatRow key={it.end.id} g={it} /> : <Row key={it.e.id} e={it.e} />)}
           </div>
         </ScrollArea>
       )}
