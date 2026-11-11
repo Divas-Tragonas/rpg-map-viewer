@@ -30,11 +30,11 @@ input[type=color] { cursor: pointer; }
 /* Barra de torns en mode edició: el xip que s'agafa per reordenar s'aixeca (`TurnTracker.tsx`). */
 @keyframes tt-lift { from { transform: scale(1) } to { transform: scale(1.1) } }
 
-/* DM amb el dit: mantenir premut (menú del token) no ha de seleccionar text ni obrir el menú
+/* DM i pantalla de jugador amb el dit (iPad que mou tokens): mantenir premut (menú del token) no ha de seleccionar text ni obrir el menú
    del sistema. Els camps de text, sí. */
 @media (pointer: coarse) {
-  .dm-root { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  .dm-root input, .dm-root textarea, .dm-root [contenteditable] { -webkit-user-select: text; user-select: text; }
+  .dm-root, .player-root { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .dm-root input, .dm-root textarea, .dm-root [contenteditable], .player-root input, .player-root textarea, .player-root [contenteditable] { -webkit-user-select: text; user-select: text; }
 }
 
 /* Mode Fòsfor (pantalla de jugador, v4.92): el vidre del tub, damunt de TOT (rètols, fitxes,

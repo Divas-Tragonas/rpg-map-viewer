@@ -3,6 +3,9 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.12 — Pantalla de jugador a l'iPad: sense selecció falsa en mantenir premut
+- Mantenir premut un token (p. ex. apilats) a la pantalla de jugador ja no activa la selecció de text ni la lupa/menú d'Apple (`user-select`/`-webkit-touch-callout: none` amb pantalla tàctil, i `contextmenu` bloquejat al canvas)
+
 ### v5.11 — Ordre de tokens per alçada, token actiu fix, portes sota els tokens i noms ajustats
 - **Ordre de pintat**: el token més avall al mapa tapa el de darrere (abans, el de més amunt anava per sobre); el clic segueix el mateix ordre
 - **Token de l'última acció** (agressor i víctima/afectats) es queda per sobre de tots **fins que un altre en faci o en rebi una**, sense límit de 3,5 s; igual a la pantalla de jugador

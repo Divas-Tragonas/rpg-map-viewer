@@ -1142,7 +1142,7 @@ export function PlayerView() {
   }, []);
 
   return (
-    <div className="full-stage" style={{ background: '#000', position: 'relative', overflow: 'hidden' }}>
+    <div className="full-stage player-root" style={{ background: '#000', position: 'relative', overflow: 'hidden' }}>
       {/* El «tub»: tota la pantalla, perquè l'animació d'apagar i encendre del mode Fòsfor
           l'aplani sencera (mapa, rètols, fitxes i diàlegs). Sense transform en repòs: no crea
           cap context d'apilament i els zIndex de dins funcionen com sempre. */}
@@ -1154,6 +1154,7 @@ export function PlayerView() {
         onPointerMove={tokenDrag.onPointerMove}
         onPointerUp={tokenDrag.onPointerUp}
         onPointerCancel={tokenDrag.onPointerUp}
+        onContextMenu={e => e.preventDefault()}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'transparent', touchAction: 'none', cursor: 'grab' }}
       />
       {/* Mode Fòsfor: damunt del mapa i del fons, sota de rètols, fitxes i diàlegs (zIndex ≥ 8).
