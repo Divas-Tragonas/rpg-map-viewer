@@ -3,11 +3,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { C, FS, RADIUS, tint } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
-import { ChevronDown, ChevronRight, Copy, Download, PlayIcon, StarIcon, X } from '@/components/icons';
+import { ChevronDown, ChevronRight, Copy, Download, X } from '@/components/icons';
 import type { StoryActions } from '@/hooks/useStory';
 import {
-  closeSession, durationLabel, groupCombats, journalToMarkdown, KIND_LABEL, recapText, removeArchived, removeEntries, removeEntry,
-  renameSession, sessionName, toggleStar, type JournalData, type JournalEntry, type JournalItem,
+  closeSession, durationLabel, groupCombats, journalToMarkdown, KIND_LABEL, KIND_TONE, removeArchived, removeEntries, removeEntry,
+  renameSession, sessionName, type JournalData, type JournalEntry, type JournalItem,
 } from '@/lib/journal';
 import { LOG_TONE } from '@/components/dm/TurnTracker';
 import type { ModulesData } from '@/lib/modules';
@@ -28,17 +28,14 @@ function download(name: string, text: string) {
 const fileName = (name: string) => `${name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'sessio'}.md`;
 
 function Row({ e }: { e: JournalEntry }) {
+  const tone = KIND_TONE[e.kind];
   return (
-    <div className="journal-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '5px 6px', borderRadius: RADIUS.sm, background: e.kind === 'note' ? tint(C.accent, 0.06) : 'transparent' }}>
+    <div className="journal-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '6px 8px', background: tint(tone, 0.07), border: `1px solid ${C.border}`, borderLeft: `3px solid ${tone}`, borderRadius: RADIUS.sm }}>
       <span style={{ fontSize: FS.xs, color: C.dim, fontVariantNumeric: 'tabular-nums', paddingTop: 2, flexShrink: 0 }}>{hhmm(e.t)}</span>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <span style={{ fontSize: FS.xs, color: C.dim, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{KIND_LABEL[e.kind]}</span>
+        <span style={{ fontSize: FS.xs, color: tone, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{KIND_LABEL[e.kind]}</span>
         <span style={{ fontSize: FS.md, color: C.text, lineHeight: 1.4, wordBreak: 'break-word' }}>{e.text}</span>
       </div>
-      <button onClick={() => toggleStar(e.id)} aria-pressed={!!e.star} aria-label="Marcar per al «Anteriorment…»" title="Marcar per al «Anteriorment…» dels jugadors"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, display: 'flex', color: e.star ? C.accent : C.dim }}>
-        <StarIcon size={13} />
-      </button>
       <button onClick={() => removeEntry(e.id)} aria-label="Esborrar l'anotació" title="Esborrar"
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, display: 'flex', color: C.dim }}>
         <X size={12} />
@@ -51,28 +48,25 @@ const iconBtn: React.CSSProperties = { background: 'none', border: 'none', curso
 
 /**
  * Un combat sencer en una sola fila: el resum de com ha acabat i, desplegat, el detall (l'historial
- * del combat per rondes, cada missatge en el seu requadre). Les estrelles i l'esborrar van pel combat sencer.
+ * del combat per rondes, cada missatge en el seu requadre). L'esborrar va pel combat sencer.
  */
 function CombatRow({ g }: { g: Extract<JournalItem, { type: 'combat' }> }) {
   const [open, setOpen] = useState(false);
   const { start, end, inner, log } = g;
+  const tone = KIND_TONE.combat;
   const span = hhmm(start.t) === hhmm(end.t) ? hhmm(end.t) : `${hhmm(start.t)}–${hhmm(end.t)}`;
   // Sense historial desat (combat d'abans): el que el diari va anotar pel mig.
   const fallback = [start, ...inner].map(e => e.text);
   return (
-    <div className="journal-row" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '5px 6px', borderRadius: RADIUS.sm }}>
+    <div className="journal-row" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 8px', background: tint(tone, 0.07), border: `1px solid ${C.border}`, borderLeft: `3px solid ${tone}`, borderRadius: RADIUS.sm }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
         <span style={{ fontSize: FS.xs, color: C.dim, fontVariantNumeric: 'tabular-nums', paddingTop: 2, flexShrink: 0 }}>{span}</span>
         <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} title={open ? 'Plegar el detall del combat' : 'Desplegar el detall del combat'}
           style={{ all: 'unset', cursor: 'pointer', flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.xs, color: C.dim, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.xs, color: tone, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
             {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />} {KIND_LABEL.combat}
           </span>
           <span style={{ fontSize: FS.md, color: C.text, lineHeight: 1.4, wordBreak: 'break-word' }}>{end.text}</span>
-        </button>
-        <button onClick={() => toggleStar(end.id)} aria-pressed={!!end.star} aria-label="Marcar per al «Anteriorment…»" title="Marcar per al «Anteriorment…» dels jugadors"
-          style={{ ...iconBtn, color: end.star ? C.accent : C.dim }}>
-          <StarIcon size={13} />
         </button>
         <button onClick={() => removeEntries([start.id, end.id, ...inner.map(e => e.id)])} aria-label="Esborrar el combat" title="Esborrar el combat" style={iconBtn}>
           <X size={12} />
@@ -117,7 +111,6 @@ export function JournalView({ journal, lib, story, notify, noteFocus }: {
 
   const items = useMemo(() => groupCombats(s.entries).reverse(), [s.entries]);
   const last = s.entries[s.entries.length - 1];
-  const recap = recapText(s);
   const copy = (md: string) => {
     void navigator.clipboard?.writeText(md).then(
       () => notify('Resum copiat. Enganxa\'l a Claude per passar-lo a Notion.', 'info'),
@@ -153,7 +146,7 @@ export function JournalView({ journal, lib, story, notify, noteFocus }: {
         </div>
       ) : (
         <ScrollArea style={{ flex: 1, minHeight: 120 }}>
-          <div style={{ padding: 6, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div style={{ padding: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
             {items.map(it => it.type === 'combat' ? <CombatRow key={it.end.id} g={it} /> : <Row key={it.e.id} e={it.e} />)}
           </div>
         </ScrollArea>
@@ -166,10 +159,6 @@ export function JournalView({ journal, lib, story, notify, noteFocus }: {
           </Button>
           <Button size="sm" disabled={!s.entries.length} onClick={() => download(fileName(sessionName(s)), journalToMarkdown(s, lib))}>
             <Download size={11} /> Descarregar
-          </Button>
-          <Button size="sm" disabled={!recap} onClick={() => recap && story.readAloud(recap)}
-            title={recap ? 'Deixa al Revelador el recap amb les anotacions marcades amb ★' : 'Marca amb ★ el que vols recordar als jugadors'}>
-            <PlayIcon size={11} /> Anteriorment…
           </Button>
           <span style={{ flex: 1 }} />
           {closing ? (

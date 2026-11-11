@@ -125,7 +125,11 @@ Quan l'usuari demani «passa el mòdul X (o la sessió N) a paquet»:
 
 ### Què s'anota (`logJournal(kind, text, {data?, star?})`)
 Es pot cridar des de qualsevol lloc (no cal cap hook; mai llança). Un mateix text seguit en 3 s no es
-repeteix; màxim 1500 entrades (cauen primer les menys importants: les notes i les marcades ★ es conserven).
+repeteix; màxim 1500 entrades (cauen primer les menys importants: les notes es conserven).
+
+Cada anotació és un **requadre** amb la vora i l'etiqueta del color del seu tipus (`KIND_TONE` a `lib/journal.ts`,
+com els tons de l'historial de combat). ⚠️ Des de la v5.09 ja no hi ha estrella ni «Anteriorment…» (el camp `star`
+de les entrades velles s'ignora en llegir).
 
 | `kind` | On s'anota |
 |---|---|
@@ -147,7 +151,7 @@ Un combat (entrada `combat` amb `data.started` fins a la següent amb `data.ende
 desplegable, al lloc on va acabar: el resum («Combat acabat · rondes · derrotats…») i, desplegat, l'historial del
 combat per rondes. L'entrada de final porta `data.log` (`{round, text, tone}[]`, una còpia de l'historial de la barra
 de torns que fa `finishCombat`). Els combats anteriors a la v5.08 no en tenen: es desplega l'inici i els jugadors que
-van caure pel mig. Un combat sense final es queda com a entrades soltes. L'estrella i l'esborrar van pel grup sencer
+van caure pel mig. Un combat sense final es queda com a entrades soltes. L'esborrar va pel grup sencer
 (`removeEntries`). El markdown i el JSON del resum no canvien (el JSON de `combats` hi afegeix el `log`).
 
 ### El resum (`journalToMarkdown`)
@@ -165,11 +169,6 @@ Quan l'usuari enganxi un resum «Copiar resum»:
    síntesi curta escrita a partir de la cronologia i les notes (no inventar res que el diari no digui).
 3. **MÒDULS**: per a cada `modules[]` → `Estat`: «🎲 Jugat» si l'estat és *jugat*, «🔄 Jugat en part» si és *en joc*.
 4. Les `notes` del DM van a la secció «Notes» de la pàgina, tal qual.
-
-### «Anteriorment…» (recap per als jugadors)
-L'estrella ★ de cada entrada la marca; **Anteriorment…** deixa a la caixa de text de l'Escena «Anteriorment…» + una
-línia per entrada marcada (`recapText`). El DM el mostra als jugadors com qualsevol text. Sense cap marcada,
-el botó és desactivat.
 
 ## UI (`StoryPanel`, `ModuleView`, `ModuleLibrary`, `JournalView`)
 - Botó **Història** a la rail d'icones de la dreta del mapa (`RightRail`, sempre visible). El panell va a la **dreta del mapa, sota el

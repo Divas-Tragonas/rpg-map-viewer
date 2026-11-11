@@ -1,4 +1,5 @@
 'use client';
+import { MAX_TILE_CELLS, MAX_TILE_SIDE } from '@/lib/tilemap/model';
 import React, { useRef, useState } from 'react';
 import { C, FS, RADIUS } from '@/constants';
 import { SidebarSection } from '@/components/ui/SidebarSection';
@@ -29,6 +30,8 @@ export function PixelMapPanel({ tileMapSize, onCreate, onImportTmx, onEdit }: Pr
   const [cols, setCols] = useState(32);
   const [rows, setRows] = useState(22);
   const ready = pack.status === 'ready';
+  const nCols = Math.max(8, Math.min(MAX_TILE_SIDE, cols | 0)), nRows = Math.max(8, Math.min(MAX_TILE_SIDE, rows | 0));
+  const tooBig = nCols * nRows > MAX_TILE_CELLS;
 
   return (
     <>
@@ -48,12 +51,17 @@ export function PixelMapPanel({ tileMapSize, onCreate, onImportTmx, onEdit }: Pr
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: ready ? 1 : 0.5 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: FS.sm, color: C.dim }}>
-              <input type="number" min={8} max={120} value={cols} onChange={e => setCols(+e.target.value)} style={numStyle} aria-label="Columnes" />
+              <input type="number" min={8} max={MAX_TILE_SIDE} value={cols} onChange={e => setCols(+e.target.value)} style={numStyle} aria-label="Columnes" />
               ×
-              <input type="number" min={8} max={120} value={rows} onChange={e => setRows(+e.target.value)} style={numStyle} aria-label="Files" />
+              <input type="number" min={8} max={MAX_TILE_SIDE} value={rows} onChange={e => setRows(+e.target.value)} style={numStyle} aria-label="Files" />
               caselles
             </div>
-            <Button variant="primary" size="md" disabled={!ready} onClick={() => onCreate(Math.max(8, Math.min(120, cols | 0)), Math.max(8, Math.min(120, rows | 0)))} style={{ gap: 6 }}>
+            {tooBig && (
+              <div style={{ fontSize: FS.sm, color: C.enemy, lineHeight: 1.4 }}>
+                Massa gran: màxim {MAX_TILE_CELLS.toLocaleString('ca-ES')} caselles en total (p. ex. 200 × 200) perquè el navegador ho aguanti.
+              </div>
+            )}
+            <Button variant="primary" size="md" disabled={!ready || tooBig} onClick={() => onCreate(nCols, nRows)} style={{ gap: 6 }}>
               <TilesIcon size={13} /> Crear un mapa de caselles
             </Button>
             <Button variant="secondary" size="md" disabled={!ready} onClick={() => tmxRef.current?.click()}>Importar de Tiled (.tmx)</Button>

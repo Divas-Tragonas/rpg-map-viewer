@@ -198,7 +198,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // Takes priority over every tool so a left-drag always rubber-bands.
     if (e.button === 0 && R.rAreaSelectMode.current) {
       const { mx: amx, my: amy } = mc(e);
-      R.rAreaSelectRect.current = { x0: amx, y0: amy, x1: amx, y1: amy };
+      R.rAreaSelectRect.current = { x0: amx, y0: amy, x1: amx, y1: amy, add: e.ctrlKey || e.metaKey };
       e.preventDefault(); return;
     }
     // Shift + left click in shape tool = straight-line spell drawing
@@ -456,16 +456,23 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       e.preventDefault(); return;
     }
 
-    // Selects `id` (adding to the multi-selection if one is already active) and arms
-    // a drag — solo, or in lockstep with the rest of the selection when it has >1 member.
+    // Selects `id` and arms a drag — solo, or in lockstep with the rest of the selection when it
+    // has >1 member. Un clic normal SUBSTITUEIX la selecció (només queda el darrer token clicat);
+    // per afegir-ne més cal mantenir Ctrl (o ⌘), com a la resta de sistemes.
     const selectAndArmDrag = (id: number | string, ep: { x: number; y: number }) => {
-      const sel = R.rMultiSelected.current;
-      const reclickingGroupMember = sel.size > 1 && sel.has(id);
+      const additive = e.ctrlKey || e.metaKey;
+      let sel = R.rMultiSelected.current;
+      const inMulti = sel.size > 1 && sel.has(id);
+      if (!additive && !inMulti) sel = new Set();   // clic net: res del que hi havia queda seleccionat
+      const reclickingGroupMember = inMulti;
       sel.add(id);
       R.rMultiSelected.current = new Set(sel);
+      sel = R.rMultiSelected.current;
       S.setSelectedToken(id); R.rSelectedToken.current = id;
       R.dragRef.current = { id, ox: mx - ep.x, oy: my - ep.y };
-      R.pendingDeselectRef.current = reclickingGroupMember ? { id, mx, my } : null;
+      // Tornar a clicar un membre de la selecció: si es deixa anar sense arrossegar, Ctrl el treu i
+      // un clic normal es queda només amb ell.
+      R.pendingDeselectRef.current = reclickingGroupMember ? { id, mx, my, only: !additive } : null;
       if (sel.size > 1) {
         const offsets = new Map<number | string, { ox: number; oy: number }>();
         for (const sid of sel) {
@@ -851,8 +858,8 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
       const left = Math.min(rect.x0, rect.x1), right = Math.max(rect.x0, rect.x1);
       const top = Math.min(rect.y0, rect.y1), bottom = Math.max(rect.y0, rect.y1);
       const dragDist = Math.hypot(rect.x1 - rect.x0, rect.y1 - rect.y0);
-      // Additive: every marquee accumulates onto the existing selection
-      const sel = new Set<number | string>(R.rMultiSelected.current);
+      // Additive només amb Ctrl (⌘); si no, el rectangle substitueix la selecció.
+      const sel = new Set<number | string>(rect.add ? R.rMultiSelected.current : []);
       if (dragDist > 4 / R.rZoom.current) {
         const inside = (x: number, y: number) => x >= left && x <= right && y >= top && y <= bottom;
         for (const len of R.rLibEnemies.current) {
@@ -957,10 +964,10 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     if (R.dragRef.current) { setPos({ ...R.rPos.current }); S.endUndoGesture(); }
     if (R.pendingDeselectRef.current) {
-      const { id } = R.pendingDeselectRef.current;
+      const { id, only } = R.pendingDeselectRef.current;
       R.pendingDeselectRef.current = null;
       const sel = new Set(R.rMultiSelected.current);
-      sel.delete(id);
+      if (only) { sel.clear(); sel.add(id); } else sel.delete(id);
       R.rMultiSelected.current = sel;
       const next = sel.size > 0 ? [...sel][sel.size - 1] : null;
       R.rSelectedToken.current = next; S.setSelectedToken(next);

@@ -1,4 +1,5 @@
 'use client';
+import { isTurnToken } from '@/lib/turn';
 import { useRef, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { DEFAULT_SPEED_FT } from '@/constants';
@@ -224,8 +225,7 @@ export function usePlayerTokenDrag(
     const turn = rTurn.current;
     let speedFt = hit.speed;
     if (turn?.active) {
-      const activeId = turn.order[turn.turnIndex];
-      if (String(hit.id) !== String(activeId)) return; // no és el seu torn
+      if (!isTurnToken(turn, String(hit.id))) return; // no és el seu torn (un grup juga junt)
       speedFt = turn.activeRemainingFt;
     }
     // Estats: Agafat/Retingut/Paralitzat… → 0 peus; Tombat → la meitat. El mateix límit

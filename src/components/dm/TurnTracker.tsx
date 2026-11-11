@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { StepForward, SwordsIcon, RotateCcw, GearIcon, CheckIcon, FastForwardIcon, X, BanIcon, ScrollIcon } from '@/components/icons';
 import type { Player, LibEnemy, TurnState, DefeatedMap, ConditionsMap, CombatLogEntry } from '@/types';
 import { movementLimit, type MovementLimit } from '@/lib/rules/conditions';
-import { budgetFor } from '@/lib/turn';
+import { budgetFor, isTurnToken } from '@/lib/turn';
 import { creatureThumb } from '@/lib/sprites/draw';
 import { useCompactLayout } from '@/hooks/useCompact';
 
@@ -19,7 +19,10 @@ interface Props {
   /** Estats dels tokens: limiten el moviment (Agafat → 0 peus, Tombat → la meitat). */
   conditions: ConditionsMap;
   tokenGroupsRef: MutableRefObject<Map<number | string, string>>;
-  onStart: (ids: (number | string)[]) => void;
+  /** Nom de cada grup (`groupId` → nom). */
+  groupNamesRef: MutableRefObject<Map<string, string>>;
+  /** `groups`: els grups triats, que juguen junts (un sol torn per a tots els seus membres). */
+  onStart: (ids: (number | string)[], groups: { id: string; name: string; ids: (number | string)[] }[]) => void;
   onEnd: () => void;
   onAdvance: () => void;
   onAdvanceRound: () => void;
@@ -129,7 +132,7 @@ interface DragSession {
 }
 
 export function TurnTracker({
-  turn, players, libEnemies, defeated, conditions, tokenGroupsRef,
+  turn, players, libEnemies, defeated, conditions, tokenGroupsRef, groupNamesRef,
   onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder, pixel, log = [],
 }: Props) {
   const [selecting, setSelecting] = useState(false);
@@ -231,7 +234,7 @@ export function TurnTracker({
     selGroups.forEach(gid => (groupMap.get(gid) ?? []).forEach(id => ids.add(id)));
     selEnemies.forEach(id => ids.add(id.startsWith('lib_') || id.startsWith('pl_') ? id : Number(id)));
     setSelecting(false);
-    onStart([...ids]);
+    onStart([...ids], [...selGroups].map(gid => ({ id: gid, name: groupNamesRef.current.get(gid) ?? 'Grup', ids: groupMap.get(gid) ?? [] })));
   };
 
   const wrap: React.CSSProperties = compact
@@ -264,15 +267,15 @@ export function TurnTracker({
             {groups.length > 0 && (
               <div style={{ marginBottom: 10 }}>
                 <div style={{ color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Grups</div>
-                {groups.map(([gid, ids], i) => (
+                {groups.map(([gid, ids]) => (
                   <label key={gid} style={rowStyle(selGroups.has(gid))} onClick={() => toggle(selGroups, setSelGroups, gid)}>
                     <span style={{ display: 'flex', marginRight: 8 }}>
                       {ids.slice(0, 4).map(id => (
                         <span key={String(id)} style={{ marginLeft: -6 }}><Avatar info={resolve(id)} size={24} /></span>
                       ))}
                     </span>
-                    <span style={{ flex: 1, color: C.text, fontSize: FS.lg }}>Grup {i + 1}</span>
-                    <span style={{ color: C.dim, fontSize: FS.sm }}>{ids.length} tokens</span>
+                    <span style={{ flex: 1, color: C.text, fontSize: FS.lg }}>{groupNamesRef.current.get(gid) ?? 'Grup'}</span>
+                    <span style={{ color: C.dim, fontSize: FS.sm }} title="Tots els seus tokens juguen alhora, en un sol torn">{ids.length} tokens · un torn</span>
                     {check(selGroups.has(gid))}
                   </label>
                 ))}
@@ -334,6 +337,7 @@ export function TurnTracker({
     return {
       info: resolve(id),
       active: isActive,
+      mate: !isActive && isTurnToken(turn, String(id)),
       defeated: !!defeated[String(id)],
       isPlayer: String(id).startsWith('pl_'),
       /* Peus efectius del token actiu: el saldo del torn retallat pels seus estats
@@ -528,18 +532,18 @@ export function TurnTracker({
                   data-chip
                   data-active={p.active ? '1' : undefined}
                   onPointerDown={editMode ? (e) => onChipPointerDown(e, i) : undefined}
-                  onClick={!editMode && p.active ? onAdvance : undefined}
-                  onContextMenu={(e) => { e.preventDefault(); if (!editMode && !p.active) setPop({ recover: id }); }}
-                  onTouchStart={!editMode && !p.active ? () => { pressCancel(); pressT.current = setTimeout(() => { pressT.current = null; setPop({ recover: id }); }, 500); } : undefined}
+                  onClick={!editMode && (p.active || p.mate) ? onAdvance : undefined}
+                  onContextMenu={(e) => { e.preventDefault(); if (!editMode && !p.active && !p.mate) setPop({ recover: id }); }}
+                  onTouchStart={!editMode && !p.active && !p.mate ? () => { pressCancel(); pressT.current = setTimeout(() => { pressT.current = null; setPop({ recover: id }); }, 500); } : undefined}
                   onTouchEnd={pressCancel} onTouchMove={pressCancel} onTouchCancel={pressCancel}
-                  title={editMode ? 'Arrossega per reordenar' : p.defeated ? `${p.info.name} · derrotat, se li salta el torn` : p.active ? 'Clica per passar el torn · clic dret per recuperar un torn anterior' : `${p.info.name} · clic dret per recuperar el seu torn`}
+                  title={editMode ? 'Arrossega per reordenar' : p.defeated ? `${p.info.name} · derrotat, se li salta el torn` : p.active ? 'Clica per passar el torn · clic dret per recuperar un torn anterior' : p.mate ? `${p.info.name} · juga alhora (mateix grup): clica per passar el torn` : `${p.info.name} · clic dret per recuperar el seu torn`}
                   style={{
                     flex: `${p.active ? 1 : 0} 0 ${SLOT_W}px`, minWidth: 0, height: p.active ? ACTIVE_H : SLOT_H,
                     transform: shift ? `translateX(${shift}px)` : undefined,
                     transition: noAnim ? 'none' : `flex-grow .24s ${EASE}, height .24s ${EASE}, transform .22s ${EASE}`,
                     // L'agafat deixa el seu lloc buit (el clon el dibuixa a sobre).
                     visibility: drag?.from === i ? 'hidden' : undefined,
-                    cursor: editMode ? 'grab' : p.active ? 'pointer' : 'default',
+                    cursor: editMode ? 'grab' : p.active || p.mate ? 'pointer' : 'default',
                     touchAction: editMode ? 'none' : undefined,
                   }}>
                   <ChipBody {...p} />
@@ -678,13 +682,15 @@ interface ChipBodyProps {
   limit: MovementLimit;
   totalFt: number;
   editMode: boolean;
+  /** Té el torn alhora que l'actiu (mateix grup): xip normal però marcat com a actiu. */
+  mate?: boolean;
   /** El clon que segueix el punter mentre es reordena. */
   lifted?: boolean;
 }
 
 /** Aspecte d'un xip de la cua (el del carril i el clon que s'arrossega). Ocupa tota la
  *  mida del seu contenidor, que és qui la fixa (veure `SLOT_W` / `ACTIVE_W`). */
-function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, lifted }: ChipBodyProps) {
+function ChipBody({ info, active, mate, defeated, isPlayer, limit, totalFt, editMode, lifted }: ChipBodyProps) {
   return (
     <div style={{
       width: '100%', height: '100%',
@@ -692,12 +698,12 @@ function ChipBody({ info, active, defeated, isPlayer, limit, totalFt, editMode, 
       padding: active ? '5px 12px 5px 7px' : '5px 7px',
       // La columna de nom i peus queda retallada mentre el xip s'eixampla: es destapa sola.
       borderRadius: 22, overflow: 'hidden',
-      border: active ? `2px solid ${C.accent}` : lifted ? `2px solid ${tint(C.accent, 0.55)}` : editMode ? `2px dashed ${tint(C.dim, 0.4)}` : '2px solid transparent',
+      border: active ? `2px solid ${C.accent}` : mate ? `2px solid ${tint(C.accent, 0.7)}` : lifted ? `2px solid ${tint(C.accent, 0.55)}` : editMode ? `2px dashed ${tint(C.dim, 0.4)}` : '2px solid transparent',
       // L'aixecat va per sobre d'altres xips: fons opac (el tint sol és translúcid).
       background: lifted ? `linear-gradient(${tint(C.accent, active ? 0.13 : 0.06)}, ${tint(C.accent, active ? 0.13 : 0.06)}), ${C.bg}`
-        : active ? tint(C.accent, 0.13) : 'transparent',
-      boxShadow: lifted ? '0 12px 28px rgba(0,0,0,0.6)' : active ? `0 0 16px ${tint(C.accent, 0.4)}` : 'none',
-      opacity: defeated ? 0.34 : active || lifted ? 1 : 0.75,
+        : active ? tint(C.accent, 0.13) : mate ? tint(C.accent, 0.08) : 'transparent',
+      boxShadow: lifted ? '0 12px 28px rgba(0,0,0,0.6)' : active ? `0 0 16px ${tint(C.accent, 0.4)}` : mate ? `0 0 10px ${tint(C.accent, 0.25)}` : 'none',
+      opacity: defeated ? 0.34 : active || mate || lifted ? 1 : 0.75,
       filter: defeated ? 'grayscale(1)' : 'none',
       transition: 'background .2s, border-color .2s, box-shadow .2s, opacity .2s',
     }}>

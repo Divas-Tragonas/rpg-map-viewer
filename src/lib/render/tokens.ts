@@ -9,6 +9,7 @@ import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
 import { drawStatusFx, hasStatusFx } from '@/lib/sprites/statusfx';
 import { pointInPolygon } from '@/lib/geometry';
 import { FIG_SCALE, FOOT_FLAT, creatureBounds, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, footOf, footEllipse, SHADOW_RX, SHADOW_RY, figureMid } from './token-geom';
+import { isTurnToken } from '@/lib/turn';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
@@ -91,15 +92,21 @@ function drawColorHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number, R:
   ctx.save();
   if (invis) ctx.setLineDash([5 / sc, 3 / sc]);
   if (g) {
-    const p = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 3 + phase);
+    // Pols: la intensitat I la mida varien (el que es mou es nota més). ~1,6 cops per segon.
+    const p = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 10 + phase);
     const a = ctx.globalAlpha;
-    ctx.strokeStyle = ink; ctx.globalAlpha = a * g * (0.3 + 0.2 * p); ctx.lineWidth = 9 / sc;
+    ctx.strokeStyle = ink;
+    // Vel ample exterior: s'infla i s'esvaeix amb el pols.
+    ctx.globalAlpha = a * g * (0.14 + 0.22 * p); ctx.lineWidth = (16 + 10 * p) / sc;
+    ringPath(ctx, cx, cy, d + 2 * p / sc, R, foot); ctx.stroke();
+    // Vel mitjà: més intens, amb la mida contraria perquè «respiri».
+    ctx.globalAlpha = a * g * (0.32 + 0.38 * p); ctx.lineWidth = (9 + 5 * (1 - p)) / sc;
     ringPath(ctx, cx, cy, d, R, foot); ctx.stroke();
     ctx.globalAlpha = a;
   }
   ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1 / sc;
-  ringPath(ctx, cx, cy, d + (1.6 + 1.4 * g) / sc, R, foot); ctx.stroke();
-  ctx.strokeStyle = ink; ctx.lineWidth = (2.2 + 1.3 * g) / sc;
+  ringPath(ctx, cx, cy, d + (1.6 + 1.8 * g) / sc, R, foot); ctx.stroke();
+  ctx.strokeStyle = ink; ctx.lineWidth = (2.2 + 2.2 * g) / sc;
   ringPath(ctx, cx, cy, d, R, foot); ctx.stroke();
   ctx.restore();
 }
@@ -306,7 +313,7 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   const turn = fc.rTurn?.current;
   const now = performance.now();
   const footY = footOf(cy, R);
-  noteFigure(key, sprite, opts.hp, opts.hpMax, cx, footY, turn?.active ? String(turn.order[turn.turnIndex]) : null, now, opts.hpHit);
+  noteFigure(key, sprite, opts.hp, opts.hpMax, cx, footY, turn?.active ? String(turn.order[turn.turnIndex]) : null, now, opts.hpHit);  // qui ataca: el del torn (de qualsevol grup, el primer)
   const f = _facing.get(key);
   if (!f) _facing.set(key, { x: cx, left: false });
   else if (Math.abs(cx - f.x) > R * 0.25) { f.left = cx < f.x; f.x = cx; }  // marge: res de girs per tremolors del LERP
@@ -474,7 +481,6 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     visualPosRef, rTokenSizeOverride, rHighlightAlpha, rTurn,
   } = fc;
   const _turn = rTurn?.current;
-  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
   const top = topKeyOf(fc);
 
   rLibEnemies.current.forEach(en => {
@@ -529,7 +535,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     // Torn actiu o ressaltar enemics: el halo de color resplendeix (veure `drawColorHalo`).
     const _ha = rHighlightAlpha.current;
     const hlGlow = _ha > 0.01 && isVis && !isDefeated && enAlpha > 0.3 && !en.ally ? _ha : 0;
-    const turnGlow = _activeId != null && _activeId === `lib_${en.id}` && !isDefeated && enAlpha > 0.3 ? 1 : 0;
+    const turnGlow = isTurnToken(_turn, `lib_${en.id}`) && !isDefeated && enAlpha > 0.3 ? 1 : 0;
     const glow = Math.max(hlGlow, turnGlow), phase = turnGlow ? 0 : en.id * 0.43;
     if (!libSprite) drawDiscShadow(ctx, ep.x, ep.y, R, sc);
 
@@ -664,7 +670,6 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     rDefeated, defeatedAnimRef, rTurn,
   } = fc;
   const _turn = rTurn?.current;
-  const _activeId = _turn?.active ? _turn.order[_turn.turnIndex] : null;
   const top = topKeyOf(fc);
   rPlayers.current.forEach(pl => {
     if (skipInPass(`pl_${pl.id}`, top, pass)) return;
@@ -727,7 +732,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     }
     ctx.globalAlpha = 1;
     const plSprite = pixelSprite(fc, pl.sprite);
-    const glow = _activeId != null && _activeId === `pl_${pl.id}` && !isDefeated ? 1 : 0;  // torn: el halo de color resplendeix
+    const glow = isTurnToken(_turn, `pl_${pl.id}`) && !isDefeated ? 1 : 0;  // torn: el halo de color resplendeix
     if (!plSprite) drawDiscShadow(ctx, ppos.x + R, ppos.y + R, R, sc);
     let fig: (() => void) | null = null;
     if (plSprite) {

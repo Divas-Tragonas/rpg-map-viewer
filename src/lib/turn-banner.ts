@@ -68,6 +68,10 @@ export function buildTurnBanner({ turn, players, libEnemies, conditions }: Sourc
     sprite = e?.sprite ?? null;
   }
 
+  // Un grup que juga junt: al rètol hi surt el nom del grup.
+  const gid = turn.together?.[sid];
+  if (gid && turn.groupNames?.[gid]) name = turn.groupNames[gid];
+
   // Els enemics no tenen límit de moviment des de /player (sentinella): res de peus.
   const totalFt = budgetFor(id, players);
   if (totalFt >= NO_MOVE_LIMIT_FT) {

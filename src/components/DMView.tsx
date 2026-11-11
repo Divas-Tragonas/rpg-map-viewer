@@ -30,6 +30,8 @@ import { useKeyboardHandlers } from '@/hooks/useKeyboardHandlers';
 import { createSyncSocket } from '@/lib/ws';
 import { computeReachableCells, segmentBlocked, buildMovePath } from '@/lib/rooms/pathing';
 import { tileBlocker } from '@/lib/tilemap/render';
+import { TILE, usedBounds } from '@/lib/tilemap/model';
+import { camToView } from '@/lib/camera';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { RoomsPanel } from '@/components/dm/RoomsPanel';
@@ -55,7 +57,7 @@ import { SceneEnemiesPanel } from '@/components/dm/SceneEnemiesPanel';
 import { ShortcutsHelp } from '@/components/dm/ShortcutsHelp';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { api, isApiConfigured } from '@/lib/api';
-import { budgetFor, firstActive, nextActive } from '@/lib/turn';
+import { activeKeys, budgetFor, firstActive, isTurnToken, nextActive } from '@/lib/turn';
 import { movementLimit } from '@/lib/rules/conditions';
 import { terrainCost } from '@/lib/rules/terrain';
 import { useAutosave } from '@/hooks/useAutosave';
@@ -74,6 +76,7 @@ import type { TileBrush } from '@/lib/tilemap/editor';
 import { WelcomeScreen } from '@/components/dm/WelcomeScreen';
 import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
+import { GroupNamePopup } from '@/components/dm/GroupNamePopup';
 import { SheetPanel } from '@/components/dm/SheetPanel';
 import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
 import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
@@ -473,7 +476,7 @@ export function DMView() {
     refreshUndo();
   }, [R, _broadcastState, refreshUndo]);
 
-  const startTurnCombat = useCallback((includeIds: (number | string)[]) => {
+  const startTurnCombat = useCallback((includeIds: (number | string)[], groups: { id: string; name: string; ids: (number | string)[] }[] = []) => {
     // Tots els jugadors s'afegeixen automàticament; després els enemics/grups triats. Dedup.
     const order: (number | string)[] = [];
     const seen = new Set<string>();
@@ -482,8 +485,31 @@ export function DMView() {
       if (!seen.has(k)) { seen.add(k); order.push(id); }
     });
     if (order.length === 0) return;
+    // Els grups triats juguen junts: els seus membres van contigus a la cua i comparteixen torn.
+    const together: Record<string, string> = {}, groupNames: Record<string, string> = {};
+    for (const g of groups) {
+      const keys = g.ids.map(String).filter(k => seen.has(k));
+      if (keys.length < 2) continue;
+      keys.forEach(k => { together[k] = g.id; });
+      groupNames[g.id] = g.name;
+    }
+    if (Object.keys(together).length) {
+      const placed = new Set<string>();
+      const sorted: (number | string)[] = [];
+      for (const id of order) {
+        const k = String(id);
+        if (placed.has(k)) continue;
+        const g = together[k];
+        if (!g) { placed.add(k); sorted.push(id); continue; }
+        for (const m of order) { const mk = String(m); if (together[mk] === g && !placed.has(mk)) { placed.add(mk); sorted.push(m); } }
+      }
+      order.splice(0, order.length, ...sorted);
+    }
     const first = firstActive(order, R.rDefeated.current);
-    _applyTurn({ active: true, order, turnIndex: first, round: 1, activeRemainingFt: _budgetFor(order[first]) });
+    _applyTurn({
+      active: true, order, turnIndex: first, round: 1, activeRemainingFt: _budgetFor(order[first]),
+      ...(Object.keys(together).length ? { together, groupNames } : {}),
+    });
     const nPl = order.filter(id => String(id).startsWith('pl_')).length;
     logJournal('combat', `Comença el combat: ${nPl} jugadors i ${order.length - nPl} enemics`, { data: { started: true, players: nPl, foes: order.length - nPl } });
   }, [R, _applyTurn, _budgetFor]);
@@ -499,7 +525,7 @@ export function DMView() {
     const remaining = { ...(t.remaining ?? {}), [String(t.order[t.turnIndex])]: t.activeRemainingFt };
     // Els tokens derrotats se salten: un enemic amb la X o un jugador a 0 de vida ja no
     // juga, i abans calia passar-li el torn a mà (un clic buit per baixa i per ronda).
-    const { index: ni, wraps } = nextActive(t.order, t.turnIndex, R.rDefeated.current);
+    const { index: ni, wraps } = nextActive(t.order, t.turnIndex, R.rDefeated.current, t.together);
     const round = t.round + wraps;
     const rem = wraps > 0 ? {} : remaining;  // volta completa → nova ronda (neteja saldos)
     _applyTurn({ ...t, turnIndex: ni, round, remaining: rem, activeRemainingFt: _budgetFor(t.order[ni]) });
@@ -568,7 +594,7 @@ export function DMView() {
     // mateixa regla que pinta el rang del jugador, `tileBlocker`).
     const blocked = tileBlocker(R.rTileLive.current, R.rDoors.current);
     let consumedFt = 0;
-    if (turn.active && sid !== String(turn.order[turn.turnIndex])) { bounceBack(); return; }  // no és el seu torn
+    if (turn.active && !isTurnToken(turn, sid)) { bounceBack(); return; }  // no és el seu torn
     // Estats que limiten el moviment (Agafat, Retingut, Paralitzat… → 0; Tombat → meitat).
     // Mateix `movementLimit` que fa servir el clamp del drag i la pintura del rang, perquè
     // el jugador no vegi un rang que aquí li rebotem.
@@ -957,7 +983,8 @@ export function DMView() {
       setCombatLog([{ id: ++logIdRef.current, round: turn.round, text: `Comença el combat: ${names}`, tone: 'info' }]);
       return;
     }
-    const startKey = String(turn.order[turn.turnIndex]);
+    // Un grup juga junt: cada membre comença el torn alhora (efectes amb durada i recàrregues).
+    for (const startKey of activeKeys(turn)) {
     const { ended, left } = tickTurnStart(R.rTimedEffects.current, startKey);
     if (ended.length) endEffects(ended, left); else R.rTimedEffects.current = left;
     // Recàrrega dels poders gastats d'aquesta criatura: el d6 es tira sol a l'inici del seu torn.
@@ -982,6 +1009,7 @@ export function DMView() {
       const next = { ...rPowerSpent.current };
       if (Object.keys(still).length) next[startKey] = still; else delete next[startKey];
       setSpent(next);
+    }
     }
   }, [turn, R, endEffects, toggleCondition]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1135,15 +1163,34 @@ export function DMView() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Token groups (double-click a member to select the whole group) ─────────
-  const onCreateGroup = useCallback((ids: (number | string)[]) => {
+  // Finestreta flotant per posar-li nom al grup recent, allà on s'ha clicat per crear-lo.
+  const [groupNaming, setGroupNaming] = useState<{ groupId: string; x: number; y: number; name: string } | null>(null);
+  const onCreateGroup = useCallback((ids: (number | string)[], at: { x: number; y: number }) => {
     const groupId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    // Els membres surten dels grups on eren; un grup que es queda sense membres perd el nom.
     for (const id of ids) R.rTokenGroups.current.set(id, groupId);
+    const live = new Set(R.rTokenGroups.current.values());
+    for (const gid of [...R.rGroupNames.current.keys()]) if (!live.has(gid)) R.rGroupNames.current.delete(gid);
+    // «Grup N+1» (N = grups que ja hi ha, abans d'aquest); si ja existeix, el següent lliure.
+    const taken = new Set(R.rGroupNames.current.values());
+    let n = live.size;
+    while (taken.has(`Grup ${n}`)) n++;
+    const name = `Grup ${n}`;
+    R.rGroupNames.current.set(groupId, name);
+    setGroupNaming({ groupId, x: at.x, y: at.y, name });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const renameGroup = useCallback((groupId: string, name: string) => {
+    const clean = name.trim();
+    if (clean) R.rGroupNames.current.set(groupId, clean);
+    setGroupNaming(null);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onDissolveGroup = useCallback((groupId: string) => {
     for (const [id, gid] of R.rTokenGroups.current) {
       if (gid === groupId) R.rTokenGroups.current.delete(id);
     }
+    R.rGroupNames.current.delete(groupId);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onLeaveGroup = useCallback((id: number | string) => {
@@ -1151,7 +1198,7 @@ export function DMView() {
     if (!gid) return;
     R.rTokenGroups.current.delete(id);
     const remaining = [...R.rTokenGroups.current.entries()].filter(([, g]) => g === gid);
-    if (remaining.length === 1) R.rTokenGroups.current.delete(remaining[0][0]);
+    if (remaining.length === 1) { R.rTokenGroups.current.delete(remaining[0][0]); R.rGroupNames.current.delete(gid); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Desfer l'última paret (Backspace amb l'eina Parets activa) ─────────────
@@ -1308,8 +1355,25 @@ export function DMView() {
 
   // ── Canvas-level callbacks ────────────────────────────────────────────────
   const onResetView = useCallback(() => {
-    R.rZoom.current = 1; setZoom(1);
-    R.rPanOffset.current = { x: 0, y: 0 };
+    let z = 1, pan = { x: 0, y: 0 };
+    // Mapa de caselles: es centra (i s'ajusta) el que hi ha pintat de debò, no el llenç sencer,
+    // que pot ser molt més gran que el dibuix.
+    const tm = R.rTileMap.current, cv = R.canvasRef.current, ms = R.rMapSize.current;
+    const used = tm && usedBounds(tm);
+    if (used && cv && ms && cv.clientWidth > 0 && cv.clientHeight > 0) {
+      const M = 1;  // una casella de marge
+      const cam = { cx: ((used.c0 + used.c1 + 1) / 2) * TILE, cy: ((used.r0 + used.r1 + 1) / 2) * TILE,
+        w: (used.c1 - used.c0 + 1 + 2 * M) * TILE, h: (used.r1 - used.r0 + 1 + 2 * M) * TILE };
+      let v = camToView(cam, cv.clientWidth, cv.clientHeight, ms.width, ms.height);
+      const clamped = Math.min(10, Math.max(0.2, v.zoom));
+      if (clamped !== v.zoom) {
+        const k = v.zoom / clamped;   // el mateix centre, amb l'amplada de vista que dona el zoom permès
+        v = camToView({ ...cam, w: cam.w * k, h: cam.h * k }, cv.clientWidth, cv.clientHeight, ms.width, ms.height);
+      }
+      z = v.zoom; pan = v.pan;
+    }
+    R.rZoom.current = z; setZoom(z);
+    R.rPanOffset.current = pan;
     _broadcastState({});
   }, [_broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1730,6 +1794,7 @@ export function DMView() {
           defeated={defeated}
           conditions={conditions}
           tokenGroupsRef={R.rTokenGroups}
+          groupNamesRef={R.rGroupNames}
           onStart={startTurnCombat}
           onEnd={finishCombat}
           onAdvance={advanceTurn}
@@ -1763,6 +1828,10 @@ export function DMView() {
               selected={sheetSel} onSelect={setSheetSel} parts={sheetParts} onParts={setSheetParts}
               showingId={sheetShowId} onShow={showSheet} onHide={hideSheet} />
           </div>
+        )}
+        {groupNaming && (
+          <GroupNamePopup key={groupNaming.groupId} x={groupNaming.x} y={groupNaming.y} initial={groupNaming.name}
+            onDone={n => renameGroup(groupNaming.groupId, n)} />
         )}
         {xpAward && (
           <XpAwardDialog key={xpAward.awardId} award={xpAward} busy={xpBusy}

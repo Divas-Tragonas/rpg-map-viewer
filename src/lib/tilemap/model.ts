@@ -15,6 +15,13 @@
  */
 
 export const TILE = 48;
+/**
+ * Sostre de seguretat d'un mapa de caselles nou (no de disseny): el mapa es «cou» en un sol canvas
+ * de `cols·TILE × rows·TILE` px i viatja sencer al jugador. 40.000 caselles són uns 92 milions de
+ * píxels (≈370 MB), el que els navegadors d'escriptori aguanten; més, i la pestanya es pot morir.
+ */
+export const MAX_TILE_SIDE = 300;
+export const MAX_TILE_CELLS = 40000;
 export const TERRAIN_COLS = 20;
 export const ITEM_BASE = 1000, ITEM_COLS = 22;
 export const WORLD_BASE = 2000, WORLD_COLS = 25, WORLD_PX = 24;
@@ -67,6 +74,16 @@ export function isWall(m: TileMap, c: number, r: number): boolean {
 /** Casella sense res (fora de cap sala). */
 export function isVoid(m: TileMap, i: number): boolean {
   return m.ground[i] < 0 && !m.wallSet[i] && m.wallRaw[i] < 0 && !(i in m.doors) && m.overlays.every(o => o[i] < 0);
+}
+
+/** Rectangle de caselles (incloses) que tenen alguna cosa pintada; `null` si el mapa és buit. */
+export function usedBounds(m: TileMap): { c0: number; r0: number; c1: number; r1: number } | null {
+  let c0 = m.cols, r0 = m.rows, c1 = -1, r1 = -1;
+  for (let r = 0; r < m.rows; r++) for (let c = 0; c < m.cols; c++) {
+    if (isVoid(m, cellOf(m, c, r))) continue;
+    if (c < c0) c0 = c; if (c > c1) c1 = c; if (r < r0) r0 = r; if (r > r1) r1 = r;
+  }
+  return c1 < 0 ? null : { c0, r0, c1, r1 };
 }
 
 /** Còpia per a una edició (tot array nou: el desfer i el detector de canvis van per referència). */

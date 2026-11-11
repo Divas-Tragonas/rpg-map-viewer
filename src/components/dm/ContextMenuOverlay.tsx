@@ -47,7 +47,7 @@ interface Props {
   setDefeated: (v: DefeatedMap) => void;
   setConditions: (v: ConditionsMap) => void;
   removeLibEnemy: (id: number) => void;
-  onCreateGroup: (ids: (number | string)[]) => void;
+  onCreateGroup: (ids: (number | string)[], at: { x: number; y: number }) => void;
   onDissolveGroup: (groupId: string) => void;
   onLeaveGroup: (id: number | string) => void;
   onSetRoomDark: (id: string, dark: boolean) => void;
@@ -514,7 +514,7 @@ export function ContextMenuOverlay({
               <UnlinkIcon size={13} /> Dissoldre grup
             </Button>
           ) : (
-            <Button block variant="tint" color={C.magicBright} onMouseDown={e => { e.stopPropagation(); onCreateGroup(ids); onClose(); }}>
+            <Button block variant="tint" color={C.magicBright} onMouseDown={e => { e.stopPropagation(); onCreateGroup(ids, { x: e.clientX, y: e.clientY }); onClose(); }}>
               <LinkIcon size={13} /> Crear grup
             </Button>
           )}

@@ -356,6 +356,13 @@ export interface TurnState {
   // Saldo de peus amb què va acabar cada token que ja ha passat aquesta ronda (per poder
   // "recuperar" el seu torn tal com havia quedat). Es neteja a cada ronda nova.
   remaining?: Record<string, number>;
+  /**
+   * Tokens que juguen junts: clau del token → id del grup. Els membres d'un grup tenen UN sol torn
+   * (tots actius alhora). Un token que no hi és juga sol.
+   */
+  together?: Record<string, string>;
+  /** Nom de cada grup de `together` (per al rètol de torn i la barra). */
+  groupNames?: Record<string, string>;
 }
 
 export type PosMap = Record<number | string, Point>;

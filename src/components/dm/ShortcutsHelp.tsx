@@ -69,6 +69,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       [SPELL_MODES.zone.gesture, `${SPELL_MODES.zone.title}: foc, gel, aigua, verí, llamps, màgia`],
       [SPELL_MODES.line.gesture, `${SPELL_MODES.line.title}: projectil, riure, mans ardents, gebre`],
       [SPELL_MODES.area.gesture, `${SPELL_MODES.area.title}: dormir, greix, flama sagrada, beneir…`],
+      ['Ctrl + clic', 'Afegir (o treure) un token de la selecció; un clic normal només selecciona l\'últim'],
       ['Ctrl + arrossegar', 'Moure tokens, zones i àrees sense canviar d\'eina'],
       ['Clic dret a un jugador', 'Conjurs del seu grimori, llançats des del token'],
     ],

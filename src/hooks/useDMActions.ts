@@ -910,6 +910,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // carregar una partida desada és una sorpresa, no una decisió de l'usuari. Com a
       // parells perquè un Map no sobreviu al JSON.
       tokenGroups: [...R.rTokenGroups.current],
+      groupNames: [...R.rGroupNames.current],
       // Durades en combat dels estats de les màgies (Dormir, Escut…).
       timedEffects: R.rTimedEffects.current,
       // Diàlegs preparats de cada token.
@@ -1021,6 +1022,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       R.rDifficult.current = Array.isArray(state.difficult) ? state.difficult : [];
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (Array.isArray(state.tokenGroups)) R.rTokenGroups.current = new Map(state.tokenGroups);
+      R.rGroupNames.current = Array.isArray(state.groupNames) ? new Map(state.groupNames) : new Map();
       R.rTimedEffects.current = Array.isArray(state.timedEffects) ? state.timedEffects : [];
       R.rDialogs.current = state.dialogs && typeof state.dialogs === 'object' ? state.dialogs : {};
       S.onDialogsChange?.();

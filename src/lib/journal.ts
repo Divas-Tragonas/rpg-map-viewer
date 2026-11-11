@@ -20,6 +20,12 @@ export const KIND_LABEL: Record<JournalKind, string> = {
   cinematic: 'Cinemàtica', module: 'Mòdul', down: 'Caiguda', text: 'Text', note: 'Nota',
 };
 
+/** Color de cada tipus d'anotació al diari (la vora del requadre i l'etiqueta), com els tons de l'historial de combat. */
+export const KIND_TONE: Record<JournalKind, string> = {
+  session: '#8b949e', map: '#79c0ff', scene: '#d2a8ff', room: '#e3b341', combat: '#f0883e', xp: '#3fb950',
+  dialog: '#58a6ff', cinematic: '#a371f7', module: '#56d4dd', down: '#f85149', text: '#ffa657', note: '#f2cc60',
+};
+
 export interface JournalEntry {
   id: string;
   t: number;
@@ -27,8 +33,6 @@ export interface JournalEntry {
   text: string;
   /** Mòdul actiu en aquell moment. */
   module?: string;
-  /** Marcada pel DM per al «Anteriorment…». */
-  star?: boolean;
   /** Dades breus per al bloc JSON del resum (combats, XP…). */
   data?: Record<string, unknown>;
 }
@@ -60,7 +64,7 @@ function reviveSession(raw: unknown): JournalSession {
     if (!isObj(e) || typeof e.text !== 'string' || typeof e.t !== 'number' || typeof e.kind !== 'string' || !KINDS.has(e.kind)) return [];
     return [{
       id: typeof e.id === 'string' ? e.id : uid(), t: e.t, kind: e.kind as JournalKind, text: e.text,
-      ...(typeof e.module === 'string' ? { module: e.module } : {}), ...(e.star ? { star: true } : {}),
+      ...(typeof e.module === 'string' ? { module: e.module } : {}),
       ...(isObj(e.data) ? { data: e.data } : {}),
     }];
   });
@@ -88,7 +92,7 @@ export const journalStore = createJsonStore<JournalData>('rpg_journal_v1', EMPTY
 // ── Escriptura ───────────────────────────────────────────────────────────────
 
 /** Anota una entrada. Mai llança: el diari no pot trencar res del joc. */
-export function logJournal(kind: JournalKind, text: string, extra: { data?: Record<string, unknown>; star?: boolean } = {}) {
+export function logJournal(kind: JournalKind, text: string, extra: { data?: Record<string, unknown> } = {}) {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean) return;
   try {
@@ -101,9 +105,9 @@ export function logJournal(kind: JournalKind, text: string, extra: { data?: Reco
       const entry: JournalEntry = { id: uid(), t, kind, text: clean, ...(mod ? { module: mod } : {}), ...extra };
       let entries = [...cur.entries, entry];
       if (entries.length > MAX_ENTRIES) {
-        // Cau primer el que menys importa: les notes i les marcades es conserven.
+        // Cau primer el que menys importa: les notes es conserven.
         let over = entries.length - MAX_ENTRIES;
-        entries = entries.filter(e => (over > 0 && e.kind !== 'note' && !e.star ? (over--, false) : true));
+        entries = entries.filter(e => (over > 0 && e.kind !== 'note' ? (over--, false) : true));
       }
       return { ...d, current: { ...cur, id: cur.id || uid(), startedAt: cur.startedAt || t, entries } };
     });
@@ -118,12 +122,6 @@ export function removeEntry(id: string) {
 export function removeEntries(ids: string[]) {
   const gone = new Set(ids);
   journalStore.update(d => ({ ...d, current: { ...d.current, entries: d.current.entries.filter(e => !gone.has(e.id)) } }));
-}
-
-export function toggleStar(id: string) {
-  journalStore.update(d => ({
-    ...d, current: { ...d.current, entries: d.current.entries.map(e => e.id === id ? { ...e, star: e.star ? undefined : true } : e) },
-  }));
 }
 
 export function renameSession(name: string) {
@@ -267,11 +265,4 @@ export function journalToMarkdown(s: JournalSession, lib: ModulesData): string {
   };
   out.push('<!-- rpg-session-log: bloc per a Claude (passar a la pàgina de sessió de Notion) -->', '```json', JSON.stringify(json, null, 2), '```', '');
   return out.join('\n');
-}
-
-/** El text del «Anteriorment…»: les entrades marcades amb ★ (null si no n'hi ha cap). */
-export function recapText(s: JournalSession): string | null {
-  const picked = s.entries.filter(e => e.star);
-  if (!picked.length) return null;
-  return ['Anteriorment…', ...picked.map(e => (/[.!?…»”]$/.test(e.text) ? e.text : `${e.text}.`))].join('\n\n');
 }

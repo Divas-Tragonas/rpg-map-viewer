@@ -3,6 +3,15 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.09 — Selecció només amb Ctrl, grups amb nom i un sol torn, halo que pulsa, mapes de caselles sense límit
+- **Diari**: fora l'estrella i el botó «Anteriorment…» (i el seu recap); cada anotació és un requadre amb la vora i l'etiqueta del color del seu tipus, com l'historial de combat
+- **Halo del torn** més visible: línia més gruixuda i dos vels que **pulsen** (intensitat i mida)
+- **Grups al combat**: un grup triat en iniciar els torns juga **alhora** (un sol torn per a tots els seus membres: halo, moviment, estats i recàrregues); a la barra els membres van marcats i el rètol de jugador diu el nom del grup
+- **Crear un grup** obre una finestreta flotant al lloc del clic per posar-li nom (Enter l'accepta); per defecte «Grup N+1»
+- **Selecció**: un clic a un token substitueix la selecció; per afegir-ne, **Ctrl/⌘ + clic** (també el rectangle `A`). Surt a l'ajuda de dreceres
+- **Mapa de caselles** sense el límit de 120: ara el sostre és de seguretat (300 per costat, 40.000 caselles). El botó de centrar vista centra el que hi ha pintat, no el llenç sencer
+- Sense canvis a la API (`together`/`groupNames` van dins de `turn`, que el servidor reenvia tal qual)
+
 ### v5.08 — Historial de combat més llegible, fitxa dels jugadors i diari amb combats plegats
 - **Historial de combat** (botó de la barra de torns): cada missatge va en un petit requadre amb una vora del color del seu tipus (atac, conjur, efecte, cura, informació); les rondes en un títol a part
 - **Fitxa 5e als tokens dels jugadors de DIVAS**: el menú del token porta la mateixa «Fitxa 5e» plegable que els enemics (CA · nivell · velocitat; característiques, salvacions amb competència, atacs i trets), feta a partir de la seva fitxa de personatge
