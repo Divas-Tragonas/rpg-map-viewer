@@ -45,6 +45,8 @@ export interface FrameContext {
    * els pinta tots junts, sense encavalcar-se. Una llista nova a cada frame. Al DM, absent.
    */
   nameTags?: import('./tokens').NameTag[];
+  /** Màscara de siluetes dels tokens (`renderTokenScene`): on els noms s'esvaeixen. */
+  figMask?: CanvasRenderingContext2D;
   pp: PosMap;
 
   rPaintedZones:    MutableRefObject<PaintedZone[]>;

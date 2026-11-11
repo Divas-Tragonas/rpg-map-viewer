@@ -12,7 +12,7 @@ import {
 import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells, spellShake, followSpellPreview, spellsSettled } from '@/lib/render/spells';
-import { renderTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
+import { renderTokenScene, blitLayer, renderDragGhost, nameScaleFor } from '@/lib/render/tokens';
 import { renderGrid, renderDifficult, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
@@ -28,7 +28,7 @@ import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, subscribePack } from '@/lib/sprites/pack';
 import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
 import { DialogHost } from '@/lib/dialog/host';
-import { drawTileLive, drawTileDoorsOver, clipTileDoors, doorOpenById, tileBlocker, type TileLive } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver, drawTileDoorEdgesOver, clipTileDoors, doorOpenById, tileBlocker, type TileLive } from '@/lib/tilemap/render';
 import { PhosphorScreen, scanlinePx } from '@/lib/phosphor/screen';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -117,7 +117,6 @@ export function PlayerView() {
 
   const stageRef  = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const tokLayerRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRef  = useRef<HTMLElement | null>(null);
   const bgTransitionRef = useRef<HTMLDivElement>(null);
   // Fitxa d'un personatge que ensenya el DM (pestanya «Fitxa» de Mostrar als jugadors).
@@ -1041,23 +1040,10 @@ export function PlayerView() {
 
       // Ventall dels apilats (pulsació llarga, `usePlayerTokenDrag`): un pas de l'animació.
       advanceTokenSpread(performance.now());
-      // Amb portes de caselles, els tokens es pinten en una capa a part: les portes van damunt de la
-      // foscor (i del token) i després la capa es torna a posar només sobre les caselles de les portes,
-      // perquè un token que passa pel davant d'una porta lateral no quedi per sota.
-      const doorLive = rTileLive.current?.doors.length ? rTileLive.current : null;
-      let tokLayer: HTMLCanvasElement | null = null;
-      if (doorLive) {
-        tokLayer = tokLayerRef.current ?? (tokLayerRef.current = document.createElement('canvas'));
-        if (tokLayer.width !== ctx.canvas.width || tokLayer.height !== ctx.canvas.height) { tokLayer.width = ctx.canvas.width; tokLayer.height = ctx.canvas.height; }
-        const lc = tokLayer.getContext('2d');
-        if (lc) {
-          lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, tokLayer.width, tokLayer.height);
-          lc.setTransform(ctx.getTransform());
-          renderTokens(lc, fc);
-          renderNameTags(lc, fc);    // els noms també a la capa: així tampoc queden sota les portes
-          ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(tokLayer, 0, 0); ctx.restore();
-        } else { tokLayer = null; renderTokens(ctx, fc); renderNameTags(ctx, fc); }
-      } else { renderTokens(ctx, fc); renderNameTags(ctx, fc); }  // noms després de les figuretes i abans de la foscor
+      // Amb portes de caselles, els tokens i els noms es queden en capes: les portes van damunt de
+      // la foscor (i del token) i després les capes es tornen a posar només a les caselles de les
+      // portes, perquè el token que hi passa quedi per sobre de la porta (i per sota de la paret).
+      const scene = renderTokenScene(ctx, fc, { keepTokens: !!rTileLive.current?.doors.length });
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
 
       // La foscor de les sales fosques es pinta DAMUNT de tot: així qualsevol token,
@@ -1068,10 +1054,17 @@ export function PlayerView() {
       if (rTileLive.current) {
         const doors = rDoors.current;
         drawTileDoorsOver(ctx, rTileLive.current, doorOpenById(doors));
-        if (tokLayer) {
+        if (scene.tokens) {
+          const open = doorOpenById(doors);
           ctx.save();
-          if (clipTileDoors(ctx, rTileLive.current, doorOpenById(doors))) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(tokLayer, 0, 0); }
+          if (clipTileDoors(ctx, rTileLive.current, open)) blitLayer(ctx, scene.tokens);
           ctx.restore();
+          drawTileDoorEdgesOver(ctx, rTileLive.current, open);
+          if (scene.names) {
+            ctx.save();
+            if (clipTileDoors(ctx, rTileLive.current, open)) blitLayer(ctx, scene.names);
+            ctx.restore();
+          }
         }
       }
 

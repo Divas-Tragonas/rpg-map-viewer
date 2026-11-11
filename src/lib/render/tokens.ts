@@ -347,7 +347,7 @@ export function trackTokenActivity(fc: FrameContext): void {
  */
 function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: string, sprite: string,
   cx: number, cy: number, R: number,
-  opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[]; hp?: number; hpMax?: number; hpHit?: HpHit }): () => void {
+  opts: { defeated?: number; alpha?: number; invis?: boolean; conds?: readonly string[]; hp?: number; hpMax?: number; hpHit?: HpHit }): (c?: CanvasRenderingContext2D) => void {
   // Cops i curacions (`lib/sprites/hitfx.ts`): es dedueixen de la vida; qui ataca és qui té el torn.
   const turn = fc.rTurn?.current;
   const now = performance.now();
@@ -367,40 +367,41 @@ function drawPixelFigure(ctx: CanvasRenderingContext2D, fc: FrameContext, key: s
   // La figura es pinta DESPRÉS: abans hi van els aros dels peus (estats, torn, ressaltat,
   // selecció), que no l'han de tapar mai.
   const alpha = opts.alpha ?? 1;
-  return () => {
-    ctx.save();
-    ctx.globalAlpha = alpha;
+  // `c`: on es pinta (per defecte el llenç; també la màscara de siluetes, `fc.figMask`).
+  return (c: CanvasRenderingContext2D = ctx) => {
+    c.save();
+    c.globalAlpha = alpha;
     const hit = figureFx(key, cx, footY, S, now, reducedMotion());
     if (hit.dx || hit.dy || hit.rot) {
       // Envestida i empenta: la figura es mou i s'inclina sobre els peus (l'ombra es queda).
-      ctx.translate(cx + hit.dx, footY + hit.dy); ctx.rotate(hit.rot); ctx.translate(-cx, -footY);
+      c.translate(cx + hit.dx, footY + hit.dy); c.rotate(hit.rot); c.translate(-cx, -footY);
     }
     const pf = placeFigure(sprite, cx, footY, R, left);
     const d = opts.defeated ?? 0;
     if (d > 0) {
       // Derrotat: la figura es queda dreta, quieta i perd el color (es fon des del color).
       const gray = grayCreature(sprite);
-      ctx.imageSmoothingEnabled = false;
-      if (d < 1) drawCreature(ctx, sprite, 0, pf.x - S / 2, pf.top, S, left);
-      ctx.globalAlpha *= Math.min(1, d) * 0.85;
+      c.imageSmoothingEnabled = false;
+      if (d < 1) drawCreature(c, sprite, 0, pf.x - S / 2, pf.top, S, left);
+      c.globalAlpha *= Math.min(1, d) * 0.85;
       if (gray) {
-        if (left) { ctx.translate(pf.x + S / 2, 0); ctx.scale(-1, 1); ctx.drawImage(gray, 0, pf.top, S, S); }
-        else ctx.drawImage(gray, pf.x - S / 2, pf.top, S, S);
+        if (left) { c.translate(pf.x + S / 2, 0); c.scale(-1, 1); c.drawImage(gray, 0, pf.top, S, S); }
+        else c.drawImage(gray, pf.x - S / 2, pf.top, S, S);
       }
     } else {
-      if (opts.invis) ctx.globalAlpha *= 0.45;
+      if (opts.invis) c.globalAlpha *= 0.45;
       // Amb els estats a la figura (`lib/sprites/states.ts`): estirada, de pedra, quieta, contorn…
       // Estirada, la figura es posa de través sobre l'ombra (sense la correcció dels peus).
       const look = figureLook(opts.conds ?? []);
       const seed = key.length * 3.1 + key.charCodeAt(key.length - 1);
-      drawFigureState(ctx, sprite, look, look.lying ? cx : pf.x, look.lying ? footY : pf.foot, S, left, seed, now, hit.flash);
+      drawFigureState(c, sprite, look, look.lying ? cx : pf.x, look.lying ? footY : pf.foot, S, left, seed, now, hit.flash);
       // Animacions dels estats (estrelles, cors, lianes…: `lib/sprites/statusfx.ts`). No a les invisibles.
       const conds = opts.conds ?? [];
       if (!opts.invis && hasStatusFx(conds)) {
-        drawStatusFx(ctx, conds, cx, pf.top + creatureBounds(sprite).top * S, footY, S, now, seed, look.lying, reducedMotion());
+        drawStatusFx(c, conds, cx, pf.top + creatureBounds(sprite).top * S, footY, S, now, seed, look.lying, reducedMotion());
       }
     }
-    ctx.restore();
+    c.restore();
     if (alpha > 0.3) drawFigureHitFx(ctx, key, cx, footY, S, now);
   };
 }
@@ -577,7 +578,7 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
     const glow = Math.max(hlGlow, turnGlow), phase = turnGlow ? 0 : en.id * 0.43;
     if (!libSprite) drawDiscShadow(ctx, ep.x, ep.y, R, sc);
 
-    let fig: (() => void) | null = null;
+    let fig: ((c?: CanvasRenderingContext2D) => void) | null = null;
     if (libSprite) {
       fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined, hpMax: en.hpMax, hpHit: en.hpHit });
     } else if (isDefeated && colorProg > 0) {
@@ -660,6 +661,7 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
     // Amb figureta: la figura damunt de tots els aros dels peus, i la creu a sobre.
     if (fig) { fig(); ctx.globalAlpha = 1; }
     if (fig) drawCross();
+    if (fc.figMask && enAlpha > 0.3) maskFigure(fc.figMask, fig, ep.x, ep.y, R);
 
     ctx.globalAlpha = 1;
   });
@@ -702,6 +704,65 @@ export function renderTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): v
     else renderPlayerTokens(ctx, fc, key);
   }
 }
+
+/** Silueta d'un token a la màscara de `fc.figMask` (figureta, o el disc a l'app Clàssica). */
+function maskFigure(m: CanvasRenderingContext2D, fig: ((c?: CanvasRenderingContext2D) => void) | null, cx: number, cy: number, R: number) {
+  if (fig) { fig(m); m.globalAlpha = 1; return; }
+  m.fillStyle = '#000'; m.beginPath(); m.arc(cx, cy, R, 0, Math.PI * 2); m.fill();
+}
+
+// ── Capes dels tokens i dels noms ─────────────────────────────────────────────
+const _layers = new Map<string, HTMLCanvasElement>();
+/** Llenç auxiliar de la mida de `ctx`, buidat i amb la mateixa transformació. */
+function layerFor(name: string, ctx: CanvasRenderingContext2D): CanvasRenderingContext2D | null {
+  if (typeof document === 'undefined') return null;
+  let cv = _layers.get(name);
+  if (!cv) { cv = document.createElement('canvas'); _layers.set(name, cv); }
+  if (cv.width !== ctx.canvas.width || cv.height !== ctx.canvas.height) { cv.width = ctx.canvas.width; cv.height = ctx.canvas.height; }
+  const c = cv.getContext('2d');
+  if (!c) return null;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, cv.width, cv.height);
+  c.setTransform(ctx.getTransform());
+  return c;
+}
+/** Posa una capa sencera damunt de `ctx` (en px del llenç). */
+export function blitLayer(ctx: CanvasRenderingContext2D, layer: HTMLCanvasElement) {
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.drawImage(layer, 0, 0); ctx.restore();
+}
+/** Quant perden els noms i la vida allà on passen per sobre d'una figureta (0 = gens, 1 = del tot). */
+const NAME_FADE = 0.7;
+
+/**
+ * Tokens i noms, igual al DM i a la pantalla de jugador. Els noms van a sobre de tots els tokens,
+ * però allà on passen per damunt d'una figureta (la d'un altre token) s'esvaeixen (`NAME_FADE`):
+ * així es llegeix la silueta i el nom no desapareix. `keepTokens`: els tokens es pinten en una capa
+ * que es retorna (la pantalla de jugador la torna a posar damunt de les portes). `between`: el que
+ * s'ha de pintar entre els tokens i els noms (al DM, la vora de les parets de les portes).
+ */
+export function renderTokenScene(ctx: CanvasRenderingContext2D, fc: FrameContext,
+  opts: { keepTokens?: boolean; between?: () => void } = {}): { tokens: HTMLCanvasElement | null; names: HTMLCanvasElement | null } {
+  const mask = layerFor('mask', ctx);
+  const tl = opts.keepTokens ? layerFor('tokens', ctx) : null;
+  const prevMask = fc.figMask;
+  fc.figMask = mask ?? undefined;
+  renderTokens(tl ?? ctx, fc);
+  fc.figMask = prevMask;
+  if (tl) blitLayer(ctx, tl.canvas);
+  opts.between?.();
+  const nl = layerFor('names', ctx);
+  if (!nl) { renderNameTags(ctx, fc); return { tokens: tl?.canvas ?? null, names: null }; }
+  renderNameTags(nl, fc);
+  if (mask) {
+    nl.save(); nl.setTransform(1, 0, 0, 1, 0, 0);
+    nl.globalCompositeOperation = 'destination-out'; nl.globalAlpha = NAME_FADE;
+    nl.drawImage(mask.canvas, 0, 0);
+    nl.restore();
+  }
+  blitLayer(ctx, nl.canvas);
+  return { tokens: tl?.canvas ?? null, names: nl.canvas };
+}
+
 
 export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const prev = fc.rDragPreview?.current;
@@ -806,7 +867,7 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
     const plSprite = pixelSprite(fc, pl.sprite);
     const glow = isTurnToken(_turn, `pl_${pl.id}`) && !isDefeated ? 1 : 0;  // torn: el halo de color resplendeix
     if (!plSprite) drawDiscShadow(ctx, ppos.x + R, ppos.y + R, R, sc);
-    let fig: (() => void) | null = null;
+    let fig: ((c?: CanvasRenderingContext2D) => void) | null = null;
     if (plSprite) {
       fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax, hpHit: pl.hpHit });
     } else if (isDefeated && colorProg > 0) {
@@ -869,6 +930,7 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
 
     // Amb figureta: la figura damunt de tots els aros dels peus, i la creu a sobre.
     if (fig) { fig(); ctx.globalAlpha = 1; }
+    if (fc.figMask && !(isInvis && !isDM)) maskFigure(fc.figMask, fig, ppos.x + R, ppos.y + R, R);
     if (fig) drawCross();
   });
 }

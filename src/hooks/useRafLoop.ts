@@ -3,12 +3,12 @@ import { useEffect } from 'react';
 import { renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells, spellShake } from '@/lib/render/spells';
-import { renderTokens, renderNameTags } from '@/lib/render/tokens';
+import { renderTokenScene } from '@/lib/render/tokens';
 import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { renderGrid, renderDifficult, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
-import { drawTileLive, drawTileDoorsOver, doorOpenById } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver, drawTileDoorEdgesOver, doorOpenById } from '@/lib/tilemap/render';
 import { TILE } from '@/lib/tilemap/model';
 import { WALL_BY_ID } from '@/lib/tilemap/palette';
 import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
@@ -288,8 +288,10 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       // Seleccionat a sobre de tot (mateix ordre que el hit-test, `render/token-geom.ts`); el
       // ventall dels apilats avança aquí, un cop per frame.
       advanceTokenSpread(performance.now());
-      renderTokens(ctx, fc);
-      renderNameTags(ctx, fc);       // els noms, com a la pantalla de jugador (mateixa col·locació)
+      // Tokens, la paret de les portes (per sobre del token que hi passa) i els noms, com al jugador.
+      renderTokenScene(ctx, fc, {
+        between: () => { if (R.rTileLive.current) drawTileDoorEdgesOver(ctx, R.rTileLive.current, doorOpenById(R.rDoors.current)); },
+      });
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
       ctx.restore();
 

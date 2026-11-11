@@ -150,7 +150,11 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
 
 /** El que no va al cuinat perquè es mou o canvia d'estat. Viatja al jugador dins del STATE. */
 /** Peça d'una porta: `dy` en caselles des de la casella de la porta; `shadow` = ombra (no es repinta sobre la foscor). */
-export interface DoorPiece { dy: number; tile: number; shadow?: boolean }
+/**
+ * Peça d'una porta. `shadow`: l'ombra de sota (translúcida). `edge`: no és porta sinó PARET (la vora de
+ * dalt del tram de baix d'una porta lateral): els tokens van per sobre de la porta però per sota d'això.
+ */
+export interface DoorPiece { dy: number; tile: number; shadow?: boolean; edge?: boolean }
 
 export interface TileLive {
   /** Peces animades: posició (px de mapa) + fotogrames. */
@@ -198,7 +202,7 @@ export function tileLiveOf(m: TileMap): TileLive {
     //    casella grisa, fila 0): el muntant queda a la junta entre els dos trams.
     // Cada casella és una porta (les «portes laterals dobles» de la v4.88 es van treure).
     const piece = (col: number) => [{ dy: -1, tile: W(col, 0) }, { dy: 0, tile: W(col, 1) }];
-    const sideEdge = { dy: 0, tile: W(1, 0) };
+    const sideEdge = { dy: 0, tile: W(1, 0), edge: true };
     const h = doorAxis(m, c, r) === 'h';
     doors.push({
       id: `td_${i}`, x: c * TILE, y: r * TILE,
@@ -291,6 +295,44 @@ export function clipTileDoors(ctx: CanvasRenderingContext2D, live: TileLive | nu
   }
   ctx.clip();
   return true;
+}
+
+/** Vora de paret menys les peces de porta que hi van a sobre (cache per combinació de peces). */
+const _edgeCut = new Map<string, HTMLCanvasElement | null>();
+function edgeMinus(edge: number, over: number[]): HTMLCanvasElement | null {
+  const key = `${edge}|${over.join(',')}`;
+  if (_edgeCut.has(key)) return _edgeCut.get(key)!;
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = c.height = TILE;
+  const g = c.getContext('2d');
+  if (!g) return null;
+  g.imageSmoothingEnabled = false;
+  drawTile(g, edge, 0, 0);
+  g.globalCompositeOperation = 'destination-out';
+  for (const t of over) drawTile(g, t, 0, 0);
+  _edgeCut.set(key, c);
+  return c;
+}
+
+/**
+ * Després dels tokens: torna a pintar la PARET de les portes (`edge`, la vora del tram de baix d'una
+ * porta lateral) allà on no hi ha porta a sobre. Així el token que passa per la porta queda per
+ * sobre de la porta i per sota de la paret, al DM i a la pantalla de jugador igual.
+ */
+export function drawTileDoorEdgesOver(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean) {
+  if (!live || !live.doors.length || !sheet('terrain')) return;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  for (const d of live.doors) {
+    const parts = openById(d.id) ? d.open : d.closed;
+    parts.forEach((p, i) => {
+      if (!p.edge) return;
+      const over = parts.slice(i + 1).filter(q => q.dy === p.dy && !q.shadow && !q.edge).map(q => q.tile);
+      const cut = edgeMinus(p.tile, over);
+      if (cut) ctx.drawImage(cut, d.x, d.y + p.dy * TILE, TILE, TILE);
+    });
+  }
+  ctx.restore();
 }
 
 // Miniatures per a la paleta (dataURL, una per peça i mida).
