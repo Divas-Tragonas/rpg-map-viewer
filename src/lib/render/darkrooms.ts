@@ -14,9 +14,6 @@ export function toggleLightDebug(): boolean { _lightDebug = !_lightDebug; return
 
 // Capa de foscor reutilitzada entre frames (mateixa mida que el canvas principal).
 let _darkCanvas: HTMLCanvasElement | null = null;
-// Capa de llum: s'hi acumulen tots els retalls de llum abans de compositar-los sobre la
-// foscor amb `destination-out`.
-let _lightCanvas: HTMLCanvasElement | null = null;
 // Canvas temporal amb una còpia de la màscara d'UNIÓ (sala ∪ vessament) de cada llum, per
 // poder fer-ne l'erosió morfològica sense llegir i escriure el mateix canvas alhora.
 let _lightTmp2: HTMLCanvasElement | null = null;
@@ -25,7 +22,16 @@ let _lightTmp2: HTMLCanvasElement | null = null;
 // els píxels, així moure UN token no obliga a refer la llum de tota la resta.
 // `base` = la part de la firma que no depèn de la posició de la llum (parets + càmera) i `t` =
 // instant del rasteritzat: serveixen al límit de ritme (veure `LIGHT_THROTTLE_MS`).
-const _maskCache = new Map<string, { sig: string; base: string; cv: HTMLCanvasElement; bx: number; by: number; t: number }>();
+// `k` = escala del rasteritzat (1 = resolució de pantalla; <1 = baixa resolució, veure `LIGHT_LOD`);
+// `bw`/`bh` = mida en píxels de pantalla del rectangle que cobreix (el canvas `cv` és `k` vegades més petit).
+const _maskCache = new Map<string, { sig: string; base: string; cv: HTMLCanvasElement; bx: number; by: number; bw: number; bh: number; k: number; t: number }>();
+// Baixa resolució mentre la llum canvia (token en moviment, càmera, parets): el gradient és suau i
+// la màscara es veu igual ampliada, i costa ¼ dels píxels (fills, erosió, gradient i blits). Quan
+// la llum s'atura (`LIGHT_SETTLE_MS` sense canvis) es torna a rasteritzar UNA vegada a resolució plena.
+const LIGHT_LOD = 0.5;
+const LIGHT_SETTLE_MS = 110;
+// Llums petites (rectangle de pantalla < això, en px²) ja són barates: sempre a resolució plena.
+const LIGHT_LOD_MIN_AREA = 160 * 160;
 // Límit de ritme de la llum mentre un token es mou (~30 fps a 60 Hz): si només han canviat la
 // posició/radi/intensitat d'una llum i el seu rasteritzat és de fa menys d'això, es reutilitza
 // el de fa un instant (la diferència és d'un fotograma de moviment) i es demana un fotograma
@@ -45,8 +51,6 @@ let _exploredVer = 0;
 let _memTerrain: HTMLCanvasElement | null = null;
 let _memTerrainSig = '';
 let _memTerrainMedia: unknown = null;
-// Regió de `_lightCanvas` que va escriure el frame anterior (l'única que cal netejar).
-let _lcDirty: { x: number; y: number; w: number; h: number } | null = null;
 
 // ── Boira "explorada" (estil Age of Empires) ───────────────────────────────────────
 // Màscara (alpha) en coords de MAP a resolució reduïda que acumula tot el que s'ha vist.
@@ -342,32 +346,27 @@ function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): b
 //  2. El resultat de cada llum es guarda a `_maskCache` i es reutilitza mentre la seva
 //     firma no canviï: moure UN token ja no obliga a rasteritzar la llum de tota la resta
 //     (el cas normal a taula), i amb tothom quiet no se'n rasteritza cap.
-//  3. `_lightCanvas` només es neteja i es composita a la finestra que ocupen les llums.
+//  3. Cada llum esborra la foscor directament (`destination-out`), sense capa de llum intermèdia.
 // Els `drawImage` són el que costa; els `fill` no surten ni al perfil (per això la màscara
 // es torna a traçar dues vegades en lloc de copiar-se amb un blit).
 function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSig: string, rooms: Room[], fnow: number): void {
   const off = octx.canvas;
-  if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
-  const lc = _lightCanvas;
-  if (lc.width !== off.width || lc.height !== off.height) { lc.width = off.width; lc.height = off.height; _lcDirty = null; }
-  const lctx = lc.getContext('2d')!;
-  lctx.setTransform(1, 0, 0, 1, 0, 0);
-  // Només cal netejar el que hi va deixar el frame anterior (les llums ocupen una part
-  // petita de la pantalla): netejar el canvas sencer a cada frame era una passada de
-  // pantalla completa de franc.
-  if (_lcDirty) lctx.clearRect(_lcDirty.x, _lcDirty.y, _lcDirty.w, _lcDirty.h);
-  else lctx.clearRect(0, 0, lc.width, lc.height);
+  const T = octx.getTransform();
   if (!_lightTmp2) _lightTmp2 = document.createElement('canvas');
   const tmp2 = _lightTmp2;
   if (tmp2.width !== off.width || tmp2.height !== off.height) { tmp2.width = off.width; tmp2.height = off.height; }
   const t2ctx = tmp2.getContext('2d')!;
-  const T = octx.getTransform();
   const addPath = (c: CanvasRenderingContext2D, pts: { x: number; y: number }[]) => {
     c.beginPath();
     pts.forEach((p, i) => i === 0 ? c.moveTo(p.x, p.y) : c.lineTo(p.x, p.y));
     c.closePath();
   };
-  let ux0 = Infinity, uy0 = Infinity, ux1 = -Infinity, uy1 = -Infinity;
+  // Cada llum esborra la foscor DIRECTAMENT (`destination-out` sobre `octx`): esborrar a, després
+  // b, deixa (1−a)(1−b), el mateix que acumular-les a una capa i compositar-la. Així no cal ni
+  // la capa de llum, ni netejar-la, ni el blit de la unió de rectangles.
+  octx.save();
+  octx.setTransform(1, 0, 0, 1, 0, 0);
+  octx.globalCompositeOperation = 'destination-out';
   const seen = new Set<string>();
   for (const { li, poly, roomPts } of polys) {
     // 0) Rectangle de pantalla que ocupa aquesta llum (el gradient ja la retalla al radi,
@@ -380,13 +379,6 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     const bh = Math.min(off.height, Math.ceil(cy + rr)) - by;
     if (bw <= 0 || bh <= 0) continue;      // llum completament fora de pantalla
     seen.add(li.key);
-    const grow = (x: number, y: number, w: number, h: number) => {
-      if (x < ux0) ux0 = x;
-      if (y < uy0) uy0 = y;
-      if (x + w > ux1) ux1 = x + w;
-      if (y + h > uy1) uy1 = y + h;
-    };
-
     // 0b) Memòria cau del rasteritzat d'aquesta llum. Rasteritzar-la (màscara + erosió +
     //     gradient) és el gruix del cost del frame i es refeia per a TOTES les llums a cada
     //     frame, encara que només se n'hagués mogut una. La firma cobreix tot el que en
@@ -397,26 +389,30 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     const q = (v: number) => Math.round(v * 4) / 4;
     const base = `${wallsSig}|${T.a.toFixed(5)},${T.e.toFixed(2)},${T.f.toFixed(2)}`;
     const sig = `${base}|${bx},${by},${bw},${bh}|${q(cx)},${q(cy)},${q(rr)},${li.intensity.toFixed(3)}`;
-    if (ent && ent.sig === sig && ent.cv.width === bw && ent.cv.height === bh) {
-      grow(bx, by, bw, bh);
-      lctx.setTransform(1, 0, 0, 1, 0, 0);
-      lctx.drawImage(ent.cv, 0, 0, bw, bh, bx, by, bw, bh);
+    const dimsOk = !!ent && ent.bw === bw && ent.bh === bh;
+    if (ent && ent.sig === sig && dimsOk && (ent.k === 1 || fnow - ent.t < LIGHT_SETTLE_MS)) {
+      octx.drawImage(ent.cv, 0, 0, ent.cv.width, ent.cv.height, bx, by, bw, bh);
+      if (ent.k < 1) wake();   // en baixa resolució: un fotograma més per fer la passada final a resolució plena
       continue;
     }
     // Límit de ritme: només ha canviat la llum (no les parets ni la càmera) i el seu
     // rasteritzat és molt recent → es reutilitza tal qual, al seu rectangle d'abans.
     if (ent && ent.base === base && fnow - ent.t < LIGHT_THROTTLE_MS) {
-      grow(ent.bx, ent.by, ent.cv.width, ent.cv.height);
-      lctx.setTransform(1, 0, 0, 1, 0, 0);
-      lctx.drawImage(ent.cv, 0, 0, ent.cv.width, ent.cv.height, ent.bx, ent.by, ent.cv.width, ent.cv.height);
+      octx.drawImage(ent.cv, 0, 0, ent.cv.width, ent.cv.height, ent.bx, ent.by, ent.bw, ent.bh);
       wake();
       continue;
     }
-    grow(bx, by, bw, bh);
     // El rasteritzat es fa directament al canvas de la memòria cau, en coordenades locals
     // del rectangle (origen a bx,by): així guardar-lo no costa cap còpia extra.
+    // Baixa resolució si la llum ja existia i ha CANVIAT (si la firma és la mateixa, és la passada
+    // final d'assentament: resolució plena). Una llum nova també va a resolució plena.
+    const k = (ent && ent.sig !== sig && bw * bh > LIGHT_LOD_MIN_AREA) ? LIGHT_LOD : 1;
+    const cw = k === 1 ? bw : Math.max(1, Math.ceil(bw * k));
+    const ch = k === 1 ? bh : Math.max(1, Math.ceil(bh * k));
+    // Transformació de mapa → píxels del canvas de la llum (origen a bx,by, escalada per k).
+    const Tk = [T.a * k, T.b * k, T.c * k, T.d * k, (T.e - bx) * k, (T.f - by) * k] as const;
     const cv = ent?.cv ?? document.createElement('canvas');
-    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
     const cvx = cv.getContext('2d')!;
 
     // 1) Màscara d'UNIÓ (sala ∪ vessament per portes), plana i opaca. Pintar blanc sobre
@@ -428,10 +424,10 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     //    blits són el gruix del cost per llum; els `fill` no surten ni al perfil).
     const paintMask = (c: CanvasRenderingContext2D) => {
       c.setTransform(1, 0, 0, 1, 0, 0);
-      c.clearRect(0, 0, bw, bh);
+      c.clearRect(0, 0, cw, ch);
       c.save();
-      c.beginPath(); c.rect(0, 0, bw, bh); c.clip();
-      c.setTransform(T.a, T.b, T.c, T.d, T.e - bx, T.f - by);
+      c.beginPath(); c.rect(0, 0, cw, ch); c.clip();
+      c.setTransform(Tk[0], Tk[1], Tk[2], Tk[3], Tk[4], Tk[5]);
       c.globalCompositeOperation = 'source-over';
       c.fillStyle = '#fff';
       if (roomPts && roomPts.length >= 3) { addPath(c, roomPts); c.fill(); }
@@ -448,12 +444,12 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     //     de la còpia `tmp2`.
     cvx.setTransform(1, 0, 0, 1, 0, 0);
     cvx.globalCompositeOperation = 'destination-in';
-    cvx.drawImage(tmp2, 0, 0, bw, bh, 1, 0, bw, bh);
-    cvx.drawImage(tmp2, 0, 0, bw, bh, -1, 0, bw, bh);
-    cvx.drawImage(tmp2, 0, 0, bw, bh, 0, 1, bw, bh);
-    cvx.drawImage(tmp2, 0, 0, bw, bh, 0, -1, bw, bh);
+    cvx.drawImage(tmp2, 0, 0, cw, ch, 1, 0, cw, ch);
+    cvx.drawImage(tmp2, 0, 0, cw, ch, -1, 0, cw, ch);
+    cvx.drawImage(tmp2, 0, 0, cw, ch, 0, 1, cw, ch);
+    cvx.drawImage(tmp2, 0, 0, cw, ch, 0, -1, cw, ch);
     cvx.globalCompositeOperation = 'source-over';
-    cvx.setTransform(T.a, T.b, T.c, T.d, T.e - bx, T.f - by);
+    cvx.setTransform(Tk[0], Tk[1], Tk[2], Tk[3], Tk[4], Tk[5]);
     // 1c) La SALA del token, sencera i 1px de pantalla cap enfora, però mai dins d'una ALTRA
     //     sala. L'erosió d'abans també s'emportava la vora de la sala pròpia, i el píxel de
     //     la vora (on l'antialiàsing de la foscor i el de la llum queden a mitges) quedava
@@ -493,25 +489,14 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     cvx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
     cvx.globalCompositeOperation = 'source-over';
     cvx.restore();   // treu el retall
-    _maskCache.set(li.key, { sig, base, cv, bx, by, t: fnow });
+    _maskCache.set(li.key, { sig, base, cv, bx, by, bw, bh, k, t: fnow });
     // 3) Acumular aquesta llum a la capa de llum (només el seu rectangle: així el que hi
     //    hagi deixat una altra llum fora d'aquest rectangle no s'hi torna a sumar).
-    lctx.setTransform(1, 0, 0, 1, 0, 0);
-    lctx.drawImage(cv, 0, 0, bw, bh, bx, by, bw, bh);
+    octx.drawImage(cv, 0, 0, cw, ch, bx, by, bw, bh);
+    if (k < 1) wake();
   }
   for (const k of _maskCache.keys()) if (!seen.has(k)) _maskCache.delete(k);
-  if (ux1 <= ux0 || uy1 <= uy0) { _lcDirty = null; return; }  // cap llum a pantalla
-  const uw = ux1 - ux0, uh = uy1 - uy0;
-  _lcDirty = { x: ux0, y: uy0, w: uw, h: uh };
-  // Fora de la unió dels rectangles de llum, `lc` és transparent i el `destination-out`
-  // no hi canviaria res: compositar només aquesta finestra estalvia una passada de
-  // pantalla completa per frame.
-  octx.save();
-  octx.globalCompositeOperation = 'destination-out';
-  octx.setTransform(1, 0, 0, 1, 0, 0);
-  octx.drawImage(lc, ux0, uy0, uw, uh, ux0, uy0, uw, uh);
   octx.restore();
-  octx.globalCompositeOperation = 'source-over';
 }
 
 function roomPath(ctx: CanvasRenderingContext2D, room: Room): void {
@@ -682,20 +667,14 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       const dh = Math.min(main.height, Math.ceil(sby1)) - dy0;
       const hasDark = visFills.length > 0 && dw > 0 && dh > 0;
 
-      if (hasDark) {
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.drawImage(off, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
-        ctx.restore();
-      }
-
-      // ── Terra explorada (memòria estil AoE) ──────────────────────────────────────
+      // ── Terra explorat (memòria estil AoE) ──────────────────────────────────────
       // A les zones ja vistes però ARA fosques (no il·luminades) es mostra el mapa de fons
       // ATENUAT: saps el terreny, però els tokens (dibuixats sota la foscor opaca) queden
       // amagats. Regió = explorat ∩ fosc-no-il·luminat (= on `off` encara té alpha). Les
       // zones no explorades es queden negres; les il·luminades ara es veuen en viu.
       const media = fc.mediaEl;
       const mediaReady = !!media && ((media.tagName === 'IMG' && (media as HTMLImageElement).naturalWidth > 0) || (media.tagName === 'VIDEO' && (media as HTMLVideoElement).videoWidth > 0));
+      let terr: HTMLCanvasElement | null = null;
       if (media && mediaReady && polys.length > 0) {
         // Acumula l'explorat NOMÉS dins de sales fosques (fills, TOTES, també les de fora
         // de pantalla: el que s'explora sense mirar-s'hi ha de quedar memoritzat igual) i
@@ -714,13 +693,11 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         // visibles: el terreny memoritzat només es veu on `off` té alpha.
         if (hasDark) {
           const ex = ensureExplored(fc.mw, fc.mh);
-          if (!_memCanvas) _memCanvas = document.createElement('canvas');
           if (!_memTerrain) _memTerrain = document.createElement('canvas');
-          const mem = _memCanvas, terr = _memTerrain;
-          if (mem.width !== main.width || mem.height !== main.height) { mem.width = main.width; mem.height = main.height; }
+          terr = _memTerrain;
           if (terr.width !== main.width || terr.height !== main.height) { terr.width = main.width; terr.height = main.height; _memTerrainSig = ''; }
-          // «mapa ∩ explorat» no depèn de la llum, només de la càmera, el mapa i la màscara
-          // d'explorat: es refà quan canvien. Un vídeo canvia a cada frame: no es pot guardar.
+          // «mapa ∩ explorat» (ja atenuat a `MEM_DIM`) no depèn de la llum, només de la càmera,
+          // el mapa i la màscara d'explorat: es refà quan canvien. Un vídeo canvia a cada frame.
           const Tm = ctx.getTransform();
           const tsig = `${Tm.a.toFixed(5)},${Tm.e.toFixed(2)},${Tm.f.toFixed(2)}|${dx0},${dy0},${dw},${dh}|${fc.mw}x${fc.mh}|${_exploredVer}|${(media as HTMLImageElement).currentSrc ?? ''}`;
           if (media.tagName === 'VIDEO' || _memTerrainMedia !== media || _memTerrainSig !== tsig) {
@@ -729,30 +706,56 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
             tctx.clearRect(dx0, dy0, dw, dh);
             tctx.save();
             tctx.beginPath(); tctx.rect(dx0, dy0, dw, dh); tctx.clip();
-            // 1) el terreny (mapa de fons) en coords de map
+            // 1) el terreny (mapa de fons) en coords de map, atenuat
             tctx.setTransform(Tm);
+            tctx.globalAlpha = MEM_DIM;
             tctx.drawImage(media, 0, 0, fc.mw, fc.mh);
+            tctx.globalAlpha = 1;
             // 2) retallar-lo a les zones explorades
             tctx.globalCompositeOperation = 'destination-in';
             tctx.drawImage(ex.canvas, 0, 0, fc.mw, fc.mh);
             tctx.restore();
             _memTerrainSig = tsig; _memTerrainMedia = media;
           }
-          const mctx = mem.getContext('2d')!;
-          mctx.setTransform(1, 0, 0, 1, 0, 0);
-          mctx.clearRect(dx0, dy0, dw, dh);
-          mctx.drawImage(terr, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
-          // 3) i a les que encara són fosques ara (alpha de `off` post-carve = fosc-no-lluminat)
-          mctx.globalCompositeOperation = 'destination-in';
-          mctx.drawImage(off, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
-          mctx.globalCompositeOperation = 'source-over';
-          // Composita el terreny memoritzat, atenuat, damunt de la foscor (amaga els tokens).
-          ctx.save();
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.globalAlpha = MEM_DIM;
-          ctx.drawImage(mem, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
-          ctx.restore();
         }
+      }
+
+      if (hasDark && terr && !isDM) {
+        // Pantalla de jugador: la foscor és opaca (alfa 1) allà on no hi ha llum, així que el
+        // terreny memoritzat es pot pintar DINS de la capa de foscor amb `source-atop` (només
+        // hi cau on `off` té alfa) i tot va a la pantalla en un sol blit. Abans eren tres
+        // blits de pantalla (còpia, `destination-in`, compòsit). Només la vora suau de la
+        // llum i les sales que s'estan revelant (alfa < 1) difereixen, i per poc.
+        octx.save();
+        octx.setTransform(1, 0, 0, 1, 0, 0);
+        octx.globalCompositeOperation = 'source-atop';
+        octx.drawImage(terr, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
+        octx.restore();
+      }
+      if (hasDark) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(off, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
+        ctx.restore();
+      }
+      if (hasDark && terr && isDM) {
+        // DM: la foscor és semitransparent, així que cal respectar-ne l'alfa: còpia del terreny,
+        // retall amb `off` (fosc-no-il·luminat) i compòsit a sobre.
+        if (!_memCanvas) _memCanvas = document.createElement('canvas');
+        const mem = _memCanvas;
+        if (mem.width !== main.width || mem.height !== main.height) { mem.width = main.width; mem.height = main.height; }
+        const mctx = mem.getContext('2d')!;
+        mctx.setTransform(1, 0, 0, 1, 0, 0);
+        mctx.globalCompositeOperation = 'source-over';
+        mctx.clearRect(dx0, dy0, dw, dh);
+        mctx.drawImage(terr, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
+        mctx.globalCompositeOperation = 'destination-in';
+        mctx.drawImage(off, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
+        mctx.globalCompositeOperation = 'source-over';
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(mem, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
+        ctx.restore();
       }
 
       // DEBUG (tecla L): parets efectives (magenta) + polígon de visió (cian) + radi (groc).

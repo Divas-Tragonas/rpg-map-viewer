@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.14 — Llums a baixa resolució mentre es mouen, sense capa intermèdia i terra explorat dins la foscor
+- La llum d'un token en moviment es rasteritza a la meitat de resolució (¼ dels píxels) i, quan s'atura, es refà una vegada a resolució plena
+- Les llums esborren la foscor directament (menys blits de pantalla per frame)
+- Pantalla de jugador: el terra explorat es pinta dins de la capa de foscor (un sol blit en lloc de tres)
+- Mesura: ~77 → ~29 ms/frame movent tokens (rasteritzador per programari, 5 jugadors)
+
 ### v5.13 — Llums més àgils: límit de ritme, explorat més espaiat i terra explorat en memòria cau
 - La llum i el seu polígon de visió es refan com a molt cada ~24 ms mentre un token es mou (el darrer fotograma sempre és exacte)
 - La memòria d'explorat s'acumula com a molt cada 150 ms (i sempre acaba d'acumular-se en aturar-se)
