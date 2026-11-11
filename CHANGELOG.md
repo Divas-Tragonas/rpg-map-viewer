@@ -5,9 +5,9 @@ La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/
 
 ### v5.09 — Selecció només amb Ctrl, grups amb nom i un sol torn, halo que pulsa, mapes de caselles sense límit
 - **Diari**: fora l'estrella i el botó «Anteriorment…» (i el seu recap); cada anotació és un requadre amb la vora i l'etiqueta del color del seu tipus, com l'historial de combat
-- **Halo del torn** més visible: línia més gruixuda i dos vels que **pulsen** (intensitat i mida)
-- **Grups al combat**: un grup triat en iniciar els torns juga **alhora** (un sol torn per a tots els seus membres: halo, moviment, estats i recàrregues); a la barra els membres van marcats i el rètol de jugador diu el nom del grup
-- **Crear un grup** obre una finestreta flotant al lloc del clic per posar-li nom (Enter l'accepta); per defecte «Grup N+1»
+- **Halo del torn** més visible: línia més gruixuda i dos vels que **pulsen** lentament (intensitat i mida)
+- **Grups al combat**: un grup triat en iniciar els torns juga **alhora** (un sol torn per a tots els seus membres: halo, moviment, estats i recàrregues); a la barra **un grup és un sol xip** (avatar + recompte, «N / total drets» quan té el torn) i el rètol de jugador diu el nom del grup
+- **Crear un grup** obre una finestreta flotant al lloc del clic per posar-li nom (Enter l'accepta); per defecte «Grup N+1» amb un comptador intern que només puja
 - **Selecció**: un clic a un token substitueix la selecció; per afegir-ne, **Ctrl/⌘ + clic** (també el rectangle `A`). Surt a l'ajuda de dreceres
 - **Mapa de caselles** sense el límit de 120: ara el sostre és de seguretat (300 per costat, 40.000 caselles). El botó de centrar vista centra el que hi ha pintat, no el llenç sencer
 - Sense canvis a la API (`together`/`groupNames` van dins de `turn`, que el servidor reenvia tal qual)

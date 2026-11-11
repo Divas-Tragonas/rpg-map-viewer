@@ -911,6 +911,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       // parells perquè un Map no sobreviu al JSON.
       tokenGroups: [...R.rTokenGroups.current],
       groupNames: [...R.rGroupNames.current],
+      groupSeq: R.rGroupSeq.current,
       // Durades en combat dels estats de les màgies (Dormir, Escut…).
       timedEffects: R.rTimedEffects.current,
       // Diàlegs preparats de cada token.
@@ -1023,6 +1024,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       if (state.turn)          { rTurn.current = state.turn; S.setTurn(state.turn); }
       if (Array.isArray(state.tokenGroups)) R.rTokenGroups.current = new Map(state.tokenGroups);
       R.rGroupNames.current = Array.isArray(state.groupNames) ? new Map(state.groupNames) : new Map();
+      R.rGroupSeq.current = typeof state.groupSeq === 'number' ? state.groupSeq : new Set(R.rTokenGroups.current.values()).size;
       R.rTimedEffects.current = Array.isArray(state.timedEffects) ? state.timedEffects : [];
       R.rDialogs.current = state.dialogs && typeof state.dialogs === 'object' ? state.dialogs : {};
       S.onDialogsChange?.();

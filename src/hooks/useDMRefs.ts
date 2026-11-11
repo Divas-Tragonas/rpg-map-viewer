@@ -85,6 +85,8 @@ export function useDMRefs() {
   const rTokenGroups     = useRef<Map<number | string, string>>(new Map());
   // Nom de cada grup (groupId → nom).
   const rGroupNames      = useRef<Map<string, string>>(new Map());
+  // Comptador intern dels grups creats (només puja): en surt el nom per defecte «Grup N+1».
+  const rGroupSeq        = useRef(0);
   // Sistema per torns (iniciativa). Mirall de l'estat `turn`; el tick i el drag el llegeixen.
   const rTurn            = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   // Desfer / refer únic (veure `lib/undo.ts`): una sola pila d'ordres reversibles. DM-only,
@@ -234,7 +236,7 @@ export function useDMRefs() {
     rWalls, rRooms, rDoors, rLights, rDifficult, rTerrainDrag, rAttackPending, rTimedEffects, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
-    rSelectedToken, rMultiSelected, rTokenGroups, rGroupNames, rTurn, rUndo, rTurnGen, rUndoGesture, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,
+    rSelectedToken, rMultiSelected, rTokenGroups, rGroupNames, rGroupSeq, rTurn, rUndo, rTurnGen, rUndoGesture, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,
     rDMPreviewActive, rDMPreviewZoom, rDMPreviewPan,
     dragRef, rafRef, drawCanvasRef, isDrawingRef, lastDrawRef, bcRef, wsRef,
     panDragRef, rPanOffset, visualPosRef, rMovePath, currentStrokeRef, strokeQueueRef,

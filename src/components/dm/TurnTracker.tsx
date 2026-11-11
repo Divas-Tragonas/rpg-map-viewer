@@ -108,6 +108,9 @@ function moveItem<T>(arr: readonly T[], from: number, to: number): T[] {
   return a;
 }
 
+/** Un xip de la barra: un token, o tots els membres d'un grup que juga junt. */
+interface Slot { ids: (number | string)[]; start: number; group?: string }
+
 type Pop = null | 'round' | 'end' | 'log' | { recover: number | string };
 
 /** El que es pinta d'un arrossegament: on és el clon (coords de la barra) i on cauria. */
@@ -118,7 +121,7 @@ interface DragSession {
   pointerId: number;
   from: number;
   to: number;
-  order: (number | string)[];
+  order: Slot[];
   widths: number[];
   startX: number;
   startY: number;
@@ -330,15 +333,30 @@ export function TurnTracker({
   }
 
   // ── Barra de torns (combat actiu) ──────────────────────────────────────────
-  const widthOf = (i: number) => (i === turn.turnIndex ? ACTIVE_W : SLOT_W);
+  // Un grup que juga junt (15 goblins) ocupa UN sol xip: el seu avatar amb el recompte. Els
+  // membres van contigus a la cua, així que cada xip és un tros de `turn.order`.
+  const slots: Slot[] = [];
+  turn.order.forEach((id, i) => {
+    const g = turn.together?.[String(id)];
+    const prev = slots[slots.length - 1];
+    if (g && prev && prev.group === g) prev.ids.push(id);
+    else slots.push({ ids: [id], start: i, group: g });
+  });
+  const slotActive = (s: Slot) => turn.turnIndex >= s.start && turn.turnIndex < s.start + s.ids.length;
+  const widthOf = (i: number) => (slotActive(slots[i]) ? ACTIVE_W : SLOT_W);
 
-  const chipProps = (id: number | string, i: number): ChipBodyProps => {
-    const isActive = i === turn.turnIndex;
+  const chipProps = (slot: Slot): ChipBodyProps => {
+    const isActive = slotActive(slot);
+    const id = isActive ? turn.order[turn.turnIndex] : slot.ids[0];
+    const grouped = slot.ids.length > 1;
+    const alive = slot.ids.filter(k => !defeated[String(k)]).length;
+    const base = resolve(grouped ? (slot.ids.find(k => !defeated[String(k)]) ?? slot.ids[0]) : id);
     return {
-      info: resolve(id),
+      info: grouped ? { ...base, name: turn.groupNames?.[slot.group ?? ''] ?? 'Grup' } : base,
+      group: grouped ? { count: slot.ids.length, alive } : undefined,
       active: isActive,
-      mate: !isActive && isTurnToken(turn, String(id)),
-      defeated: !!defeated[String(id)],
+      mate: !grouped && !isActive && isTurnToken(turn, String(id)),
+      defeated: grouped ? alive === 0 : !!defeated[String(id)],
       isPlayer: String(id).startsWith('pl_'),
       /* Peus efectius del token actiu: el saldo del torn retallat pels seus estats
          (mateix `movementLimit` que fa servir el clamp del jugador i la validació). */
@@ -366,8 +384,9 @@ export function TurnTracker({
     setDrag(null);
     // Si la cua ha canviat mentrestant (s'ha eliminat un token), l'ordre desat és vell.
     const cur = orderRef.current;
-    const same = cur.length === d.order.length && cur.every((id, k) => String(id) === String(d.order[k]));
-    if (d.to !== d.from && same) onReorder(moveItem(d.order, d.from, d.to));
+    const flat = d.order.flatMap(s => s.ids);
+    const same = cur.length === flat.length && cur.every((id, k) => String(id) === String(flat[k]));
+    if (d.to !== d.from && same) onReorder(moveItem(d.order, d.from, d.to).flatMap(s => s.ids));
     requestAnimationFrame(() => requestAnimationFrame(() => setNoAnim(false)));
   };
 
@@ -421,8 +440,8 @@ export function TurnTracker({
       d.settleTimer = window.setTimeout(() => commitDrag(d), SETTLE_MS);
     };
     const d: DragSession = {
-      pointerId: e.pointerId, from: i, to: i, order: [...turn.order],
-      widths: turn.order.map((_, j) => widthOf(j)),
+      pointerId: e.pointerId, from: i, to: i, order: slots.map(s => ({ ...s, ids: [...s.ids] })),
+      widths: slots.map((_, j) => widthOf(j)),
       startX: e.clientX, startY: e.clientY, lastX: e.clientX,
       grabX: e.clientX - slot.left, top: slot.top - br.top - bar.clientTop,
       started: false, raf: 0, settleTimer: 0,
@@ -441,7 +460,7 @@ export function TurnTracker({
   };
 
   // Previsualització: desplaçament de cada xip perquè quedi el forat on cauria l'arrossegat.
-  const widths = turn.order.map((_, i) => widthOf(i));
+  const widths = slots.map((_, i) => widthOf(i));
   const shifts = drag
     ? (() => {
         const now = layoutLefts(widths, drag.from, drag.from);
@@ -449,7 +468,7 @@ export function TurnTracker({
         return next.map((x, i) => x - now[i]);
       })()
     : null;
-  const dragged = drag ? chipProps(turn.order[drag.from], drag.from) : null;
+  const dragged = drag ? chipProps(slots[drag.from]) : null;
 
   return (
     <div style={wrap}>
@@ -461,7 +480,7 @@ export function TurnTracker({
             style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: RADIUS.md, border: 'none', background: 'transparent', color: C.text, cursor: 'pointer', fontSize: FS.md, fontWeight: 600 }}
             onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-            <RotateCcw size={13} /> Recuperar el torn de {resolve(pop.recover).name}
+            <RotateCcw size={13} /> Recuperar el torn de {turn.together?.[String(pop.recover)] ? (turn.groupNames?.[turn.together[String(pop.recover)]] ?? 'Grup') : resolve(pop.recover).name}
           </button>
         </Bubble>
       )}
@@ -522,9 +541,10 @@ export function TurnTracker({
         <div ref={railRef} style={{ flex: '0 1 auto', minWidth: 0, overflowX: 'auto', overflowY: 'hidden' }}>
           {/* Amplada fixa i `overflow: hidden`: res del que passi a dins (transicions a mitges,
               xips desplaçats en reordenar) pot fer aparèixer la barra de scroll i canviar-ne l'alçada. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: GAP, height: ROW_H, width: railWidth(turn.order.length), overflow: 'hidden' }}>
-            {turn.order.map((id, i) => {
-              const p = chipProps(id, i);
+          <div style={{ display: 'flex', alignItems: 'center', gap: GAP, height: ROW_H, width: railWidth(slots.length), overflow: 'hidden' }}>
+            {slots.map((slot, i) => {
+              const id = slot.ids[0];
+              const p = chipProps(slot);
               const shift = shifts ? shifts[i] : 0;
               return (
                 <div
@@ -676,6 +696,8 @@ function Avatar({ info, size }: { info: TokenInfo; size: number }) {
 
 interface ChipBodyProps {
   info: TokenInfo;
+  /** Xip d'un grup: quants membres té i quants en queden drets. */
+  group?: { count: number; alive: number };
   active: boolean;
   defeated: boolean;
   isPlayer: boolean;
@@ -690,7 +712,7 @@ interface ChipBodyProps {
 
 /** Aspecte d'un xip de la cua (el del carril i el clon que s'arrossega). Ocupa tota la
  *  mida del seu contenidor, que és qui la fixa (veure `SLOT_W` / `ACTIVE_W`). */
-function ChipBody({ info, active, mate, defeated, isPlayer, limit, totalFt, editMode, lifted }: ChipBodyProps) {
+function ChipBody({ info, group, active, mate, defeated, isPlayer, limit, totalFt, editMode, lifted }: ChipBodyProps) {
   return (
     <div style={{
       width: '100%', height: '100%',
@@ -709,6 +731,13 @@ function ChipBody({ info, active, mate, defeated, isPlayer, limit, totalFt, edit
     }}>
       <span style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
         <Avatar info={info} size={active ? 42 : 34} />
+        {group && (
+          <span aria-hidden style={{
+            position: 'absolute', right: -6, bottom: -4, minWidth: 18, height: 18, padding: '0 4px', boxSizing: 'border-box',
+            borderRadius: 9, background: C.panel, border: `1px solid ${C.accent}`, color: C.bright,
+            fontSize: 10, fontWeight: 800, lineHeight: '16px', textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+          }}>{group.count}</span>
+        )}
         {defeated && (
           <span aria-hidden style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -719,6 +748,9 @@ function ChipBody({ info, active, mate, defeated, isPlayer, limit, totalFt, edit
       {active && (
         <span style={{ display: 'flex', flexDirection: 'column', width: INFO_W, flexShrink: 0, lineHeight: 1.2, textAlign: 'left' }}>
           <span style={{ color: C.bright, fontSize: FS.lg, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.name}</span>
+          {group && (
+            <span style={{ color: C.dim, fontSize: FS.sm, fontWeight: 700 }}>{group.alive} / {group.count} drets</span>
+          )}
           {isPlayer && (limit.immobile ? (
             // Un estat li impedeix moure's: val més dir-ho que ensenyar peus que no pot gastar.
             <span style={{ color: C.enemy, fontSize: FS.md, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

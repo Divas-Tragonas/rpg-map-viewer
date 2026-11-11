@@ -1171,11 +1171,10 @@ export function DMView() {
     for (const id of ids) R.rTokenGroups.current.set(id, groupId);
     const live = new Set(R.rTokenGroups.current.values());
     for (const gid of [...R.rGroupNames.current.keys()]) if (!live.has(gid)) R.rGroupNames.current.delete(gid);
-    // «Grup N+1» (N = grups que ja hi ha, abans d'aquest); si ja existeix, el següent lliure.
-    const taken = new Set(R.rGroupNames.current.values());
-    let n = live.size;
-    while (taken.has(`Grup ${n}`)) n++;
-    const name = `Grup ${n}`;
+    // «Grup N+1»: N és un comptador INTERN que només puja (grups creats fins ara, es dissolguin o
+    // es reanomenin o no); mai depèn dels que hi ha ara.
+    R.rGroupSeq.current = Math.max(R.rGroupSeq.current, live.size - 1) + 1;
+    const name = `Grup ${R.rGroupSeq.current}`;
     R.rGroupNames.current.set(groupId, name);
     setGroupNaming({ groupId, x: at.x, y: at.y, name });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

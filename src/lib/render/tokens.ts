@@ -92,8 +92,8 @@ function drawColorHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number, R:
   ctx.save();
   if (invis) ctx.setLineDash([5 / sc, 3 / sc]);
   if (g) {
-    // Pols: la intensitat I la mida varien (el que es mou es nota més). ~1,6 cops per segon.
-    const p = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 10 + phase);
+    // Pols: la intensitat I la mida varien (el que es mou es nota més). ~0,35 cops per segon.
+    const p = reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 2.2 + phase);
     const a = ctx.globalAlpha;
     ctx.strokeStyle = ink;
     // Vel ample exterior: s'infla i s'esvaeix amb el pols.
