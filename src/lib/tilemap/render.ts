@@ -278,6 +278,21 @@ export function drawTileDoorsOver(ctx: CanvasRenderingContext2D, live: TileLive 
   ctx.restore();
 }
 
+/**
+ * Retalla (`clip`) el context a les caselles de les portes, amb la transformació actual. Serveix per
+ * tornar a pintar els tokens damunt de les portes: les portes es pinten sobre la foscor de les sales
+ * (`drawTileDoorsOver`) i, sense això, tapaven el token que hi passava pel davant.
+ */
+export function clipTileDoors(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean): boolean {
+  if (!live || !live.doors.length) return false;
+  ctx.beginPath();
+  for (const d of live.doors) {
+    for (const p of openById(d.id) ? d.open : d.closed) if (!p.shadow) ctx.rect(d.x, d.y + p.dy * TILE, TILE, TILE);
+  }
+  ctx.clip();
+  return true;
+}
+
 // Miniatures per a la paleta (dataURL, una per peça i mida).
 const _thumbs = new Map<string, string>();
 export function tileThumb(tile: number | string, size = 32): string | null {

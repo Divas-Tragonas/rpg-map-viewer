@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells, spellShake } from '@/lib/render/spells';
-import { renderPlayerTokens, renderLibEnemyTokens, trackTokenActivity } from '@/lib/render/tokens';
+import { renderTokens, renderNameTags } from '@/lib/render/tokens';
 import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { renderGrid, renderDifficult, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
@@ -235,6 +235,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         rLights: R.rLights, rLightSelected: R.rLightSelected,
         mediaEl: media as HTMLImageElement | HTMLVideoElement | null,
         rAppStyle: R.rAppStyle, rTileLive: R.rTileLive,
+        nameTags: [] as import('@/lib/render/tokens').NameTag[],
       };
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
@@ -287,11 +288,8 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       // Seleccionat a sobre de tot (mateix ordre que el hit-test, `render/token-geom.ts`); el
       // ventall dels apilats avança aquí, un cop per frame.
       advanceTokenSpread(performance.now());
-      trackTokenActivity(fc);
-      renderLibEnemyTokens(ctx, fc, 'base');
-      renderPlayerTokens(ctx, fc, 'base');
-      renderLibEnemyTokens(ctx, fc, 'top');
-      renderPlayerTokens(ctx, fc, 'top');
+      renderTokens(ctx, fc);
+      renderNameTags(ctx, fc);       // els noms, com a la pantalla de jugador (mateixa col·locació)
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
       ctx.restore();
 

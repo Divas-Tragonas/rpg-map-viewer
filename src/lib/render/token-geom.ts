@@ -130,8 +130,9 @@ export const FIG_BODY_DY = (FIG_FOOT_DY + FIG_HEAD_DY) / 2;
 export interface TokenSlot { key: string; x: number; y: number; R: number; sprite: string | null }
 
 /**
- * Tots els tokens en l'ordre en què es pinten (de sota a sobre): biblioteca, jugadors, el seleccionat
- * i, a sobre de tot, el que el cursor assenyala dins d'un ventall obert. Amb `visual`, el centre i el
+ * Tots els tokens en l'ordre en què es pinten (de sota a sobre): de dalt a baix del mapa (el de més avall
+ * tapa el de darrere), els de l'última acció, el seleccionat i, a sobre de tot, el que el cursor assenyala
+ * dins d'un ventall obert. Amb `visual`, el centre i el
  * radi inclouen l'offset i l'augment del ventall dels apilats.
  */
 export function tokenSlots(refs: TokenRefs, visual = true): TokenSlot[] {
@@ -145,7 +146,9 @@ export function tokenSlots(refs: TokenRefs, visual = true): TokenSlot[] {
     const key = `pl_${pl.id}`, p = pos[key] || { x: pl.x, y: pl.y }, R = ov[key] ?? 22;
     out.push({ key, x: p.x + R, y: p.y + R, R, sprite: pixelSpriteOf(style, pl.sprite) });
   }
-  // Tokens que acaben de fer o rebre una acció: a sobre dels altres (del més antic al més recent).
+  // Ordre de pintat: el de més avall al mapa va per sobre (com a la vida real: tapa el de darrere).
+  out.sort((a, b) => a.y - b.y || (a.key < b.key ? -1 : 1));
+  // Tokens de l'última acció: a sobre dels altres.
   for (const k of activeTokenKeys()) {
     const i = out.findIndex(s => s.key === k);
     if (i >= 0 && i < out.length - 1) out.push(out.splice(i, 1)[0]);
@@ -161,37 +164,40 @@ export function tokenSlots(refs: TokenRefs, visual = true): TokenSlot[] {
 }
 
 // ── Tokens amb activitat recent ───────────────────────────────────────────────
-/** Quant de temps (ms) un token que ha fet o rebut una acció es manté a sobre dels altres. */
-const ACTIVE_MS = 3500;
-/** Última activitat de cada token (`performance.now()`). Només visual: no es desa ni viatja. */
-const _activity = new Map<string, number>();
+/**
+ * Tokens de l'última acció (agressor i víctima, o tots els afectats d'un conjur): es pinten per
+ * sobre de la resta FINS QUE un altre token faci o rebi una acció (no caduquen per temps). Només
+ * visual: no es desa ni viatja, cada pantalla ho detecta pel seu compte (`trackTokenActivity`).
+ */
+let _active: string[] = [];
+let _activeAt = 0;
+/** Accions amb aquest marge es compten com a part de la mateixa (un conjur amb diversos afectats). */
+const BURST_MS = 400;
 /** Signatura de l'últim estat vist de cada token (vida, estats), per detectar-hi canvis. */
 const _seenSig = new Map<string, string>();
 
-/** El token acaba de fer o rebre una acció: puja per sobre dels altres un moment. */
-export function markTokenActive(key: string, at = performance.now()) {
-  _activity.set(key, at);
+function pushActive(key: string, now: number) {
+  if (now - _activeAt > BURST_MS) _active = [];
+  _activeAt = now;
+  _active = _active.filter(k => k !== key);
+  _active.push(key);
   wake();
 }
 /**
- * Registra l'estat d'un token; si ha canviat des de l'última vegada (i no és la primera que el veiem),
- * i `attacker` si el canvi ve d'un altre token, els marca actius. L'agressor es marca un pèl abans
- * perquè el que rep l'acció quedi damunt.
+ * Registra l'estat d'un token; si ha canviat des de l'última vegada (i no és la primera que el veiem)
+ * el marca actiu, i també `attacker` si el canvi ve d'un altre token. La víctima va al final: queda
+ * damunt de l'agressor.
  */
 export function noteTokenState(key: string, sig: string, attacker?: string) {
   const prev = _seenSig.get(key);
   _seenSig.set(key, sig);
   if (prev === undefined || prev === sig) return;
   const now = performance.now();
-  if (attacker) markTokenActive(attacker, now - 1);
-  markTokenActive(key, now);
+  if (attacker && attacker !== key) pushActive(attacker, now);
+  pushActive(key, now);
 }
-/** Claus dels tokens actius ara mateix, del més antic al més recent. */
-export function activeTokenKeys(now = performance.now()): string[] {
-  const out: [string, number][] = [];
-  for (const [k, t] of _activity) { if (now - t > ACTIVE_MS) _activity.delete(k); else out.push([k, t]); }
-  return out.sort((a, b) => a[1] - b[1]).map(e => e[0]);
-}
+/** Claus dels tokens de l'última acció, de sota cap a dalt. */
+export const activeTokenKeys = (): string[] => _active;
 
 /** Marge del cercle de la base, en px de pantalla (com abans als jugadors). */
 const HIT_PAD = 4;

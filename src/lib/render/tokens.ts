@@ -184,10 +184,11 @@ function drawNameTag(ctx: CanvasRenderingContext2D, t: NameTag, u: number, x: nu
  * Barra de vida que només veu el DM, sota el nom: la mateixa per a jugadors i enemics (v4.96: la
  * gruixuda dels enemics, amb els punts a dins, que es llegeix millor que la prima de sota).
  */
-function drawHpBar(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, hpRaw: number, hpMax: number) {
+function drawHpBar(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, hpRaw: number, hpMax: number, fig: boolean) {
   const hp = Math.max(0, hpRaw), ratio = Math.min(1, hp / hpMax);
   const barW = R * 2, barH = Math.max(13 / sc, R * 0.35);
-  const barX = cx - R, barY = cy + R + 16 / sc;
+  // Just sota el nom (3 de buit + 12 de capsa + 1), que ara penja de l'aro dels peus.
+  const barX = cx - R, barY = nameBase(cy, R, fig, sc) + 16 / sc;
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
   ctx.fillStyle = ratio > 0.5 ? C.hpHigh : ratio > 0.25 ? C.hpMid : C.enemy;
   ctx.fillRect(barX, barY, barW * ratio, barH);
@@ -207,7 +208,7 @@ function drawHpBar(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: num
 function nameTag(ctx: CanvasRenderingContext2D, fc: FrameContext, t: NameTag) {
   if (fc.nameTags) { fc.nameTags.push(t); return; }
   const u = nameUnit(fc);
-  drawNameTag(ctx, t, u, t.cx, t.cy + t.r + t.gap * u);
+  drawNameTag(ctx, t, u, t.cx, nameBase(t.cy, t.r, t.fig, fc.sc) + t.gap * u);
 }
 
 type Box = { l: number; r: number; t: number; b: number };
@@ -219,7 +220,15 @@ const tokenBody = (t: NameTag): Box => t.fig
   : { l: t.cx - t.r, r: t.cx + t.r, t: t.cy - t.r, b: t.cy + t.r };
 
 /**
- * Noms de la pantalla de jugador, després de totes les figuretes i abans de la foscor de les sales
+ * Vora de baix del token des d'on penja el nom (px de mapa): el disc, o, a les figuretes, l'aro de color
+ * dels peus (ombra + halos) i no la vora de la casella, que deixava un forat buit sota els peus.
+ */
+function nameBase(cy: number, r: number, fig: boolean, sc: number): number {
+  return fig ? footOf(cy, r) + footEllipse(r, haloSlots(r, sc, true).color + 2 / sc).ry : cy + r;
+}
+
+/**
+ * Noms dels tokens (DM i pantalla de jugador, el mateix codi), després de totes les figuretes i abans de la foscor de les sales
  * (`renderRooms`), que amaga els de dins. Amb els noms grossos de la TV i el mapa sencer a la pantalla,
  * la colla junta feia noms encavalcats i la fila de sota els tapava. Cada nom va al lloc que el mogui
  * menys sense tocar cap altre nom i tapant tan poc com pugui les altres figuretes: a sota (o una o dues
@@ -246,9 +255,10 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
   const slots = new Map<string, number>();
   for (const it of items) {
     const { t, w, h } = it, line = h + pad, l0 = t.cx - w / 2;
+    const base = nameBase(t.cy, t.r, t.fig, fc.sc);
     // Llocs (slot): 0..NAME_ROWS-1 a sota, -1 i -2 a sobre del cap.
     const cands: { slot: number; top: number; cost: number }[] = [];
-    for (let k = 0; k < NAME_ROWS; k++) cands.push({ slot: k, top: t.cy + t.r + t.gap * u + k * line, cost: k * line });
+    for (let k = 0; k < NAME_ROWS; k++) cands.push({ slot: k, top: base + t.gap * u + k * line, cost: k * line });
     if (!t.head) for (let k = 0; k < 2; k++) cands.push({ slot: -1 - k, top: it.body.t - t.gap * u - h - k * line, cost: (k + 1) * line });
     const last = _nameSlot.get(t.key);
     let best = { x: t.cx, top: cands[0].top, slot: 0, cost: Infinity };
@@ -258,7 +268,7 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
       if (vcost >= best.cost) continue;
       // Per tapar, el nom compta fins al seu token: un nom que salta per sobre d'una altra figureta
       // (dues línies més avall, per sota de la fila del costat) ja no se sap de qui és.
-      const et = c.slot < 0 ? top : t.cy + t.r, eb = c.slot < 0 ? it.body.t : bot;
+      const et = c.slot < 0 ? top : base, eb = c.slot < 0 ? it.body.t : bot;
       const nearL = placed.filter(p => p.t < bot + pad && p.b > top - pad);
       const nearB = items.filter(o => o !== it && o.body.t < eb && o.body.b > et).map(o => o.body);
       const shifts = [0];
@@ -290,27 +300,9 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
 const pixelSprite = (fc: FrameContext, sprite: string | undefined) => pixelSpriteOf(fc.rAppStyle?.current, sprite);
 
 /**
- * Quin token es pinta a la passada de dalt (`pass: 'top'`): el que el cursor assenyala dins d'un ventall
- * obert i, si no n'hi ha, el seleccionat; així queda damunt dels altres (mateix ordre que `tokenSlots`).
- */
-export type TokenPass = 'all' | 'base' | 'top';
-/** Tokens actius d'aquest frame: es fixen un cop (a `trackTokenActivity`) perquè les passades base i top coincideixin. */
-let _frameActive: string[] = [];
-const topKeyOf = (fc: FrameContext): Set<string> => {
-  const top = new Set(_frameActive);
-  if (fc.isDM) {
-    const h = spreadHover();
-    if (h) top.add(h);
-    if (fc.rSelectedToken.current != null) top.add(String(fc.rSelectedToken.current));
-  }
-  return top;
-};
-const skipInPass = (key: string, top: Set<string>, pass: TokenPass) => pass !== 'all' && (top.has(key) !== (pass === 'top'));
-
-/**
- * Detecta els tokens que acaben de fer o rebre una acció (un cop, un conjur, un estat nou): durant
- * uns segons es pinten a sobre dels altres (`topKeyOf`). Una vegada per frame, ABANS de les passades
- * dels tokens, a la pantalla del DM i a la de jugador (tots dos veuen les mateixes dades).
+ * Detecta els tokens que acaben de fer o rebre una acció (un cop, un conjur, un estat nou): es pinten
+ * a sobre dels altres fins que un altre token en faci o en rebi una (`token-geom.ts`). Una vegada per
+ * frame, ABANS de pintar els tokens, a la pantalla del DM i a la de jugador (veuen les mateixes dades).
  */
 export function trackTokenActivity(fc: FrameContext): void {
   for (const en of fc.rLibEnemies.current) {
@@ -321,7 +313,6 @@ export function trackTokenActivity(fc: FrameContext): void {
     const k = `pl_${pl.id}`;
     noteTokenState(k, `${pl.hpHit?.n ?? 0}|${(fc.rConditions.current[k] as string[] | undefined)?.join(',') ?? ''}`, pl.hpHit?.a);
   }
-  _frameActive = activeTokenKeys();
 }
 
 /**
@@ -501,16 +492,15 @@ function selectionFor(ctx: CanvasRenderingContext2D, fc: FrameContext, key: stri
  * `pass`: `'base'` pinta tots els tokens menys el seleccionat i `'top'` només el seleccionat, perquè
  * quedi damunt dels altres (el mateix ordre que fa servir el hit-test, `token-geom.ts`).
  */
-export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, pass: TokenPass = 'all'): void {
+function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, only: string): void {
   const {
     sc, pp, isDM, rLibEnemies, rConditions, rDefeated, defeatedAnimRef, invisAlphaRef,
     visualPosRef, rTokenSizeOverride, rHighlightAlpha, rTurn,
   } = fc;
   const _turn = rTurn?.current;
-  const top = topKeyOf(fc);
 
   rLibEnemies.current.forEach(en => {
-    if (skipInPass(`lib_${en.id}`, top, pass)) return;
+    if (`lib_${en.id}` !== only) return;
     const rawEp = (pp[`lib_${en.id}`] as { x: number; y: number } | undefined) || { x: 0, y: 0 };
     let ep: { x: number; y: number };
     if (isDM) {
@@ -618,7 +608,7 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
     drawColorHalo(ctx, ep.x, ep.y, R, sc, en.color, !!libSprite, isInvis, glow, phase);
     ctx.globalAlpha = 1;
 
-    if (isDM && en.hpMax > 0) drawHpBar(ctx, ep.x, ep.y, R, sc, en.hp ?? en.hpMax, en.hpMax);
+    if (isDM && en.hpMax > 0) drawHpBar(ctx, ep.x, ep.y, R, sc, en.hp ?? en.hpMax, en.hpMax, !!libSprite);
     const epC = ep;
 
     const drawCross = () => {
@@ -656,6 +646,41 @@ export function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameCon
 // Ghost semitransparent de la destinació del drag (pantalla de jugador). Es pinta sobre
 // els tokens però sota la foscor de sales: mostra ON anirà el token sense moure'l encara
 // (el token real es queda quiet i no il·lumina fins que es deixa anar).
+
+/**
+ * Pinta tots els tokens en l'ordre de `tokenSlots` (el mateix que el hit-test, DM i jugador igual): de dalt
+ * a baix del mapa, de manera que el de més avall tapa el de darrere; després els de l'última acció, el
+ * seleccionat i el que el cursor assenyala dins d'un ventall (aquests dos només al DM).
+ */
+export function renderTokens(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
+  trackTokenActivity(fc);
+  const pos = fc.pp, ov = fc.rTokenSizeOverride.current;
+  const items: { key: string; y: number }[] = [];
+  for (const en of fc.rLibEnemies.current) {
+    const key = `lib_${en.id}`;
+    items.push({ key, y: (pos[key] as { y: number } | undefined)?.y ?? 0 });
+  }
+  for (const pl of fc.rPlayers.current) {
+    const key = `pl_${pl.id}`;
+    items.push({ key, y: ((pos[key] as { y: number } | undefined)?.y ?? pl.y) + (ov[key] ?? 22) });
+  }
+  items.sort((a, b) => a.y - b.y || (a.key < b.key ? -1 : 1));
+  const order = items.map(i => i.key);
+  const toTop = (k: string | null) => {
+    const i = k ? order.indexOf(k) : -1;
+    if (i >= 0 && i < order.length - 1) order.push(order.splice(i, 1)[0]);
+  };
+  for (const k of activeTokenKeys()) toTop(k);
+  if (fc.isDM) {
+    toTop(fc.rSelectedToken.current != null ? String(fc.rSelectedToken.current) : null);
+    toTop(spreadHover());
+  }
+  for (const key of order) {
+    if (key.startsWith('lib_')) renderLibEnemyTokens(ctx, fc, key);
+    else renderPlayerTokens(ctx, fc, key);
+  }
+}
+
 export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const prev = fc.rDragPreview?.current;
   if (!prev) return;
@@ -690,15 +715,14 @@ export function renderDragGhost(ctx: CanvasRenderingContext2D, fc: FrameContext)
 const _lastR = new Map<string, number>();
 
 /** Tokens dels jugadors (`pass`: veure `renderLibEnemyTokens`). La posició és la cantonada; el centre, `+R`. */
-export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, pass: TokenPass = 'all'): void {
+function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, only: string): void {
   const {
     sc, pp, isDM, rPlayers, rConditions, visualPosRef, rSelectedToken, rTokenSizeOverride,
     rDefeated, defeatedAnimRef, rTurn,
   } = fc;
   const _turn = rTurn?.current;
-  const top = topKeyOf(fc);
   rPlayers.current.forEach(pl => {
-    if (skipInPass(`pl_${pl.id}`, top, pass)) return;
+    if (`pl_${pl.id}` !== only) return;
     const baseR = rTokenSizeOverride.current[`pl_${pl.id}`] ?? 22;
     const rawPos = pp[`pl_${pl.id}`] || { x: pl.x, y: pl.y };
     let ppos = rawPos;
@@ -796,7 +820,7 @@ export function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameConte
     drawConditionRingFor(ctx, ppos.x + R, ppos.y + R, R, plCondIds, sc, plSprite ? footRing(ppos.y + R, R, sc) : undefined);
     drawColorHalo(ctx, ppos.x + R, ppos.y + R, R, sc, pl.color, !!plSprite, isInvis, glow);
 
-    if (isDM && pl.hpMax > 0) drawHpBar(ctx, ppos.x + R, ppos.y + R, R, sc, pl.hp ?? pl.hpMax, pl.hpMax);
+    if (isDM && pl.hpMax > 0) drawHpBar(ctx, ppos.x + R, ppos.y + R, R, sc, pl.hp ?? pl.hpMax, pl.hpMax, !!plSprite);
 
     const drawCross = () => {
       if (isDefeated && (isDM || crossProg > 0)) {

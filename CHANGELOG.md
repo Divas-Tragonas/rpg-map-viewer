@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.11 — Ordre de tokens per alçada, token actiu fix, portes sota els tokens i noms ajustats
+- **Ordre de pintat**: el token més avall al mapa tapa el de darrere (abans, el de més amunt anava per sobre); el clic segueix el mateix ordre
+- **Token de l'última acció** (agressor i víctima/afectats) es queda per sobre de tots **fins que un altre en faci o en rebi una**, sense límit de 3,5 s; igual a la pantalla de jugador
+- **Portes laterals**: a la pantalla de jugador el token que passa pel davant d'una porta ja no queda per sota (el DM ja ho feia així)
+- **Noms**: pengen de l'aro dels peus (no de la vora de la casella) i el DM fa servir la mateixa col·locació que la pantalla de jugador (sense encavalcar-se ni tapar); la **barra de vida** del DM puja amb el nom
+
 ### v5.10 — Desfer del diari i dels morts, V només selecció, token actiu al davant
 - **Ctrl+Z** recupera una anotació del diari esborrada (✕ d'una anotació o d'un combat); Ctrl+Y la torna a esborrar
 - **Desfer un atac o conjur** treu també el missatge de l'historial del combat i, si havia tirat un jugador a terra, la seva anotació «cau» del diari (Ctrl+Y els torna)
