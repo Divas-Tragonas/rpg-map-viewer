@@ -86,6 +86,49 @@ export function usedBounds(m: TileMap): { c0: number; r0: number; c1: number; r1
   return c1 < 0 ? null : { c0, r0, c1, r1 };
 }
 
+/** Caselles buides que el llenç deixa sempre a cada banda de tot el que hi ha pintat. */
+export const TILE_MARGIN = 10;
+
+export interface TileFit { map: TileMap; dc: number; dr: number }
+
+/**
+ * El mapa amb el llenç ajustat al que hi ha pintat: la zona pintada més `TILE_MARGIN` caselles a cada
+ * banda (una sala de 5×5 → 25×25). `dc`/`dr` diuen quantes caselles s'ha desplaçat l'origen (tot el
+ * que hi ha al mapa s'ha de moure igual). `null` si ja està ajustat, si és buit o si no cap als límits.
+ */
+export function fitTileMap(m: TileMap, margin = TILE_MARGIN): TileFit | null {
+  const b = usedBounds(m);
+  if (!b) return null;
+  const cols = b.c1 - b.c0 + 1 + 2 * margin, rows = b.r1 - b.r0 + 1 + 2 * margin;
+  if (cols > MAX_TILE_SIDE || rows > MAX_TILE_SIDE || cols * rows > MAX_TILE_CELLS) return null;
+  const dc = margin - b.c0, dr = margin - b.r0;
+  if (dc === 0 && dr === 0 && cols === m.cols && rows === m.rows) return null;
+  const n = cols * rows;
+  const remap = <T,>(a: T[], empty: T): T[] => {
+    const out = new Array<T>(n).fill(empty);
+    for (let r = 0; r < m.rows; r++) for (let c = 0; c < m.cols; c++) {
+      const nc = c + dc, nr = r + dr;
+      if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+      out[nr * cols + nc] = a[r * m.cols + c];
+    }
+    return out;
+  };
+  const doors: TileMap['doors'] = {};
+  for (const k of Object.keys(m.doors)) {
+    const i = +k, nc = (i % m.cols) + dc, nr = Math.floor(i / m.cols) + dr;
+    if (nc >= 0 && nr >= 0 && nc < cols && nr < rows) doors[nr * cols + nc] = m.doors[i];
+  }
+  return {
+    dc, dr,
+    map: {
+      ...m, cols, rows,
+      ground: remap(m.ground, EMPTY), overlays: m.overlays.map(o => remap(o, EMPTY)),
+      wallSet: remap(m.wallSet, ''), wallRaw: remap(m.wallRaw, EMPTY),
+      doors, objects: m.objects.map(o => ({ ...o, c: o.c + dc, r: o.r + dr })),
+    },
+  };
+}
+
 /** Còpia per a una edició (tot array nou: el desfer i el detector de canvis van per referència). */
 export function cloneTileMap(m: TileMap): TileMap {
   return {

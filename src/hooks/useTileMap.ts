@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { DMRefs } from './useDMRefs';
 import type { Wall, Room, Door, LightSource } from '@/types';
-import { TILE, emptyTileMap, cloneTileMap, type TileMap } from '@/lib/tilemap/model';
+import { TILE, emptyTileMap, cloneTileMap, fitTileMap, type TileMap, type TileFit } from '@/lib/tilemap/model';
 import { applyBrush, rectCells, lineCells, isRectBrush, type TileBrush, type Cell } from '@/lib/tilemap/editor';
 import { bakeTileMap, repaintCells, tileLiveOf } from '@/lib/tilemap/render';
 import { tileWalls, tileDoors, tileLights, keepRoomFace } from '@/lib/tilemap/geometry';
@@ -18,6 +18,10 @@ interface Deps {
   setGrid: (gs: number) => void;
   loadBg: (f: File) => Promise<void>;
   replaceBgImage: (b: Blob) => Promise<boolean>;
+  /** Mou tot el contingut del mapa quan el llenç es reajusta (veure `shiftWorld`). */
+  shiftWorld: (dc: number, dr: number, from: { cols: number; w: number; h: number }, to: { cols: number; w: number; h: number }) => void;
+  /** Afegeix passos al desfer/refer de l'última ordre apilada. */
+  extendLastUndo: (extra: { undo: () => void; redo: () => void }) => void;
   broadcast: (extra?: Record<string, unknown>) => void;
   pushMapEdit: (label: string) => void;
   /** Criatures d'un `.tmx`: s'afegeixen com a enemics de la biblioteca. */
@@ -69,7 +73,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
     const cv = bakeTileMap(m); if (!cv) return;
     R.rTileCanvas.current = cv;
     const blob = await new Promise<Blob | null>(res => cv.toBlob(res, 'image/png'));
-    if (!blob) return;
+    if (!blob || R.rTileCanvas.current !== cv) return;   // un cuinat més nou ja el substitueix
     if (first || !(await Dref.current.replaceBgImage(blob))) {
       await Dref.current.loadBg(new File([blob], 'mapa de caselles.png', { type: 'image/png' }));
     }
@@ -155,6 +159,16 @@ export function useTileMap(R: DMRefs, D: Deps) {
     drag.last = cell;
   }, [R, paint]);
 
+  /** Posa el llenç ajustat (mapa nou, contingut mogut, fons cuinat a la mida nova). */
+  const applyFit = useCallback((fit: TileFit, before: TileMap) => {
+    const sz = (m: TileMap) => ({ cols: m.cols, w: m.cols * TILE, h: m.rows * TILE });
+    Dref.current.shiftWorld(fit.dc, fit.dr, sz(before), sz(fit.map));
+    R.rTileMap.current = fit.map;
+    Dref.current.setHasTileMap(true);
+    regenGeometry();
+    void bakeAll(false);
+  }, [R, regenGeometry, bakeAll]);
+
   const tileUp = useCallback(() => {
     const drag = R.rTileDrag.current; if (!drag) return false;
     if (drag.rect) {
@@ -166,13 +180,24 @@ export function useTileMap(R: DMRefs, D: Deps) {
     if (R.rTileMap.current === drag.before) return true;   // no ha canviat res
     // Desfer: l'entrada guarda el mapa d'abans (i les parets/portes/llums d'abans).
     const after = R.rTileMap.current;
+    if (!after) return true;
     R.rTileMap.current = drag.before;
     Dref.current.pushMapEdit('pintar caselles');
     R.rTileMap.current = after;
     regenGeometry();
-    scheduleSend();
+    // El llenç és sempre la zona pintada + el marge: si ha canviat, s'ajusta (i es mou tot).
+    const fit = fitTileMap(after);
+    if (fit) {
+      applyFit(fit, after);
+      const sz = (m: TileMap) => ({ cols: m.cols, w: m.cols * TILE, h: m.rows * TILE });
+      Dref.current.extendLastUndo({
+        // Desfer: tot torna al marc d'abans del reajust; l'ordre de pintar ja farà la resta.
+        undo: () => { Dref.current.shiftWorld(-fit.dc, -fit.dr, sz(fit.map), sz(after)); R.rTileMap.current = after; },
+        redo: () => applyFit(fit, after),
+      });
+    } else scheduleSend();
     return true;
-  }, [R, paint, regenGeometry, scheduleSend]);
+  }, [R, paint, regenGeometry, scheduleSend, applyFit]);
 
   const tileLeave = useCallback(() => { R.rTileHover.current = null; }, [R]);
 

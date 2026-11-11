@@ -22,7 +22,7 @@ import { wake } from '@/lib/render/wake';
 import { reduceBgForPlayers, type BgCopy } from '@/lib/bg-reduce';
 import { monsterFromApi } from '@/lib/db-enemies';
 import { snapTokenCenter } from '@/lib/rules/cells';
-import { reviveTileMap, type TileMap } from '@/lib/tilemap/model';
+import { reviveTileMap, TILE, type TileMap } from '@/lib/tilemap/model';
 
 interface Setters {
   setBgLoaded: (v: boolean) => void;
@@ -647,11 +647,104 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const prev = (el as HTMLImageElement).src;
     (el as HTMLImageElement).src = URL.createObjectURL(blob);
     if (prev.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(prev), 2000);
+    // Si la imatge nova és d'una altra mida (el llenç del mapa de caselles s'ha ajustat), cal
+    // esperar que es carregui per posar la mida nova del mapa i del canvas de dibuix.
+    await new Promise<void>(res => {
+      const done = () => res();
+      el.addEventListener('load', done, { once: true }); el.addEventListener('error', done, { once: true });
+    });
+    const nw = (el as HTMLImageElement).naturalWidth, nh = (el as HTMLImageElement).naturalHeight;
+    const cur = rMapSize.current;
+    const resized = nw > 1 && nh > 1 && (!cur || cur.width !== nw || cur.height !== nh);
+    if (resized) {
+      const oc = drawCanvasRef.current;
+      if (oc && (oc.width !== nw || oc.height !== nh)) { oc.width = nw; oc.height = nh; _repaintDrawCanvas(); }
+      rMapSize.current = { width: nw, height: nh };
+    }
     R.rAutosaveDirty.current = true;
     bcRef.current?.postMessage({ type: 'BG', buffer: buf, mimeType: blob.type || 'image/png', withFade: false });
     wsRef.current?.send(JSON.stringify({ type: 'BG_META', mimeType: blob.type || 'image/png', withFade: false }));
     wsRef.current?.sendBinary(buf);
+    if (resized) _sendStructState();
     return true;
+  }, [_repaintDrawCanvas, _sendStructState]);
+
+  /**
+   * El llenç del mapa de caselles s'ha ajustat: l'origen es desplaça `dc`/`dr` caselles i la mida
+   * passa de `from` a `to` (cols, px). Mou tot el que viu en coordenades de mapa (tokens, parets,
+   * portes i llums fets a mà, sales, zones, terreny difícil, màgies, dibuix) i la càmera, perquè a
+   * la pantalla res no es mogui. Per desfer-ho, es crida amb `-dc`, `-dr` i `from`/`to` girats.
+   * El mapa de caselles i les parets que se'n deriven els posa qui crida.
+   */
+  const shiftWorld = useCallback((dc: number, dr: number,
+    from: { cols: number; w: number; h: number }, to: { cols: number; w: number; h: number }) => {
+    const dx = dc * TILE, dy = dr * TILE;
+    const mv = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy });
+    const bb = <B extends { left: number; top: number; right: number; bottom: number; cx: number; cy: number }>(b: B): B =>
+      ({ ...b, left: b.left + dx, right: b.right + dx, top: b.top + dy, bottom: b.bottom + dy, cx: b.cx + dx, cy: b.cy + dy });
+
+    // Càmera (abans de tocar res): el que es veia a la pantalla es queda on era.
+    const cv = canvasRef.current;
+    if (cv && cv.clientWidth > 0 && cv.clientHeight > 0) {
+      const W = cv.clientWidth, H = cv.clientHeight;
+      const sc = Math.min(W / from.w, H / from.h) * rZoom.current;
+      const ox = (W - from.w * sc) / 2 + rPanOffset.current.x, oy = (H - from.h * sc) / 2 + rPanOffset.current.y;
+      const z = Math.min(10, Math.max(0.2, sc / Math.min(W / to.w, H / to.h)));
+      const nsc = Math.min(W / to.w, H / to.h) * z;
+      rZoom.current = z; S.setZoom(z);
+      rPanOffset.current = { x: ox - dx * nsc - (W - to.w * nsc) / 2, y: oy - dy * nsc - (H - to.h * nsc) / 2 };
+    }
+    // Tokens
+    const pos: PosMap = {};
+    for (const [id, p] of Object.entries(rPos.current)) pos[id] = mv(p);
+    rPos.current = pos; S.setPos(pos);
+    const vis: PosMap = {};
+    for (const [id, p] of Object.entries(R.visualPosRef.current)) vis[id] = mv(p);
+    R.visualPosRef.current = vis;
+    // Geometria (les parets del mapa de caselles es tornen a derivar del mapa nou)
+    const walls = rWalls.current.map(w => ({ ...w, a: mv(w.a), b: mv(w.b) }));
+    const rooms = rRooms.current.map(r => ({ ...r, points: r.points.map(mv), bbox: bb(r.bbox) }));
+    const doors = rDoors.current.map(d => {
+      let id = d.id;
+      if (id.startsWith('td_')) {
+        const i = +id.slice(3);
+        id = `td_${(Math.floor(i / from.cols) + dr) * to.cols + ((i % from.cols) + dc)}`;
+      }
+      return { ...d, id, a: mv(d.a), b: mv(d.b) };
+    });
+    const lights = rLights.current.map(l => {
+      const m = /^tl_(\d+)_(\d+)$/.exec(l.id);
+      return { ...l, id: m ? `tl_${+m[1] + dc}_${+m[2] + dr}` : l.id, x: l.x + dx, y: l.y + dy };
+    });
+    rWalls.current = walls; S.setWalls(walls);
+    rRooms.current = rooms; S.setRooms(rooms);
+    rDoors.current = doors; S.setDoors(doors);
+    rLights.current = lights; S.setLights(lights);
+    // Terreny difícil (caselles "col,fila")
+    R.rDifficult.current = R.rDifficult.current.map(key => { const [c, r] = key.split(',').map(Number); return `${c + dc},${r + dr}`; });
+    // Zones màgiques i màgies en curs
+    const zones = rPaintedZones.current.map(z => ({ ...z, points: z.points.map(mv), bbox: bb(z.bbox) }));
+    rPaintedZones.current = zones; S.setPaintedZones(zones);
+    const spells = rActiveSpells.current.map(sp => ({ ...sp, points: sp.points.map(mv) }));
+    rActiveSpells.current = spells; S.setActiveSpells(spells);
+    // Dibuix: l'historial es mou i la base cuita es redibuixa a la mida nova
+    strokeHistoryRef.current = strokeHistoryRef.current.map(st => ({ ...st, points: st.points.map(mv) }));
+    const base = strokeBaseRef.current;
+    if (base && strokeBaseVerRef.current > 0) {
+      const nb = document.createElement('canvas');
+      nb.width = to.w; nb.height = to.h;
+      const c2 = nb.getContext('2d');
+      if (c2) { c2.drawImage(base, dx, dy); strokeBaseRef.current = nb; strokeBaseVerRef.current++; }
+    }
+  }, []);
+
+  /** Afegeix passos al desfer/refer de la darrera ordre apilada (un sol «Desfer» per a tot el gest). */
+  const extendLastUndo = useCallback((extra: { undo: () => void; redo: () => void }) => {
+    const last = R.rUndo.current.past[R.rUndo.current.past.length - 1];
+    if (!last) return;
+    const u = last.undo.bind(last), r = last.redo.bind(last);
+    last.undo = () => { extra.undo(); u(); };
+    last.redo = () => { r(); extra.redo(); };
   }, []);
 
   const loadDemo = useCallback(async () => {
@@ -1373,7 +1466,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, shiftWorld, extendLastUndo, renamePlayer, loadParty, clearDrawing, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
     buildAutosaveRecord, applySessionState, _pushMapEdit,
     undo, redo, resetUndo, commitStroke, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,

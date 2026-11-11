@@ -341,7 +341,7 @@ export function DMView() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, renamePlayer, loadParty, clearDrawing,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, shiftWorld, extendLastUndo, renamePlayer, loadParty, clearDrawing,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
     buildAutosaveRecord, applySessionState, _pushMapEdit,
     undo, redo, commitStroke, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
@@ -410,7 +410,7 @@ export function DMView() {
   }, [R]);
   const { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave } = useTileMap(R, {
     setWalls, setRooms, setDoors, setLights, setGrid: setTileGrid,
-    loadBg, replaceBgImage, broadcast: _broadcastState, pushMapEdit: _pushMapEdit,
+    loadBg, replaceBgImage, shiftWorld, extendLastUndo, broadcast: _broadcastState, pushMapEdit: _pushMapEdit,
     addCreatures: addCreatureTokens, setHasTileMap: syncTileSize,
   });
 

@@ -9,6 +9,7 @@ La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/
 - **Grups al combat**: un grup triat en iniciar els torns juga **alhora** (un sol torn per a tots els seus membres: halo, moviment, estats i recàrregues); a la barra **un grup és un sol xip** (avatar + recompte, «N / total drets» quan té el torn) i el rètol de jugador diu el nom del grup
 - **Crear un grup** obre una finestreta flotant al lloc del clic per posar-li nom (Enter l'accepta); per defecte «Grup N+1» amb un comptador intern que només puja
 - **Selecció**: un clic a un token substitueix la selecció; per afegir-ne, **Ctrl/⌘ + clic** (també el rectangle `A`). Surt a l'ajuda de dreceres
+- **Llenç del mapa de caselles ajustat**: sempre la zona pintada + 10 caselles de marge a cada banda (una sala 5×5 → llenç 25×25), tot el contingut es desplaça amb ell i el desfer ho recorda
 - **Mapa de caselles** sense el límit de 120: ara el sostre és de seguretat (300 per costat, 40.000 caselles). El botó de centrar vista centra el que hi ha pintat, no el llenç sencer
 - Sense canvis a la API (`together`/`groupNames` van dins de `turn`, que el servidor reenvia tal qual)
 
