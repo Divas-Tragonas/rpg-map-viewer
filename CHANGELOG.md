@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.15 — Càmera més àgil amb llums: reprojecció, terra explorat en coordenades de mapa i qualitat adaptativa
+- En moure o fer zoom a la càmera, les llums ja no es refan a cada fotograma: es reprojecta el rasteritzat anterior i, en aturar-se, es fa una passada final a resolució plena
+- El terra explorat es guarda en coordenades de mapa: moure la càmera no el refà
+- Qualitat adaptativa de les llums: si el dispositiu no arriba a ~33 fps mentre canvien, baixa la resolució i espaia els rasteritzats; quan va sobrat, torna a pujar
+- Mesura (rasteritzador per programari): càmera sola ~31 → ~15 ms/frame; càmera + tokens ~34 → ~26 ms
+
 ### v5.14 — Llums a baixa resolució mentre es mouen, sense capa intermèdia i terra explorat dins la foscor
 - La llum d'un token en moviment es rasteritza a la meitat de resolució (¼ dels píxels) i, quan s'atura, es refà una vegada a resolució plena
 - Les llums esborren la foscor directament (menys blits de pantalla per frame)
