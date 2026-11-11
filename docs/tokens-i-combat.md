@@ -227,3 +227,6 @@
 - **Ordre**: primer els jugadors (un enemic no els mou mai), després els enemics i, al final, els enemics de dins d'una sala fosca no revelada: no poden empènyer cap nom visible, que delataria on són.
 - **Negreta** (v4.64, `nameFont`): tots els noms, al DM i al jugador. Abans només ho eren els dels enemics de la biblioteca, i a la TV la lletra prima es perdia damunt del mapa.
 - Al DM, `nameTag` pinta el nom on sempre (mateixes mides). Un tipus de token nou ha de passar per `nameTag`, no pintar el nom pel seu compte.
+
+## Token actiu al davant (v5.10)
+- Un token que rep o fa una acció (canvi de `hpHit` —com a víctima o com a agressor `a`— o d'estats) es pinta uns `ACTIVE_MS` (3,5 s) per sobre dels altres, perquè se'n vegin el nom, la figureta i les animacions. `trackTokenActivity(fc)` (`render/tokens.ts`) ho detecta un cop per frame, al DM (`useRafLoop`) i a la pantalla de jugador, que ara també pinta en passades `base` + `top`; l'estat viu a `token-geom.ts` (`noteTokenState`, `activeTokenKeys`) i `tokenSlots` el segueix perquè el hit-test coincideixi. Només visual: no es desa ni viatja. La primera vegada que es veu un token no compta com a activitat.

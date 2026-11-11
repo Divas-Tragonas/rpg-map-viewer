@@ -88,7 +88,7 @@ import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
 import type { CapsuleScene } from '@/lib/capsules';
 import { useStory } from '@/hooks/useStory';
 import { useJournalWatchers } from '@/hooks/useJournalWatchers';
-import { logJournal } from '@/lib/journal';
+import { logJournal, setJournalRemoveHook, takeEntries, restoreEntries } from '@/lib/journal';
 
 /** Amplada del panell «Mostrar als jugadors» (la mateixa per a les dues pestanyes: canviar
  *  de pestanya no ha de fer saltar el panell). */
@@ -925,11 +925,46 @@ export function DMView() {
   // El diari s'endu l'historial sencer quan el combat acaba (`finishCombat`).
   const combatLogRef = useRef<CombatLogEntry[]>([]);
   useEffect(() => { combatLogRef.current = combatLog; }, [combatLog]);
-  const logCombat = useCallback((text: string, tone: CombatLogEntry['tone']) => {
+  const logCombat = useCallback((text: string, tone: CombatLogEntry['tone']): CombatLogEntry | null => {
     const t = R.rTurn.current;
-    if (!t.active) return;
-    setCombatLog(l => [...l.slice(-299), { id: ++logIdRef.current, round: t.round, text, tone }]);
+    if (!t.active) return null;
+    const entry: CombatLogEntry = { id: ++logIdRef.current, round: t.round, text, tone };
+    setCombatLog(l => [...l.slice(-299), entry]);
+    return entry;
   }, [R]);
+  // Ctrl+Z d'un atac o conjur: el missatge de l'historial (i, si el cop havia tirat un token a
+  // terra, la seva anotació «cau» del diari) desapareixen amb ell; Ctrl+Y els torna.
+  const undoLogSide = useCallback((entry: CombatLogEntry | null, fellName?: string, since = Date.now()) => {
+    let tookDown: ReturnType<typeof takeEntries> = [];
+    return {
+      undo() {
+        if (entry) setCombatLog(l => l.filter(x => x.id !== entry.id));
+        if (fellName) tookDown = takeEntries(e => e.kind === 'down' && e.text === `${fellName} cau` && e.t >= since - 50);
+      },
+      redo() {
+        if (entry) setCombatLog(l => (l.some(x => x.id === entry.id) ? l : [...l, entry].sort((a, b) => a.id - b.id)));
+        // L'anotació «cau» la torna a escriure sol el diari quan el token torna a caure.
+        tookDown = [];
+      },
+    };
+  }, []);
+  /** Lliga un efecte secundari a l'última ordre de desfer (la que acaba d'apilar el canvi de PV). */
+  const attachUndoSide = useCallback((side: { undo(): void; redo(): void }) => {
+    const past = R.rUndo.current.past;
+    const last = past[past.length - 1];
+    if (last) (last.side ??= []).push(side);
+  }, [R]);
+  // Esborrar una anotació del diari (la ✕) també es pot desfer amb Ctrl+Z.
+  const recordRef = useRef(_record);
+  useEffect(() => { recordRef.current = _record; });
+  useEffect(() => {
+    setJournalRemoveHook(removed => recordRef.current({
+      label: removed.length > 1 ? 'esborrar anotacions del diari' : 'esborrar una anotació del diari', at: Date.now(),
+      undo: () => restoreEntries(removed),
+      redo: () => { const ids = new Set(removed.map(e => e.id)); takeEntries(e => ids.has(e.id)); },
+    }));
+    return () => setJournalRemoveHook(null);
+  }, []);
   const tokNameOf = (k: string) => (k.startsWith('pl_')
     ? R.rPlayers.current.find(p => `pl_${p.id}` === k)?.name
     : R.rLibEnemies.current.find(e => `lib_${e.id}` === k)?.name) ?? '?';
@@ -1944,13 +1979,17 @@ export function DMView() {
                 if (o.addConditions.length) bits.push(o.addConditions.map(c => CONDITIONS_BY_ID.get(c)?.label ?? c).join(' i '));
                 return `${nm}${bits.length ? ` (${bits.join(' · ')})` : ''}`;
               });
-              logCombat(`${caster ? tokNameOf(caster) : 'Algú'} llança ${title}${spellPrompt.outOfRange ? " (fora d'abast)" : ''}: ${parts.join('; ') || 'ningú'}`, fx?.heal ? 'heal' : 'spell');
+              const spellAt = Date.now();
+              const spellLog = logCombat(`${caster ? tokNameOf(caster) : 'Algú'} llança ${title}${spellPrompt.outOfRange ? " (fora d'abast)" : ''}: ${parts.join('; ') || 'ningú'}`, fx?.heal ? 'heal' : 'spell');
               window.setTimeout(() => {
                 for (const o of outs) {
                   if (o.delta !== 0) {
                     if (o.key.startsWith('pl_')) adjustPlayerHp(parseInt(o.key.slice(3)), -o.delta, 'spell', caster);
                     else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta, 'spell', caster);
-                    if (o.delta > 0) effectsOnDamage(o.key);
+                    if (o.delta > 0) {
+                      effectsOnDamage(o.key);
+                      attachUndoSide(undoLogSide(spellLog, o.key.startsWith('pl_') ? tokNameOf(o.key) : undefined, spellAt));
+                    }
                   }
                   for (const c of o.addConditions) toggleCondition(o.key, c);
                   if (o.note) notify(o.note, 'info');
@@ -1977,6 +2016,7 @@ export function DMView() {
         return (
           <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}
             onApply={(amount, info) => {
+              const hitAt = Date.now();
               if (amount > 0) {
                 if (pl) adjustPlayerHp(pl.id, -amount, damagePrompt.hitKind, damagePrompt.attackerKey);
                 else if (en) adjustLibEnemyHp(en.id, -amount, damagePrompt.hitKind, damagePrompt.attackerKey);
@@ -1987,7 +2027,8 @@ export function DMView() {
               const why = info.reasons.length ? ` (${info.rolled} tirat · ${info.reasons.join(', ').toLowerCase()})` : '';
               const out = damagePrompt.outOfRange ? " · fora d'abast" : '';
               const falls = tgt.hp > 0 && tgt.hp - amount <= 0 ? ` · ${tgt.name} cau` : '';
-              logCombat(`${who} ataca ${tgt.name} amb ${damagePrompt.label}: ${amount}${dt}${why}${out}${falls}`, 'hit');
+              const hitLog = logCombat(`${who} ataca ${tgt.name} amb ${damagePrompt.label}: ${amount}${dt}${why}${out}${falls}`, 'hit');
+              if (amount > 0) attachUndoSide(undoLogSide(hitLog, falls && pl ? tgt.name : undefined, hitAt));
               setDamagePrompt(null);
             }} />
         );

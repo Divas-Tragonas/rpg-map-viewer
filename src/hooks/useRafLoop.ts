@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { renderPaintedZones, renderShapePreview } from '@/lib/render/zones';
 import { advanceStrokeAnim } from '@/lib/render/drawing';
 import { renderSpells, spellShake } from '@/lib/render/spells';
-import { renderPlayerTokens, renderLibEnemyTokens } from '@/lib/render/tokens';
+import { renderPlayerTokens, renderLibEnemyTokens, trackTokenActivity } from '@/lib/render/tokens';
 import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { renderGrid, renderDifficult, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
@@ -287,6 +287,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       // Seleccionat a sobre de tot (mateix ordre que el hit-test, `render/token-geom.ts`); el
       // ventall dels apilats avança aquí, un cop per frame.
       advanceTokenSpread(performance.now());
+      trackTokenActivity(fc);
       renderLibEnemyTokens(ctx, fc, 'base');
       renderPlayerTokens(ctx, fc, 'base');
       renderLibEnemyTokens(ctx, fc, 'top');

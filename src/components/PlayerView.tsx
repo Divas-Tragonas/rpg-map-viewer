@@ -12,7 +12,7 @@ import {
 import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells, spellShake, followSpellPreview, spellsSettled } from '@/lib/render/spells';
-import { renderPlayerTokens, renderLibEnemyTokens, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
+import { renderPlayerTokens, renderLibEnemyTokens, trackTokenActivity, renderDragGhost, nameScaleFor, renderNameTags } from '@/lib/render/tokens';
 import { renderGrid, renderDifficult, renderDMPointer, renderMeasureRuler, renderMoveRange } from '@/lib/render/grid';
 import { playBossIntro, playPixelIntro, isPixelIntro, bossCamRect, seedFor, newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import { createSyncSocket, syncUrl, syncBlockedByMixedContent, hasSyncKey, probeApiReachable } from '@/lib/ws';
@@ -1040,8 +1040,11 @@ export function PlayerView() {
 
       // Ventall dels apilats (pulsació llarga, `usePlayerTokenDrag`): un pas de l'animació.
       advanceTokenSpread(performance.now());
-      renderLibEnemyTokens(ctx, fc);
-      renderPlayerTokens(ctx, fc);
+      trackTokenActivity(fc);
+      renderLibEnemyTokens(ctx, fc, 'base');
+      renderPlayerTokens(ctx, fc, 'base');
+      renderLibEnemyTokens(ctx, fc, 'top');
+      renderPlayerTokens(ctx, fc, 'top');
       renderNameTags(ctx, fc);       // els noms, després de totes les figuretes i abans de la foscor
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
 

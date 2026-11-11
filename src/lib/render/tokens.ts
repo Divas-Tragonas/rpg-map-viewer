@@ -8,7 +8,7 @@ import { drawFigureState, figureLook, reducedMotion } from '@/lib/sprites/states
 import { noteFigure, figureFx, drawFigureHitFx } from '@/lib/sprites/hitfx';
 import { drawStatusFx, hasStatusFx } from '@/lib/sprites/statusfx';
 import { pointInPolygon } from '@/lib/geometry';
-import { FIG_SCALE, FOOT_FLAT, creatureBounds, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, footOf, footEllipse, SHADOW_RX, SHADOW_RY, figureMid } from './token-geom';
+import { FIG_SCALE, FOOT_FLAT, creatureBounds, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, activeTokenKeys, noteTokenState, footOf, footEllipse, SHADOW_RX, SHADOW_RY, figureMid } from './token-geom';
 import { isTurnToken } from '@/lib/turn';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
@@ -294,9 +294,35 @@ const pixelSprite = (fc: FrameContext, sprite: string | undefined) => pixelSprit
  * obert i, si no n'hi ha, el seleccionat; així queda damunt dels altres (mateix ordre que `tokenSlots`).
  */
 export type TokenPass = 'all' | 'base' | 'top';
-const topKeyOf = (fc: FrameContext) => !fc.isDM ? null
-  : spreadHover() ?? (fc.rSelectedToken.current != null ? String(fc.rSelectedToken.current) : null);
-const skipInPass = (key: string, top: string | null, pass: TokenPass) => pass !== 'all' && ((key === top) !== (pass === 'top'));
+/** Tokens actius d'aquest frame: es fixen un cop (a `trackTokenActivity`) perquè les passades base i top coincideixin. */
+let _frameActive: string[] = [];
+const topKeyOf = (fc: FrameContext): Set<string> => {
+  const top = new Set(_frameActive);
+  if (fc.isDM) {
+    const h = spreadHover();
+    if (h) top.add(h);
+    if (fc.rSelectedToken.current != null) top.add(String(fc.rSelectedToken.current));
+  }
+  return top;
+};
+const skipInPass = (key: string, top: Set<string>, pass: TokenPass) => pass !== 'all' && (top.has(key) !== (pass === 'top'));
+
+/**
+ * Detecta els tokens que acaben de fer o rebre una acció (un cop, un conjur, un estat nou): durant
+ * uns segons es pinten a sobre dels altres (`topKeyOf`). Una vegada per frame, ABANS de les passades
+ * dels tokens, a la pantalla del DM i a la de jugador (tots dos veuen les mateixes dades).
+ */
+export function trackTokenActivity(fc: FrameContext): void {
+  for (const en of fc.rLibEnemies.current) {
+    const k = `lib_${en.id}`;
+    noteTokenState(k, `${en.hpHit?.n ?? 0}|${(fc.rConditions.current[k] as string[] | undefined)?.join(',') ?? ''}`, en.hpHit?.a);
+  }
+  for (const pl of fc.rPlayers.current) {
+    const k = `pl_${pl.id}`;
+    noteTokenState(k, `${pl.hpHit?.n ?? 0}|${(fc.rConditions.current[k] as string[] | undefined)?.join(',') ?? ''}`, pl.hpHit?.a);
+  }
+  _frameActive = activeTokenKeys();
+}
 
 /**
  * Figureta damunt d'una base: ombra el·líptica i anell del color de l'equip als peus, centrats al

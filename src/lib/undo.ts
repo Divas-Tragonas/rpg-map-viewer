@@ -26,6 +26,8 @@ export interface UndoCmd {
   alive?(dir: UndoDir): boolean;
   /** Ordres seguides amb la mateixa clau i en menys de `MERGE_MS` s'agrupen en una. */
   mergeKey?: string;
+  /** Efectes secundaris que van amb l'ordre (esborrar missatges de l'historial i del diari…). */
+  side?: { undo(): void; redo(): void }[];
   /** Marca de temps de l'última vegada que s'hi ha agrupat res. */
   at: number;
 }
@@ -74,6 +76,7 @@ export function stepUndo(h: UndoHistory, dir: UndoDir): UndoCmd | null {
   if (!c) return null;
   (dir === 'undo' ? h.past : h.future).pop();
   if (dir === 'undo') c.undo(); else c.redo();
+  for (const sd of c.side ?? []) { try { if (dir === 'undo') sd.undo(); else sd.redo(); } catch { /* un efecte secundari no pot trencar el desfer */ } }
   // Una ordre desfeta no s'ha d'agrupar amb la següent acció nova.
   c.at = 0;
   (dir === 'undo' ? h.future : h.past).push(c);

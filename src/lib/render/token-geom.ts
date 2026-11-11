@@ -14,6 +14,7 @@ import type { LibEnemy, Player } from '@/types';
 import { packReady } from '@/lib/sprites/pack';
 import { hasCreature, drawCreature, TILE } from '@/lib/sprites/draw';
 import { reducedMotion } from '@/lib/sprites/states';
+import { wake } from './wake';
 
 type Pt = { x: number; y: number };
 type Ref<T> = { current: T };
@@ -144,6 +145,11 @@ export function tokenSlots(refs: TokenRefs, visual = true): TokenSlot[] {
     const key = `pl_${pl.id}`, p = pos[key] || { x: pl.x, y: pl.y }, R = ov[key] ?? 22;
     out.push({ key, x: p.x + R, y: p.y + R, R, sprite: pixelSpriteOf(style, pl.sprite) });
   }
+  // Tokens que acaben de fer o rebre una acció: a sobre dels altres (del més antic al més recent).
+  for (const k of activeTokenKeys()) {
+    const i = out.findIndex(s => s.key === k);
+    if (i >= 0 && i < out.length - 1) out.push(out.splice(i, 1)[0]);
+  }
   const toTop = (key: string | null) => {
     const i = key ? out.findIndex(s => s.key === key) : -1;
     if (i >= 0 && i < out.length - 1) out.push(out.splice(i, 1)[0]);
@@ -152,6 +158,39 @@ export function tokenSlots(refs: TokenRefs, visual = true): TokenSlot[] {
   toTop(_hover);
   if (visual && _spread.size) for (const s of out) { const o = _spread.get(s.key); if (o) { s.x += o.x; s.y += o.y; s.R *= o.k; } }
   return out;
+}
+
+// ── Tokens amb activitat recent ───────────────────────────────────────────────
+/** Quant de temps (ms) un token que ha fet o rebut una acció es manté a sobre dels altres. */
+const ACTIVE_MS = 3500;
+/** Última activitat de cada token (`performance.now()`). Només visual: no es desa ni viatja. */
+const _activity = new Map<string, number>();
+/** Signatura de l'últim estat vist de cada token (vida, estats), per detectar-hi canvis. */
+const _seenSig = new Map<string, string>();
+
+/** El token acaba de fer o rebre una acció: puja per sobre dels altres un moment. */
+export function markTokenActive(key: string, at = performance.now()) {
+  _activity.set(key, at);
+  wake();
+}
+/**
+ * Registra l'estat d'un token; si ha canviat des de l'última vegada (i no és la primera que el veiem),
+ * i `attacker` si el canvi ve d'un altre token, els marca actius. L'agressor es marca un pèl abans
+ * perquè el que rep l'acció quedi damunt.
+ */
+export function noteTokenState(key: string, sig: string, attacker?: string) {
+  const prev = _seenSig.get(key);
+  _seenSig.set(key, sig);
+  if (prev === undefined || prev === sig) return;
+  const now = performance.now();
+  if (attacker) markTokenActive(attacker, now - 1);
+  markTokenActive(key, now);
+}
+/** Claus dels tokens actius ara mateix, del més antic al més recent. */
+export function activeTokenKeys(now = performance.now()): string[] {
+  const out: [string, number][] = [];
+  for (const [k, t] of _activity) { if (now - t > ACTIVE_MS) _activity.delete(k); else out.push([k, t]); }
+  return out.sort((a, b) => a[1] - b[1]).map(e => e[0]);
 }
 
 /** Marge del cercle de la base, en px de pantalla (com abans als jugadors). */

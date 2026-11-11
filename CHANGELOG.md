@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.10 — Desfer del diari i dels morts, V només selecció, token actiu al davant
+- **Ctrl+Z** recupera una anotació del diari esborrada (✕ d'una anotació o d'un combat); Ctrl+Y la torna a esborrar
+- **Desfer un atac o conjur** treu també el missatge de l'historial del combat i, si havia tirat un jugador a terra, la seva anotació «cau» del diari (Ctrl+Y els torna)
+- **V** és només l'eina de selecció: apaga també la selecció múltiple (àrea) i qualsevol altra eina
+- **Token actiu al davant**: el que rep o fa una acció (cop, conjur, estat) es pinta uns segons per sobre dels altres, amb nom, figureta i animacions, al DM i a la pantalla de jugador (també al hit-test)
+
 ### v5.09 — Selecció només amb Ctrl, grups amb nom i un sol torn, halo que pulsa, mapes de caselles sense límit
 - **Diari**: fora l'estrella i el botó «Anteriorment…» (i el seu recap); cada anotació és un requadre amb la vora i l'etiqueta del color del seu tipus, com l'historial de combat
 - **Halo del torn** més visible: línia més gruixuda i dos vels que **pulsen** lentament (intensitat i mida)

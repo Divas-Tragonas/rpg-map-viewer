@@ -192,7 +192,13 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       if ((e.key === 'n' || e.key === 'N') && !e.altKey) { e.preventDefault(); onQuickNote?.(); return; }
       // Sense mapa carregat les eines no fan res: les dreceres tampoc.
       if (!R.rMapSize.current) return;
-      if (e.key === 'v' || e.key === 'V') { toSelection(); return; }
+      if (e.key === 'v' || e.key === 'V') {
+        // Només l'eina de selecció: també apaga la selecció múltiple (àrea) si és encesa.
+        if (R.rAreaSelectMode.current) toggleAreaSelect();
+        R.rAreaSelectRect.current = null;
+        toSelection();
+        return;
+      }
       if (e.key === 'a' || e.key === 'A') { toggleAreaSelect(); return; }
       // Tecla L: mode debug de llum (parets efectives + polígon de visió + radi).
       if (e.key === 'l' || e.key === 'L') { toggleLightDebug(); return; }

@@ -93,6 +93,7 @@
   - **Zones màgiques** (`zonesCmd`): crear, eliminar, moure i esborrar-les totes.
   - **Traços** (`commitStroke`): desfer i refer envien l'historial sencer (`UNDO_DRAW`). Un traç cuit a la base ja no es pot treure (caduca).
   - **Moviments de combat** dels jugadors (`handlePlayerTokenMove`): tornen posició i peus gastats; caduquen en canviar el torn (`rTurnGen`).
+- **Diari i combat** (v5.10): esborrar una anotació del diari (`removeEntries`, `lib/journal.ts`) apila una ordre pel `setJournalRemoveHook` que registra `DMView`; Ctrl+Z la restaura. Una ordre pot dur **efectes secundaris** (`UndoCmd.side`, executats per `stepUndo`): desfer un atac/conjur treu el missatge de l'historial del combat i l'anotació «cau» del diari (`undoLogSide` + `attachUndoSide` a `DMView`, lligats a l'ordre de PV que acaba d'apilar-se).
 - **Gestos** (arrossegar tokens, una llum, una zona, un vèrtex): `begin*` en prémer arma l'ordre a `R.rUndoGesture`; `endUndoGesture` en deixar anar l'apila **només si ha canviat res** (un clic sense moure no fa entrada).
 - **Agrupar**: ordres seguides amb la mateixa `mergeKey` en menys de `MERGE_MS` (1,5 s) en fan una: −1 PV cinc cops, el control lliscant del radi d'una llum, la mida d'un token.
 - **No entren**: la **càmera** (zoom, pan, vista privada: mai; és navegació i mouria la vista dels jugadors), la graella, torns i iniciativa, màgies, diàlegs, escenes, afegir tokens, esborrar tot el dibuix i la memòria d'explorat dels jugadors.
@@ -150,7 +151,7 @@
 - ⚠️ **Ctrl i Maj commuten els modes de vista NOMÉS amb un toc net**: prémer i deixar anar la tecla sola, sense cap altra tecla, clic ni roda pel mig i en menys de `TAP_MS`. Abans commutaven en *prémer-la* (keydown), o sigui que tot **Ctrl+Z** encenia el mode CTRL (i el segon el tornava a apagar restaurant la càmera de tothom) i el **Maj+clic** de portes/màgies encenia la vista privada. `rShiftHeld` continua sent la tecla física premuda (la fan servir les màgies i les portes). La pinça del trackpad envia `ctrlKey` sense cap keydown: no toca res.
 - **Espai mantingut** (`rSpaceHeld`) = arrossegar el mapa amb qualsevol eina (cursor `grab`/`grabbing` via els estats `spaceHeld`/`panning` de `DMView`).
 - **N** obre el diari i enfoca el camp de nota ràpida (`onQuickNote`; funciona també sense mapa).
-- **Enter** passa el torn; **V** o **Esc** (quan no hi ha res més a cancel·lar) tornen a l'eina de selecció; **?** obre `ShortcutsHelp` (també des del menú ⋯ de la barra superior). Ctrl+Z accepta també Cmd+Z; **Ctrl+Maj+Z** i **Ctrl+Y** refan. Sense mapa, les dreceres de les eines no fan res.
+- **Enter** passa el torn; **V** deixa **només** l'eina de selecció (apaga també la selecció múltiple `A`); **Esc** (quan no hi ha res més a cancel·lar) torna a l'eina de selecció; **?** obre `ShortcutsHelp` (també des del menú ⋯ de la barra superior). Ctrl+Z accepta també Cmd+Z; **Ctrl+Maj+Z** i **Ctrl+Y** refan. Sense mapa, les dreceres de les eines no fan res.
 - Si s'afegeix una drecera, afegir-la també a la llista de `ShortcutsHelp.tsx`. Aquesta finestra també explica els **gestos de l'eina Màgies** (de `SPELL_MODES`) i les tecles de les **parets**: és on va el detall que no cap a la finestreta d'una línia de la barra d'eines.
 
 ## Moure el mapa (pan) — `useMouseHandlers` + `useWheelZoom`

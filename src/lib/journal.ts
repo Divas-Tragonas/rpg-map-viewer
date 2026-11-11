@@ -114,14 +114,39 @@ export function logJournal(kind: JournalKind, text: string, extra: { data?: Reco
   } catch { /* el diari és un extra */ }
 }
 
-export function removeEntry(id: string) {
-  journalStore.update(d => ({ ...d, current: { ...d.current, entries: d.current.entries.filter(e => e.id !== id) } }));
+/** Qui vol saber què s'esborra del diari (el DM hi apila l'ordre de desfer). */
+let removeHook: ((removed: JournalEntry[]) => void) | null = null;
+export function setJournalRemoveHook(fn: ((removed: JournalEntry[]) => void) | null) { removeHook = fn; }
+
+/** Esborra anotacions i les retorna (en ordre cronològic). No avisa el `removeHook`. */
+export function takeEntries(pred: (e: JournalEntry) => boolean): JournalEntry[] {
+  const taken: JournalEntry[] = [];
+  journalStore.update(d => {
+    const keep = d.current.entries.filter(e => (pred(e) ? (taken.push(e), false) : true));
+    return taken.length ? { ...d, current: { ...d.current, entries: keep } } : d;
+  });
+  return taken;
 }
 
-/** Esborra diverses anotacions d'un cop (un combat agrupat n'és unes quantes). */
+/** Torna a posar anotacions esborrades, al seu lloc cronològic (les que ja hi són s'ignoren). */
+export function restoreEntries(back: JournalEntry[]) {
+  if (!back.length) return;
+  journalStore.update(d => {
+    const have = new Set(d.current.entries.map(e => e.id));
+    const add = back.filter(e => !have.has(e.id));
+    if (!add.length) return d;
+    const entries = [...d.current.entries, ...add].sort((a, b) => a.t - b.t);
+    return { ...d, current: { ...d.current, entries } };
+  });
+}
+
+export function removeEntry(id: string) { removeEntries([id]); }
+
+/** Esborra diverses anotacions d'un cop (un combat agrupat n'és unes quantes). Es pot desfer (Ctrl+Z). */
 export function removeEntries(ids: string[]) {
   const gone = new Set(ids);
-  journalStore.update(d => ({ ...d, current: { ...d.current, entries: d.current.entries.filter(e => !gone.has(e.id)) } }));
+  const taken = takeEntries(e => gone.has(e.id));
+  if (taken.length) removeHook?.(taken);
 }
 
 export function renameSession(name: string) {
