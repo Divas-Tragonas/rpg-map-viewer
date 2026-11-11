@@ -146,6 +146,8 @@ export interface NameTag {
   key: string; text: string; cx: number; cy: number; r: number; fig: boolean; head: boolean;
   size: number; gap: number; boxH: number;
   color: string; bg: string; alpha: number; pri: number;
+  /** Barra de vida (només el DM): va enganxada sota el nom i es mou amb ell. */
+  hp?: { hp: number; max: number };
 }
 
 /** Tots els noms van en negreta (DM i jugador): a la TV, la lletra prima es perdia damunt del mapa. */
@@ -171,32 +173,40 @@ function nameWidth(ctx: CanvasRenderingContext2D, text: string, px: number): num
   return w * px / NAME_REF_PX;
 }
 
-/** Pinta el nom centrat a `x` amb el fons a partir de `top` (px de mapa). */
+/** Alçada de la barra de vida d'un nom (px de mapa). */
+const hpBarH = (t: NameTag, u: number) => Math.max(13 * u, t.r * 0.35);
+/** Alçada total del nom (px de mapa): la capsa i, al DM, la barra de vida de sota. */
+const tagH = (t: NameTag, u: number) => t.boxH * u + (t.hp ? u + hpBarH(t, u) : 0);
+/** Amplada total del nom (px de mapa): la capsa o, si és més ampla, la barra de vida. */
+const tagW = (ctx: CanvasRenderingContext2D, t: NameTag, u: number) =>
+  Math.max(nameWidth(ctx, t.text, t.size * u) + 8 * u, t.hp ? t.r * 2 : 0);
+
+/** Pinta el nom centrat a `x` amb el fons a partir de `top` (px de mapa) i, al DM, la vida a sota. */
 function drawNameTag(ctx: CanvasRenderingContext2D, t: NameTag, u: number, x: number, top: number) {
   ctx.font = nameFont(t, u); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   const tw = nameWidth(ctx, t.text, t.size * u);
   ctx.globalAlpha = t.alpha;
   ctx.fillStyle = t.bg; ctx.fillRect(x - tw / 2 - 4 * u, top, tw + 8 * u, t.boxH * u);
   ctx.fillStyle = t.color; ctx.fillText(t.text, x, top + (12 - t.gap) * u);
+  if (t.hp && t.hp.max > 0) drawHpBar(ctx, x, top + t.boxH * u + u, t.r * 2, hpBarH(t, u), u, t.hp.hp, t.hp.max);
+  ctx.globalAlpha = 1;
 }
 
 /**
- * Barra de vida que només veu el DM, sota el nom: la mateixa per a jugadors i enemics (v4.96: la
- * gruixuda dels enemics, amb els punts a dins, que es llegeix millor que la prima de sota).
+ * Barra de vida que només veu el DM, enganxada sota el nom (es mou amb ell, v5.11): la mateixa per a
+ * jugadors i enemics (v4.96: la gruixuda dels enemics, amb els punts a dins).
  */
-function drawHpBar(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, sc: number, hpRaw: number, hpMax: number, fig: boolean) {
+function drawHpBar(ctx: CanvasRenderingContext2D, cx: number, barY: number, barW: number, barH: number, u: number, hpRaw: number, hpMax: number) {
   const hp = Math.max(0, hpRaw), ratio = Math.min(1, hp / hpMax);
-  const barW = R * 2, barH = Math.max(13 / sc, R * 0.35);
-  // Just sota el nom (3 de buit + 12 de capsa + 1), que ara penja de l'aro dels peus.
-  const barX = cx - R, barY = nameBase(cy, R, fig, sc) + 16 / sc;
+  const barX = cx - barW / 2;
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(barX, barY, barW, barH);
   ctx.fillStyle = ratio > 0.5 ? C.hpHigh : ratio > 0.25 ? C.hpMid : C.enemy;
   ctx.fillRect(barX, barY, barW * ratio, barH);
-  ctx.font = `bold ${Math.max(9 / sc, barH * 0.62)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold ${Math.max(9 * u, barH * 0.62)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   // Contorn fosc en lloc de `shadowBlur`: l'ombra difuminada es calculava per token i fotograma
   // (cara, sobretot a Safari) per a un efecte de 2 px que el contorn fa igual.
   const join = ctx.lineJoin;
-  ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 2.5 / sc; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 2.5 * u; ctx.lineJoin = 'round';
   ctx.strokeText(`${hp}/${hpMax}`, cx, barY + barH / 2);
   ctx.lineJoin = join;
   ctx.fillStyle = '#fff';
@@ -223,6 +233,11 @@ const tokenBody = (t: NameTag): Box => t.fig
  * Vora de baix del token des d'on penja el nom (px de mapa): el disc, o, a les figuretes, l'aro de color
  * dels peus (ombra + halos) i no la vora de la casella, que deixava un forat buit sota els peus.
  */
+/** Mig ample de la base (px de mapa): fins on arriba l'aro de color dels peus pels costats. */
+function nameSide(t: NameTag, sc: number): number {
+  return t.fig ? footEllipse(t.r, haloSlots(t.r, sc, true).color + 2 / sc).rx : t.r + 3 / sc;
+}
+
 function nameBase(cy: number, r: number, fig: boolean, sc: number): number {
   return fig ? footOf(cy, r) + footEllipse(r, haloSlots(r, sc, true).color + 2 / sc).ry : cy + r;
 }
@@ -238,7 +253,7 @@ function nameBase(cy: number, r: number, fig: boolean, sc: number): number {
  * Primer els jugadors (no es mouen mai per un enemic) i, al final, els enemics de dins d'una sala fosca
  * no revelada: no han d'empènyer cap nom visible (delataria on són).
  */
-const NAME_ROWS = 3, NAME_SHIFT = 0.45, NAME_COVER = 4, NAME_STICK = 0.5;
+const NAME_ROWS = 3, NAME_SHIFT = 0.45, NAME_COVER = 6, NAME_STICK = 0.5;
 let _nameSlot = new Map<string, number>();
 export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext): void {
   const tags = fc.nameTags;
@@ -248,7 +263,7 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
   ctx.save();
   const items = tags.map((t, i) => {
     const pri = t.pri > 0 && dark.some(r => pointInPolygon(t.cx, t.cy, r.points)) ? 2 : t.pri;
-    return { t, i, pri, w: nameWidth(ctx, t.text, t.size * u) + 8 * u, h: t.boxH * u, body: tokenBody(t), x: t.cx, top: 0, slot: 0 };
+    return { t, i, pri, w: tagW(ctx, t, u), h: tagH(t, u), body: tokenBody(t), x: t.cx, top: 0, slot: 0 };
   });
   items.sort((a, b) => a.pri - b.pri || a.body.b - b.body.b || a.t.cx - b.t.cx || a.i - b.i);
   const placed: Box[] = [];
@@ -256,24 +271,31 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
   for (const it of items) {
     const { t, w, h } = it, line = h + pad, l0 = t.cx - w / 2;
     const base = nameBase(t.cy, t.r, t.fig, fc.sc);
-    // Llocs (slot): 0..NAME_ROWS-1 a sota, -1 i -2 a sobre del cap.
-    const cands: { slot: number; top: number; cost: number }[] = [];
-    for (let k = 0; k < NAME_ROWS; k++) cands.push({ slot: k, top: base + t.gap * u + k * line, cost: k * line });
-    if (!t.head) for (let k = 0; k < 2; k++) cands.push({ slot: -1 - k, top: it.body.t - t.gap * u - h - k * line, cost: (k + 1) * line });
+    // Llocs (slot): 0..NAME_ROWS-1 a sota, -1 i -2 a sobre del cap, i 10/11 al costat dret/esquerre
+    // dels peus (en una filera vertical de tokens, el lloc que no tapa ningú).
+    const cands: { slot: number; top: number; cost: number; cx: number }[] = [];
+    for (let k = 0; k < NAME_ROWS; k++) cands.push({ slot: k, top: base + t.gap * u + k * line, cost: k * line, cx: t.cx });
+    if (!t.head) for (let k = 0; k < 2; k++) cands.push({ slot: -1 - k, top: it.body.t - t.gap * u - h - k * line, cost: (k + 1) * line, cx: t.cx });
+    const side = nameSide(t, fc.sc) + 4 * u, midY = t.fig ? footOf(t.cy, t.r) : t.cy;
+    cands.push({ slot: 10, top: midY - h / 2, cost: line, cx: t.cx + side + w / 2 });
+    cands.push({ slot: 11, top: midY - h / 2, cost: 1.1 * line, cx: t.cx - side - w / 2 });
     const last = _nameSlot.get(t.key);
     let best = { x: t.cx, top: cands[0].top, slot: 0, cost: Infinity };
     for (const c of cands) {
-      const top = c.top, bot = top + h;
+      const top = c.top, bot = top + h, l0 = c.cx - w / 2;
       const vcost = c.cost - (c.slot === last ? NAME_STICK * line : 0);
       if (vcost >= best.cost) continue;
       // Per tapar, el nom compta fins al seu token: un nom que salta per sobre d'una altra figureta
       // (dues línies més avall, per sota de la fila del costat) ja no se sap de qui és.
-      const et = c.slot < 0 ? top : base, eb = c.slot < 0 ? it.body.t : bot;
+      const sideSlot = c.slot >= 10;
+      const et = sideSlot || c.slot < 0 ? top : base, eb = c.slot < 0 ? it.body.t : bot;
       const nearL = placed.filter(p => p.t < bot + pad && p.b > top - pad);
       const nearB = items.filter(o => o !== it && o.body.t < eb && o.body.b > et).map(o => o.body);
       const shifts = [0];
-      for (const p of nearL) shifts.push(p.r + pad - l0, p.l - pad - (l0 + w));
-      for (const p of nearB) shifts.push(p.r - l0, p.l - (l0 + w));
+      if (!sideSlot) {
+        for (const p of nearL) shifts.push(p.r + pad - l0, p.l - pad - (l0 + w));
+        for (const p of nearB) shifts.push(p.r - l0, p.l - (l0 + w));
+      }
       for (const dx of shifts) {
         if (Math.abs(dx) > w * NAME_SHIFT) continue;
         const box = { l: l0 + dx, r: l0 + dx + w, t: top, b: bot };
@@ -281,7 +303,7 @@ export function renderNameTags(ctx: CanvasRenderingContext2D, fc: FrameContext):
         const reach = { l: box.l, r: box.r, t: et, b: eb };
         const cover = nearB.reduce((sum, b) => sum + overlapArea(reach, b) / ((b.r - b.l) * (b.b - b.t)), 0);
         const cost = vcost + Math.abs(dx) + cover * NAME_COVER * line;
-        if (cost < best.cost) best = { x: t.cx + dx, top, slot: c.slot, cost };
+        if (cost < best.cost) best = { x: c.cx + dx, top, slot: c.slot, cost };
       }
     }
     // Sense cap lloc lliure (molts tokens molt junts): a sota, encara que en toqui un altre.
@@ -599,7 +621,8 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
     if (showStates) {
       // Mateixa lletra, mida i fons que el nom de les DIVAS (només canvia el color).
       nameTag(ctx, fc, { key: `lib_${en.id}`, text: en.name, cx: ep.x, cy: ep.y, r: R, fig: !!libSprite, head: !!libSprite && hasStatusFx(enCondIds), size: 10, gap: 3, boxH: 12,
-        color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.8)', alpha: enAlpha, pri: 1 });
+        color: isVis ? '#ffaaaa' : '#888', bg: 'rgba(8,12,18,.8)', alpha: enAlpha, pri: 1,
+        ...(isDM && en.hpMax > 0 ? { hp: { hp: en.hp ?? en.hpMax, max: en.hpMax } } : {}) });
     }
     ctx.globalAlpha = 1;
     // Halos de dins a fora, i cada un per sobre de l'anterior: estats, color i (més avall) selecció.
@@ -608,7 +631,6 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
     drawColorHalo(ctx, ep.x, ep.y, R, sc, en.color, !!libSprite, isInvis, glow, phase);
     ctx.globalAlpha = 1;
 
-    if (isDM && en.hpMax > 0) drawHpBar(ctx, ep.x, ep.y, R, sc, en.hp ?? en.hpMax, en.hpMax, !!libSprite);
     const epC = ep;
 
     const drawCross = () => {
@@ -814,13 +836,13 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
     }
     ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
     nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, head: !!plSprite && hasStatusFx(plCondIds), size: 10, gap: 3, boxH: 12,
-      color: pl.color, bg: 'rgba(8,12,18,.8)', alpha: 1, pri: 0 });
+      color: pl.color, bg: 'rgba(8,12,18,.8)', alpha: 1, pri: 0,
+      ...(isDM && pl.hpMax > 0 ? { hp: { hp: pl.hp ?? pl.hpMax, max: pl.hpMax } } : {}) });
     ctx.textAlign = 'left';
     // Halos de dins a fora, i cada un per sobre de l'anterior: estats, color i (més avall) selecció.
     drawConditionRingFor(ctx, ppos.x + R, ppos.y + R, R, plCondIds, sc, plSprite ? footRing(ppos.y + R, R, sc) : undefined);
     drawColorHalo(ctx, ppos.x + R, ppos.y + R, R, sc, pl.color, !!plSprite, isInvis, glow);
 
-    if (isDM && pl.hpMax > 0) drawHpBar(ctx, ppos.x + R, ppos.y + R, R, sc, pl.hp ?? pl.hpMax, pl.hpMax, !!plSprite);
 
     const drawCross = () => {
       if (isDefeated && (isDM || crossProg > 0)) {

@@ -7,7 +7,8 @@ La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/
 - **Ordre de pintat**: el token més avall al mapa tapa el de darrere (abans, el de més amunt anava per sobre); el clic segueix el mateix ordre
 - **Token de l'última acció** (agressor i víctima/afectats) es queda per sobre de tots **fins que un altre en faci o en rebi una**, sense límit de 3,5 s; igual a la pantalla de jugador
 - **Portes laterals**: a la pantalla de jugador el token que passa pel davant d'una porta ja no queda per sota (el DM ja ho feia així)
-- **Noms**: pengen de l'aro dels peus (no de la vora de la casella) i el DM fa servir la mateixa col·locació que la pantalla de jugador (sense encavalcar-se ni tapar); la **barra de vida** del DM puja amb el nom
+- **Noms**: pengen de l'aro dels peus (no de la vora de la casella) i el DM fa servir la mateixa col·locació que la pantalla de jugador; es pinten després de tots els tokens (cap figureta els tapa) i, si a sota taparien el token del costat, van **al costat dels peus** (filera de tokens). A la pantalla de jugador tampoc queden sota les portes
+- **Barra de vida del DM** enganxada sota el nom: puja amb ell i el segueix allà on vagi (ja no la tapa el token de sota)
 
 ### v5.10 — Desfer del diari i dels morts, V només selecció, token actiu al davant
 - **Ctrl+Z** recupera una anotació del diari esborrada (✕ d'una anotació o d'un combat); Ctrl+Y la torna a esborrar

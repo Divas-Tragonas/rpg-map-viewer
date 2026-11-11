@@ -1054,10 +1054,10 @@ export function PlayerView() {
           lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, tokLayer.width, tokLayer.height);
           lc.setTransform(ctx.getTransform());
           renderTokens(lc, fc);
+          renderNameTags(lc, fc);    // els noms també a la capa: així tampoc queden sota les portes
           ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(tokLayer, 0, 0); ctx.restore();
-        } else { tokLayer = null; renderTokens(ctx, fc); }
-      } else renderTokens(ctx, fc);
-      renderNameTags(ctx, fc);       // els noms, després de totes les figuretes i abans de la foscor
+        } else { tokLayer = null; renderTokens(ctx, fc); renderNameTags(ctx, fc); }
+      } else { renderTokens(ctx, fc); renderNameTags(ctx, fc); }  // noms després de les figuretes i abans de la foscor
       renderSpells(ctx, fc, 'air');  // projectiles/bolts/cones fly OVER the tokens
 
       // La foscor de les sales fosques es pinta DAMUNT de tot: així qualsevol token,
