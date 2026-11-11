@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.13 — Llums més àgils: límit de ritme, explorat més espaiat i terra explorat en memòria cau
+- La llum i el seu polígon de visió es refan com a molt cada ~24 ms mentre un token es mou (el darrer fotograma sempre és exacte)
+- La memòria d'explorat s'acumula com a molt cada 150 ms (i sempre acaba d'acumular-se en aturar-se)
+- El terra explorat («mapa ∩ explorat») es guarda en una memòria cau i ja no es repinta el mapa sencer a cada fotograma
+
 ### v5.12 — Pantalla de jugador a l'iPad: sense selecció falsa en mantenir premut
 - Mantenir premut un token (p. ex. apilats) a la pantalla de jugador ja no activa la selecció de text ni la lupa/menú d'Apple (`user-select`/`-webkit-touch-callout: none` amb pantalla tàctil, i `contextmenu` bloquejat al canvas)
 

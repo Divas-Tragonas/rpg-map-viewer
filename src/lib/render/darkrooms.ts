@@ -3,6 +3,7 @@ import type { Room, Wall, Door, Point } from '@/types';
 import { C, DEFAULT_VISION_FT } from '@/constants';
 import { visibilityPolygon } from '@/lib/rooms/visibility';
 import { effectiveWalls, effectiveWallsAnimated } from '@/lib/rooms/doors';
+import { wake } from './wake';
 
 const REVEAL_LERP = 0.09;
 
@@ -22,7 +23,28 @@ let _lightTmp2: HTMLCanvasElement | null = null;
 // Rasteritzat ja acabat de cada llum (màscara erosionada + gradient), en coordenades locals
 // del seu rectangle. Clau = `Light.key`. Es reutilitza mentre no canviï res que en determini
 // els píxels, així moure UN token no obliga a refer la llum de tota la resta.
-const _maskCache = new Map<string, { sig: string; cv: HTMLCanvasElement }>();
+// `base` = la part de la firma que no depèn de la posició de la llum (parets + càmera) i `t` =
+// instant del rasteritzat: serveixen al límit de ritme (veure `LIGHT_THROTTLE_MS`).
+const _maskCache = new Map<string, { sig: string; base: string; cv: HTMLCanvasElement; bx: number; by: number; t: number }>();
+// Límit de ritme de la llum mentre un token es mou (~30 fps a 60 Hz): si només han canviat la
+// posició/radi/intensitat d'una llum i el seu rasteritzat és de fa menys d'això, es reutilitza
+// el de fa un instant (la diferència és d'un fotograma de moviment) i es demana un fotograma
+// més amb `wake()` perquè l'últim sempre quedi exacte. Si el dispositiu ja va a poc més de
+// 40 fps no entra mai en joc: el límit s'autoregula.
+const LIGHT_THROTTLE_MS = 24;
+// Separació mínima entre dues acumulacions de la memòria d'explorat (cada una refà la memòria
+// cau del terra explorat, veure `_memTerrain`). La llum és molt més gran que el que es mou en
+// aquest temps: la vora de darrere sempre és dins de l'últim polígon acumulat.
+const EXPLORED_THROTTLE_MS = 150;
+let _exploredPending = false;
+let _exploredLastAcc = 0;
+// Versió de la màscara d'explorat: puja a cada canvi (acumular, esborrar, reiniciar).
+let _exploredVer = 0;
+// Terra explorat ja retallat («mapa ∩ explorat»), en coords de pantalla, reutilitzat entre
+// frames. Abans es repintava el mapa sencer escalat + un `destination-in` a cada frame.
+let _memTerrain: HTMLCanvasElement | null = null;
+let _memTerrainSig = '';
+let _memTerrainMedia: unknown = null;
 // Regió de `_lightCanvas` que va escriure el frame anterior (l'única que cal netejar).
 let _lcDirty: { x: number; y: number; w: number; h: number } | null = null;
 
@@ -49,6 +71,7 @@ function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; sc
     _exploredSig = sig; _exploredScale = scale;
     // La màscara s'ha reiniciat (mapa nou): cal tornar a acumular encara que res s'hagi mogut.
     _exploredDirty = true;
+    _exploredVer++;
   }
   return { canvas: _exploredCanvas, scale: _exploredScale };
 }
@@ -68,6 +91,7 @@ function accumulateExplored(
   mw: number, mh: number,
 ): void {
   if (darkRooms.length === 0) return;
+  _exploredVer++;
   const ex = ensureExplored(mw, mh);
   const ectx = ex.canvas.getContext('2d')!;
   ectx.save();
@@ -206,6 +230,7 @@ function collectLights(fc: FrameContext): Light[] {
  */
 export function resetExplored(): void {
   _exploredDirty = true;
+  _exploredVer++;
   _exploredSig = '';
 }
 
@@ -213,6 +238,7 @@ export function clearExploredAt(points: { x: number; y: number }[]): void {
   // Força una acumulació d'explorat al proper frame encara que res no s'hagi mogut (si no,
   // la zona il·luminada ARA no es tornaria a memoritzar fins que algú es mogués).
   _exploredDirty = true;
+  _exploredVer++;
   if (!_exploredCanvas || points.length < 3) return;
   const ectx = _exploredCanvas.getContext('2d')!;
   ectx.save();
@@ -275,7 +301,7 @@ function lightWalls(fc: FrameContext): { walls: Wall[]; sig: string } {
 // Memòria cau del polígon de visibilitat per llum: el raycasting és O(vèrtexs × parets) i
 // es feia per llum i per frame, encara que ni la llum ni les parets s'haguessin mogut (el
 // cas normal entre moviments). Amb molts tokens de jugador això era el pic de CPU.
-const _visCache = new Map<string, { sig: string; poly: Point[] }>();
+const _visCache = new Map<string, { sig: string; ws: string; t: number; poly: Point[] }>();
 let _exploredDirty = false;
 
 // Sala que conté el punt (la primera, com feia `rooms.find`). El descart per bbox evita
@@ -319,7 +345,7 @@ function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): b
 //  3. `_lightCanvas` només es neteja i es composita a la finestra que ocupen les llums.
 // Els `drawImage` són el que costa; els `fill` no surten ni al perfil (per això la màscara
 // es torna a traçar dues vegades en lloc de copiar-se amb un blit).
-function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSig: string, rooms: Room[]): void {
+function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSig: string, rooms: Room[], fnow: number): void {
   const off = octx.canvas;
   if (!_lightCanvas) _lightCanvas = document.createElement('canvas');
   const lc = _lightCanvas;
@@ -353,11 +379,13 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     const bw = Math.min(off.width, Math.ceil(cx + rr)) - bx;
     const bh = Math.min(off.height, Math.ceil(cy + rr)) - by;
     if (bw <= 0 || bh <= 0) continue;      // llum completament fora de pantalla
-    if (bx < ux0) ux0 = bx;
-    if (by < uy0) uy0 = by;
-    if (bx + bw > ux1) ux1 = bx + bw;
-    if (by + bh > uy1) uy1 = by + bh;
     seen.add(li.key);
+    const grow = (x: number, y: number, w: number, h: number) => {
+      if (x < ux0) ux0 = x;
+      if (y < uy0) uy0 = y;
+      if (x + w > ux1) ux1 = x + w;
+      if (y + h > uy1) uy1 = y + h;
+    };
 
     // 0b) Memòria cau del rasteritzat d'aquesta llum. Rasteritzar-la (màscara + erosió +
     //     gradient) és el gruix del cost del frame i es refeia per a TOTES les llums a cada
@@ -367,12 +395,24 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     //     es pot distingir, perquè el LERP del token hi convergeixi de seguida).
     const ent = _maskCache.get(li.key);
     const q = (v: number) => Math.round(v * 4) / 4;
-    const sig = `${wallsSig}|${T.a.toFixed(5)},${T.e.toFixed(2)},${T.f.toFixed(2)}|${bx},${by},${bw},${bh}|${q(cx)},${q(cy)},${q(rr)},${li.intensity.toFixed(3)}`;
+    const base = `${wallsSig}|${T.a.toFixed(5)},${T.e.toFixed(2)},${T.f.toFixed(2)}`;
+    const sig = `${base}|${bx},${by},${bw},${bh}|${q(cx)},${q(cy)},${q(rr)},${li.intensity.toFixed(3)}`;
     if (ent && ent.sig === sig && ent.cv.width === bw && ent.cv.height === bh) {
+      grow(bx, by, bw, bh);
       lctx.setTransform(1, 0, 0, 1, 0, 0);
       lctx.drawImage(ent.cv, 0, 0, bw, bh, bx, by, bw, bh);
       continue;
     }
+    // Límit de ritme: només ha canviat la llum (no les parets ni la càmera) i el seu
+    // rasteritzat és molt recent → es reutilitza tal qual, al seu rectangle d'abans.
+    if (ent && ent.base === base && fnow - ent.t < LIGHT_THROTTLE_MS) {
+      grow(ent.bx, ent.by, ent.cv.width, ent.cv.height);
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.drawImage(ent.cv, 0, 0, ent.cv.width, ent.cv.height, ent.bx, ent.by, ent.cv.width, ent.cv.height);
+      wake();
+      continue;
+    }
+    grow(bx, by, bw, bh);
     // El rasteritzat es fa directament al canvas de la memòria cau, en coordenades locals
     // del rectangle (origen a bx,by): així guardar-lo no costa cap còpia extra.
     const cv = ent?.cv ?? document.createElement('canvas');
@@ -453,7 +493,7 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     cvx.fillRect(li.x - li.r, li.y - li.r, li.r * 2, li.r * 2);
     cvx.globalCompositeOperation = 'source-over';
     cvx.restore();   // treu el retall
-    _maskCache.set(li.key, { sig, cv });
+    _maskCache.set(li.key, { sig, base, cv, bx, by, t: fnow });
     // 3) Acumular aquesta llum a la capa de llum (només el seu rectangle: així el que hi
     //    hagi deixat una altra llum fora d'aquest rectangle no s'hi torna a sumar).
     lctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -537,6 +577,7 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   const { isDM, sc, ox, oy } = fc;
   const anim = fc.roomRevealAnimRef?.current ?? {};
   const hovId = fc.rHoveredRoomId?.current ?? null;
+  const fnow = performance.now();
 
   // Marge (coords de mapa) per al culling i el rectangle de compòsit: la foscor ja no surt
   // del polígon (veure `fillDarkness`), però l'antialiàsing de la vora sí que toca un píxel.
@@ -608,8 +649,10 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         seenVis.add(li.key);
         const vsig = `${wallsSig}|${Math.round(li.x)},${Math.round(li.y)},${Math.round(li.r)}`;
         let ent = _visCache.get(li.key);
-        if (!ent || ent.sig !== vsig) {
-          ent = { sig: vsig, poly: visibilityPolygon({ x: li.x, y: li.y }, walls, li.r) };
+        if (ent && ent.sig !== vsig && ent.ws === wallsSig && fnow - ent.t < LIGHT_THROTTLE_MS) {
+          wake();   // polígon de fa un instant (mateix límit de ritme que el rasteritzat)
+        } else if (!ent || ent.sig !== vsig) {
+          ent = { sig: vsig, ws: wallsSig, t: fnow, poly: visibilityPolygon({ x: li.x, y: li.y }, walls, li.r) };
           _visCache.set(li.key, ent);
           anyRecomputed = true;
         }
@@ -619,7 +662,7 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       }
       for (const k of _visCache.keys()) if (!seenVis.has(k)) { _visCache.delete(k); anyRecomputed = true; }
       // Esborra la llum actual del tot: unió de la sala pròpia + vessament per portes.
-      carveLights(octx, polys, wallsSig, rooms);
+      carveLights(octx, polys, wallsSig, rooms, fnow);
 
       // Rectangle de pantalla que cobreixen les sales fosques visibles. Fora d'aquí `off`
       // no té alpha (no s'hi ha pintat cap sala), o sigui que ni el compòsit de la foscor
@@ -658,36 +701,51 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         // de pantalla: el que s'explora sense mirar-s'hi ha de quedar memoritzat igual) i
         // dins del radi. Si cap polígon de visió ha canviat, la màscara ja conté exactament
         // el mateix: saltar-ho estalvia un clip + fill per llum a cada frame quiet.
-        if (anyRecomputed || _exploredDirty) {
-          _exploredDirty = false;
-          accumulateExplored(polys, fills.map(f => f.room), fc.mw, fc.mh);
+        // Amb límit de ritme (`EXPLORED_THROTTLE_MS`): mentre un token es mou, el polígon
+        // canvia a cada frame i cada acumulació invalida la memòria cau del terra explorat.
+        if (anyRecomputed || _exploredDirty) { _exploredPending = true; _exploredDirty = false; }
+        if (_exploredPending) {
+          if (fnow - _exploredLastAcc >= EXPLORED_THROTTLE_MS) {
+            _exploredPending = false; _exploredLastAcc = fnow;
+            accumulateExplored(polys, fills.map(f => f.room), fc.mw, fc.mh);
+          } else wake();   // l'última acumulació ha de fer-se encara que el token s'aturi
         }
         // Totes les passades següents es limiten al rectangle de les sales fosques
         // visibles: el terreny memoritzat només es veu on `off` té alpha.
         if (hasDark) {
           const ex = ensureExplored(fc.mw, fc.mh);
           if (!_memCanvas) _memCanvas = document.createElement('canvas');
-          const mem = _memCanvas;
+          if (!_memTerrain) _memTerrain = document.createElement('canvas');
+          const mem = _memCanvas, terr = _memTerrain;
           if (mem.width !== main.width || mem.height !== main.height) { mem.width = main.width; mem.height = main.height; }
+          if (terr.width !== main.width || terr.height !== main.height) { terr.width = main.width; terr.height = main.height; _memTerrainSig = ''; }
+          // «mapa ∩ explorat» no depèn de la llum, només de la càmera, el mapa i la màscara
+          // d'explorat: es refà quan canvien. Un vídeo canvia a cada frame: no es pot guardar.
+          const Tm = ctx.getTransform();
+          const tsig = `${Tm.a.toFixed(5)},${Tm.e.toFixed(2)},${Tm.f.toFixed(2)}|${dx0},${dy0},${dw},${dh}|${fc.mw}x${fc.mh}|${_exploredVer}|${(media as HTMLImageElement).currentSrc ?? ''}`;
+          if (media.tagName === 'VIDEO' || _memTerrainMedia !== media || _memTerrainSig !== tsig) {
+            const tctx = terr.getContext('2d')!;
+            tctx.setTransform(1, 0, 0, 1, 0, 0);
+            tctx.clearRect(dx0, dy0, dw, dh);
+            tctx.save();
+            tctx.beginPath(); tctx.rect(dx0, dy0, dw, dh); tctx.clip();
+            // 1) el terreny (mapa de fons) en coords de map
+            tctx.setTransform(Tm);
+            tctx.drawImage(media, 0, 0, fc.mw, fc.mh);
+            // 2) retallar-lo a les zones explorades
+            tctx.globalCompositeOperation = 'destination-in';
+            tctx.drawImage(ex.canvas, 0, 0, fc.mw, fc.mh);
+            tctx.restore();
+            _memTerrainSig = tsig; _memTerrainMedia = media;
+          }
           const mctx = mem.getContext('2d')!;
           mctx.setTransform(1, 0, 0, 1, 0, 0);
           mctx.clearRect(dx0, dy0, dw, dh);
-          mctx.save();
-          mctx.beginPath(); mctx.rect(dx0, dy0, dw, dh); mctx.clip();
-          mctx.globalCompositeOperation = 'source-over';
-          // 1) el terreny (mapa de fons) en coords de map
-          mctx.setTransform(ctx.getTransform());
-          mctx.drawImage(media, 0, 0, fc.mw, fc.mh);
-          // 2) retallar-lo a les zones explorades
-          mctx.globalCompositeOperation = 'destination-in';
-          mctx.setTransform(ctx.getTransform());
-          mctx.drawImage(ex.canvas, 0, 0, fc.mw, fc.mh);
+          mctx.drawImage(terr, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
           // 3) i a les que encara són fosques ara (alpha de `off` post-carve = fosc-no-lluminat)
           mctx.globalCompositeOperation = 'destination-in';
-          mctx.setTransform(1, 0, 0, 1, 0, 0);
           mctx.drawImage(off, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
           mctx.globalCompositeOperation = 'source-over';
-          mctx.restore();
           // Composita el terreny memoritzat, atenuat, damunt de la foscor (amaga els tokens).
           ctx.save();
           ctx.setTransform(1, 0, 0, 1, 0, 0);
