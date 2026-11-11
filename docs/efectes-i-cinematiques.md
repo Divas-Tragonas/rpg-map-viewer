@@ -33,7 +33,7 @@
 - **Partícules deterministes**: cada partícula és funció pura de (llavor del `sp.id`, temps). Cap estat entre frames → DM i jugadors veuen la mateixa explosió. ⚠️ Dins de cada sistema, **tots els `rnd()` d'una partícula es treuen abans del `continue`** de les que no són vives; si no, el flux del PRNG es desalinea i les partícules canvien a mig efecte.
 - **Sprites** (`fxsprites.ts`): foc (4 temperatures × 3 variants de soroll), fum, halo i socarrim, generats una sola vegada amb `ImageData` i copiats amb `drawImage`. La temperatura contínua es fa fonent dos sprites veïns (`fire()`). No tornar a `createRadialGradient` per partícula: és més car i tot surt amb forma de cercle perfecte.
 - **Dues passades**: el socarrim i les brases (`drawFireballGround`) van a la `'ground'`, sota els tokens; la resta a la `'air'`.
-- **Sacsejada de càmera** (`spellShake` a `spells.ts`, que suma `fireballShake` i `lightningShake`): el tick del DM (`useRafLoop`) i el del jugador (`PlayerView`) la sumen a `ox/oy`, així el fons DOM i el canvas es mouen junts. No afecta `rDmCam` (que surt de `rZoom`/`rPanOffset`) ni es sincronitza: cada pantalla la calcula del seu `startTime`. Un spell nou amb sacsejada s'afegeix a `spellShake`, no als ticks.
+- **Sacsejada de càmera** (`spellShake` a `spells.ts`, que suma `fireballShake`, `lightningShake` i `breathFireShake`): el tick del DM (`useRafLoop`) i el del jugador (`PlayerView`) la sumen a `ox/oy`, així el fons DOM i el canvas es mouen junts. No afecta `rDmCam` (que surt de `rZoom`/`rPanOffset`) ni es sincronitza: cada pantalla la calcula del seu `startTime`. Un spell nou amb sacsejada s'afegeix a `spellShake`, no als ticks.
 - **Ajudants comuns** (`fxsprites.ts`): `glow`, `blitStretch` (sprite estirat: flares, flaixos direccionals), `fire` (bufarada de foc amb temperatura), `streak` (espurna), `impactBurst`, `smoothstep`, `dragged` (desplaçament amb fricció), `fxCell` (mida de casella o fallback de pantalla)… Els efectes nous els han de fer servir en lloc de copiar-los.
 
 ## Velocitat de les animacions (`FX_SLOW` a `constants`, v5 snapshot 15)
@@ -42,13 +42,26 @@
 - Una animació nova d'atac o de conjur ha de passar per aquests rellotges (o dividir el seu temps per `FX_SLOW`).
 
 ## Llenguatge visual comú dels spells
-- **Una paleta per escola** (`PAL` a `fxsprites.ts`: `fire`, `arcane`, `charm`, `dream`; cadascuna `white → light → mid → deep`). Un spell nou n'agafa una; no s'inventa colors propis. Projectil i raig màgic = `arcane`; bola de foc i mans ardents = `fire`.
+- **Una paleta per escola** (`PAL` a `fxsprites.ts`: `fire`, `arcane`, `charm`, `dream`, `necro`…; cadascuna `white → light → mid → deep`). Un spell nou n'agafa una; no s'inventa colors propis. Projectil i raig màgic = `arcane`; bola de foc i mans ardents = `fire`.
 - **Impacte únic** (`impactBurst`): flaix → llum → anell → espurnes. Tots els spells que toquen un objectiu l'usen, a una mida proporcional al seu nivell.
 - **Estructura en fases** (càrrega/llançament → acció → resolució), mides en caselles, llum dinàmica amb `glow` additiu i partícules deterministes per llavor.
 - **Mides** (v4.65, `fxsprites.ts`): tot el que és visual (projectils, halos, esclats, espurnes, segells) es mesura amb `fxUnit` = casella × `FX_SIZE` (0,7); les **àrees de reglament** (radi de la bola de foc, dormir, greix, llum, detectar màgia, taumatúrgia, esclats d'àrea del Píxel) i la velocitat del viatge, amb la casella sencera (`fxCell`). Amb la casella sencera, el projectil màgic feia tres dards tan grossos com les figuretes. Un efecte nou ha de fer servir `fxUnit` per a la seva mida i `fxCell` només per a l'àrea que diu el reglament. Per canviar la mida de tots els efectes alhora (Clàssica i Píxel), es toca `FX_SIZE`.
-- **Contenció**: els spells de nivell 1 (`minorspells.ts`) són més curts i amb menys peces que la bola de foc o els raigs. Sacsejada de càmera només als grossos (bola de foc, llamp).
+- **Contenció**: els spells de nivell 1 (`minorspells.ts`) són més curts i amb menys peces que la bola de foc o els raigs. Sacsejada de càmera només als grossos (bola de foc, llamp, alè de foc).
 - **Llegibilitat primer**: quan un efecte de partícules no deixa clara l'àrea, s'hi afegeix una capa de forma suau (la falca de calor de les mans ardents, l'onada i el contorn de dormir).
 - **Àrees persistents** (`areaspells.ts`): reben `e` clampat a la meitat de la durada (l'aparició hi ha de cabre sencera); el que es mou mentre hi són va amb el rellotge absolut. Mai surten de l'àrea de reglament.
+
+## Alè de foc del drac (`src/lib/render/dragonbreath.ts`, v5.07)
+- Poder `breath_fire` a l'app **Clàssica** (a la Píxel el segueix pintant `drawPixelSpell`). Abans era el pintor genèric de `monsterfx.ts`: tres falques planes i 24 punts.
+- **Quatre temps** (`INHALE`, `FRONT`, `ROAR_END`, `BREATH_FIRE_DUR` 3,6 s): la gola s'encén i xucla espurnes → un front de flames escombra el con (~0,45 s) i el raig es manté (dard blanc a la gola, flames que es refreden i s'inflen a mesura que el con s'obre, guspires) → el terra queda socarrimat, amb flametes i brases (`drawBreathFireGround`, passada `'ground'`) → fum.
+- **Tot es mesura amb la llargada del con**, no amb `fxUnit`: és l'àrea de reglament (mateixa obertura que `spellCells`, `atan(0,5)`). Les taques de socarrim es queden dins del con.
+- La falca de calor es pinta en tres falques cada cop més estretes (costats esfumats). ⚠️ El front es pinta només amb bufarades de foc: una línia d'arc traçada es veia artificial.
+- Tremolor de càmera suau mentre dura el bramul (`breathFireShake`, sumat a `spellShake`).
+- El dany s'aplica als 0,4 s (`impactS` per defecte dels poders): el front ja ha passat per la majoria del con. Si es canvia `FRONT`, mirar que segueixi quadrant.
+
+## Raig necròtic (`src/lib/render/necrotic.ts`, v5.07)
+- Poder `necrotic_ray` a la Clàssica (Dit de la mort, Danyar, Marcir, Contagi…). Paleta nova `PAL.necro` (verd malalt).
+- **L'únic efecte amb nucli fosc**: el raig és un traç negre en blend normal amb la vora verda additiva, sobre una penombra; la mà i l'objectiu s'enfosqueixen amb `glow` negre. ⚠️ En `'lighter'` el negre no es veu: les ombres van abans de passar a additiu i el nucli es pinta tornant un moment a `'source-over'`.
+- **Pren, no esclata**: aplec a la mà (0,24 s) → fuet que es retorça amb dos filaments en hèlix (~13 mostres per volta) i fum → a l'objectiu, implosió (ratlles que hi convergeixen i un anell que es tanca) i **espurnes de vida que viatgen de l'objectiu al llançador**, que s'encén en rebre-les → cendra que puja. L'impacte és als 0,36 s (quadra amb l'`impactS` per defecte de 0,4).
 
 ## Raig elèctric (`src/lib/render/lightning.ts`)
 - **Geometria fractal**: desplaçament recursiu del punt mig (`fractal`) amb branques que surten dels punts mitjos. ⚠️ Les branques només es generen a nivells grossos (`depth >= 3`) i amb fondària limitada: sense això un llamp llarg fa milers de segments. Els segments es tracen **agrupats per gruix** (`strokeBolt`: un path per nivell), no un stroke per segment.

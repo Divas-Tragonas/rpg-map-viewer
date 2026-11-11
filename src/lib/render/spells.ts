@@ -12,6 +12,8 @@ import {
 import { drawSpellSleep, drawSpellGrease } from './areaspells';
 import { drawPixelSpell, hasPixelSpell, pixelTravelS } from './pixelspells';
 import { drawMonsterFx, MONSTER_FX, MONSTER_FX_DUR } from './monsterfx';
+import { drawSpellBreathFire, drawBreathFireGround, breathFireShake, BREATH_FIRE_DUR } from './dragonbreath';
+import { drawSpellNecroticRay, NECROTIC_RAY_DUR } from './necrotic';
 import { spellCells } from '@/lib/rules/spell-effects';
 import { sheet } from '@/lib/sprites/pack';
 import {
@@ -37,9 +39,10 @@ export function spellShake(spells: readonly Spell[], now: number, pixel = false)
   const f = fireballShake(spells, now);
   let x = f.x, y = f.y;
   for (const sp of spells) {
-    if (sp.type !== 'lightning') continue;
-    const l = lightningShake((now - sp.startTime) / 1000 / FX_SLOW - LIGHTNING_FIRST_STRIKE, sp.id.length);
-    x += l.x; y += l.y;
+    const e = (now - sp.startTime) / 1000 / FX_SLOW;
+    const l = sp.type === 'lightning' ? lightningShake(e - LIGHTNING_FIRST_STRIKE, sp.id.length)
+      : sp.type === 'breath_fire' ? breathFireShake(e, sp.id.length) : null;
+    if (l) { x += l.x; y += l.y; }
   }
   return { x, y };
 }
@@ -79,6 +82,8 @@ const SPELL_DURATIONS: Record<string, number> = {
   cure_wounds:      CURE_WOUNDS_DUR,
   charm_person:     CHARM_PERSON_DUR,
   ...Object.fromEntries(Object.keys(MONSTER_FX).map(k => [k, MONSTER_FX_DUR])),
+  breath_fire:      BREATH_FIRE_DUR,
+  necrotic_ray:     NECROTIC_RAY_DUR,
 };
 
 type SpellDraw = (ctx: CanvasRenderingContext2D, pts: Point[], e: number, dur: number, sc: number, gridSize: number, seed: number) => void;
@@ -90,6 +95,8 @@ const BOOK_SPELLS: Record<string, SpellDraw> = {
   detect_magic: drawSpellDetectMagic, light: drawSpellLight, sacred_flame: drawSpellSacredFlame,
   thaumaturgy: drawSpellThaumaturgy, bless: drawSpellBless, cure_wounds: drawSpellCureWounds,
   charm_person: drawSpellCharmPerson,
+  // Poders de criatures amb efecte propi (la resta, `drawMonsterFx`)
+  breath_fire: drawSpellBreathFire, necrotic_ray: drawSpellNecroticRay,
 };
 
 function ftToWorld(ft: number, gridSize: number): number {
@@ -370,6 +377,7 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     if (layer === 'ground') {
       if (sp.type === 'fireball')  { drawFireballGround(ctx, sp.points, elapsed, sc, gridSize, seed); continue; }
       if (sp.type === 'lightning') { drawLightningGround(ctx, sp.points, elapsed, sc, gridSize, seed); continue; }
+      if (sp.type === 'breath_fire') { drawBreathFireGround(ctx, sp.points, elapsed, sc, gridSize, seed); continue; }
     }
     if (isArea !== (layer === 'ground')) continue;  // each spell draws in its own pass
     const renderElapsed = isArea ? Math.min(elapsed, dur * 0.5) : elapsed;  // area spells: clamp to full-alpha state

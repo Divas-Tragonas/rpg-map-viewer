@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.07 — Alè de foc del drac i raig necròtic, refets
+- **Alè de foc** (poder de criatura, app Clàssica): la gola s'encén, un front de flames escombra el con i el raig es manté amb flames que es refreden i s'inflen a mesura que s'obre; guspires, tremolor suau de la càmera, i el terra queda socarrimat amb flametes i brases que s'apaguen sota les figures. Abans eren tres falques planes
+- **Raig necròtic** (Dit de la mort, Danyar, Marcir…): un fuet negre amb la vora verda que es retorça; a l'objectiu no esclata sinó que implosiona, i les espurnes de vida viatgen de la víctima cap a qui l'ha llançat. Abans era una boleta grisa i tres anells
+- A l'app Píxel no canvia res; mateixa durada fins al dany. Sense canvis a la API
+
 ### v5.06 — Rendiment: el bucle descansa quan no passa res
 - **Ritme del bucle de render** (`lib/render/wake.ts`, DM i jugador): ple mentre hi ha canvis o una animació en marxa, **~30 fps** amb només animacions lentes (figuretes en espera, aigua, zones, pols del torn) i **cap repintat** amb l'escena quieta. Abans es repintava tot a 60 fps sempre. Si alguna cosa es quedés congelada, `IDLE_PACING = false` torna al comportament d'abans
 - **Sostre de fotogrames**: a pantalles de 100 Hz o més es pinta un fotograma de cada dos (les animacions van per fotograma i anaven al doble de velocitat fent el doble de feina)

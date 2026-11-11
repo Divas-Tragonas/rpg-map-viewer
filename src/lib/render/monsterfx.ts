@@ -3,6 +3,7 @@ import type { Point } from '@/types';
 /**
  * Efectes de les criatures a l'app Clàssica (v5 snapshot 9): un sol pintor paramètric en lloc d'un
  * per poder. A l'app Píxel els pinta `drawPixelSpell` amb els efectes del paquet Oryx.
+ * L'alè de foc i el raig necròtic tenen efecte propi (`dragonbreath.ts`, `necrotic.ts`).
  *  - `proj`: un projectil lluminós viatja del llançador al destí abans de l'efecte.
  *  - `shape`: `cone` (alè que s'obre cap al destí), `line` (franja), `burst` (esclat al destí) o
  *    `self` (esclat al voltant del llançador).
@@ -10,12 +11,10 @@ import type { Point } from '@/types';
 interface FxDef { color: string; glow: string; proj?: boolean; shape: 'cone' | 'line' | 'burst' | 'self' }
 
 export const MONSTER_FX: Record<string, FxDef> = {
-  breath_fire:   { color: '#ff7a1a', glow: '#ffd27a', shape: 'cone' },
   breath_cold:   { color: '#7dd3fc', glow: '#e0f7ff', shape: 'cone' },
   breath_poison: { color: '#84cc16', glow: '#d9f99d', shape: 'cone' },
   breath_acid:   { color: '#a3e635', glow: '#ecfccb', shape: 'line' },
   fire_bolt:     { color: '#fb923c', glow: '#fff1c2', proj: true, shape: 'burst' },
-  necrotic_ray:  { color: '#4b5563', glow: '#a1a1aa', proj: true, shape: 'burst' },
   eye_ray:       { color: '#a855f7', glow: '#f3e8ff', proj: true, shape: 'burst' },
   hold:          { color: '#ec4899', glow: '#fce7f3', proj: true, shape: 'burst' },
   dread:         { color: '#7c3aed', glow: '#ddd6fe', shape: 'self' },
