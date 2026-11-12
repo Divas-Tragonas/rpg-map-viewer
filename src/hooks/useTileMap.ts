@@ -7,6 +7,7 @@ import { applyBrush, rectCells, lineCells, isRectBrush, type TileBrush, type Cel
 import { bakeTileMap, repaintCells, tileLiveOf } from '@/lib/tilemap/render';
 import { tileWalls, tileDoors, tileLights, keepRoomFace } from '@/lib/tilemap/geometry';
 import { parseTmx } from '@/lib/tilemap/tmx';
+import { objectAt, objectCells, anchorCenter, placeObjectAt, quarter } from '@/lib/tilemap/objects';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { pruneDoors } from '@/lib/rooms/doors';
 
@@ -94,6 +95,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
   useEffect(() => {
     R.rTileRestore.current = (opts) => {
       const m = R.rTileMap.current;
+      R.rTileSel.current = null;   // els índexs dels objectes ja no valen
       Dref.current.setHasTileMap(!!m);
       if (!m) { R.rTileCanvas.current = null; R.rTileLive.current = null; return; }
       if (opts?.rebake === false) {
@@ -141,23 +143,54 @@ export function useTileMap(R: DMRefs, D: Deps) {
     if (R.rTileCanvas.current && touched.length) repaintCells(R.rTileCanvas.current, work, touched);
   }, [R]);
 
+  /**
+   * Pinzell «Moure»: l'objecte agafat va on és el cursor, al píxel (fora de la graella). Amb Maj,
+   * el centre de l'àncora s'enganxa al centre de la casella (torna a la graella).
+   */
+  const moveObject = useCallback((mx: number, my: number, snap: boolean) => {
+    const drag = R.rTileDrag.current, mv = drag?.move; if (!drag || !mv) return;
+    const m = R.rTileMap.current; if (!m) return;
+    const o = m.objects[mv.idx]; if (!o) return;
+    let x = mx - mv.gx, y = my - mv.gy;
+    if (snap) { x = (Math.floor(x / TILE) + 0.5) * TILE; y = (Math.floor(y / TILE) + 0.5) * TILE; }
+    const next = placeObjectAt(m, o, x, y);
+    if (next.c === o.c && next.r === o.r && next.ox === o.ox && next.oy === o.oy) return;
+    const work = m === drag.before ? cloneTileMap(m) : m;
+    work.objects[mv.idx] = next;
+    R.rTileMap.current = work;
+    // Les caselles d'on surt i les d'on arriba.
+    if (R.rTileCanvas.current) repaintCells(R.rTileCanvas.current, work, [...objectCells(work, o, 'overlap'), ...objectCells(work, next, 'overlap')]);
+  }, [R]);
+
   const tileDown = useCallback((mx: number, my: number, erase: boolean, shift: boolean) => {
     const m = R.rTileMap.current; if (!m) return;
     const cell = cellAt(mx, my);
     const brush = erase ? { kind: 'erase' as const } : R.rTileBrush.current;
+    if (brush.kind === 'move') {
+      // Clic a un objecte: el tria (la R el gira) i es pot arrossegar. Clic en buit: cap triat.
+      const idx = objectAt(m, mx, my);
+      R.rTileSel.current = idx >= 0 ? idx : null;
+      if (idx < 0) return;
+      const a = anchorCenter(m.objects[idx]);
+      R.rTileDrag.current = { start: cell, last: cell, erase: false, rect: false, before: m, move: { idx, gx: mx - a.x, gy: my - a.y } };
+      return;
+    }
+    R.rTileSel.current = null;   // pintar o esborrar pot treure objectes: els índexs canvien
     const rect = isRectBrush(brush) || shift;
     R.rTileDrag.current = { start: cell, last: cell, erase, rect, before: m };
     if (!rect) paint([cell], brush);
   }, [R, paint]);
 
-  const tileMove = useCallback((mx: number, my: number) => {
+  const tileMove = useCallback((mx: number, my: number, shift = false) => {
     const cell = cellAt(mx, my);
     R.rTileHover.current = cell;
+    R.rTileHoverPx.current = { x: mx, y: my };
     const drag = R.rTileDrag.current; if (!drag) return;
+    if (drag.move) { moveObject(mx, my, shift); return; }
     if (cell.c === drag.last.c && cell.r === drag.last.r) return;
     if (!drag.rect) paint(lineCells(drag.last, cell), drag.erase ? { kind: 'erase' } : R.rTileBrush.current);
     drag.last = cell;
-  }, [R, paint]);
+  }, [R, paint, moveObject]);
 
   /** Posa el llenç ajustat (mapa nou, contingut mogut, fons cuinat a la mida nova). */
   const applyFit = useCallback((fit: TileFit, before: TileMap) => {
@@ -169,20 +202,16 @@ export function useTileMap(R: DMRefs, D: Deps) {
     void bakeAll(false);
   }, [R, regenGeometry, bakeAll]);
 
-  const tileUp = useCallback(() => {
-    const drag = R.rTileDrag.current; if (!drag) return false;
-    if (drag.rect) {
-      const brush = drag.erase ? { kind: 'erase' as const } : R.rTileBrush.current;
-      // Rectangle amb un pinzell normal (Maj) = omplir-lo; l'eina Sala fa vora de paret.
-      paint(rectCells(drag.start, drag.last), brush);
-    }
-    R.rTileDrag.current = null;
-    if (R.rTileMap.current === drag.before) return true;   // no ha canviat res
+  /**
+   * Tanca una edició del mapa: `R.rTileMap` ja té el mapa nou (i el cuinat local, repintat) i
+   * `before` és el d'abans. Entrada de desfer, geometria nova, llenç ajustat i fons als jugadors.
+   */
+  const commit = useCallback((before: TileMap, label: string) => {
     // Desfer: l'entrada guarda el mapa d'abans (i les parets/portes/llums d'abans).
     const after = R.rTileMap.current;
-    if (!after) return true;
-    R.rTileMap.current = drag.before;
-    Dref.current.pushMapEdit('pintar caselles');
+    if (!after) return;
+    R.rTileMap.current = before;
+    Dref.current.pushMapEdit(label);
     R.rTileMap.current = after;
     regenGeometry();
     // El llenç és sempre la zona pintada + el marge: si ha canviat, s'ajusta (i es mou tot).
@@ -196,10 +225,41 @@ export function useTileMap(R: DMRefs, D: Deps) {
         redo: () => applyFit(fit, after),
       });
     } else scheduleSend();
+  }, [R, regenGeometry, scheduleSend, applyFit]);
+
+  const tileUp = useCallback(() => {
+    const drag = R.rTileDrag.current; if (!drag) return false;
+    if (drag.rect) {
+      const brush = drag.erase ? { kind: 'erase' as const } : R.rTileBrush.current;
+      // Rectangle amb un pinzell normal (Maj) = omplir-lo; l'eina Sala fa vora de paret.
+      paint(rectCells(drag.start, drag.last), brush);
+    }
+    R.rTileDrag.current = null;
+    if (R.rTileMap.current === drag.before) return true;   // no ha canviat res
+    commit(drag.before, drag.move ? 'moure un objecte' : 'pintar caselles');
     return true;
-  }, [R, paint, regenGeometry, scheduleSend, applyFit]);
+  }, [R, paint, commit]);
 
-  const tileLeave = useCallback(() => { R.rTileHover.current = null; }, [R]);
+  /**
+   * Pinzell «Moure»: gira un quart de volta (sentit horari) l'objecte triat. `false` si no n'hi ha
+   * cap de triat (la paleta ho avisa).
+   */
+  const rotateSelectedObject = useCallback((): boolean => {
+    const m = R.rTileMap.current, idx = R.rTileSel.current;
+    const o = m && idx != null ? m.objects[idx] : undefined;
+    if (!m || idx == null || !o || R.rTileDrag.current) return false;
+    const work = cloneTileMap(m);
+    const q = quarter((o.rot ?? 0) + 1);
+    const { rot: _r, ...rest } = o; void _r;
+    const next = q ? { ...rest, rot: q } : rest;
+    work.objects[idx] = next;
+    R.rTileMap.current = work;
+    if (R.rTileCanvas.current) repaintCells(R.rTileCanvas.current, work, [...objectCells(work, o, 'overlap'), ...objectCells(work, next, 'overlap')]);
+    commit(m, 'girar un objecte');
+    return true;
+  }, [R, commit]);
 
-  return { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave, bakeAll };
+  const tileLeave = useCallback(() => { R.rTileHover.current = null; R.rTileHoverPx.current = null; }, [R]);
+
+  return { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave, bakeAll, rotateSelectedObject };
 }

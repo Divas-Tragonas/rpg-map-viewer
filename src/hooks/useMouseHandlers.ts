@@ -74,7 +74,8 @@ interface MouseHandlerSetters {
   /** Eina Caselles (estil Píxel): pintar i esborrar al mapa de caselles. Veure `useTileMap`. */
   tileTool?: {
     down: (mx: number, my: number, erase: boolean, shift: boolean) => void;
-    move: (mx: number, my: number) => void;
+    /** `shift`: amb el pinzell «Moure», l'objecte s'enganxa a la casella. */
+    move: (mx: number, my: number, shift?: boolean) => void;
     up: () => boolean;
     leave: () => void;
   };
@@ -561,7 +562,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     const { mx, my, sc } = mc(e);
 
-    if (R.rDrawTool.current === 'tiles' && S.tileTool) { S.tileTool.move(mx, my); return; }
+    if (R.rDrawTool.current === 'tiles' && S.tileTool) { S.tileTool.move(mx, my, e.shiftKey); return; }
     if (R.rTerrainDrag.current) {
       if (paintTerrainAt(R, mx, my, R.rTerrainDrag.current.erase)) _broadcastState({});
       return;

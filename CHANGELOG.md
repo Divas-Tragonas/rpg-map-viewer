@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.19 — Mapa de caselles: girar el decorat i els objectes i moure objectes fora de la graella
+- Tecla R (o «Girar» a la paleta): el decorat i els objectes es pinten girats de 90 en 90°; la miniatura i la previsualització sota el cursor ja surten girades
+- Pinzell «Moure» (pestanyes Objectes i Botí): arrossega un objecte ja posat on vulguis, al píxel (Maj l'enganxa a la casella); clicat queda triat i la R el gira
+- Les torxes mogudes o girades també mouen la llum; tot es pot desfer i es desa a la partida sense canvis a la API
+
 ### v5.18 — Fòsfor: parpelleig com a capa de CSS (GPU a zero en repòs) i figuretes més àgils en espera
 - El parpelleig del mode Fòsfor és una capa negra d'opacitat animada (compositor); el shader ja no es repeteix en repòs: amb l'escena quieta no es toca la GPU
 - L'animació d'espera de les figuretes va un ~30 % més ràpida (230 ms per fotograma, abans 300)

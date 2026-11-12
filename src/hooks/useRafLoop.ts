@@ -8,8 +8,9 @@ import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { renderGrid, renderDifficult, renderGridCalib, renderMeasureRuler } from '@/lib/render/grid';
 import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLightSources } from '@/lib/render/darkrooms';
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
-import { drawTileLive, drawTileDoorsOver, drawTileDoorEdgesOver, doorOpenById } from '@/lib/tilemap/render';
-import { TILE } from '@/lib/tilemap/model';
+import { drawTileLive, drawTileDoorsOver, drawTileDoorEdgesOver, doorOpenById, drawObject, drawDecor } from '@/lib/tilemap/render';
+import { TILE, decorCode } from '@/lib/tilemap/model';
+import { objectAt, objectBox } from '@/lib/tilemap/objects';
 import { WALL_BY_ID } from '@/lib/tilemap/palette';
 import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
 import { spellsSettled } from '@/lib/render/spells';
@@ -311,9 +312,34 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
 
       // Eina Caselles: casella sota el cursor i rectangle en curs (sala o Maj).
       if (tileTool && R.rTileMap.current) {
+        const m = R.rTileMap.current, brush = R.rTileBrush.current;
         const drag = R.rTileDrag.current, hv = R.rTileHover.current;
+        // Pinzell «Moure»: vora a l'objecte de sota el cursor i, més marcada, al triat (la R el gira).
+        const moving = brush.kind === 'move' && !drag?.erase;
+        if (moving) {
+          const hp = R.rTileHoverPx.current, sel = R.rTileSel.current;
+          const under = hp && !drag ? objectAt(m, hp.x, hp.y) : -1;
+          const outline = (i: number, strong: boolean) => {
+            const o = m.objects[i]; const bx = o && objectBox(o); if (!bx) return;
+            ctx.save();
+            ctx.strokeStyle = strong ? 'rgba(212,160,23,0.95)' : 'rgba(230,237,243,0.6)';
+            ctx.lineWidth = strong ? 2 : 1.5; ctx.setLineDash(strong ? [6, 4] : []);
+            ctx.strokeRect(ox + bx.x0 * sc + 1, oy + bx.y0 * sc + 1, (bx.x1 - bx.x0) * sc - 2, (bx.y1 - bx.y0) * sc - 2);
+            ctx.restore();
+          };
+          if (under >= 0 && under !== sel) outline(under, false);
+          if (sel != null) outline(sel, true);
+        }
+        // Previsualització del decorat o de l'objecte que es posarà (amb la rotació triada).
+        if (!drag && hv && (brush.kind === 'decor' || brush.kind === 'object')) {
+          ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+          ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 0.6;
+          if (brush.kind === 'decor') drawDecor(ctx, decorCode(brush.tile, brush.rot), hv.c * TILE, hv.r * TILE);
+          else drawObject(ctx, { c: hv.c, r: hv.r, k: brush.key, rot: brush.rot }, 'all', performance.now());
+          ctx.restore();
+        }
         const a = drag?.rect ? drag.start : hv, b = drag?.rect ? drag.last : hv;
-        if (a && b) {
+        if (a && b && !moving) {
           const x0 = ox + Math.min(a.c, b.c) * TILE * sc, y0 = oy + Math.min(a.r, b.r) * TILE * sc;
           const x1 = ox + (Math.max(a.c, b.c) + 1) * TILE * sc, y1 = oy + (Math.max(a.r, b.r) + 1) * TILE * sc;
           const erase = drag?.erase;

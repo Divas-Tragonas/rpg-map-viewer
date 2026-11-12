@@ -7,10 +7,11 @@ import { sheet } from '@/lib/sprites/pack';
 import { blit, drawItem } from '@/lib/sprites/draw';
 import {
   TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX, THEME_BASE,
-  type TileMap, cellOf, isWall, isVoid, inMap,
+  type TileMap, type TileObject, cellOf, isWall, isVoid, inMap, decodeDecor,
 } from './model';
 import { WALL_BY_ID, objectDef, groundAnim, wallPiece } from './palette';
 import { t } from './model';
+import { placedParts, objectCells, objectDrawOrder, quarter } from './objects';
 
 /** Pinta una peça codificada (veure `model.ts`) al quadrat (dx, dy, size). */
 export function drawTile(ctx: CanvasRenderingContext2D, tile: number, dx: number, dy: number, size = TILE): void {
@@ -27,6 +28,28 @@ export function drawTile(ctx: CanvasRenderingContext2D, tile: number, dx: number
   } else {
     blit(ctx, 'terrain', (tile % TERRAIN_COLS) * TILE, Math.floor(tile / TERRAIN_COLS) * TILE, TILE, TILE, dx, dy, size, size);
   }
+}
+
+/**
+ * Pinta el quadrat (x, y, size) girat `rot` quarts de volta al voltant del seu centre. Amb quarts de
+ * volta i el centre a un píxel sencer, la pixel art no es deforma ni es difumina.
+ */
+export function drawRot(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, rot: number | undefined,
+  draw: (x: number, y: number) => void): void {
+  const q = quarter(rot);
+  if (!q) { draw(x, y); return; }
+  ctx.save();
+  ctx.translate(x + size / 2, y + size / 2);
+  ctx.rotate(q * Math.PI / 2);
+  draw(-size / 2, -size / 2);
+  ctx.restore();
+}
+
+/** Peça del decorat (codi amb la rotació a dins, veure `decorCode`). */
+export function drawDecor(ctx: CanvasRenderingContext2D, code: number, x: number, y: number, size = TILE): void {
+  if (code < 0) return;
+  const { tile, rot } = decodeDecor(code);
+  drawRot(ctx, x, y, size, rot, (dx, dy) => drawTile(ctx, tile, dx, dy, size));
 }
 
 // Variants de cada fila del joc de paret. Les decoracions (penjador, calavera, estendard,
@@ -86,7 +109,7 @@ function drawCellStatic(ctx: CanvasRenderingContext2D, m: TileMap, c: number, r:
   ctx.clearRect(x, y, TILE, TILE);
   const g = m.ground[i];
   if (g >= 0) drawTile(ctx, groundAnim(g)?.frames[0] ?? g, x, y);
-  for (const o of m.overlays) if (o[i] >= 0) drawTile(ctx, o[i], x, y);
+  for (const o of m.overlays) if (o[i] >= 0) drawDecor(ctx, o[i], x, y);
   const wall = isWall(m, c, r);
   // Ombra de la paret de dalt sobre el terra (com als mapes d'exemple de l'autor).
   if (!wall && r > 0 && isWall(m, c, r - 1) && !(i in m.doors)) {
@@ -95,17 +118,18 @@ function drawCellStatic(ctx: CanvasRenderingContext2D, m: TileMap, c: number, r:
   if (wall) drawTile(ctx, wallTileFor(m, c, r), x, y);
 }
 
-function drawObjectParts(ctx: CanvasRenderingContext2D, k: string, c: number, r: number, live: boolean, now: number,
-  only?: (c: number, r: number) => boolean) {
-  const def = objectDef(k); if (!def) return;
-  for (const p of def.parts) {
+/**
+ * Peces d'un objecte (girat i desplaçat). `which`: només les quietes (cuinat), només les animades
+ * (parts vives) o totes (previsualització de l'editor, amb el fotograma de `now`).
+ */
+export function drawObject(ctx: CanvasRenderingContext2D, o: TileObject, which: 'static' | 'live' | 'all', now = 0) {
+  for (const { part: p, x, y, rot } of placedParts(o)) {
     const anim = !!p.frames;
-    if (anim !== live) continue;
-    if (only && !only(c + p.dx, r + p.dy)) continue;
-    const x = (c + p.dx) * TILE, y = (r + p.dy) * TILE;
-    if (k.startsWith('i:')) { drawItem(ctx, k.slice(2), x, y, TILE); continue; }
-    const tile = p.frames ? p.frames[Math.floor(now / (p.ms ?? 300)) % p.frames.length] : p.tile!;
-    drawTile(ctx, tile, x, y);
+    if ((which === 'static' && anim) || (which === 'live' && !anim)) continue;
+    drawRot(ctx, x, y, TILE, rot, (dx, dy) => {
+      if (o.k.startsWith('i:')) { drawItem(ctx, o.k.slice(2), dx, dy, TILE); return; }
+      drawTile(ctx, p.frames ? p.frames[Math.floor(now / (p.ms ?? 300)) % p.frames.length] : p.tile!, dx, dy);
+    });
   }
 }
 
@@ -139,11 +163,21 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
     ctx.fillStyle = '#000'; ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
     drawCellStatic(ctx, m, c, r);
   }
-  // Objectes: per ordre de fila (el de més avall tapa el de dalt).
-  // Només les parts que cauen en caselles repintades: tornar a pintar damunt d'una que no
-  // s'ha esborrat en fosquejaria l'ombra semitransparent.
-  const only = cells ? (c: number, r: number) => inMap(m, c, r) && todo.has(cellOf(m, c, r)) : undefined;
-  for (const o of m.objects.slice().sort((a, b) => a.r - b.r)) drawObjectParts(ctx, o.k, o.c, o.r, false, 0, only);
+  // Objectes: el de més avall tapa el de dalt (`objectDrawOrder`). En un repintat parcial, retallat a
+  // les caselles repintades: tornar a pintar damunt d'una que no s'ha esborrat en fosquejaria l'ombra
+  // semitransparent. Amb el retall, un objecte desplaçat que toca mitja casella repintada també hi surt.
+  if (cells) {
+    ctx.save();
+    ctx.beginPath();
+    for (const i of todo) ctx.rect((i % m.cols) * TILE, Math.floor(i / m.cols) * TILE, TILE, TILE);
+    ctx.clip();
+  }
+  for (const k of objectDrawOrder(m.objects)) {
+    const o = m.objects[k];
+    if (cells && !objectCells(m, o, 'overlap').some(i => todo.has(i))) continue;
+    drawObject(ctx, o, 'static');
+  }
+  if (cells) ctx.restore();
 }
 
 // ── Parts vives (es pinten cada fotograma, DM i jugador) ──────────────────────
@@ -157,8 +191,8 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
 export interface DoorPiece { dy: number; tile: number; shadow?: boolean; edge?: boolean }
 
 export interface TileLive {
-  /** Peces animades: posició (px de mapa) + fotogrames. */
-  anims: { x: number; y: number; frames: number[]; ms: number }[];
+  /** Peces animades: posició (px de mapa, cantonada) + fotogrames; `rot` = quarts de volta (objecte girat). */
+  anims: { x: number; y: number; frames: number[]; ms: number; rot?: number }[];
   /**
    * Portes del mapa de caselles: posició i peces tancada/oberta del seu joc. Cada peça va a
    * la casella de la porta (`dy` 0) o a la de dalt (`dy` −1), on sobresurt l'art.
@@ -177,15 +211,16 @@ export function tileLiveOf(m: TileMap): TileLive {
   // Una casella d'aigua amb alguna cosa a sobre (vora, paret, objecte) es queda quieta: el
   // fotograma viu es pinta damunt del cuinat i taparia el que hi ha a sobre.
   const covered = new Set<number>();
-  for (const o of m.objects) for (const p of objectDef(o.k)?.parts ?? []) if (inMap(m, o.c + p.dx, o.r + p.dy)) covered.add(cellOf(m, o.c + p.dx, o.r + p.dy));
+  for (const o of m.objects) for (const i of objectCells(m, o, 'overlap')) covered.add(i);
   for (let i = 0; i < m.ground.length; i++) {
     const busy = covered.has(i) || m.overlays.some(o => o[i] >= 0) || !!m.wallSet[i] || m.wallRaw[i] >= 0 || i in m.doors;
     const a = m.ground[i] >= 0 && !busy ? groundAnim(m.ground[i]) : null;
     if (a) anims.push({ x: (i % m.cols) * TILE, y: Math.floor(i / m.cols) * TILE, frames: a.frames, ms: a.ms });
   }
-  for (const o of m.objects.slice().sort((a, b) => a.r - b.r)) {
-    const def = objectDef(o.k);
-    for (const p of def?.parts ?? []) if (p.frames) anims.push({ x: (o.c + p.dx) * TILE, y: (o.r + p.dy) * TILE, frames: p.frames, ms: p.ms ?? 300 });
+  for (const k of objectDrawOrder(m.objects)) {
+    for (const { part: p, x, y, rot } of placedParts(m.objects[k])) {
+      if (p.frames) anims.push({ x, y, frames: p.frames, ms: p.ms ?? 300, ...(rot ? { rot } : {}) });
+    }
   }
   const doors: TileLive['doors'] = [];
   for (const [k, setId] of Object.entries(m.doors)) {
@@ -260,7 +295,11 @@ export function doorOpenById(doors: readonly { id: string; open?: boolean }[]): 
  */
 export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean, now: number) {
   if (!live || !sheet('terrain')) return;
-  for (const a of live.anims) drawTile(ctx, a.frames[Math.floor(now / a.ms) % a.frames.length], a.x, a.y);
+  for (const a of live.anims) {
+    const tile = a.frames[Math.floor(now / a.ms) % a.frames.length];
+    if (a.rot) drawRot(ctx, a.x, a.y, TILE, a.rot, (x, y) => drawTile(ctx, tile, x, y));
+    else drawTile(ctx, tile, a.x, a.y);
+  }
   for (const d of live.doors) {
     for (const p of openById(d.id) ? d.open : d.closed) drawTile(ctx, p.tile, d.x, d.y + p.dy * TILE);
   }

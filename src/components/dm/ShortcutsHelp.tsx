@@ -24,6 +24,8 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Maj + arrossegar', 'Omplir un rectangle amb el pinzell'],
       ['Clic dret', 'Esborrar (objecte → decorat → porta → paret → terra)'],
       ['Porta', 'Clic a una paret recta entre dues sales'],
+      ['R', 'Girar 90° el decorat o l\'objecte que es pinta (amb «Moure», l\'objecte triat)'],
+      ['Moure + arrossegar', 'Posar un objecte on vulguis, fora de la graella (Maj: a la casella)'],
     ],
   },
   {

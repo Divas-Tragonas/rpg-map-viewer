@@ -41,13 +41,15 @@ interface KBOpts {
   setSpaceHeld?: (held: boolean) => void;
   /** Tecla N: nota ràpida al diari de la sessió. */
   onQuickNote?: () => void;
+  /** Tecla R amb l'eina Caselles: gira el pinzell (decorat, objecte) o l'objecte triat amb «Moure». */
+  onTileRotate?: () => void;
 }
 
 /** Temps màxim entre prémer i deixar anar Ctrl/Maj perquè compti com a toc (i no com a combinació). */
 const TAP_MS = 450;
 
 export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
-  const { setDrawTool, undo, redo, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, onDeleteToken, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld, onQuickNote } = opts;
+  const { setDrawTool, undo, redo, skipBossIntro, toggleCtrlPan, toggleShiftPan, toggleAreaSelect, onDeleteSelection, onDeleteToken, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, setSpaceHeld, onQuickNote, onTileRotate } = opts;
 
   // CTRL i MAJ commuten els modes de vista (CTRL: vista compartida; MAJ: vista privada del DM)
   // només amb un TOC NET: prémer i deixar anar la tecla sola, sense cap altra tecla ni clic
@@ -199,6 +201,7 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
         toSelection();
         return;
       }
+      if ((e.key === 'r' || e.key === 'R') && !e.altKey && R.rDrawTool.current === 'tiles') { e.preventDefault(); onTileRotate?.(); return; }
       if (e.key === 'a' || e.key === 'A') { toggleAreaSelect(); return; }
       // Tecla L: mode debug de llum (parets efectives + polígon de visió + radi).
       if (e.key === 'l' || e.key === 'L') { toggleLightDebug(); return; }
@@ -218,5 +221,5 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undo, redo, skipBossIntro, onDeleteSelection, onDeleteToken, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, onQuickNote]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [undo, redo, skipBossIntro, onDeleteSelection, onDeleteToken, toggleAreaSelect, removeLastWall, cancelWallChain, advanceTurn, toggleShortcuts, onQuickNote, onTileRotate]); // eslint-disable-line react-hooks/exhaustive-deps
 }

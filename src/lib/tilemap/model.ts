@@ -28,8 +28,22 @@ export const WORLD_BASE = 2000, WORLD_COLS = 25, WORLD_PX = 24;
 export const THEME_BASE = 3000;
 export const EMPTY = -1;
 
-/** Objecte posat sobre el mapa (pot ocupar més d'una casella: estàtua, torxa, font…). */
-export interface TileObject { c: number; r: number; k: string }
+/**
+ * Objecte posat sobre el mapa (pot ocupar més d'una casella: estàtua, torxa, font…).
+ * `c`/`r`: casella de l'àncora. `rot`: quarts de volta en sentit horari (0–3; tot l'objecte gira
+ * al voltant del centre de l'àncora). `ox`/`oy`: desplaçament lliure en px de mapa (= píxels de
+ * l'art, entre −24 i 24), per deixar-lo fora de la graella (eina «Moure»).
+ */
+export interface TileObject { c: number; r: number; k: string; rot?: number; ox?: number; oy?: number }
+
+/**
+ * Decorat girat: la rotació (quarts de volta) va dins del codi de la casella de la capa de decorat
+ * (`rot · DECOR_ROT + peça`). Així no hi ha cap camp nou (ni al desat ni a `fitTileMap`/`cloneTileMap`)
+ * i tot el que només mira si la casella és buida (`< 0`) continua igual.
+ */
+export const DECOR_ROT = 100000;
+export const decorCode = (tile: number, rot = 0) => ((rot % 4) + 4) % 4 * DECOR_ROT + tile;
+export const decodeDecor = (code: number) => ({ tile: code % DECOR_ROT, rot: Math.floor(code / DECOR_ROT) });
 
 export interface TileMap {
   v: 1;

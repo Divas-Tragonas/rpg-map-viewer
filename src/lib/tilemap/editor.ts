@@ -3,9 +3,10 @@
  * (`cloneTileMap`): el desfer guarda el mapa d'abans per referència.
  */
 import {
-  type TileMap, EMPTY, WORLD_BASE, cellOf, inMap, isWall,
+  type TileMap, EMPTY, WORLD_BASE, cellOf, inMap, isWall, decorCode,
 } from './model';
-import { FLOOR_BY_ID, WATERS, WALL_BY_ID, objectDef, variantFor } from './palette';
+import { FLOOR_BY_ID, WATERS, WALL_BY_ID, variantFor } from './palette';
+import { objectCells, quarter } from './objects';
 
 export type TileBrush =
   /** Rectangle: terra a dins i paret a la vora. La manera ràpida de fer una masmorra. */
@@ -15,8 +16,11 @@ export type TileBrush =
   | { kind: 'wall'; wall: string }
   /** Converteix una casella de paret (entre dues parets) en porta. */
   | { kind: 'door' }
-  | { kind: 'decor'; tile: number }
-  | { kind: 'object'; key: string }
+  /** `rot`: quarts de volta en sentit horari (tecla R o «Girar» de la paleta). */
+  | { kind: 'decor'; tile: number; rot?: number }
+  | { kind: 'object'; key: string; rot?: number }
+  /** No pinta: arrossega un objecte ja posat on es vulgui, fora de la graella (veure `useTileMap`). */
+  | { kind: 'move' }
   /** Peça del mapa del món (`uf_map.png`) com a terra. */
   | { kind: 'world'; tile: number }
   | { kind: 'erase' };
@@ -62,9 +66,20 @@ function setWall(m: TileMap, c: number, r: number, set: string) {
   m.wallSet[i] = set; m.wallRaw[i] = EMPTY;
   if (m.ground[i] < 0) m.ground[i] = groundUnder(m, c, r);
 }
-function removeObjectsAt(m: TileMap, c: number, r: number): boolean {
-  const before = m.objects.length;
-  m.objects = m.objects.filter(o => !(objectDef(o.k)?.parts ?? [{ dx: 0, dy: 0 }]).some(p => o.c + p.dx === c && o.r + p.dy === r));
+/**
+ * Treu els objectes que tenen una peça a la casella (on cau el centre de la peça, girada i
+ * desplaçada; una clau desconeguda, a l'àncora). Les caselles que tapaven van a `touched`: un
+ * objecte desplaçat pot sortir del 3×3 que `repaintCells` ja repinta al voltant de la casella.
+ */
+function removeObjectsAt(m: TileMap, c: number, r: number, touched: number[]): boolean {
+  if (!inMap(m, c, r)) return false;
+  const before = m.objects.length, i = cellOf(m, c, r);
+  m.objects = m.objects.filter(o => {
+    const cells = objectCells(m, o, 'center');
+    const hit = cells.length ? cells.includes(i) : o.c === c && o.r === r;
+    if (hit) touched.push(...objectCells(m, o, 'overlap'));
+    return !hit;
+  });
   return m.objects.length !== before;
 }
 
@@ -124,11 +139,17 @@ export function applyBrush(m: TileMap, brush: TileBrush, cells: Cell[]): number[
         if (di !== i) touched.push(di);
         break;
       }
-      case 'decor': m.overlays[0][i] = brush.tile; break;
-      case 'object': removeObjectsAt(m, c, r); m.objects.push({ c, r, k: brush.key }); break;
+      case 'decor': m.overlays[0][i] = decorCode(brush.tile, brush.rot); break;
+      case 'object': {
+        removeObjectsAt(m, c, r, touched);
+        const q = quarter(brush.rot);
+        m.objects.push(q ? { c, r, k: brush.key, rot: q } : { c, r, k: brush.key });
+        break;
+      }
+      case 'move': continue;
       case 'erase': {
         // De dalt a baix: objecte → decorat → porta (torna a paret) → paret → terra.
-        if (removeObjectsAt(m, c, r)) break;
+        if (removeObjectsAt(m, c, r, touched)) break;
         let ov = -1;
         for (let k = m.overlays.length - 1; k >= 0 && ov < 0; k--) if (m.overlays[k][i] >= 0) ov = k;
         if (ov >= 0) { m.overlays[ov][i] = EMPTY; break; }

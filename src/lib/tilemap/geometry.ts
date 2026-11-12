@@ -8,6 +8,7 @@ import type { Wall, Door, LightSource, Point } from '@/types';
 import { TILE, type TileMap, cellOf, isWall, isVoid, inMap } from './model';
 import { objectDef } from './palette';
 import { doorAxis } from './render';
+import { objectLightPoint } from './objects';
 
 /**
  * Parets: una aresta a cada costat entre una casella de paret i una que no ho és. Les que
@@ -69,7 +70,11 @@ export function tileLights(m: TileMap): LightSource[] {
   const out: LightSource[] = [];
   for (const o of m.objects) {
     const ft = objectDef(o.k)?.lightFt;
-    if (ft) out.push({ id: `tl_${o.c}_${o.r}`, x: (o.c + 0.5) * TILE, y: (o.r + 1) * TILE, radiusFt: ft });
+    if (!ft) continue;
+    // Dues torxes poden compartir l'àncora (una moguda fora de la graella a la casella de l'altra).
+    let id = `tl_${o.c}_${o.r}`;
+    for (let n = 2; out.some(l => l.id === id); n++) id = `tl_${o.c}_${o.r}_${n}`;
+    out.push({ id, ...objectLightPoint(o), radiusFt: ft });
   }
   return out;
 }

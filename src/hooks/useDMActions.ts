@@ -713,8 +713,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       return { ...d, id, a: mv(d.a), b: mv(d.b) };
     });
     const lights = rLights.current.map(l => {
-      const m = /^tl_(\d+)_(\d+)$/.exec(l.id);
-      return { ...l, id: m ? `tl_${+m[1] + dc}_${+m[2] + dr}` : l.id, x: l.x + dx, y: l.y + dy };
+      const m = /^tl_(\d+)_(\d+)(_\d+)?$/.exec(l.id);
+      return { ...l, id: m ? `tl_${+m[1] + dc}_${+m[2] + dr}${m[3] ?? ''}` : l.id, x: l.x + dx, y: l.y + dy };
     });
     rWalls.current = walls; S.setWalls(walls);
     rRooms.current = rooms; S.setRooms(rooms);

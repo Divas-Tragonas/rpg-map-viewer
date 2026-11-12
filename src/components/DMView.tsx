@@ -408,11 +408,23 @@ export function DMView() {
     const m = R.rTileMap.current;
     setTileMapSize(has && m ? { cols: m.cols, rows: m.rows } : null);
   }, [R]);
-  const { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave } = useTileMap(R, {
+  const { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave, rotateSelectedObject } = useTileMap(R, {
     setWalls, setRooms, setDoors, setLights, setGrid: setTileGrid,
     loadBg, replaceBgImage, shiftWorld, extendLastUndo, broadcast: _broadcastState, pushMapEdit: _pushMapEdit,
     addCreatures: addCreatureTokens, setHasTileMap: syncTileSize,
   });
+  /**
+   * Girar (tecla R o botó de la paleta): amb el pinzell «Moure», l'objecte triat; amb un decorat o un
+   * objecte, el pinzell (el que es pinti d'aquí endavant surt girat).
+   */
+  const rotateTile = useCallback(() => {
+    const b = R.rTileBrush.current;
+    if (b.kind === 'move') {
+      if (!rotateSelectedObject()) notify('Clica primer l\'objecte que vols girar.', 'info');
+      return;
+    }
+    if (b.kind === 'decor' || b.kind === 'object') setTileBrush({ ...b, rot: ((b.rot ?? 0) + 1) % 4 });
+  }, [R, rotateSelectedObject, setTileBrush, notify]);
 
   // ── Desat automàtic ────────────────────────────────────────────────────────
   // Xarxa de seguretat contra un F5: tot l'estat viu (fons, parets, sales, portes, llums,
@@ -1335,7 +1347,7 @@ export function DMView() {
     onDeleteSelection, onDeleteToken,
     removeLastWall,
     cancelWallChain,
-    advanceTurn: advanceTurnIfPlaying, toggleShortcuts, setSpaceHeld,
+    advanceTurn: advanceTurnIfPlaying, toggleShortcuts, setSpaceHeld, onTileRotate: rotateTile,
   });
 
   // ── Fitxers deixats a qualsevol lloc del canvas ────────────────────────────
@@ -1808,7 +1820,7 @@ export function DMView() {
           areaSelectMode={areaSelectMode} onToggleAreaSelect={toggleAreaSelect}
           disabled={!bgLoaded}
           pixel={pixel} tilesAvailable={!!tileMapSize}
-          tilePanel={<TilePalette brush={tileBrush} onBrush={setTileBrush} />}
+          tilePanel={<TilePalette brush={tileBrush} onBrush={setTileBrush} onRotate={rotateTile} />}
           grid={{
             gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
             rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridSnap: R.rGridSnap,
