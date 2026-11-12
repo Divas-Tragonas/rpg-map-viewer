@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.27 — Objectes a l'estil Oryx refets: volum i una sola perspectiva
+- Les 103 peces de la v5.26 es tornen a dibuixar (eren planes i algunes en vista frontal): ara totes es veuen de dalt i de davant, amb la cara de dalt clara i la del davant fosca, i una sola llum de dalt a l'esquerra
+- Bótes, gerros, olles, urnes, sacs, copes i tamborets es modelen com a sòlids de revolució: es veu la boca o la tapa en el·lipse, l'interior fosc, i les sanefes i els cèrcols segueixen la corba
+- Mobles amb veta, juntes, cantells i potes del darrere; cadires amb el respatller calat; llits amb coixí i plecs; cofres amb la tapa bombada, ferramenta i folre; munts de monedes amb ombrejat per alçada
+- Mateixos noms i mateix lloc al full: els objectes ja posats als mapes es veuen amb el dibuix nou. Cap canvi a la API
+
 ### v5.26 — Objectes nous a l'estil Oryx: mobles, caixes, gerros, cofres i tresor
 - 103 peces noves dibuixades expressament amb les regles de l'Oryx (píxel a 2×, la seva rampa de fusta i de pedra, l'ombra de tres franges): omplen la casella com la caixa i la taula de l'autor
 - Objectes → «Mobles» (cadires, tamboret, banc, tauleta, taula rodona, taules llargues de 3 caselles nues, amb estovalles o parades, llits de 1×2, prestatgeries, armari, tron), «Caixes, bótes i sacs», «Gerros i àmfores» (4 formes × 4 colors, trencats, amb planta o flors) i «Cofres grans» (fusta, fusta fosca i ferro; tancats, oberts i amb or)

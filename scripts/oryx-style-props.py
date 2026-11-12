@@ -1,130 +1,305 @@
 #!/usr/bin/env python3
 """
-Objectes nous «a l'estil Oryx» (v5.26): mobles, caixes, bótes, gerros, cofres i tresor dibuixats
-per codi amb les regles del full `uf_terrain.png` / `uf_items.png` de l'autor:
+Objectes nous «a l'estil Oryx» (v5.26, refets a la v5.27): mobles, caixes, bótes, gerros, cofres
+i tresor dibuixats per codi amb les regles del full `uf_terrain.png` / `uf_items.png` de l'autor:
 
   - graella lògica de 24 px ampliada a 2× (una casella = 48 px), sense contorn negre;
-  - la rampa de fusta i de pedra de l'Oryx (mateixos colors: `#957639`, `#aa8942`, `#44361c`…);
-  - vista de dalt amb la cara del davant a sota, i l'ombra de tres franges (alfa 64 / 38 / 13).
+  - la rampa de fusta i de pedra de l'Oryx, allargada per dalt i per baix per poder fer volum;
+  - **una sola perspectiva**: vista de dalt i de davant (uns 25° sobre l'horitzontal). De cada
+    peça es veu la cara de dalt (clara) i la del davant (fosca); les rodones ensenyen la boca o la
+    tapa com una el·lipse aixafada a 0,4 (`TILT`), igual que la tapa de la bóta de l'autor;
+  - **una sola llum**, de dalt a l'esquerra i una mica del davant (`LIGHT`);
+  - l'ombra de tres franges sota la peça (alfa 64 / 38 / 13).
+
+Les peces rodones (bótes, gerros, sacs, copes, monedes, corona…) no es pinten a mà: `lathe()` fa
+girar un perfil al voltant de l'eix vertical, el projecta amb la perspectiva de dalt amb un
+z-buffer i tria el to de la rampa segons la normal i la llum. Així la boca, l'interior, les sanefes
+i els cèrcols surten corbats com toca. Els mobles de cares planes es pinten amb `face_top` /
+`face_front` (to de dalt, to del davant, cantells, juntes i veta).
 
 Art propi (no és de cap paquet): es pot redistribuir amb el repositori.
 
 Genera `assets/decor-packs/oryx-style/<id>.png` i `pieces.json` (la llista, en ordre). Després cal
 executar `scripts/decor-packs.py`, que les posa al full `decor_packs.png` i a la paleta.
 
-⚠️ Afegir peces sempre AL FINAL de `build()` (vegeu l'avís de `decor-packs.py`).
+⚠️ Afegir peces sempre AL FINAL de `build()` i no canviar-ne la mida (vegeu `decor-packs.py`).
 
     python3 scripts/oryx-style-props.py && python3 scripts/decor-packs.py
 """
+import colorsys
 import json
+import math
 import os
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'assets', 'decor-packs', 'oryx-style')
 
-PAL = {
-    # fusta Oryx (de clara a fosca)
-    'G': '#bf9f4b', 'H': '#b99748', 'L': '#aa8942', 'W': '#957639', 'M': '#755d2e', 'D': '#554421',
-    'K': '#44361c', 'B': '#3b3019', 'X': '#332a16',
-    # pedra Oryx
-    'z': '#afafaf', 'u': '#7c7c7c', 't': '#6b655f', 's': '#5a5a5a', 'v': '#4b4b4b', 'w': '#2c2c2c',
-    # metall i negre
-    'I': '#e8e8e8', 'i': '#bababa', 'j': '#8e8e8e', 'n': '#1f1f1f', 'F': '#fbfbfb',
-    # or
-    'Y': '#ffee88', 'y': '#f3d23c', 'g': '#dcb733', 'o': '#c17f2c',
-    # color principal (variants): clar, base, fosc
-    'C': '#ff5a4a', 'c': '#dd1717', 'e': '#ab1010',
-    # ceràmica / sac (variants): llum, base, ombra, ombra fosca, sanefa
-    'P': '#e9b06c', 'p': '#dc964a', 'q': '#b27138', 'Q': '#815128', 'k': '#e9dd9c',
-    # tela clara i paper
-    'm': '#e9dd9c', 'r': '#e0deb5', 'R': '#d0cd90',
-    # aigua, verd
-    'A': '#0fc4f1', 'a': '#0b91d2', 'b': '#0863a3', 'N': '#7fd08a', 'f': '#3fa35a', 'E': '#2a7740',
-    # ombres de l'Oryx
-    '1': (1, 1, 1, 64), '2': (0, 0, 0, 38), '3': (0, 0, 0, 13),
-}
+TILT = 0.4                                   # sin de l'elevació de la càmera: aixafament de les el·lipses
+VIEW = (0.0, TILT, math.sqrt(1 - TILT * TILT))   # cap a la càmera (x, amunt, davant)
+_l = (-0.5, 0.65, 0.57)
+LIGHT = tuple(v / math.sqrt(sum(c * c for c in _l)) for v in _l)
 
-DARK_WOOD = {'G': '#aa8942', 'H': '#aa8942', 'L': '#957639', 'W': '#755d2e', 'M': '#554421', 'D': '#44361c',
-             'K': '#332a16', 'B': '#2b2212', 'X': '#231c0f'}
-IRON = {'G': '#afafaf', 'H': '#afafaf', 'L': '#7c7c7c', 'W': '#5a5a5a', 'M': '#4b4b4b', 'D': '#434343',
-        'K': '#2c2c2c', 'B': '#232323', 'X': '#1a1a1a', 'g': '#bababa', 'y': '#e8e8e8', 'o': '#8e8e8e'}
-BLUE = {'C': '#4fb4f0', 'c': '#0b91d2', 'e': '#0863a3'}
-GREEN = {'C': '#7fd08a', 'c': '#3fa35a', 'e': '#2a7740'}
-PURPLE = {'C': '#b57be0', 'c': '#8443b8', 'e': '#5c2a86'}
-CERAMICS = [
-    ('clay', 'd\'argila', {}),
-    ('blue', 'blau', {'P': '#6fb6e8', 'p': '#2f7fc1', 'q': '#1f5a94', 'Q': '#143c66', 'k': '#dcb733'}),
-    ('white', 'blanc', {'P': '#fbfbfb', 'p': '#e0e0e0', 'q': '#b6b6b6', 'Q': '#8e8e8e', 'k': '#2f7fc1'}),
-    ('green', 'verd', {'P': '#7fd08a', 'p': '#3fa35a', 'q': '#2a7740', 'Q': '#1b4f2b', 'k': '#e9dd9c'}),
-]
-BURLAP = {'P': '#d8c08a', 'p': '#c2a468', 'q': '#9a7d48', 'Q': '#6e5730'}
-SILVER = {'Y': '#ffffff', 'y': '#d6d6d6', 'g': '#b6b6b6', 'o': '#8e8e8e'}
-COPPER = {'Y': '#f0b080', 'y': '#d98a4e', 'g': '#b8692f', 'o': '#8a4a1f'}
+
+def hue_ramp(h, s, sign=1, hi=0.82, lo=0.08):
+    """Rampa de 9 tons (clar → fosc) amb el to que es desplaça: els clars càlids, els foscos freds."""
+    out = []
+    for i in range(9):
+        t = i / 8
+        light = hi + (lo - hi) * t ** 0.85
+        sat = s * (0.72 + 0.28 * math.sin(math.pi * min(1.0, t * 0.8 + 0.25)))
+        r, g, b = colorsys.hls_to_rgb(((h + sign * 28 * (t - 0.35)) % 360) / 360, light, sat)
+        out.append('#%02x%02x%02x' % (round(r * 255), round(g * 255), round(b * 255)))
+    return out
+
+
+# Rampes de 9 tons, de clar (0) a fosc (8). Fusta i pedra: els tons 1–7 són els de l'Oryx.
+WOOD = ['#d6b866', '#bf9f4b', '#aa8942', '#957639', '#755d2e', '#554421', '#44361c', '#332a16', '#231c0f']
+DARK_WOOD = ['#b98a46', '#9c7034', '#835b2a', '#6c4a22', '#573a1b', '#442d15', '#342210', '#27190c', '#1a1008']
+STONE = ['#afafaf', '#8f8f8f', '#7c7c7c', '#6b655f', '#5a5a5a', '#4b4b4b', '#3a3a3a', '#2c2c2c', '#1c1c1c']
+IRON = ['#f0f0f0', '#cfcfd4', '#a9a9b0', '#8a8a92', '#6e6e76', '#55555c', '#404046', '#2d2d32', '#1b1b1f']
+GOLD = ['#fff9c4', '#ffee88', '#f3d23c', '#dcb733', '#c9982b', '#b07a24', '#8a5a1c', '#633d13', '#40260b']
+SILVER = ['#ffffff', '#eef0f4', '#d6d9e0', '#b6bac4', '#989ca8', '#7b7f8c', '#5f6370', '#454854', '#2c2e38']
+COPPER = ['#ffe0c0', '#f6bf90', '#e29a5e', '#cb7d42', '#b06530', '#8e4d24', '#6d3919', '#4d2710', '#301708']
+CLAY = ['#f8d6a4', '#ecb878', '#dc964a', '#c8813f', '#b27138', '#96592c', '#7a4622', '#5a3218', '#3a1f0e']
+BURLAP = ['#efe0b0', '#dcc790', '#c8ae72', '#b3975c', '#9c814b', '#846b3d', '#6b5630', '#4f3f23', '#352a17']
+PAPER = ['#ffffff', '#f6f4ea', '#e6e3d2', '#cfccba', '#b3b0a2', '#96948c', '#787880', '#5c5c68', '#40404c']
+RED, BLUE, GREEN, PURPLE = hue_ramp(2, 0.78, -1), hue_ramp(212, 0.72), hue_ramp(128, 0.55), hue_ramp(276, 0.55, -1)
+TEAL = hue_ramp(190, 0.75)
+
+MATS = {
+    'wood': WOOD, 'stone': STONE, 'iron': IRON, 'gold': GOLD, 'trim': GOLD, 'coin': GOLD, 'cloth': RED, 'cer': CLAY,
+    'band': PAPER, 'sack': BURLAP, 'paper': PAPER, 'water': TEAL, 'leaf': GREEN, 'red': RED, 'blue': BLUE,
+    'green': GREEN, 'purple': PURPLE, 'clay': CLAY, 'silver': SILVER,
+}
+SHADOW = {1: (1, 1, 1, 64), 2: (0, 0, 0, 38), 3: (0, 0, 0, 13)}
 
 
 def rgba(v):
-    if isinstance(v, tuple):
-        return v
     return (int(v[1:3], 16), int(v[3:5], 16), int(v[5:7], 16), 255)
 
 
+def hsh(x, y, seed=0):
+    n = (x * 73856093) ^ (y * 19349663) ^ (seed * 83492791)
+    n = (n ^ (n >> 13)) * 1274126177
+    return (n ^ (n >> 16)) & 0xffff
+
+
 class Cv:
-    """Llenç en píxels lògics (2× al full). Cada píxel és una lletra de `PAL`; '.' = transparent."""
+    """Llenç en píxels lògics (2× al full). Cada píxel és `(material, to 0–8)` o `('sh', franja)`."""
 
     def __init__(self, w=24, h=24):
         self.w, self.h = w, h
-        self.g = [['.'] * w for _ in range(h)]
+        self.g = {}
 
-    def p(self, x, y, c):
+    def p(self, x, y, mat, i=None):
         if 0 <= x < self.w and 0 <= y < self.h:
-            self.g[y][x] = c
+            if mat is None:
+                self.g.pop((x, y), None)
+            else:
+                self.g[(x, y)] = (mat, max(0, min(8, i))) if mat != 'sh' else (mat, i)
 
     def get(self, x, y):
-        return self.g[y][x] if 0 <= x < self.w and 0 <= y < self.h else '.'
+        return self.g.get((x, y))
 
-    def r(self, x0, y0, x1, y1, c):
+    def solid(self, x, y):
+        t = self.g.get((x, y))
+        return t is not None and t[0] != 'sh'
+
+    def r(self, x0, y0, x1, y1, mat, i=None):
         for y in range(y0, y1 + 1):
             for x in range(x0, x1 + 1):
-                self.p(x, y, c)
+                self.p(x, y, mat, i)
 
-    def hl(self, x0, x1, y, c):
-        self.r(x0, y, x1, y, c)
+    def hl(self, x0, x1, y, mat, i=None):
+        self.r(x0, y, x1, y, mat, i)
 
-    def vl(self, x, y0, y1, c):
-        self.r(x, y0, x, y1, c)
+    def vl(self, x, y0, y1, mat, i=None):
+        self.r(x, y0, x, y1, mat, i)
 
-    def ell(self, cx, cy, rx, ry, c):
-        for y in range(self.h):
-            for x in range(self.w):
-                if ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1.0:
-                    self.p(x, y, c)
+    def tone(self, x, y, d):
+        t = self.g.get((x, y))
+        if t and t[0] != 'sh':
+            self.p(x, y, t[0], t[1] + d)
 
-    def art(self, x, y, rows):
+    def art(self, x, y, rows, mat='wood', key=None):
+        """Píxels a mà: un dígit = to de `mat`; una lletra de `key` = (material, to); '.' = res; '_' = esborra."""
         for j, row in enumerate(rows):
             for i, ch in enumerate(row):
-                if ch != '.':
-                    self.p(x + i, y + j, ch)
+                if ch == '.':
+                    continue
+                if ch == '_':
+                    self.p(x + i, y + j, None)
+                elif ch.isdigit():
+                    self.p(x + i, y + j, mat, int(ch))
+                else:
+                    self.p(x + i, y + j, *key[ch])
 
-    def drop(self, bands='123'):
-        """Ombra de l'Oryx: sota l'últim píxel opac de cada columna, les franges 64/38/13."""
+    def blit(self, other, dx=0, dy=0):
+        for (x, y), t in other.g.items():
+            if t[0] != 'sh':
+                self.p(x + dx, y + dy, *t)
+
+    def shade_under(self, x0, x1, y0, y1):
+        """Ombra sota un moble amb potes (com la taula de l'Oryx): 64 entre les potes, després 38 i 13."""
+        for y in range(y0, y1 + 3):
+            band = 1 if y < y1 else 2 if y == y1 else 3
+            for x in range(x0, x1 + 1):
+                if (x, y) not in self.g:
+                    self.p(x, y, 'sh', band)
+
+    def drop(self, bands=(1, 2, 3)):
+        """Ombra de l'Oryx: sota l'últim píxel opac de cada columna, les franges 64 / 38 / 13."""
         for x in range(self.w):
-            ys = [y for y in range(self.h) if self.g[y][x] not in '.123']
+            ys = [y for y in range(self.h) if self.solid(x, y)]
             if not ys:
                 continue
             for i, b in enumerate(bands):
-                if self.get(x, ys[-1] + 1 + i) == '.':
-                    self.p(x, ys[-1] + 1 + i, b)
+                if (x, ys[-1] + 1 + i) not in self.g:
+                    self.p(x, ys[-1] + 1 + i, 'sh', b)
 
     def image(self, over=None):
-        pal = {**PAL, **(over or {})}
+        mats = {**MATS, **(over or {})}
         im = Image.new('RGBA', (self.w, self.h), (0, 0, 0, 0))
-        for y in range(self.h):
-            for x in range(self.w):
-                ch = self.g[y][x]
-                if ch != '.':
-                    im.putpixel((x, y), rgba(pal[ch]))
+        for (x, y), (m, i) in self.g.items():
+            im.putpixel((x, y), SHADOW[i] if m == 'sh' else rgba(mats[m][i]))
         return im.resize((self.w * 2, self.h * 2), Image.NEAREST)
+
+
+# ───────────────────────── Motor de les peces rodones ─────────────────────────
+
+def lathe(cv, cx, prof, mat='cer', a=1, z=7, mat_at=None, mod=None, cap=None, cut=None, dy=0.0, edge=True, hollow=True):
+    """
+    Sòlid de revolució d'eix vertical vist amb la perspectiva del full. `prof` = [(alçada L, radi)]
+    de dalt a baix, en píxels lògics (L creix cap avall). `a`/`z` = to més clar i més fosc.
+    `mat_at(L, θ)` → material (sanefes, cèrcols); `mod(L, θ)` → tons de més (juntes, arrugues);
+    `cut(θ)` → L per sobre de la qual no hi ha paret (vores trencades, puntes d'una corona);
+    `cap` = (L, radi, fn(dx, dz) → (material, to)) = una tapa plana (la tapa d'una bóta, el líquid).
+    Sense tapa, per la boca es veu la paret de dins (més fosca); `hollow=False` = massís (no es pinta).
+    """
+    zb = {}
+
+    def plot(xf, yf, near, tok):
+        k = (math.floor(xf + 0.5), math.floor(yf + dy + 0.5))
+        if k not in zb or near > zb[k][0]:
+            zb[k] = (near, tok)
+
+    def radius(L):
+        for (l0, r0), (l1, r1) in zip(prof, prof[1:]):
+            if l0 <= L <= l1:
+                return r0 + (r1 - r0) * (L - l0) / (l1 - l0) if l1 > l0 else r1
+        return prof[-1][1]
+
+    L, top, bot = prof[0][0], prof[0][0], prof[-1][0]
+    while L <= bot + 1e-9:
+        r = radius(L)
+        m = (radius(min(bot, L + 0.15)) - radius(max(top, L - 0.15))) / 0.3      # dr/dL: >0 = mira amunt
+        c = 1 / math.sqrt(1 + m * m)
+        up = m * c
+        steps = max(24, int(r * 14))
+        for s in range(steps):
+            th = -math.pi + 2 * math.pi * s / steps
+            if cut and L < cut(th):
+                continue
+            sx, cz = math.sin(th), math.cos(th)
+            n = (sx * c, up, cz * c)
+            inside = n[1] * VIEW[1] + n[2] * VIEW[2] < 0
+            b = n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]
+            if inside:
+                if not hollow:
+                    continue
+                i = 8 - max(0.0, -b) * 2.5               # la paret de dins: fosca, una mica de llum a la dreta
+            else:
+                b = max(0.0, (b + 0.25) / 1.25)         # llum embolcallant: el costat fosc no queda negre
+                i = z - b * (z - a)
+                if b > 0.95:
+                    i = a - 1
+                if L < top + 0.55:
+                    i -= 1                              # el llavi de dalt agafa llum
+            if mod:
+                i += mod(L, th)
+            mm = (mat_at(L, th) if mat_at else None) or mat
+            plot(cx + r * sx, L + TILT * r * cz, VIEW[2] * r * cz - VIEW[1] * L, (mm, int(round(i)), inside))
+        L += 0.07
+    if cap:
+        cl, cr, fn = cap
+        n = int(cr * 5) + 2
+        for iz in range(-n, n + 1):
+            for ix in range(-n, n + 1):
+                dx, dz = ix / 5 * 1.0, iz / 5 * 1.0
+                if dx * dx + dz * dz <= cr * cr:
+                    m, i = fn(dx, dz)
+                    plot(cx + dx, cl + TILT * dz, VIEW[2] * dz - VIEW[1] * cl + 0.01, (m, i, True))
+    for (x, y), (_, (m, i, flat)) in zb.items():
+        if edge and not flat and ((x + 1, y) not in zb or (x, y + 1) not in zb):
+            i += 1                      # vora dreta i de sota una mica més fosca: retalla la peça sense contorn
+        cv.p(x, y, m, i)
+    return set(zb)
+
+
+def disc(mat, base=3, r=1.0, rim=None, seams=None, shade=False):
+    """Tapa plana per a `lathe`: to `base`, vora `rim`, llum al fons a l'esquerra, juntes cada `seams` px
+    i, amb `shade`, l'ombra que hi fa la vora del fons (tapa enfonsada, líquid)."""
+    def fn(dx, dz):
+        d = math.hypot(dx, dz)
+        i = base
+        if seams and int(math.floor(dx + 100.5)) % seams == 0:
+            i += 1
+        if rim is not None and d > r - 1.0:
+            return mat, rim + (1 if dx > r * 0.35 else 0)
+        if shade and dz < -r * 0.35:
+            i += 2 if dz < -r * 0.6 else 1
+        elif dx < -r * 0.3 and dz < r * 0.2 and d > r * 0.45:
+            i -= 1
+        return mat, i
+    return fn
+
+
+# ───────────────────────── Cares planes ─────────────────────────
+
+def face_top(cv, x0, y0, x1, y1, mat='wood', base=3, rows=(), cols=(), seed=1, grain=True):
+    """Cara de dalt: clara, amb el cantell esquerre més clar, el dret més fosc, juntes i veta."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            i = base
+            h = hsh(x, y, seed)
+            if grain and h % 19 == 0:
+                i += 1
+            elif grain and h % 37 == 1:
+                i -= 1
+            if y in rows or x in cols:
+                i = base + 1
+            if x == x0:
+                i = base - 1
+            elif x == x1:
+                i = base + 1
+            cv.p(x, y, mat, i)
+
+
+def face_front(cv, x0, y0, x1, y1, mat='wood', base=5, cols=(), rows=(), lip=True):
+    """Cara del davant: fosca, amb l'ombra del cantell de dalt, les vores i les juntes."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            i = base
+            if x in cols or y in rows:
+                i = base + 1
+            if x == x0:
+                i = base - 1
+            elif x == x1:
+                i = base + 1
+            if y == y1:
+                i += 1
+            if lip and y == y0:
+                i = base + 2
+            cv.p(x, y, mat, i)
+
+
+def legs(cv, xs, y0, y1, back=(), mat='wood'):
+    for bx in back:                              # potes del darrere: més fosques i més curtes
+        cv.vl(bx, y0, y1 - 2, mat, 7)
+    for lx in xs:
+        cv.vl(lx, y0, y1, mat, 5); cv.vl(lx + 1, y0, y1, mat, 6)
+        cv.p(lx, y0, mat, 6); cv.p(lx + 1, y0, mat, 7); cv.p(lx + 1, y1, mat, 7)
 
 
 PIECES = []  # (id, etiqueta, grup, imatge)
@@ -139,519 +314,736 @@ def variants(pid, label, group, cv, vs):
         add(f'{pid}_{vid}' if vid else pid, f'{label} {vlabel}'.strip(), group, cv, over)
 
 
-WOODS = [('', '', {}), ('dark', 'fosca', DARK_WOOD)]
-WOODS_M = [('', '', {}), ('dark', 'fosc', DARK_WOOD)]
+DARK = {'wood': DARK_WOOD}
+WOODS = [('', '', {}), ('dark', 'fosca', DARK)]
+WOODS_M = [('', '', {}), ('dark', 'fosc', DARK)]
 
 
 # ───────────────────────── Mobles ─────────────────────────
 
-def table_top(cv, x0, x1, y0, y1, legs=None):
-    """Taula com la de l'Oryx: tauler `y0..y1-1`, cantell clar, cantell fosc i potes amb l'ombra entremig."""
-    cv.r(x0, y0, x1, y1 - 1, 'W')
-    cv.hl(x0, x1, y1, 'L')
-    cv.hl(x0, x1, y1 + 1, 'K')
-    bottom = min(y1 + 6, cv.h - 3)
-    legs = legs or [x0 + 2, x1 - 3]
-    cv.r(x0, y1 + 2, x1, bottom - 1, '1')
-    cv.hl(x0, x1, bottom, '2')
-    for lx in legs:
-        cv.r(lx, y1 + 2, lx + 1, bottom, 'K')
-        cv.hl(lx, lx + 1, y1 + 2, 'B')
-    cv.r(x0, bottom + 1, x1, min(bottom + 2, cv.h - 1), '3')
+def table(cv, x0, x1, y0, y1, leg_xs, back=(), rows=(), cols=(), seed=1):
+    """Taula: tauler `y0..y1-1`, cantell clar, faldó, potes i l'ombra a sota."""
+    face_top(cv, x0, y0, x1, y1 - 1, rows=rows, cols=cols, seed=seed)
+    cv.hl(x0, x1, y0, 'wood', 4)                                   # cantell del fons
+    cv.hl(x0, x1, y1, 'wood', 2); cv.hl(x0, x0 + (x1 - x0) // 3, y1, 'wood', 1)
+    face_front(cv, x0, y1 + 1, x1, y1 + 2, base=5)
+    bottom = min(y1 + 7, cv.h - 3)
+    legs(cv, leg_xs, y1 + 3, bottom, back)
+    cv.shade_under(x0, x1, y1 + 3, bottom)
 
 
-def knots(cv, pts):
-    for x, y, c in pts:
-        cv.p(x, y, c)
-
-
-def chair():
+def chair(cushion=False):
     cv = Cv()
-    cv.r(7, 3, 16, 10, 'W')            # respatller
-    cv.hl(7, 16, 3, 'L')
-    cv.r(9, 5, 14, 8, 'M')
-    cv.vl(11, 5, 8, 'W'); cv.vl(12, 5, 8, 'W')
-    cv.hl(7, 16, 10, 'K')
-    cv.r(6, 11, 17, 15, 'W')           # seient
-    cv.hl(6, 17, 11, 'L')
-    cv.p(15, 13, 'M'); cv.p(8, 14, 'L')
-    cv.hl(6, 17, 16, 'L'); cv.hl(6, 17, 17, 'K')
-    cv.r(6, 18, 17, 19, '1'); cv.hl(6, 17, 20, '2')
-    for lx in (6, 16):
-        cv.r(lx, 18, lx + 1, 20, 'K'); cv.hl(lx, lx + 1, 18, 'B')
-    cv.hl(6, 17, 21, '3'); cv.hl(6, 17, 22, '3')
-    return cv
-
-
-def chair_cushion():
-    cv = chair()
-    cv.r(7, 12, 16, 14, 'c'); cv.hl(7, 16, 12, 'C'); cv.hl(7, 16, 15, 'e')
-    cv.r(9, 5, 14, 8, 'c'); cv.hl(9, 14, 5, 'C')
+    for px in (7, 15):                                             # muntants del respatller
+        cv.vl(px, 2, 8, 'wood', 4); cv.vl(px + 1, 2, 8, 'wood', 5)
+        cv.hl(px, px + 1, 1, 'wood', 2)
+    cv.hl(7, 16, 2, 'wood', 2); cv.hl(7, 10, 2, 'wood', 1)        # travesser de dalt
+    cv.hl(7, 16, 3, 'wood', 4); cv.hl(7, 16, 4, 'wood', 5); cv.p(16, 3, 'wood', 5); cv.p(16, 4, 'wood', 6)
+    if cushion:                                                    # respatller entapissat
+        cv.r(9, 5, 14, 8, 'cloth', 4); cv.hl(9, 14, 5, 'cloth', 3); cv.vl(14, 5, 8, 'cloth', 5); cv.vl(9, 6, 8, 'cloth', 3)
+        cv.p(11, 6, 'cloth', 6); cv.p(12, 7, 'cloth', 6)
+    else:                                                          # dues barres, es veu el terra entremig
+        cv.hl(9, 14, 6, 'wood', 3); cv.hl(9, 14, 7, 'wood', 5)
+    face_top(cv, 6, 9, 17, 14, seed=4, rows=(11,))                 # seient
+    cv.hl(6, 17, 9, 'wood', 4)
+    for px in (7, 8, 15, 16):
+        cv.p(px, 9, 'wood', 6)                                     # ombra dels muntants
+    cv.hl(6, 17, 15, 'wood', 2); cv.hl(6, 10, 15, 'wood', 1)
+    cv.hl(6, 17, 16, 'wood', 6)
+    if cushion:
+        cv.r(7, 10, 16, 13, 'cloth', 3); cv.hl(8, 15, 10, 'cloth', 2); cv.vl(7, 11, 12, 'cloth', 2)
+        cv.vl(16, 10, 13, 'cloth', 4); cv.hl(7, 16, 14, 'cloth', 5); cv.p(7, 10, 'wood', 4); cv.p(16, 10, 'wood', 4)
+        cv.hl(9, 11, 11, 'cloth', 1); cv.p(16, 14, 'cloth', 6)
+    legs(cv, (6, 16), 17, 20, back=(8, 15))
+    cv.shade_under(6, 17, 17, 20)
     return cv
 
 
 def stool():
     cv = Cv()
-    cv.ell(11.5, 10.5, 5.6, 3.6, 'W')
-    cv.hl(9, 14, 7, 'L'); cv.p(8, 8, 'L'); cv.p(7, 9, 'L')
-    cv.p(13, 11, 'M')
-    for x in range(6, 18):               # cantell
-        ys = [y for y in range(24) if cv.g[y][x] == 'W' or cv.g[y][x] == 'L' or cv.g[y][x] == 'M']
-        if ys:
-            cv.p(x, ys[-1] + 1, 'L'); cv.p(x, ys[-1] + 2, 'K')
-    for lx in (7, 11, 15):
-        cv.r(lx, 15, lx + 1, 18, 'K')
-    cv.r(9, 16, 10, 17, '1'); cv.r(13, 16, 14, 17, '1')
-    cv.hl(7, 16, 19, '2'); cv.hl(7, 16, 20, '3')
+    for x, y0, y1, i in ((9, 13, 17, 7), (14, 13, 17, 7)):          # potes del darrere
+        cv.vl(x, y0, y1, 'wood', i)
+    for x in (6, 16):                                              # potes del davant, obertes
+        cv.vl(x, 14, 19, 'wood', 5); cv.vl(x + 1, 14, 19, 'wood', 6); cv.p(x + 1, 19, 'wood', 7)
+    cv.hl(8, 15, 17, 'wood', 6); cv.hl(8, 15, 16, 'wood', 5)        # travesser
+    lathe(cv, 11.5, [(10, 5.6), (12, 5.6)], 'wood', a=4, z=7, hollow=False, cap=(10, 5.6, disc('wood', 3, 5.6, rim=2)))
+    cv.shade_under(6, 17, 15, 19)
     return cv
 
 
 def bench():
     cv = Cv()
-    table_top(cv, 1, 22, 8, 13, legs=[2, 11, 20])
-    knots(cv, [(6, 10, 'M'), (17, 11, 'M'), (22, 9, 'L'), (13, 9, 'L')])
-    cv.hl(1, 22, 8, 'L')
+    face_top(cv, 1, 8, 22, 12, rows=(10,), seed=7)
+    cv.hl(1, 22, 8, 'wood', 4)
+    cv.hl(1, 22, 13, 'wood', 2); cv.hl(1, 8, 13, 'wood', 1)
+    face_front(cv, 1, 14, 22, 15)
+    legs(cv, (2, 20), 16, 19, back=(4, 19))
+    cv.hl(4, 19, 17, 'wood', 7)                                    # travesser de baix
+    cv.shade_under(1, 22, 16, 19)
     return cv
 
 
 def table_small():
     cv = Cv()
-    table_top(cv, 5, 18, 5, 14)
-    knots(cv, [(9, 8, 'M'), (15, 11, 'X'), (18, 7, 'L'), (11, 5, 'L')])
+    table(cv, 5, 18, 4, 12, (5, 17), back=(7, 16), rows=(7, 10), seed=3)
     return cv
 
 
 def table_round():
     cv = Cv()
-    cv.ell(11.5, 9.5, 9.6, 6.6, 'W')
-    top = [[x for x in range(24) if cv.g[y][x] == 'W'] for y in range(24)]
-    for x in range(24):
-        ys = [y for y in range(24) if cv.g[y][x] == 'W']
-        if ys and x >= 2:
-            cv.p(x, ys[-1] + 1, 'L'); cv.p(x, ys[-1] + 2, 'K')
-    for y in range(3, 7):                  # llum a la vora de dalt
-        if top[y]:
-            cv.p(top[y][0], y, 'L'); cv.p(top[y][-1], y, 'L')
-    cv.hl(8, 15, 3, 'L')
-    knots(cv, [(8, 8, 'M'), (15, 11, 'M'), (12, 6, 'X')])
-    cv.r(10, 17, 13, 20, 'K'); cv.hl(10, 13, 17, 'B')     # peu central
-    cv.hl(8, 15, 20, 'K')
-    cv.r(5, 17, 9, 18, '1'); cv.r(14, 17, 18, 18, '1')
-    cv.hl(6, 7, 19, '1'); cv.hl(16, 17, 19, '1')
-    cv.hl(7, 16, 21, '2'); cv.hl(8, 15, 22, '3')
+    for y in range(17, 23):                                        # ombra a terra
+        for x in range(24):
+            if ((x - 11.5) / 8.5) ** 2 + ((y - 19.5) / 3.2) ** 2 <= 1:
+                cv.p(x, y, 'sh', 1 if ((x - 11.5) / 7.0) ** 2 + ((y - 19.2) / 2.2) ** 2 <= 1 else 2)
+    lathe(cv, 11.5, [(8, 1.5), (15, 1.3), (16.5, 1.8), (17.8, 4.6), (18.6, 4.8)], 'wood', a=4, z=8, hollow=False)   # peu
+    lathe(cv, 11.5, [(5.2, 9.7), (7.2, 9.7)], 'wood', a=4, z=7, hollow=False,
+          cap=(5.2, 9.7, disc('wood', 3, 9.7, rim=2)))
+    for x, y in ((8, 5), (15, 6), (12, 3)):
+        cv.tone(x, y, 1)
     return cv
 
 
 def table_long(dress=None):
     cv = Cv(72, 24)
-    table_top(cv, 2, 69, 2, 15, legs=[4, 35, 66])
-    knots(cv, [(8, 3, 'L'), (15, 6, 'X'), (22, 12, 'M'), (30, 4, 'M'), (41, 9, 'X'), (50, 13, 'M'),
-               (58, 5, 'L'), (64, 11, 'M'), (69, 7, 'L'), (69, 10, 'L'), (2, 9, 'L')])
-    for x in (24, 47):                       # juntes dels taulons
-        cv.vl(x, 2, 14, 'M')
+    table(cv, 2, 69, 2, 13, (3, 35, 67), back=(6, 65), rows=(5, 9), cols=(24, 47), seed=11)
     if dress == 'cloth':
-        cv.r(10, 2, 61, 15, 'c'); cv.hl(10, 61, 15, 'e'); cv.vl(10, 2, 15, 'C'); cv.vl(61, 2, 15, 'e')
-        cv.r(10, 16, 61, 17, 'e')
-        for x in range(10, 62, 3):
-            cv.p(x, 18, 'e')
-        for x in range(14, 60, 6):
-            cv.art(x, 8, ['.y.', 'yYy', '.y.'])
+        x0, x1 = 9, 62
+        for y in range(2, 14):                                     # la tela sobre el tauler
+            for x in range(x0, x1 + 1):
+                i = 3 if y < 12 else 4
+                if hsh(x, y, 5) % 29 == 0:
+                    i += 1
+                cv.p(x, y, 'cloth', i - 1 if x == x0 else i + 1 if x == x1 else i)
+        cv.hl(x0, x1, 2, 'cloth', 4)
+        for x in range(x0 + 4, x1 - 2, 6):                         # brodat
+            cv.art(x, 6, ['.2.', '212', '.2.'], 'trim')
+        cv.hl(x0 + 1, x1 - 1, 12, 'trim', 3)
+        for y in range(14, 20):                                    # el que penja pel davant, amb plecs
+            for x in range(x0, x1 + 1):
+                f = (x - x0) % 5
+                i = (6, 5, 4, 5, 7)[f]
+                if y == 19 and f in (0, 4):
+                    continue
+                cv.p(x, y, 'cloth', i)
+        cv.hl(x0, x1, 14, 'cloth', 3)
+        for x in range(x0, x1 + 1):
+            if (x - x0) % 5 not in (0, 4):
+                cv.p(x, 18, 'trim', 3 if (x - x0) % 5 != 2 else 2)
     if dress == 'feast':
-        for x in (9, 31, 53):                # plats amb menjar
-            cv.art(x, 5, ['..iiii..', '.iIIIIi.', 'iIIqpIIi', 'iIqppqIi', '.iIIIIi.', '..jjjj..'])
-        for x in (21, 44):                   # gerres
-            cv.art(x, 4, ['.jjj.', 'jiiij', 'jiiijj', 'jiiij', '.jjj.'])
-        cv.art(63, 3, ['.Y.', '.y.', '.F.', '.F.', 'jij'])     # espelma
-        cv.art(3, 9, ['cC.', 'cc.', '.E.'])                  # poma
-        cv.art(26, 11, ['.pPp.', 'pPppq', '.qqq.'])          # pa
-        cv.art(48, 10, ['.pPp.', 'pPppq', '.qqq.'])
+        K = {'p': ('paper', 1), 'P': ('paper', 0), 'q': ('paper', 3), 'Q': ('paper', 5), 'm': ('clay', 3), 'M': ('clay', 5),
+             'n': ('clay', 1), 'i': ('iron', 1), 'j': ('iron', 3), 'J': ('iron', 5), 'k': ('iron', 7), 'r': ('red', 3),
+             'R': ('red', 5), 'h': ('red', 1), 'g': ('leaf', 4), 'y': ('gold', 1), 'Y': ('gold', 0), 'o': ('gold', 3),
+             's': ('wood', 5), 'w': ('purple', 6)}
+        plate = ['..pppp..', '.pPPPPp.', 'pPnmmMPp', 'pPmmMMPq', '.qPPPPq.', '..QQQQ..', '..ssss..']
+        for x in (9, 31, 53):
+            cv.art(x, 4, plate, key=K)
+        mug = ['.ii.', 'iwwj', 'ijjJj', 'ijjJj', 'jjJJ.', '.ss.']
+        for x in (20, 43):
+            cv.art(x, 4, mug, key=K)
+        cv.art(63, 1, ['.Y.', '.y.', '.o.', '.p.', '.p.', '.q.', 'ijJ', '.s.'], key=K)       # espelma
+        cv.art(4, 8, ['.g.', 'hrR', 'rrR', '.R.'], key=K)                                    # poma
+        for x in (25, 47):
+            cv.art(x, 9, ['.nnn.', 'nmnmm', 'mmmMM', '.MMM.', '.sss.'], key=K)               # pa
+        cv.art(37, 9, ['.ii.', 'ijjj', 'iJJJ', '.jJ.', '.jJ.', 'ijJJ', '.ss.'], key=K)       # copa
     return cv
 
 
 def bed():
     cv = Cv(24, 48)
-    cv.r(3, 2, 20, 7, 'W'); cv.hl(3, 20, 2, 'L')         # capçal
-    cv.r(5, 4, 18, 6, 'M'); cv.vl(11, 4, 6, 'W'); cv.vl(12, 4, 6, 'W')
-    cv.hl(3, 20, 8, 'K')
-    cv.r(3, 9, 20, 39, 'W')                               # bastiment
-    cv.r(4, 9, 19, 18, 'm')                               # llençol
-    cv.r(6, 10, 17, 14, 'F'); cv.hl(6, 17, 15, 'R'); cv.vl(17, 11, 14, 'r')   # coixí
-    cv.p(6, 10, 'm'); cv.p(17, 10, 'm')
-    cv.r(4, 19, 19, 38, 'c')                              # flassada
-    cv.r(4, 17, 19, 18, 'r'); cv.hl(4, 19, 19, 'C')
-    cv.vl(19, 20, 38, 'e'); cv.hl(4, 19, 38, 'e')
-    for x, y in ((7, 24), (13, 28), (9, 33), (16, 23), (15, 35)):
-        cv.p(x, y, 'e'); cv.p(x + 1, y + 1, 'e')
-    cv.r(3, 39, 20, 41, 'W'); cv.hl(3, 20, 39, 'L')       # peu del llit
-    cv.hl(3, 20, 42, 'K')
-    cv.r(3, 43, 20, 43, '1'); cv.hl(3, 20, 44, '2')
-    for lx in (3, 19):
-        cv.r(lx, 43, lx + 1, 44, 'K')
-    cv.hl(3, 20, 45, '3'); cv.hl(3, 20, 46, '3')
+    # capçal: cara del davant, amb el cantell de dalt i dos poms
+    cv.hl(3, 20, 1, 'wood', 2); cv.hl(3, 9, 1, 'wood', 1)
+    face_front(cv, 3, 2, 20, 8, base=4, lip=False)
+    cv.r(6, 3, 17, 7, 'wood', 5); cv.hl(6, 17, 3, 'wood', 7); cv.vl(6, 3, 7, 'wood', 6); cv.hl(7, 17, 7, 'wood', 4)
+    cv.vl(11, 4, 6, 'wood', 6); cv.vl(12, 4, 6, 'wood', 4)
+    for x in (3, 19):
+        cv.r(x, 0, x + 1, 0, 'wood', 1); cv.vl(x, 1, 8, 'wood', 3); cv.vl(x + 1, 1, 8, 'wood', 5)
+    # matalàs i llençol
+    cv.vl(3, 9, 39, 'wood', 3); cv.vl(20, 9, 39, 'wood', 5)
+    cv.r(4, 9, 19, 17, 'paper', 2); cv.hl(4, 19, 9, 'paper', 5); cv.hl(4, 19, 10, 'paper', 3); cv.vl(4, 11, 17, 'paper', 1)
+    cv.vl(19, 10, 17, 'paper', 3)
+    # coixí
+    cv.r(6, 10, 17, 14, 'paper', 1); cv.hl(7, 16, 10, 'paper', 0); cv.vl(6, 11, 13, 'paper', 0)
+    cv.vl(17, 11, 14, 'paper', 2); cv.hl(6, 17, 15, 'paper', 3); cv.hl(7, 18, 16, 'paper', 4)
+    cv.p(6, 10, 'paper', 3); cv.p(17, 10, 'paper', 3); cv.p(6, 15, 'paper', 4); cv.p(17, 15, 'paper', 4)
+    cv.hl(10, 13, 12, 'paper', 2); cv.p(11, 13, 'paper', 2)
+    # flassada: el doblec, els plecs i el costat dret a l'ombra
+    for y in range(18, 39):
+        for x in range(4, 20):
+            i = 3
+            w = math.sin(x * 0.55 + y * 0.42) + 0.35 * math.sin(y * 0.9 - x * 0.2)
+            if w > 0.95:
+                i = 2
+            elif w < -0.9:
+                i = 4
+            if x >= 18:
+                i += 1
+            if x == 4:
+                i -= 1
+            if y >= 37:
+                i += 1
+            cv.p(x, y, 'cloth', i)
+    cv.hl(4, 19, 17, 'cloth', 1); cv.hl(4, 19, 18, 'cloth', 2); cv.hl(4, 19, 19, 'cloth', 2); cv.hl(4, 19, 20, 'cloth', 5)
+    cv.hl(5, 18, 19, 'trim', 3)
+    # peu del llit
+    cv.hl(3, 20, 39, 'wood', 2); cv.hl(3, 9, 39, 'wood', 1)
+    face_front(cv, 3, 40, 20, 43, base=5)
+    cv.r(6, 41, 17, 42, 'wood', 6)
+    for x in (3, 19):
+        cv.vl(x, 39, 45, 'wood', 4); cv.vl(x + 1, 39, 45, 'wood', 6); cv.hl(x, x + 1, 38, 'wood', 1)
+    cv.shade_under(3, 20, 44, 45)
     return cv
 
 
-BOOKS = 'cCaebfEygcPaqfCebyQacfEgCbe'
+SPINES = [('red', 5), ('blue', 5), ('green', 5), ('purple', 5), ('gold', 5), ('clay', 5), ('red', 6), ('blue', 6),
+          ('wood', 4), ('green', 6), ('purple', 6), ('clay', 4)]
 
 
 def bookshelf(kind='full'):
     cv = Cv()
-    cv.r(3, 1, 20, 2, 'W'); cv.hl(3, 20, 1, 'L')
-    cv.r(3, 3, 20, 20, 'K')
-    cv.r(4, 3, 19, 19, 'X')
-    for sy in (8, 14):
-        cv.hl(4, 19, sy, 'M')
-    cv.hl(3, 20, 20, 'B')
+    face_top(cv, 3, 0, 20, 2, seed=2)                              # sostre del moble
+    cv.hl(3, 20, 0, 'wood', 4)
+    cv.hl(2, 21, 3, 'wood', 2); cv.hl(2, 8, 3, 'wood', 1)          # cornisa
+    cv.r(3, 4, 20, 20, 'wood', 8)
+    cv.hl(3, 20, 4, 'wood', 7)
+    cv.vl(3, 4, 20, 'wood', 4); cv.vl(20, 4, 20, 'wood', 6)
+    for sy in (9, 14, 19):                                         # lleixes: es veu el tauler de dalt
+        cv.hl(4, 19, sy, 'wood', 3); cv.p(4, sy, 'wood', 2)
+    cv.hl(3, 20, 20, 'wood', 6); cv.p(3, 20, 'wood', 5)
+    cv.hl(3, 20, 21, 'wood', 7)
     n = 0
-    for si, y0 in enumerate((3, 9, 15)):
+    for si, base in enumerate((8, 13, 18)):                        # fila de sota de cada prestatge
         x = 4
         while x <= 19:
             n += 1
-            h = 5 - (n * 7 % 3 == 0) - (n * 5 % 7 == 0)
-            col = BOOKS[(n * 3 + si) % len(BOOKS)]
-            if kind == 'half' and (n * 11 % 5 < 2 or (si == 1 and x > 11)):
-                x += 1
-                continue
+            h = hsh(n, si, 9)
             if kind == 'potions' and si == 1:
                 break
-            cv.vl(x, y0 + 5 - h, y0 + 4, col)
-            if n % 4 == 0 and x < 19:       # llibre gruixut
-                cv.vl(x + 1, y0 + 5 - h, y0 + 4, col); cv.p(x + 1, y0 + 6 - h, 'y')
-                x += 1
-            x += 1
+            if kind == 'half' and (h % 5 < 2 or (si == 1 and x > 10)):
+                x += 1 + h % 2
+                continue
+            tall = 4 - (1 if h % 3 == 0 else 0)
+            mat, tone = SPINES[h % len(SPINES)]
+            wide = 2 if (h % 4 == 0 and x < 19) else 1
+            for k in range(wide):
+                cv.vl(x + k, base - tall + 1, base, mat, tone + k)
+                cv.p(x + k, base - tall, 'paper', 2 + k)           # els fulls, vistos de dalt
+            if wide == 2:
+                cv.p(x, base - 1, 'gold', 2)
+            elif h % 7 == 0:
+                cv.p(x, base - 2, 'gold', 3)
+            x += wide
     if kind == 'potions':
-        for x, c1, c2 in ((5, 'c', 'e'), (9, 'a', 'b'), (13, 'f', 'E'), (17, 'y', 'o')):
-            cv.art(x, 9, ['.i.', '.i.', c1 * 3, c1 + c2 * 2, '.' + c2 + '.'][0:5])
-            cv.p(x, 13, c2); cv.p(x + 2, 13, c2)
+        for x, m in ((5, 'red'), (9, 'blue'), (13, 'green'), (17, 'purple')):
+            cv.art(x, 10, ['.c.', '.g.', 'abb', 'bdd'][0:4], key={'c': ('wood', 2), 'g': ('paper', 2), 'a': (m, 1),
+                                                                 'b': (m, 3), 'd': (m, 5)})
     if kind == 'half':
-        cv.art(13, 11, ['.F.', 'FnF', '.F.'])        # calavera
+        cv.art(13, 10, ['.01.', '0112', '0818', '.23.'], 'paper')   # calavera
+        cv.art(5, 16, ['33.', '.55', '..7'], 'clay')               # llibre caigut
     cv.drop()
     return cv
 
 
 def wardrobe():
     cv = Cv()
-    cv.r(4, 1, 19, 2, 'W'); cv.hl(4, 19, 1, 'L')
-    cv.r(4, 3, 19, 20, 'W')
-    cv.vl(4, 3, 20, 'K'); cv.vl(19, 3, 20, 'K'); cv.hl(4, 19, 3, 'K'); cv.hl(4, 19, 20, 'B')
-    cv.vl(11, 4, 19, 'K'); cv.vl(12, 4, 19, 'M')
-    for x0 in (6, 14):
-        cv.r(x0, 5, x0 + 3, 10, 'M'); cv.r(x0, 13, x0 + 3, 18, 'M')
-        cv.hl(x0, x0 + 3, 5, 'D'); cv.hl(x0, x0 + 3, 13, 'D')
-    cv.p(10, 12, 'y'); cv.p(13, 12, 'y'); cv.p(10, 13, 'o'); cv.p(13, 13, 'o')
+    face_top(cv, 4, 0, 19, 1, seed=6)
+    cv.hl(4, 19, 0, 'wood', 4)
+    cv.hl(3, 20, 2, 'wood', 2); cv.hl(3, 9, 2, 'wood', 1)          # cornisa
+    face_front(cv, 4, 3, 19, 19, base=4)
+    cv.hl(4, 19, 3, 'wood', 7)
+    cv.vl(11, 4, 18, 'wood', 7); cv.vl(12, 4, 18, 'wood', 5)       # junta de les portes
+    for x0 in (5, 13):
+        for y0 in (5, 12):
+            cv.r(x0, y0, x0 + 5, y0 + 5, 'wood', 5)
+            cv.hl(x0, x0 + 5, y0, 'wood', 7); cv.vl(x0, y0, y0 + 5, 'wood', 6)
+            cv.hl(x0 + 1, x0 + 5, y0 + 5, 'wood', 3); cv.vl(x0 + 5, y0 + 1, y0 + 5, 'wood', 3)
+    cv.p(10, 11, 'gold', 1); cv.p(13, 11, 'gold', 1); cv.p(10, 12, 'gold', 4); cv.p(13, 12, 'gold', 4)
+    cv.hl(3, 20, 19, 'wood', 5); cv.hl(3, 20, 20, 'wood', 7); cv.p(3, 19, 'wood', 4)
     cv.drop()
     return cv
 
 
 def throne():
     cv = Cv()
-    cv.r(6, 1, 17, 12, 's'); cv.hl(6, 17, 1, 'u')         # respatller de pedra
-    cv.vl(6, 2, 12, 't'); cv.vl(17, 2, 12, 'v')
-    cv.art(5, 0, ['y', 'g']); cv.art(18, 0, ['y', 'g']); cv.art(11, 0, ['yy'])
-    cv.r(8, 3, 15, 11, 'c'); cv.hl(8, 15, 3, 'C'); cv.vl(15, 4, 11, 'e')
-    cv.art(11, 5, ['yy', 'yy'])
-    cv.r(4, 9, 6, 17, 's'); cv.r(17, 9, 19, 17, 's')     # braços
-    cv.hl(4, 6, 9, 'u'); cv.hl(17, 19, 9, 'u')
-    cv.p(4, 9, 'y'); cv.p(19, 9, 'y')
-    cv.r(7, 12, 16, 16, 'c'); cv.hl(7, 16, 12, 'C'); cv.hl(7, 16, 16, 'e')   # coixí
-    cv.r(4, 17, 19, 20, 'w'); cv.hl(4, 19, 17, 'v'); cv.hl(5, 18, 19, 'v')
-    cv.hl(4, 19, 17, 's'); cv.hl(7, 16, 17, 'u')
+    # respatller de pedra amb el plafó entapissat i el marc daurat
+    cv.hl(6, 17, 1, 'stone', 1); cv.hl(6, 10, 1, 'stone', 0)
+    face_front(cv, 6, 2, 17, 11, 'stone', base=4, lip=False)
+    cv.r(7, 2, 16, 11, 'trim', 3); cv.hl(7, 16, 2, 'trim', 1); cv.vl(7, 3, 11, 'trim', 2); cv.vl(16, 3, 11, 'trim', 5)
+    cv.r(8, 3, 15, 11, 'cloth', 4); cv.hl(8, 15, 3, 'cloth', 6); cv.vl(8, 4, 11, 'cloth', 3); cv.vl(15, 4, 11, 'cloth', 5)
+    for x, y in ((10, 5), (13, 5), (10, 8), (13, 8)):               # botons de l'entapissat
+        cv.p(x, y, 'cloth', 6); cv.p(x - 1, y, 'cloth', 3); cv.p(x, y + 1, 'cloth', 3)
+    cv.art(10, 0, ['.12.', '1234'], 'trim')
+    for x in (5, 17):
+        cv.art(x, 0, ['12', '34'], 'trim')
+    # braços
+    for x0 in (4, 17):
+        cv.r(x0, 9, x0 + 2, 10, 'stone', 2); cv.hl(x0, x0 + 2, 9, 'stone', 1)
+        face_front(cv, x0, 11, x0 + 2, 16, 'stone', base=4)
+        cv.p(x0 + 1, 11, 'trim', 1); cv.p(x0 + 1, 12, 'trim', 4)
+    # coixí del seient
+    cv.r(7, 12, 16, 14, 'cloth', 3); cv.hl(7, 16, 12, 'cloth', 4); cv.hl(8, 15, 13, 'cloth', 2); cv.vl(7, 13, 14, 'cloth', 2)
+    cv.vl(16, 12, 14, 'cloth', 4); cv.hl(7, 16, 15, 'cloth', 5); cv.hl(9, 12, 13, 'cloth', 1)
+    # base
+    cv.hl(4, 19, 16, 'stone', 2); cv.hl(4, 9, 16, 'stone', 1)
+    face_front(cv, 4, 17, 19, 18, 'stone', base=5)
+    cv.hl(3, 20, 19, 'stone', 3); cv.hl(3, 8, 19, 'stone', 2)
+    cv.hl(3, 20, 20, 'stone', 6); cv.p(3, 20, 'stone', 5); cv.p(20, 20, 'stone', 7)
     cv.drop()
     return cv
 
 
 # ───────────────────────── Caixes, bótes i sacs ─────────────────────────
 
+def crate_box(cv, x0, x1, yt, yl, yb, open_=False, brace=True, seed=1):
+    """Caixa: tapa `yt..yl-1` (bastiment i taulons), cantell `yl`, cara del davant fins a `yb`."""
+    face_top(cv, x0, yt, x1, yl - 1, base=2, grain=False)          # bastiment de la tapa
+    cv.hl(x0, x1, yt, 'wood', 3)
+    if open_:
+        cv.r(x0 + 1, yt + 1, x1 - 1, yl - 2, 'wood', 8)            # el fons, a les fosques
+        cv.hl(x0 + 1, x1 - 1, yt + 1, 'wood', 5)                   # paret de dins del fons, que rep llum
+        cv.hl(x0 + 1, x1 - 1, yt + 2, 'wood', 6)
+        cv.vl(x0 + 1, yt + 1, yl - 2, 'wood', 7)
+        cv.vl(x1 - 1, yt + 2, yl - 2, 'wood', 6)
+        for x in range(x0 + 4, x1 - 1, 4):
+            cv.p(x, yt + 1, 'wood', 6); cv.p(x, yt + 2, 'wood', 7)
+    else:
+        face_top(cv, x0 + 2, yt + 2, x1 - 2, yl - 3, base=3, seed=seed,
+                 rows=tuple(range(yt + 4, yl - 3, 2)) if yl - yt > 7 else (yt + 3,))
+        cv.hl(x0 + 2, x1 - 2, yt + 2, 'wood', 5); cv.vl(x0 + 2, yt + 2, yl - 3, 'wood', 5)   # ombra del bastiment
+        for x, y in ((x0, yt), (x1, yt), (x0, yl - 1), (x1, yl - 1)):
+            cv.p(x, y, 'wood', 5)                                  # claus
+    cv.hl(x0, x1, yl, 'wood', 1); cv.hl(x0, x0 + (x1 - x0) // 2, yl, 'wood', 0)
+    face_front(cv, x0, yl + 1, x1, yb, base=5)
+    if yb - yl > 5:
+        cv.r(x0 + 2, yl + 3, x1 - 2, yb - 2, 'wood', 7)            # taulons enfonsats
+        cv.hl(x0 + 2, x1 - 2, yl + 3, 'wood', 8)
+        for x in range(x0 + 4, x1 - 2, 3):
+            cv.vl(x, yl + 3, yb - 2, 'wood', 8)
+        cv.vl(x0, yl + 1, yb, 'wood', 4); cv.vl(x0 + 1, yl + 2, yb - 1, 'wood', 5)
+        cv.vl(x1, yl + 1, yb, 'wood', 7); cv.vl(x1 - 1, yl + 2, yb - 1, 'wood', 6)
+        cv.hl(x0, x1, yb, 'wood', 7)
+        if brace:                                                  # travesser en diagonal
+            n = x1 - x0 - 4
+            for k in range(n + 1):
+                y = yb - 2 - round(k * (yb - yl - 5) / n)
+                cv.p(x0 + 2 + k, y, 'wood', 4); cv.p(x0 + 2 + k, y + 1, 'wood', 6)
+            cv.hl(x0 + 2, x1 - 2, yb - 1, 'wood', 6)
+    else:
+        for x in range(x0 + 3, x1, 3):
+            cv.vl(x, yl + 2, yb - 1, 'wood', 7)
+
+
 def crate_small():
     cv = Cv()
-    cv.r(7, 8, 16, 13, 'L'); cv.r(9, 10, 14, 11, 'M'); cv.hl(8, 15, 9, 'D'); cv.vl(8, 9, 12, 'D')
-    cv.hl(9, 15, 12, 'W'); cv.vl(15, 10, 12, 'W')
-    cv.hl(7, 16, 14, 'G')
-    cv.r(7, 15, 16, 19, 'K'); cv.hl(7, 16, 15, 'X'); cv.vl(10, 16, 19, 'X'); cv.vl(13, 16, 19, 'X')
-    cv.vl(16, 15, 19, 'B')
+    crate_box(cv, 7, 16, 8, 13, 19)
     cv.drop()
     return cv
 
 
 def crate_braced():
     cv = Cv()
-    cv.r(4, 1, 20, 9, 'L'); cv.r(6, 3, 18, 7, 'W')
-    cv.hl(6, 18, 2, 'D'); cv.vl(5, 2, 8, 'D'); cv.hl(6, 18, 8, 'W'); cv.vl(19, 2, 8, 'W')
-    for y in (4, 6):                         # taulons de la tapa
-        cv.hl(6, 18, y, 'M')
-    cv.r(11, 3, 13, 7, 'L'); cv.vl(11, 3, 7, 'D'); cv.p(12, 5, 'X')   # travesser i clau
-    cv.p(4, 4, 'H'); cv.p(20, 6, 'H'); cv.p(11, 1, 'H')
-    cv.hl(4, 20, 10, 'G')
-    cv.r(4, 11, 20, 19, 'K'); cv.hl(4, 20, 12, 'X'); cv.hl(4, 20, 19, 'B'); cv.vl(20, 11, 19, 'B')
-    for i in range(6):                       # travesser en diagonal
-        cv.p(6 + i * 2, 13 + i, 'D'); cv.p(7 + i * 2, 13 + i, 'D'); cv.p(8 + i * 2, 13 + i, 'M')
-    cv.r(4, 13, 5, 18, 'D'); cv.r(18, 13, 19, 18, 'D')
+    crate_box(cv, 4, 20, 1, 10, 19, seed=3)
     cv.drop()
     return cv
 
 
 def crate_open(fill=None):
     cv = Cv()
-    cv.r(4, 2, 20, 10, 'L')
-    cv.r(6, 4, 18, 9, 'X'); cv.hl(6, 18, 4, 'B'); cv.hl(6, 18, 3, 'W'); cv.vl(5, 3, 9, 'W'); cv.vl(19, 3, 9, 'M')
-    cv.hl(4, 20, 2, 'H')
+    crate_box(cv, 4, 20, 1, 10, 19, open_=True, brace=False)
     if fill == 'apples':
-        for i, (x, y) in enumerate(((6, 6), (9, 5), (12, 6), (15, 5), (8, 8), (11, 8), (14, 8), (17, 7))):
-            cv.art(x, y, ['Cc', 'ce']); cv.p(x + 1, y - 1, 'E' if i % 2 else 'f')
+        for j, y in enumerate((3, 5, 6)):
+            for x in range(5 + (j % 2) * 2, 18, 4 if j < 2 else 3):
+                m = 'green' if hsh(x, y, 4) % 4 == 0 else 'red'
+                cv.art(x, y, ['123', '245', '.56'], m)
+                cv.p(x + 1, y - 1, 'wood', 6)
     if fill == 'bottles':
-        for x in (7, 10, 13, 16):
-            cv.art(x, 5, ['i.', 'fE', 'fE', 'EE'])
-    cv.hl(4, 20, 11, 'G')
-    cv.r(4, 12, 20, 19, 'K'); cv.hl(4, 20, 13, 'X'); cv.hl(4, 20, 19, 'B'); cv.vl(20, 12, 19, 'B')
-    for x in (8, 12, 16):
-        cv.vl(x, 14, 18, 'X')
+        for x in (6, 9, 12, 15, 18):
+            cv.art(x - 1, 3, ['.c', '.2', '13', '25', '36', '46'], 'green', key={'c': ('clay', 1)})
     cv.drop()
     return cv
 
 
 def crate_stack():
     cv = Cv()
-    small = crate_small()
-    for dx, dy in ((-5, 3), (5, 3), (0, -7)):
-        for y in range(24):
-            for x in range(24):
-                ch = small.g[y][x]
-                if ch not in '.123':
-                    cv.p(x + dx, y + dy, ch)
+    cb = Cv()
+    crate_box(cb, 7, 16, 8, 13, 19)
+    cv.blit(cb, -5, 1); cv.blit(cb, 5, 1)
+    for x in range(7, 17):                                         # ombra de la de dalt sobre les de baix
+        for y in (9, 10):
+            cv.tone(x, y, 2)
+    cv.blit(cb, 0, -8)
     cv.drop()
     return cv
 
 
 def barrel_iron(water=False):
     cv = Cv()
-    for y in range(5, 21):                   # cos: panxa al mig
-        inset = 1 if (y < 8 or y > 17) else 0
-        if y == 20:
-            inset = 3
-        if y == 19:
-            inset = 2
-        cv.hl(5 + inset, 18 - inset, y, 'K')
-    for x in (8, 11, 12, 15):
-        cv.vl(x, 7, 19, 'X')
-    cv.vl(5, 8, 17, 'B'); cv.vl(18, 8, 17, 'B')
-    cv.vl(6, 8, 17, 'D'); cv.vl(7, 9, 16, 'D')
-    for y in (9, 16):                        # cèrcols de ferro
-        cv.hl(5, 18, y, 'j'); cv.hl(6, 9, y, 'i'); cv.p(18, y, 'v'); cv.p(5, y, 'v')
-    cv.ell(11.5, 5.0, 6.4, 3.3, 'W')        # tapa
-    cv.hl(8, 15, 2, 'D'); cv.p(6, 3, 'D'); cv.p(7, 3, 'D'); cv.p(16, 3, 'D'); cv.p(17, 3, 'D')
-    cv.hl(8, 15, 8, 'H'); cv.p(6, 7, 'H'); cv.p(7, 7, 'H'); cv.p(16, 7, 'H'); cv.p(17, 7, 'H')
-    cv.p(5, 5, 'D'); cv.p(18, 5, 'D'); cv.p(5, 4, 'D'); cv.p(18, 4, 'D')
+    stave = lambda L, th: (1 if (th + 9.0) % 0.449 < 0.09 else 0) - (1 if int((th + 9.0) / 0.449) % 3 == 0 and L > 6 else 0)
+    hoop = lambda L, th: 'iron' if (7.3 <= L <= 8.5 or 15.3 <= L <= 16.5) else None
+    prof = [(4.8, 5.9), (6.5, 6.4), (11.5, 7.0), (16.5, 6.4), (18.2, 5.8)]
     if water:
-        cv.ell(11.5, 5.0, 4.6, 2.2, 'a'); cv.hl(9, 12, 4, 'A'); cv.p(14, 6, 'b'); cv.p(13, 6, 'b'); cv.p(8, 5, 'b')
+        lathe(cv, 11.5, prof, 'wood', a=4, z=8, mod=stave, mat_at=hoop, cap=(6.2, 5.3, disc('water', 3, 5.3, shade=True)))
+    else:                                                          # tapa a ras: cèrcol clar i taulons
+        lathe(cv, 11.5, prof, 'wood', a=4, z=8, mod=stave, mat_at=hoop, hollow=False,
+              cap=(4.8, 5.9, disc('wood', 3, 5.9, rim=1)))
+    if water:
+        cv.art(8, 5, ['.11', '1..'], 'water'); cv.p(14, 7, 'water', 2)
     else:
-        cv.p(11, 4, 'L'); cv.hl(13, 15, 5, 'D'); cv.p(14, 4, 'D'); cv.p(14, 6, 'D')
+        cv.p(13, 5, 'wood', 6); cv.p(14, 5, 'wood', 5)             # el tap
     cv.drop()
     return cv
 
 
 def barrel_side():
     cv = Cv()
-    for y in range(7, 19):
-        inset = (2 if y in (7, 18) else 1 if y in (8, 17) else 0)
-        col = 'L' if y < 9 else 'W' if y < 13 else 'M' if y < 16 else 'K'
-        cv.hl(3 + inset, 20 - inset, y, col)
-    for y in (10, 13, 16):
-        cv.hl(4, 19, y, 'D' if y < 14 else 'X')
-    for x in (6, 17):
-        cv.vl(x, 7, 18, 'j'); cv.vl(x, 7, 9, 'i'); cv.vl(x, 16, 18, 'v')
-    cv.vl(3, 9, 16, 'K'); cv.vl(20, 9, 16, 'K')
-    cv.p(11, 7, 'D'); cv.p(12, 7, 'D'); cv.p(11, 6, 'M'); cv.p(12, 6, 'M')   # tap
-    cv.art(4, 19, ['KK', 'BB']); cv.art(18, 19, ['KK', 'BB'])               # falques
+    tones = [3, 2, 2, 3, 3, 4, 5, 5, 6, 6, 7, 8, 8]
+    for x in range(3, 21):
+        bulge = 0 if 7 <= x <= 16 else 1 if 5 <= x <= 18 else 2
+        y0, y1 = 6 + bulge, 18 - bulge
+        for y in range(y0, y1 + 1):
+            i = tones[round((y - y0) * 12 / (y1 - y0))]
+            if (y - 6) % 3 == 2:
+                i += 1                                             # juntes de les dogues
+            if x in (3, 20):
+                i += 1
+            cv.p(x, y, 'wood', i)
+            if x in (6, 7, 16, 17):
+                cv.p(x, y, 'iron', max(1, i - 2 + (1 if x in (7, 17) else 0)))
+    cv.art(11, 5, ['34', '56'], 'wood')                            # el tap de dalt
+    cv.art(4, 18, ['45', '567', '6778'], 'wood'); cv.art(16, 18, ['.45', '.567', '6778'], 'wood')   # falques
     cv.drop()
     return cv
 
 
 def keg():
     cv = Cv()
-    cv.ell(11.5, 10.5, 6.6, 6.6, 'K')
-    cv.ell(11.5, 10.5, 5.6, 5.6, 'j')
-    cv.ell(11.5, 10.5, 4.7, 4.7, 'W')
-    for x in (9, 12, 14):
-        cv.vl(x, 7, 14, 'M')
-    cv.hl(9, 14, 6, 'L'); cv.p(8, 7, 'L'); cv.p(7, 8, 'L'); cv.p(7, 6, 'i'); cv.p(8, 5, 'i'); cv.hl(9, 12, 5, 'i')
-    cv.art(11, 13, ['ii', 'jj', '.j']); cv.p(13, 14, 'j')     # aixeta
-    cv.r(5, 17, 7, 19, 'K'); cv.r(16, 17, 18, 19, 'K'); cv.hl(5, 18, 18, 'D'); cv.hl(5, 18, 19, 'K')
+    def ring(cy, r, mat, i):
+        for y in range(24):
+            for x in range(24):
+                if (x - 11.5) ** 2 + (y - cy) ** 2 <= r * r:
+                    cv.p(x, y, mat, i - 1 if x < 9 else i + 1 if x > 15 else i)
+    for k, (mat, i) in zip((4, 3, 2, 1), (('wood', 5), ('iron', 3), ('wood', 3), ('iron', 2))):   # el cos, cap al fons
+        ring(10.5 - k * 0.8, 6.4, mat, i)
+    ring(10.9, 6.4, 'wood', 5)                                     # el cap del barril, mirant endavant
+    ring(10.9, 5.3, 'wood', 4)
+    for y in range(24):
+        for x in range(24):
+            if (x - 11.5) ** 2 + (y - 10.9) ** 2 <= 5.3 * 5.3:
+                i = 4 + (1 if x in (9, 12, 15) else 0) + (1 if y > 13 else 0) - (1 if (x + y) < 17 else 0)
+                cv.p(x, y, 'wood', i)
+    cv.art(11, 13, ['12', '34', '.5', '.6'], 'iron'); cv.p(13, 14, 'iron', 4)      # aixeta
+    cv.art(4, 16, ['4455', '.566', '.677'], 'wood'); cv.art(16, 16, ['4556', '566.', '677.'], 'wood')
+    cv.hl(6, 17, 19, 'wood', 7)
     cv.drop()
     return cv
 
 
-SACK = ['....qQq.....', '...qpPpq....', '....QkQ.....', '...qpPppq...', '..qpPPpppq..', '.qpPPpppppq.',
-        '.qpPppppppqQ', '.qpppppppqqQ', '.qpppppppqqQ', '..qqppppqqQ.', '...QQQQQQQ..']
-SACK_OPEN = ['...qqqqqq...', '..qyYyygyq..', '..qgyygygq..', '...qqqqqq...', '..qpPPpppq..', '.qpPPpppppq.',
-             '.qpPppppppqQ', '.qpppppppqqQ', '.qpppppppqqQ', '..qqppppqqQ.', '...QQQQQQQ..']
+SACK_PROF = [(8.0, 1.9), (8.8, 1.3), (9.6, 1.1), (10.4, 2.4), (12.0, 4.8), (14.5, 6.0), (17.0, 5.8), (18.5, 4.6), (19.0, 3.4)]
 
 
-def sack(rows=SACK):
+def draw_sack(cv, cx, dy=0.0, grain=False, mat='sack', scale=1.0):
+    wr = lambda L, th: 1 if (math.sin(th * 4 + L * 0.9) > 0.86 and L < 15) or (L > 17 and math.sin(th * 3) > 0.9) else 0
+    if grain:
+        prof = [(10.0, 4.4), (10.8, 4.7), (13.0, 5.8), (16.5, 6.0), (18.5, 4.6), (19.0, 3.4)]
+        fill = lambda dx, dz: ('gold', 2 + hsh(int(dx * 2), int(dz * 3), 3) % 3)
+        lathe(cv, cx, prof, mat, a=1, z=7, mod=wr, cap=(10.9, 3.9, fill), dy=dy)
+    else:
+        prof = [(L, r * scale) for L, r in SACK_PROF]
+        rope = lambda L, th: 'wood' if 9.3 <= L <= 10.0 else None
+        lathe(cv, cx, prof, mat, a=1, z=7, mod=wr, mat_at=rope, cap=(8.0, 1.9 * scale, lambda dx, dz: (mat, 4)), dy=dy)
+
+
+def sack(grain=False):
     cv = Cv()
-    cv.art(6, 8, rows)
+    draw_sack(cv, 11.5, grain=grain)
     cv.drop()
     return cv
 
 
 def sack_pile():
     cv = Cv()
-    cv.art(1, 9, SACK); cv.art(11, 9, SACK); cv.art(6, 3, SACK)
+    draw_sack(cv, 6.5, dy=1); draw_sack(cv, 16.5, dy=1)
+    draw_sack(cv, 11.5, dy=-4, scale=0.95)
     cv.drop()
     return cv
 
 
 # ───────────────────────── Gerros ─────────────────────────
 
-VASE_TALL = ['..qPPPPPPq..', '..QQqqqqQQ..', '...qpPppq...', '...qpPppq...', '..qpPpppqq..', '.qpPPppppqq.',
-             'qpPPppppppqQ', 'qpPpppppppqQ', 'qkkkkkkkkkkQ', 'qpPpppppppqQ', 'qpppppppppqQ', '.qppppppppqQ',
-             '.qqppppppqQ.', '..qqppppqQQ.', '...qqqqqQQ..', '...QQQQQQ...']
-AMPHORA = ['....qPPq....', '....QqqQ....', '.....pp.....', '..qq.pp.qq..', '.q..qPpq..q.', '.q.qPpppq.q.',
-           '..qpPppppq..', '..qkkkkkkq..', '..qpPppppqQ.', '..qpppppqqQ.', '..qpppppqQ..', '...qpppqQ...',
-           '...qpppqQ...', '....qpqQ....', '....qqQQ....', '...QQQQQQ...']
-POT_ROUND = ['...qPPPPq...', '...QqqqqQ...', '..qppppppq..', '.qpPPppppqq.', 'qpPPpppppqqQ', 'qkkkkkkkkkkQ',
-             'qpPppppppqqQ', 'qppppppppqQQ', '.qppppppqqQ.', '..qqqqqqQQ..']
-URN = ['.....yy.....', '....qPPq....', '..qPPPPPPq..', '..QQQQQQQQ..', '...qpPppq...', '..qpPppppq..',
-       '.qpPpppppqq.', '.qkkkkkkkkQ.', '.qpPpppppqQ.', '.qpppppppqQ.', '..qpppppqQ..', '...qpppqQ...',
-       '....qqQQ....', '...qPPPPq...', '...QQQQQQ...']
-VASE_BROKEN = ['............', '............', '............', '............', '............', '.q...q......',
-               'qpq.qpPq..qQ', 'qpPqpppppqqQ', 'qkkkkkkkkkkQ', 'qpPpppppppqQ', 'qpppppppppqQ', '.qppppppppqQ',
-               '.qqppppppqQ.', '..qqppppqQQ.', '...qqqqqQQ..', '...QQQQQQ...']
+VASE_TALL = [(4.2, 3.3), (5.0, 2.7), (6.4, 2.3), (8.0, 2.8), (10.0, 4.8), (12.5, 5.8), (14.5, 5.5), (17.0, 3.6),
+             (18.4, 2.6), (19.0, 2.9)]
+AMPHORA = [(3.6, 2.7), (4.5, 2.0), (7.0, 1.8), (9.0, 3.6), (11.0, 4.7), (13.0, 4.3), (16.0, 2.6), (18.4, 1.4), (19.2, 2.3)]
+POT_ROUND = [(8.4, 4.6), (9.3, 4.0), (10.2, 4.8), (12.2, 6.8), (14.6, 7.3), (17.0, 6.0), (18.6, 3.8)]
+URN = [(9.0, 3.2), (9.8, 2.8), (11.2, 4.6), (13.0, 5.4), (15.0, 4.6), (17.2, 3.0), (18.8, 2.3)]
 
 
-def vase(rows, top=None, y=None):
+def vase(shape, top=None):
     cv = Cv()
-    y = (20 - len(rows)) if y is None else y
-    cv.art(6, y, rows)
+    band = {'tall': (12.0, 13.3), 'amphora': (10.6, 11.6), 'round': (13.6, 14.9), 'urn': (12.6, 13.7)}[shape]
+    prof = {'tall': VASE_TALL, 'amphora': AMPHORA, 'round': POT_ROUND, 'urn': URN}[shape]
+    ba = lambda L, th: 'band' if band[0] <= L <= band[1] else None
+    if top == 'broken':
+        jag = lambda th: 10.0 + 3.2 * abs(((th * 3 / math.pi + 0.4) % 2.0) - 1.0)
+        lathe(cv, 11.5, prof, 'cer', a=1, z=7, mat_at=ba, cut=jag)
+        K = {'a': ('cer', 2), 'b': ('cer', 4), 'c': ('cer', 6), 's': ('sh', 1)}
+        cv.art(1, 17, ['ab.', 'bcc', '.ss'], key=K); cv.art(19, 15, ['.ab', 'abc', 'ss.'], key=K)
+        cv.art(3, 13, ['a', 's'], key=K); cv.art(21, 19, ['b', 's'], key=K)
+    else:
+        if shape == 'amphora':                                     # nanses, darrere el coll
+            for (x, y), i in zip(((8, 5), (7, 5), (6, 6), (6, 7), (6, 8), (7, 9)), (2, 2, 3, 3, 4, 5)):
+                cv.p(x, y, 'cer', i); cv.p(23 - x, y, 'cer', i + 2)
+        soil = (prof[0][0] + 0.5, prof[0][1] - 0.7, lambda dx, dz: ('wood', 7)) if top in ('plant', 'flowers') else None
+        lathe(cv, 11.5, prof, 'cer', a=1, z=7, mat_at=ba, cap=soil)
+        if shape == 'urn':                                         # tapa i pom
+            lathe(cv, 11.5, [(7.6, 0.6), (8.0, 2.8), (8.6, 3.7), (9.1, 3.7)], 'cer', a=1, z=7, hollow=False)
+            lathe(cv, 11.5, [(6.2, 0.4), (6.7, 1.0), (7.3, 0.9), (7.7, 0.5)], 'trim', a=1, z=6, hollow=False)
+    K = {'a': ('leaf', 2), 'b': ('leaf', 4), 'c': ('leaf', 6), 'r': ('red', 2), 'R': ('red', 4), 'y': ('gold', 1),
+         'Y': ('gold', 3), 'w': ('paper', 0), 'W': ('paper', 3), 'p': ('purple', 3), 'P': ('purple', 5)}
     if top == 'plant':
-        cv.art(5, y - 5, ['..f...N..f..', '.fN..fN.fN..', '..fN.fE.Nf..', '...fEfEfE...', '....EfEE....', '....QEEQ....'])
+        cv.art(4, 1, ['...a.....a.....', '..ab..a..ab..a.', '..abb.ab.bb.ab.', '.a.bbcabbbc.bb.', '.ab.bcbbcbc.bc.',
+                      '..bb.cbbcc.bc..', '...bc.bbc.cc...', '....ccbcccc....', '.....cbcc......'], key=K)
     if top == 'flowers':
-        cv.art(5, y - 6, ['...c....y...', '..cCc..yYy..', '...c.C..y...', '...E.CcE....', '...fE.Ef....', '....EfE.....',
-                          '....QEEQ....'])
-    if top == 'shards':
-        cv.art(1, 17, ['qp.', '.qQ']); cv.art(19, 16, ['.pq', 'qQ.']); cv.p(3, 14, 'p'); cv.p(21, 19, 'q')
+        cv.art(4, 0, ['....rr.....yy..', '...rRRr...yYYy.', '....RR..ww.YY..', '..pp.b.wWWw.b..', '.pPPp.b.WW.b...',
+                      '..PP..bb.b.b...', '...b..abbbb....', '...ab..bbc.....', '....bb.bcc.....', '.....cbbc......'], key=K)
     cv.drop()
     return cv
 
 
 # ───────────────────────── Cofres ─────────────────────────
 
+LID = [5, 4, 3, 2, 2, 3, 4, 5]                                     # la tapa és mig cilindre: tons de fons a davant
+
+
 def chest(state='closed'):
     cv = Cv()
     x0, x1 = 4, 19
+    bands = (6, 7, 16, 17)
     if state == 'closed':
-        cv.r(x0, 5, x1, 10, 'W'); cv.hl(x0, x1, 5, 'L'); cv.hl(x0 + 1, x1 - 1, 6, 'L'); cv.hl(x0, x1, 10, 'M')
-        cv.r(x0, 11, x1, 13, 'M'); cv.hl(x0, x1, 13, 'K')
-        for x in (9, 14):
-            cv.vl(x, 6, 12, 'M')
-        for x in (6, 17):                     # ferramenta daurada
-            cv.vl(x, 5, 13, 'g'); cv.p(x, 5, 'Y'); cv.p(x, 6, 'y'); cv.vl(x, 11, 13, 'o')
-        cv.hl(x0, x1, 14, 'g'); cv.p(x0, 14, 'o'); cv.p(x1, 14, 'o')
+        for k, i in enumerate(LID):
+            y = 4 + k
+            for x in range(x0, x1 + 1):
+                if k == 0 and x in (x0, x1):
+                    continue
+                t = i + (1 if x == x1 else -1 if x == x0 else 0) + (1 if (x - x0) % 4 == 2 and k not in (3, 4) else 0)
+                cv.p(x, y, 'wood', t)
+                if x in bands:
+                    cv.p(x, y, 'trim', max(0, i - 1 + (1 if x in (7, 17) else 0)))
+        cv.hl(x0 + 1, x0 + 8, 7, 'wood', 1)                        # llum al llom de la tapa
+        for x in bands:
+            cv.p(x, 7, 'trim', 0 if x in (6, 16) else 1)
+        cv.hl(x0, x1, 12, 'wood', 8)                               # la junta de la tapa
+        ytop = 13
     else:
-        cv.r(x0, 1, x1, 8, 'K'); cv.hl(x0, x1, 1, 'L'); cv.vl(x0, 2, 8, 'W'); cv.vl(x1, 2, 8, 'M')   # tapa dreta
-        cv.r(x0 + 2, 3, x1 - 2, 7, 'X'); cv.hl(x0 + 1, x1 - 1, 2, 'W')
-        for x in (6, 17):
-            cv.vl(x, 1, 8, 'g'); cv.p(x, 1, 'Y'); cv.vl(x, 6, 8, 'o')
-        cv.r(x0, 9, x1, 13, 'X'); cv.vl(x0, 9, 13, 'W'); cv.vl(x1, 9, 13, 'M')                         # interior
+        # tapa oberta, dreta al fons: es veu el folre de dins
+        cv.r(x0, 0, x1, 8, 'wood', 4); cv.hl(x0 + 1, x1 - 1, 0, 'wood', 2); cv.p(x0, 0, None); cv.p(x1, 0, None)
+        cv.vl(x0, 1, 8, 'wood', 3); cv.vl(x1, 1, 8, 'wood', 6)
+        for y in range(1, 9):
+            for x in range(x0 + 1, x1):
+                cv.p(x, y, 'cloth', 7 if y < 3 else 6 if y < 6 else 5)
+            cv.p(x0 + 1, y, 'cloth', 7); cv.p(x1 - 1, y, 'cloth', 6)
+        for x in bands:
+            cv.p(x, 0, 'trim', 1 if x in (6, 16) else 2); cv.vl(x, 1, 8, 'trim', 5 if x in (6, 16) else 6)
+        # la boca: paret del fons, parets dels costats i el fons
+        cv.r(x0, 9, x1, 12, 'wood', 8)
+        cv.hl(x0 + 1, x1 - 1, 9, 'wood', 6); cv.hl(x0 + 1, x1 - 1, 10, 'wood', 7)
+        cv.vl(x0, 9, 12, 'wood', 2); cv.vl(x1, 9, 12, 'wood', 4)
         if state == 'gold':
-            cv.r(x0 + 1, 10, x1 - 1, 13, 'g'); cv.hl(x0 + 3, x1 - 3, 9, 'g'); cv.hl(x0 + 5, x1 - 5, 8, 'y')
-            for i, (x, y) in enumerate(((6, 10), (9, 9), (12, 10), (15, 9), (7, 12), (10, 11), (13, 12), (16, 11), (11, 8))):
-                cv.art(x, y, ['yY', 'oy'] if i % 2 else ['Yy', 'yo'])
-            cv.p(8, 8, 'F'); cv.p(16, 9, 'F'); cv.art(13, 9, ['Cc', 'ce'])
-        cv.hl(x0, x1, 14, 'g'); cv.p(x0, 14, 'o'); cv.p(x1, 14, 'o')
-    cv.r(x0, 15, x1, 19, 'K'); cv.hl(x0, x1, 19, 'B'); cv.vl(x1, 15, 19, 'B')
-    for x in (9, 14):
-        cv.vl(x, 15, 18, 'X')
-    for x in (6, 17):
-        cv.vl(x, 15, 19, 'o'); cv.p(x, 15, 'g')
-    cv.art(11, 13 if state == 'closed' else 14, ['yy', 'yn', 'oo'] if state == 'closed' else ['yy', 'on'])   # pany
+            heap(cv, 11.5, 12.6, 7.0, 3.6, 12, 7, mat='coin', rz=2.2)
+            cv.art(13, 9, ['.12.', '1345', '.56.'], 'red'); cv.art(7, 10, ['.12', '134', '.5.'], 'blue')
+            cv.p(9, 8, 'paper', 0); cv.p(15, 10, 'paper', 0)
+        cv.hl(x0, x1, 13, 'wood', 1); cv.hl(x0, x0 + 6, 13, 'wood', 0)     # cantell del davant
+        for x in bands:
+            cv.p(x, 13, 'trim', 1)
+        ytop = 14
+    face_front(cv, x0, ytop, x1, 19, base=5, rows=(16,))
+    for x in bands:
+        for y in range(ytop, 20):
+            cv.p(x, y, 'trim', (3 if x in (6, 16) else 4) + (2 if y == ytop else 1 if y == 19 else 0))
+    cv.hl(x0, x1, 20, 'wood', 7); cv.p(x0, 20, 'trim', 4); cv.p(x1, 20, 'trim', 6); cv.p(x0, 19, 'trim', 3); cv.p(x1, 19, 'trim', 5)
+    ly = 11 if state == 'closed' else 14
+    cv.art(11, ly, ['12', '13', '38', '34'] if state == 'closed' else ['13', '38', '34'], 'trim')    # pany
     cv.drop()
     return cv
 
 
-# ───────────────────────── Monedes i tresor (mida d'objecte petit) ─────────────────────────
+# ───────────────────────── Monedes i tresor ─────────────────────────
 
-def small(rows, x=None, y=None, sh=None):
-    """Objecte petit com els de `uf_items.png`: al mig, amb l'ombra de dues files (alfa 64)."""
+COIN = ['.0111.', '113122', '111223', '.5566.']                 # una moneda ajaguda: la cara i el cantell
+
+
+def coin(cv, cx, L, mat='coin', lit=0):
+    rows = [''.join(ch if ch == '.' else str(min(8, int(ch) + lit)) for ch in r) for r in COIN] if lit else COIN
+    cv.art(int(round(cx - 3)), int(round(L - 1)), rows, mat)
+
+
+def heap(cv, cx, base, rx, height, n, seed, mat='coin', rz=None):
+    """Munt de monedes: un turó fosc i, a sobre, monedes posades de fons a davant sobre la seva superfície."""
+    rz = rz or rx
+    steps = 12
+    prof = [(base - height * math.cos(math.pi / 2 * k / steps), max(0.4, rx * math.sin(math.pi / 2 * k / steps)))
+            for k in range(steps + 1)]
+    lathe(cv, cx, prof, mat, a=5, z=7, edge=False, hollow=False)
+    pts = []
+    s = seed
+    for k in range(n):
+        s = (s * 1103515245 + 12345) % 2147483648
+        rho = math.sqrt(((s >> 8) % 1000) / 1000) * 0.98
+        s = (s * 1103515245 + 12345) % 2147483648
+        phi = ((s >> 8) % 1000) / 1000 * 2 * math.pi
+        u, v = rho * math.cos(phi), rho * math.sin(phi)
+        pts.append((v - math.sqrt(max(0.0, 1 - rho * rho)) * 0.3, u, v, height * math.sqrt(max(0.0, 1 - rho * rho))))
+    for k in range(int(rx * 0.9)):                                 # la vora del davant, a terra
+        phi = math.pi * (k + 0.5) / int(rx * 0.9)
+        pts.append((math.sin(phi) + 0.2, math.cos(phi) * 1.05, math.sin(phi) * 1.05, 0.0))
+    for _, u, v, h in sorted(pts):
+        lit = round(2.6 * (1 - h / height) * (0.5 + 0.5 * max(0.0, v))) + (1 if u > 0.3 else 0) + (1 if u > 0.75 else 0)
+        coin(cv, round(cx + u * (rx - 2.0)) + 0.5, base - h + TILT * v * rz - 0.6, mat=mat, lit=min(3, lit))
+
+
+def small_shadow(cv):
+    cv.drop((1, 2))
+
+
+def coin_stack():
     cv = Cv()
-    w = max(len(r) for r in rows)
-    x = (24 - w) // 2 if x is None else x
-    y = 17 - len(rows) if y is None else y
-    cv.art(x, y, rows)
-    s0, s1 = sh or (x + 1, x + w - 2)
-    cv.r(s0, 18, s1, 19, '1')
+    stripes = lambda L, th: 1 if int(L * 1.0 + 0.3) % 2 else -1
+    lathe(cv, 11.5, [(9.0, 2.7), (17.0, 2.7)], 'coin', a=2, z=6, mod=stripes, hollow=False,
+          cap=(9.0, 2.7, lambda dx, dz: ('coin', 1 if dx * dx + dz * dz > 2.2 else 2)))
+    small_shadow(cv)
     return cv
 
 
-COIN_STACK = ['.YYYY.', 'YyyyyY', 'oggggo', 'gyyyyg', 'oggggo', 'gyyyyg', 'oggggo', 'gyyyyg', '.oooo.']
-COIN_STACKS = ['........YYYY.', '.......YyyyyY', '.......oggggo', '.YYYY..gyyyyg', 'YyyyyY.oggggo', 'oggggo.gyyyyg',
-               'gyyyyg.oggggo', 'oggggoYYYYyyg', 'gyyyyYyyyyYgo', '.ooooogggggo.', '......gyyyyg.', '.......oooo..']
-COINS_LOOSE = ['....YY.......', '...YyyY...YY.', '...oggo..Yyyg', '.YY.oo...oggo', 'Yyyg...YY.oo.', 'oggo..Yyyg...',
-               '.oo...oggo...', '.......oo....']
-BARS = ['....YYYYYYY....', '...YyyyyyygO...', '...ggggggggo...', '.YYYYYY.YYYYYY.', 'Yyyyyygoyyyyyyg', 'gggggggoggggggo',
-        '.oooooo..ooooo.']
-CROWN = ['.c...a...c.', '.y..yYy..y.', '.yy.yyy.yy.', '.yYyyYyyyg.', '.gcggaggcg.', '.oggggggoo.']
-GOBLET = ['.YyyyyyG.', '.yeeeeeg.', '.yyyyygg.', '..yyygg..', '...yg....', '...yg....', '..yygg...', '.oggggo..']
-GEMS = ['....Cc.......', '...Ccce..AA..', '....ce..Aaab.', '..NN.....ab..', '.Nffe.Cc.....', '..fE.Ccce....',
-        '......ce.....']
-POUCH = ['...qnnq........', '...pnnpp.......', '....mpm........', '...qQqQ...YY...', '.pppppppp.yyg..', 'qppppmpppp.oo..',
-         'qppppppppp..YY.', '.pppppppQ.YYyyg', '.QQQpppQQYyygo.', '....QQQ..oggo..']
-RING_PILE = ['....yy....a..', '...y..y..yAy.', '...y..y.y.a.y', '.c..yy..y...y', 'yCy......yyy.', 'y.y.iIi......',
-             '.y..i.i......', '.....i.......']
-
-
-def coin_pile(wide, tall, seed):
-    """Munt de monedes: mitja el·lipse plena de monedes (3×2) col·locades en files esglaonades."""
+def coin_stacks():
     cv = Cv()
-    cx, base = 11.5, 18
-    inside = lambda x, y: y <= base and ((x - cx) / (wide / 2)) ** 2 + ((y - base) / tall) ** 2 <= 1.0
-    for y in range(24):
-        for x in range(24):
-            if inside(x, y):
-                cv.p(x, y, 'g')
-    n = seed
-    for y in range(base - int(tall), base + 1, 2):
-        off = (y // 2) % 2 * 2
-        for x in range(off, 24, 4):
-            n = (n * 1103515245 + 12345) % 2147483648
-            if inside(x, y) and inside(x + 2, y):
-                cv.art(x, y, ['YyY' if n % 3 == 0 else 'yYy', 'oyg' if n % 2 else 'ooy'])
-    for x in range(24):                      # vora de sota més fosca i contorn de dalt clar
-        ys = [y for y in range(24) if cv.g[y][x] != '.']
-        if ys:
-            cv.p(x, ys[-1], 'o')
-            if cv.g[ys[0]][x] == 'g':
-                cv.p(x, ys[0], 'y')
-    n = seed * 7 + 3
-    for _ in range(2 + int(tall) // 4):       # espurnes
-        n = (n * 1103515245 + 12345) % 2147483648
-        x, y = 4 + n % 16, base - 1 - (n // 16) % max(1, int(tall) - 1)
-        if inside(x, y):
-            cv.p(x, y, 'F')
-    cv.drop('112' if tall > 6 else '11')
+    stripes = lambda L, th: 1 if int(L + 0.3) % 2 else -1
+    for cx, top, bot in ((13.5, 6.0, 15.0), (6.5, 11.0, 16.0), (18.5, 12.0, 17.0), (11.5, 14.0, 18.0)):
+        lathe(cv, cx, [(top, 2.7), (bot, 2.7)], 'coin', a=2, z=6, mod=stripes, hollow=False,
+              cap=(top, 2.7, lambda dx, dz: ('coin', 1 if dx * dx + dz * dz > 2.2 else 2)))
+    small_shadow(cv)
+    return cv
+
+
+def coins_loose():
+    cv = Cv()
+    for cx, L in ((8.5, 8.5), (15.5, 10.0), (4.5, 12.5), (11.5, 13.5), (18.5, 15.0), (7.5, 17.0), (14.5, 18.0)):
+        coin(cv, cx, L)
+        for x in range(int(cx - 1.5), int(cx + 2.5)):
+            if not cv.solid(x, int(L + 2.6)):
+                cv.p(x, int(L + 2.6), 'sh', 1)
+    return cv
+
+
+def coin_pile(rx, height, n, seed):
+    cv = Cv()
+    heap(cv, 11.5, 16.5, rx, height, n, seed, rz=rx * 0.8)
+    for k in range(2 + int(height) // 4):                          # espurnes
+        h = hsh(k, seed, 5)
+        x, y = 6 + h % 12, int(17 - height * 0.9) + (h >> 4) % max(2, int(height * 0.7))
+        if cv.solid(x, y):
+            cv.p(x, y, 'paper', 0)
+            if height > 6:
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    if cv.solid(x + dx, y + dy):
+                        cv.p(x + dx, y + dy, 'coin', 0)
+    cv.drop((1, 1, 2) if height > 6 else (1, 2))
+    return cv
+
+
+INGOT = ['.11111111..', '0111111123.', '2222222234.', '33333333456', '.4444444567']
+
+
+def bars():
+    cv = Cv()
+    cv.art(0, 12, INGOT, 'coin'); cv.art(12, 12, INGOT, 'coin')
+    cv.art(6, 14, ['...........', '.5555555.67'], 'coin')
+    cv.art(6, 8, INGOT, 'coin')
+    for x in range(7, 17):
+        cv.tone(x, 13, 1)
+    small_shadow(cv)
+    return cv
+
+
+def crown():
+    cv = Cv()
+    K = {'p': ('paper', 0), 'v': ('cloth', 5), 'V': ('cloth', 6), 'r': ('red', 3), 'R': ('red', 5), 'b': ('blue', 3)}
+    cv.art(4, 8, ['..p.....p.....p.', '..1.....1.....3.', '.111...111...233', '.111vVV111vVV233', '0111111112222334',
+                  '011rR112b2223rR4', '1111112222333445', '.55555566666777.'], 'coin', K)
+    small_shadow(cv)
+    return cv
+
+
+def goblet():
+    cv = Cv()
+    lathe(cv, 11.5, [(8.4, 3.6), (9.6, 3.5), (11.6, 2.7), (13.0, 1.1), (13.6, 0.8), (15.6, 0.8), (16.6, 1.5),
+                     (17.4, 3.0), (17.9, 3.1)], 'coin', a=1, z=6,
+          mat_at=lambda L, th: 'red' if 10.3 <= L <= 11.0 and abs(th) < 0.35 else None,
+          cap=(9.3, 3.0, lambda dx, dz: ('cloth', 5 if dz < 0.3 else 4)))
+    small_shadow(cv)
+    return cv
+
+
+GEM = ['.012.', '01234', '12345', '.345.', '..5..']
+
+
+def gems():
+    cv = Cv()
+    for x, y, m in ((9, 7, 'red'), (14, 9, 'blue'), (4, 11, 'green'), (10, 12, 'purple'), (16, 14, 'red'), (6, 15, 'blue')):
+        cv.art(x, y, GEM if (x + y) % 2 == 0 else [r[::1] for r in GEM[:4]] + ['.....'], m)
+        cv.p(x + 1, y + 1, 'paper', 0)
+    small_shadow(cv)
+    return cv
+
+
+def pouch():
+    cv = Cv()
+    wr = lambda L, th: 1 if math.sin(th * 4 + L) > 0.85 and L < 15 else 0
+    lathe(cv, 9.5, [(9.0, 2.2), (9.8, 1.5), (10.6, 1.3), (11.4, 2.6), (13.0, 4.6), (15.5, 5.4), (17.4, 4.6), (18.0, 3.4)],
+          'cer', a=1, z=7, mod=wr, mat_at=lambda L, th: 'trim' if 10.3 <= L <= 10.9 else None,
+          cap=(9.4, 1.6, lambda dx, dz: ('coin', 2 if dz > 0 else 5)))
+    for cx, L in ((17.5, 15.0), (20.5, 16.6), (16.5, 17.6), (19.5, 13.4)):
+        coin(cv, cx, L)
+    small_shadow(cv)
+    return cv
+
+
+def jewels():
+    cv = Cv()
+    # collaret de perles
+    for k in range(15):
+        a = -math.pi * 0.05 + k * 2 * math.pi / 15
+        x, y = round(9.5 + 6.2 * math.cos(a)), round(12.5 + 3.4 * math.sin(a))
+        cv.p(x, y, 'paper', 1 if math.cos(a) < 0.3 else 3); cv.p(x, y + 1, 'paper', 4 if math.sin(a) > 0 else 2)
+    cv.art(8, 15, ['.12.', '1234', '.45.'], 'blue')
+    # anells
+    for cx, L, m, g in ((17.5, 15.0, 'coin', 'red'), (12.5, 9.5, 'silver', 'green')):
+        lathe(cv, cx, [(L, 2.3), (L + 1.0, 2.3)], m, a=1, z=6, edge=False)
+        cv.art(int(cx - 0.5), int(L - 2), ['12', '34'], g)
+    small_shadow(cv)
     return cv
 
 
 def build():
     F, K, V, X, T = 'ox_furniture', 'ox_containers', 'ox_vases', 'ox_chests', 'ox_treasure'
+    cloth = lambda r: {'cloth': r}
     # Mobles
     variants('ox_chair', 'Cadira', F, chair(), WOODS)
-    variants('ox_chair_cushion', 'Cadira amb coixí', F, chair_cushion(),
-             [('red', 'vermell', {}), ('blue', 'blau', BLUE), ('green', 'verd', GREEN)])
+    variants('ox_chair_cushion', 'Cadira amb coixí', F, chair(True),
+             [('red', 'vermell', {}), ('blue', 'blau', cloth(BLUE)), ('green', 'verd', cloth(GREEN))])
     variants('ox_stool', 'Tamboret', F, stool(), WOODS_M)
     variants('ox_bench', 'Banc', F, bench(), WOODS_M)
     variants('ox_table_small', 'Tauleta', F, table_small(), WOODS)
     variants('ox_table_round', 'Taula rodona', F, table_round(), WOODS)
     variants('ox_table_long', 'Taula llarga', F, table_long(), WOODS)
     variants('ox_table_long_cloth', 'Taula llarga amb estovalles', F, table_long('cloth'),
-             [('red', 'vermelles', {}), ('blue', 'blaves', BLUE), ('purple', 'morades', PURPLE)])
+             [('red', 'vermelles', {}), ('blue', 'blaves', cloth(BLUE)), ('purple', 'morades', cloth(PURPLE))])
     add('ox_table_long_feast', 'Taula llarga parada', F, table_long('feast'))
-    variants('ox_bed', 'Llit', F, bed(), [('red', 'vermell', {}), ('blue', 'blau', BLUE), ('green', 'verd', GREEN),
-                                           ('purple', 'morat', PURPLE)])
+    variants('ox_bed', 'Llit', F, bed(), [('red', 'vermell', {}), ('blue', 'blau', cloth(BLUE)),
+                                           ('green', 'verd', cloth(GREEN)), ('purple', 'morat', cloth(PURPLE))])
     add('ox_bookshelf', 'Prestatgeria plena', F, bookshelf('full'))
     add('ox_bookshelf_half', 'Prestatgeria mig buida', F, bookshelf('half'))
     add('ox_bookshelf_potions', 'Prestatgeria amb pocions', F, bookshelf('potions'))
     variants('ox_wardrobe', 'Armari', F, wardrobe(), WOODS_M)
-    variants('ox_throne', 'Tron', F, throne(), [('red', 'vermell', {}), ('blue', 'blau', BLUE), ('purple', 'morat', PURPLE)])
+    variants('ox_throne', 'Tron', F, throne(), [('red', 'vermell', {}), ('blue', 'blau', cloth(BLUE)),
+                                                ('purple', 'morat', cloth(PURPLE))])
     # Caixes, bótes i sacs
     variants('ox_crate_small', 'Caixa petita', K, crate_small(), WOODS)
     variants('ox_crate_braced', 'Caixa reforçada', K, crate_braced(), WOODS)
@@ -663,38 +1055,40 @@ def build():
     add('ox_barrel_water', 'Bóta d\'aigua', K, barrel_iron(True))
     variants('ox_barrel_side', 'Bóta ajaguda', K, barrel_side(), WOODS)
     add('ox_keg', 'Barrilet amb aixeta', K, keg())
-    add('ox_sack', 'Sac', K, sack(), BURLAP)
-    add('ox_sack_grain', 'Sac de gra', K, sack(SACK_OPEN), BURLAP)
-    add('ox_sack_pile', 'Pila de sacs', K, sack_pile(), BURLAP)
+    add('ox_sack', 'Sac', K, sack())
+    add('ox_sack_grain', 'Sac de gra', K, sack(True))
+    add('ox_sack_pile', 'Pila de sacs', K, sack_pile())
     # Gerros
-    for rows, vid, label in ((VASE_TALL, 'tall', 'Gerro alt'), (AMPHORA, 'amphora', 'Àmfora'),
-                             (POT_ROUND, 'round', 'Olla'), (URN, 'urn', 'Urna')):
-        variants(f'ox_vase_{vid}', label, V, vase(rows), CERAMICS)
-    variants('ox_vase_broken', 'Gerro trencat', V, vase(VASE_BROKEN, 'shards'), CERAMICS)
-    add('ox_vase_plant', 'Gerro amb planta', V, vase(POT_ROUND, 'plant'))
-    add('ox_vase_flowers', 'Gerro amb flors', V, vase(POT_ROUND, 'flowers'), CERAMICS[2][2])
+    CER = [('clay', 'd\'argila', {'band': PAPER}), ('blue', 'blau', {'cer': BLUE, 'band': GOLD}),
+           ('white', 'blanc', {'cer': PAPER, 'band': BLUE}), ('green', 'verd', {'cer': GREEN, 'band': PAPER})]
+    for vid, label in (('tall', 'Gerro alt'), ('amphora', 'Àmfora'), ('round', 'Olla'), ('urn', 'Urna')):
+        variants(f'ox_vase_{vid}', label, V, vase(vid), CER)
+    variants('ox_vase_broken', 'Gerro trencat', V, vase('tall', 'broken'), CER)
+    add('ox_vase_plant', 'Gerro amb planta', V, vase('round', 'plant'), CER[0][2])
+    add('ox_vase_flowers', 'Gerro amb flors', V, vase('round', 'flowers'), CER[2][2])
     # Cofres
     for state, label in (('closed', 'tancat'), ('empty', 'obert'), ('gold', 'amb or')):
         add(f'ox_chest_{state}', f'Cofre gran {label}', X, chest(state))
     for state, label in (('closed', 'tancat'), ('empty', 'obert')):
-        add(f'ox_chest_dark_{state}', f'Cofre fosc {label}', X, chest(state), DARK_WOOD)
+        add(f'ox_chest_dark_{state}', f'Cofre fosc {label}', X, chest(state), {'wood': DARK_WOOD, 'cloth': PURPLE})
+    IRONC = {'wood': STONE, 'trim': IRON, 'cloth': BLUE}
     for state, label in (('closed', 'tancat'), ('empty', 'obert')):
-        add(f'ox_chest_iron_{state}', f'Cofre de ferro {label}', X, chest(state), IRON)
-    add('ox_chest_iron_gold', 'Cofre de ferro amb or', X, chest('gold'), {k: v for k, v in IRON.items() if k not in 'gyo'})
+        add(f'ox_chest_iron_{state}', f'Cofre de ferro {label}', X, chest(state), IRONC)
+    add('ox_chest_iron_gold', 'Cofre de ferro amb or', X, chest('gold'), IRONC)
     # Monedes i tresor
-    METALS = [('gold', 'd\'or', {}), ('silver', 'de plata', SILVER), ('copper', 'de coure', COPPER)]
-    variants('ox_coin_stack', 'Pila de monedes', T, small(COIN_STACK), METALS)
-    variants('ox_coin_stacks', 'Piles de monedes', T, small(COIN_STACKS), METALS)
-    variants('ox_coins_loose', 'Monedes escampades', T, small(COINS_LOOSE, sh=(8, 15)), METALS)
-    variants('ox_coin_pile', 'Munt de monedes', T, coin_pile(13, 6, 5), METALS)
-    variants('ox_coin_hoard', 'Gran munt de monedes', T, coin_pile(21, 12, 11), METALS)
-    variants('ox_bars', 'Lingots', T, small([r.replace('O', 'o') for r in BARS]), METALS[:2])
-    add('ox_crown', 'Corona', T, small(CROWN))
-    add('ox_goblet', 'Copa d\'or', T, small(GOBLET, sh=(9, 14)))
-    add('ox_goblet_silver', 'Copa de plata', T, small(GOBLET, sh=(9, 14)), {**SILVER, 'e': '#5c2a86'})
-    add('ox_gems', 'Gemmes', T, small(GEMS, sh=(7, 16)))
-    add('ox_pouch', 'Bossa de monedes', T, small(POUCH))
-    add('ox_jewels', 'Joies', T, small(RING_PILE, sh=(7, 16)))
+    METALS = [('gold', 'd\'or', {}), ('silver', 'de plata', {'coin': SILVER}), ('copper', 'de coure', {'coin': COPPER})]
+    variants('ox_coin_stack', 'Pila de monedes', T, coin_stack(), METALS)
+    variants('ox_coin_stacks', 'Piles de monedes', T, coin_stacks(), METALS)
+    variants('ox_coins_loose', 'Monedes escampades', T, coins_loose(), METALS)
+    variants('ox_coin_pile', 'Munt de monedes', T, coin_pile(7.0, 4.5, 14, 5), METALS)
+    variants('ox_coin_hoard', 'Gran munt de monedes', T, coin_pile(10.0, 8.0, 40, 11), METALS)
+    variants('ox_bars', 'Lingots', T, bars(), METALS[:2])
+    add('ox_crown', 'Corona', T, crown())
+    add('ox_goblet', 'Copa d\'or', T, goblet())
+    add('ox_goblet_silver', 'Copa de plata', T, goblet(), {'coin': SILVER, 'cloth': PURPLE, 'red': BLUE})
+    add('ox_gems', 'Gemmes', T, gems())
+    add('ox_pouch', 'Bossa de monedes', T, pouch())
+    add('ox_jewels', 'Joies', T, jewels())
 
 
 def main():
