@@ -899,8 +899,8 @@ export function PlayerView() {
       const painted = framePace(now);
       if (painted) frame();
       // El Fòsfor té el seu parpelleig: segueix viu encara que el mapa no s'hagi repintat,
-      // però sense tornar a pujar el canvas a la GPU (`fresh`) i mai a més de ~60 fps.
-      if (painted || now - phosAt >= 15) { phosAt = now; phosphorPass(painted); }
+      // però sense tornar a pujar el canvas a la GPU (`fresh`) i, sense repintat, a ~30 fps.
+      if (painted || now - phosAt >= 32) { phosAt = now; phosphorPass(painted); }
     };
 
     const frame = () => {

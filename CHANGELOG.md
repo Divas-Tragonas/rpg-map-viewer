@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.17 — Mode Fòsfor molt més àgil a les tauletes
+- La conversió a la paleta es fa amb una taula de colors calculada una sola vegada (una lectura per píxel en lloc d'OKLab + 32 comparacions)
+- Amb l'escena quieta ja no es repeteix la passada de paleta: només el parpelleig (a ~30 fps)
+- Els vídeos de fons només es tornen a pujar a la GPU quan canvia el fotograma; el halo passa de 8 a 4 mostres
+- Mesura (WebGL per programari): fotograma amb mapa repintat −31 %, escena quieta −76 %
+
 ### v5.16 — Escena (imatge + text) molt més àgil a la pantalla de jugador
 - El text ja no repinta cada caràcter a cada fotograma: només s'escriu al DOM el que canvia, el desenfocament queda als últims caràcters (i s'apaga a l'iPad i quan va lent) i el seguiment del scroll no força el layout a cada frame
 - Ombres de text més lleugeres i fons desenfocat de la imatge pintat una sola vegada en un llenç petit

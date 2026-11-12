@@ -73,6 +73,54 @@ const NEAREST = PHOSPHOR_PALETTE.map(h => {
 // `rect` = on és el fons, en fraccions de la pantalla des de dalt a l'esquerra (x, y, amplada, alçada).
 // Les textures es pugen girades (UNPACK_FLIP_Y): `uv` (0 a baix) val tal qual per al mapa.
 // ⚠️ Cap comentari dins del GLSL: només hi pot anar ASCII.
+const LAB = `
+  vec3 lin = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+  vec3 lms = vec3(
+    dot(lin, vec3(0.4122214708, 0.5363325363, 0.0514459929)),
+    dot(lin, vec3(0.2119034982, 0.6806995451, 0.1073969566)),
+    dot(lin, vec3(0.0883024619, 0.2817188376, 0.6299787005)));
+  lms = pow(max(lms, vec3(0.0)), vec3(1.0 / 3.0));
+  vec3 lab = vec3(
+    dot(lms, vec3(0.2104542553, 0.7936177850, -0.0040720468)),
+    dot(lms, vec3(1.9779984951, -2.4285922050, 0.4505937099)),
+    dot(lms, vec3(0.0259040371, 0.7827717662, -0.8086757660)));
+  vec3 o = vec3(0.0); vec3 e; float d; float bd = 100.0;
+${NEAREST}
+`;
+
+// Taula de colors (LUT 3D): el color de la paleta MÉS PROPER de cada color RGB, a 64 nivells per
+// canal (6 bits; l'error de quantització, <= 2/255, és molt per sota del que es distingeix).
+// Es calcula UNA vegada a la GPU amb la mateixa recerca d'abans (OKLab + 32 comparacions) i es
+// guarda en una textura de 512x512 (8x8 talls de 64x64: el tall és el blau). La passada 1 només
+// hi fa una lectura per píxel, en lloc de passar a OKLab i comparar amb els 32 colors a cada píxel
+// i a cada fotograma.
+const LUT_N = 64;
+const LUT_TILES = 8;
+const LUT_SIZE = LUT_N * LUT_TILES;
+const FS_BAKE = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec2 uv;
+void main() {
+  vec2 p = floor(uv * ${LUT_SIZE}.0);
+  float bi = floor(p.x / ${LUT_N}.0) + floor(p.y / ${LUT_N}.0) * ${LUT_TILES}.0;
+  vec3 c = vec3(mod(p.x, ${LUT_N}.0), mod(p.y, ${LUT_N}.0), bi) / ${LUT_N - 1}.0;
+${LAB}
+  gl_FragColor = vec4(o, 1.0);
+}
+`;
+
+// Passada 1: composició (fons + canvas del mapa) i paleta. Cada píxel es converteix en el color
+// MÉS PROPER de la paleta (taula `lut`, veure `FS_BAKE`; mesurat en OKLab, no en RGB: en RGB un
+// gris mitjà i un verd apagat semblen a la mateixa distància). Cap regla per famílies: el criteri
+// és només la proximitat. Abans es fa la mitjana amb els 4 veïns: sense, la textura del terra
+// (herba, llambordes) saltava d'un color a l'altre i feia soroll.
+// `rect` = on és el fons, en fraccions de la pantalla des de dalt a l'esquerra (x, y, amplada, alçada).
+// Les textures es pugen girades (UNPACK_FLIP_Y): `uv` (0 a baix) val tal qual per al mapa.
+// ⚠️ Cap comentari dins del GLSL: només hi pot anar ASCII.
 const FS_PALETTE = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
@@ -82,6 +130,7 @@ precision mediump float;
 varying vec2 uv;
 uniform sampler2D map;
 uniform sampler2D media;
+uniform sampler2D lut;
 uniform float hasMedia;
 uniform vec4 rect;
 uniform vec2 texel;
@@ -96,23 +145,15 @@ vec3 comp(vec2 q) {
 void main() {
   vec3 c = comp(uv) * 0.36
          + (comp(uv + texel) + comp(uv - texel) + comp(uv + vec2(texel.x, -texel.y)) + comp(uv + vec2(-texel.x, texel.y))) * 0.16;
-  vec3 lin = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
-  vec3 lms = vec3(
-    dot(lin, vec3(0.4122214708, 0.5363325363, 0.0514459929)),
-    dot(lin, vec3(0.2119034982, 0.6806995451, 0.1073969566)),
-    dot(lin, vec3(0.0883024619, 0.2817188376, 0.6299787005)));
-  lms = pow(max(lms, vec3(0.0)), vec3(1.0 / 3.0));
-  vec3 lab = vec3(
-    dot(lms, vec3(0.2104542553, 0.7936177850, -0.0040720468)),
-    dot(lms, vec3(1.9779984951, -2.4285922050, 0.4505937099)),
-    dot(lms, vec3(0.0259040371, 0.7827717662, -0.8086757660)));
-  vec3 o = vec3(0.0); vec3 e; float d; float bd = 100.0;
-${NEAREST}
-  gl_FragColor = vec4(o, 1.0);
+  vec3 i = floor(clamp(c, 0.0, 1.0) * ${LUT_N - 1}.0 + 0.5);
+  float tx = mod(i.z, ${LUT_TILES}.0);
+  float ty = floor(i.z / ${LUT_TILES}.0);
+  vec2 q = (vec2(tx * ${LUT_N}.0 + i.x, ty * ${LUT_N}.0 + i.y) + 0.5) / ${LUT_SIZE}.0;
+  gl_FragColor = vec4(texture2D(lut, q).rgb, 1.0);
 }
 `;
 
-// Passada 2: el tub. Corbatura, línia d'escombrat cada `line` px de pantalla, halo amb 8 mostres
+// Passada 2: el tub. Corbatura, línia d'escombrat cada `line` px de pantalla, halo amb 4 mostres
 // del voltant, punts de fòsfor RGB (columnes de 3 px) i el parpelleig (`flick`, calculat a la CPU:
 // `mediump` no té prou precisió per al temps).
 const FS_CRT = `
@@ -136,11 +177,9 @@ void main() {
   float scan = exp(-fy * fy * 9.0);
   col *= mix(0.45, 1.1, scan);
   vec2 d = 2.5 / res;
-  vec3 g = texture2D(pal, q + vec2(d.x, 0.0)).rgb + texture2D(pal, q - vec2(d.x, 0.0)).rgb
-         + texture2D(pal, q + vec2(0.0, d.y)).rgb + texture2D(pal, q - vec2(0.0, d.y)).rgb
-         + texture2D(pal, q + d * 2.0).rgb + texture2D(pal, q - d * 2.0).rgb
-         + texture2D(pal, q + vec2(d.x, -d.y) * 2.0).rgb + texture2D(pal, q + vec2(-d.x, d.y) * 2.0).rgb;
-  col += g * 0.045;
+  vec3 g = texture2D(pal, q + d * 1.4).rgb + texture2D(pal, q - d * 1.4).rgb
+         + texture2D(pal, q + vec2(d.x, -d.y) * 1.4).rgb + texture2D(pal, q + vec2(-d.x, d.y) * 1.4).rgb;
+  col += g * 0.09;
   float m = mod(gl_FragCoord.x, 3.0);
   vec3 mask = m < 1.0 ? vec3(1.0, 0.8, 0.8) : m < 2.0 ? vec3(0.8, 1.0, 0.8) : vec3(0.8, 0.8, 1.0);
   col *= mask * 1.1;
@@ -183,15 +222,22 @@ export class PhosphorScreen {
   private gl: WebGLRenderingContext | null = null;
   private progPal: WebGLProgram | null = null;
   private progCrt: WebGLProgram | null = null;
+  private progBake: WebGLProgram | null = null;
   private texMap: WebGLTexture | null = null;
   private texMedia: WebGLTexture | null = null;
   private texPal: WebGLTexture | null = null;
+  private texLut: WebGLTexture | null = null;
   private fbo: WebGLFramebuffer | null = null;
   private palW = 0; private palH = 0;
   /** Fons ja pujat a la GPU (una imatge es puja un sol cop; un vídeo, cada fotograma). */
   private mediaUp: Media | null = null;
   /** El canvas del mapa ja és a la textura (amb la mida d'ara)? */
   private mapUp = false;
+  /** Estat de l'última passada 1 (la composició + paleta): si res no ha canviat, no es repeteix. */
+  private palValid = false;
+  private lastRect = '';
+  private lastVideoT = -1;
+  private lastHasMedia = -1;
   private u: { hasMedia: U; rect: U; texel: U; res: U; line: U; flick: U } = { hasMedia: null, rect: null, texel: null, res: null, line: null, flick: null };
   private shown: boolean | null = null;
   /** `false` = sense WebGL: el llenç s'amaga i es veu l'escena normal. */
@@ -209,10 +255,13 @@ export class PhosphorScreen {
     this.gpu = false;
     this.mediaUp = null;
     this.mapUp = false;
+    this.palValid = false;
+    this.lastRect = ''; this.lastVideoT = -1; this.lastHasMedia = -1;
     if (!gl) return;
     this.progPal = compile(gl, FS_PALETTE);
     this.progCrt = compile(gl, FS_CRT);
-    if (!this.progPal || !this.progCrt) return;
+    this.progBake = compile(gl, FS_BAKE);
+    if (!this.progPal || !this.progCrt || !this.progBake) return;
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
@@ -223,9 +272,25 @@ export class PhosphorScreen {
     this.texPal = newTex(gl);
     this.fbo = gl.createFramebuffer();
     this.palW = this.palH = 0;
+    // Taula de colors: es calcula ara, una sola vegada (unitat de textura 2, que ningú més toca).
+    this.texLut = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.texLut);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, LUT_SIZE, LUT_SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texLut, 0);
+    gl.viewport(0, 0, LUT_SIZE, LUT_SIZE);
+    gl.useProgram(this.progBake);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.useProgram(this.progPal);
     gl.uniform1i(gl.getUniformLocation(this.progPal, 'map'), 0);
     gl.uniform1i(gl.getUniformLocation(this.progPal, 'media'), 1);
+    gl.uniform1i(gl.getUniformLocation(this.progPal, 'lut'), 2);
     this.u.hasMedia = gl.getUniformLocation(this.progPal, 'hasMedia');
     this.u.rect = gl.getUniformLocation(this.progPal, 'rect');
     this.u.texel = gl.getUniformLocation(this.progPal, 'texel');
@@ -257,10 +322,15 @@ export class PhosphorScreen {
     const gl = this.gl;
     if (!this.gpu || !gl) { this.show(false); return; }
     this.show(true);
-    if (this.out.width !== W || this.out.height !== H) { this.out.width = W; this.out.height = H; this.mapUp = false; }
+    if (this.out.width !== W || this.out.height !== H) { this.out.width = W; this.out.height = H; this.mapUp = false; this.palValid = false; }
     try {
+      // Passada 1 (composició + paleta): només es repeteix si ha canviat alguna cosa que hi entra
+      // (mapa repintat, fons nou o nou fotograma de vídeo, posició del fons, mida). Amb l'escena
+      // quieta només s'executa la passada 2 (el parpelleig), que és la barata.
+      let dirty = !this.palValid || fresh || !this.mapUp;
       // Fons: on és i, si cal, pujar-lo.
       let hasMedia = 0;
+      let rect: [number, number, number, number] = [0, 0, 0, 0];
       if (media) {
         const isVid = media.tagName === 'VIDEO';
         const ready = isVid ? (media as HTMLVideoElement).readyState >= 2 : (media as HTMLImageElement).complete && (media as HTMLImageElement).naturalWidth > 0;
@@ -269,38 +339,48 @@ export class PhosphorScreen {
         if (ready && mw > 0 && mh > 0) {
           gl.activeTexture(gl.TEXTURE1);
           gl.bindTexture(gl.TEXTURE_2D, this.texMedia);
-          if (isVid || this.mediaUp !== media) {
+          // Un vídeo només es torna a pujar si ha avançat el fotograma (abans, a cada passada).
+          const vt = isVid ? (media as HTMLVideoElement).currentTime : 0;
+          if (this.mediaUp !== media || (isVid && vt !== this.lastVideoT)) {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, media);
-            this.mediaUp = media;
+            this.mediaUp = media; this.lastVideoT = vt;
+            dirty = true;
           }
           hasMedia = 1;
-          gl.useProgram(this.progPal);
-          gl.uniform4f(this.u.rect, l / W, t / H, mw / W, mh / H);
+          rect = [l / W, t / H, mw / W, mh / H];
         }
       }
-      // Passada 1: composició + paleta → `texPal` (a la mida de la pantalla).
-      gl.activeTexture(gl.TEXTURE0);
-      if (this.palW !== W || this.palH !== H) {
-        gl.bindTexture(gl.TEXTURE_2D, this.texPal);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      const rk = hasMedia ? rect.join(',') : '';
+      if (rk !== this.lastRect || hasMedia !== this.lastHasMedia) { this.lastRect = rk; this.lastHasMedia = hasMedia; dirty = true; }
+      if (dirty) {
+        // Passada 1: composició + paleta → `texPal` (a la mida de la pantalla).
+        gl.activeTexture(gl.TEXTURE0);
+        if (this.palW !== W || this.palH !== H) {
+          gl.bindTexture(gl.TEXTURE_2D, this.texPal);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texPal, 0);
+          this.palW = W; this.palH = H;
+        }
+        gl.bindTexture(gl.TEXTURE_2D, this.texMap);
+        // Pujar el canvas del mapa és el gruix del cost: només quan s'ha repintat (`fresh`).
+        if (fresh || !this.mapUp) {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, map);
+          this.mapUp = true;
+        }
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texPal, 0);
-        this.palW = W; this.palH = H;
+        gl.viewport(0, 0, W, H);
+        gl.useProgram(this.progPal);
+        gl.uniform4f(this.u.rect, rect[0], rect[1], rect[2], rect[3]);
+        gl.uniform1f(this.u.hasMedia, hasMedia);
+        gl.uniform2f(this.u.texel, 1 / W, 1 / H);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        this.palValid = true;
       }
-      gl.bindTexture(gl.TEXTURE_2D, this.texMap);
-      // Pujar el canvas del mapa és el gruix del cost: només quan s'ha repintat (`fresh`).
-      if (fresh || !this.mapUp) {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, map);
-        this.mapUp = true;
-      }
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
-      gl.viewport(0, 0, W, H);
-      gl.useProgram(this.progPal);
-      gl.uniform1f(this.u.hasMedia, hasMedia);
-      gl.uniform2f(this.u.texel, 1 / W, 1 / H);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       // Passada 2: tub.
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, W, H);
+      gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.texPal);
       gl.useProgram(this.progCrt);
       gl.uniform2f(this.u.res, W, H);
