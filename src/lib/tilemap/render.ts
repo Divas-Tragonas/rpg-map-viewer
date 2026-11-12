@@ -6,17 +6,21 @@
 import { sheet } from '@/lib/sprites/pack';
 import { blit, drawItem } from '@/lib/sprites/draw';
 import {
-  TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX, THEME_BASE,
+  TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX, THEME_BASE, PACK_BASE,
   type TileMap, type TileObject, cellOf, isWall, isVoid, inMap, decodeDecor,
 } from './model';
-import { WALL_BY_ID, objectDef, groundAnim, wallPiece } from './palette';
+import { WALL_BY_ID, objectDef, groundAnim, wallPiece, packPieceOf } from './palette';
+import { PACK_COLS } from './packs';
 import { t } from './model';
 import { placedParts, objectCells, objectDrawOrder, quarter } from './objects';
 
 /** Pinta una peça codificada (veure `model.ts`) al quadrat (dx, dy, size). */
 export function drawTile(ctx: CanvasRenderingContext2D, tile: number, dx: number, dy: number, size = TILE): void {
   if (tile < 0) return;
-  if (tile >= THEME_BASE) {
+  if (tile >= PACK_BASE) {
+    const i = tile - PACK_BASE;
+    blit(ctx, 'decor_packs', (i % PACK_COLS) * TILE, Math.floor(i / PACK_COLS) * TILE, TILE, TILE, dx, dy, size, size);
+  } else if (tile >= THEME_BASE) {
     const i = tile - THEME_BASE;
     blit(ctx, 'terrain_themes', (i % TERRAIN_COLS) * TILE, Math.floor(i / TERRAIN_COLS) * TILE, TILE, TILE, dx, dy, size, size);
   } else if (tile >= WORLD_BASE) {
@@ -383,13 +387,21 @@ export function tileThumb(tile: number | string, size = 32): string | null {
   const c = document.createElement('canvas'); c.width = size; c.height = size;
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
-  if (typeof tile === 'string') {
+  const pack = packPieceOf(tile);
+  if (pack) {
+    // Paquets nous: l'art és petit al mig de la casella (1×); la miniatura en retalla només el que es veu
+    // i l'amplia a múltiples sencers mentre hi càpiga (els arbres, més grans, s'encongeixen).
+    const [ax, ay, aw, ah] = pack.art, fit = Math.min(size / aw, size / ah), k = fit >= 1 ? Math.floor(fit) : fit;
+    const sx = (pack.cell % PACK_COLS) * TILE + ax, sy = Math.floor(pack.cell / PACK_COLS) * TILE + ay;
+    blit(ctx, 'decor_packs', sx, sy, aw, ah, Math.round((size - aw * k) / 2), Math.round((size - ah * k) / 2), aw * k, ah * k);
+  } else if (typeof tile === 'string') {
     // Objecte: es pinten totes les seves peces encabides al quadrat.
     const def = objectDef(tile); if (!def) return null;
     const minDy = Math.min(...def.parts.map(p => p.dy)), maxDy = Math.max(...def.parts.map(p => p.dy));
-    const h = maxDy - minDy + 1, s = size / h;
+    const minDx = Math.min(...def.parts.map(p => p.dx)), maxDx = Math.max(...def.parts.map(p => p.dx));
+    const w = maxDx - minDx + 1, h = maxDy - minDy + 1, s = size / Math.max(w, h);
     for (const p of def.parts) {
-      const y = (p.dy - minDy) * s, x = (size - s) / 2;
+      const y = (p.dy - minDy) * s + (size - h * s) / 2, x = (p.dx - minDx) * s + (size - w * s) / 2;
       if (tile.startsWith('i:')) drawItem(ctx, tile.slice(2), x, y, s);
       else drawTile(ctx, p.frames ? p.frames[0] : p.tile!, x, y, s);
     }

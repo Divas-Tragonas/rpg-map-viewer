@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.24 — Paquets de decorat a la paleta de Caselles
+- Objectes: seccions noves «Cofres» (5 models en 3 colors, tancats i oberts), «Gerres» (3 mides en 4 colors) i «Bosc» (soca, roca, mata, falguera i dos arbres grans, en tres paletes)
+- Botí: secció «Objectes petits» (31 objectes: pocions, claus, monedes, armes, calavera, torxa…); Decorat: «Gerres trencades»
+- La mida del píxel és la de l'autor: les peces més petites que la casella queden al mig amb aire al voltant; els arbres ocupen 3×2 caselles amb el tronc a la casella on es clica
+- Es mouen, es giren i s'ordenen per capes com la resta d'objectes; les partides d'abans no canvien
+
 ### v5.23 — Paquets nous de decorat al repositori
 - Nou `assets/decor-packs/` amb quatre paquets sencers: Gentle Forest (bosc, tres paletes), Treasure Chests, Breakable Pots i Tiny Dungeon Items (32 objectes de 16 px)
 - Catàleg `assets/decor-packs/INDEX.md` amb què hi ha a cada paquet, les mides i l'avís de llicències; encara no surten a la paleta de Caselles

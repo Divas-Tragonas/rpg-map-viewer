@@ -15,6 +15,8 @@ export const SHEET_FILES = {
   // Temes de masmorra (gel, volcà…) recolorits del terreny (`scripts/oryx-themes.py`).
   terrain_themes: 'uf_terrain_themes.png',
   items: 'uf_items.png',
+  // Cofres, gerres, bosc i objectes petits dels paquets nous (`scripts/decor-packs.py`, `assets/decor-packs/`).
+  decor_packs: 'decor_packs.png',
   fx: 'uf_FX.png',
   impact: 'uf_FX_impact.png',
   // Animacions d'efectes dels paquets nous (`scripts/fx-atlas.py` a partir de `assets/fx-packs/`).

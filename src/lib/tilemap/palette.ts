@@ -3,8 +3,9 @@
  * fa servir (terres amb variants, aigua animada, jocs de paret, objectes de més d'una
  * casella). Les coordenades són de la graella de 48 px del full (columna, fila).
  */
-import { t, TERRAIN_COLS, THEME_BASE } from './model';
+import { t, TERRAIN_COLS, THEME_BASE, PACK_BASE } from './model';
 import { ITEMS } from '@/lib/sprites/manifest';
+import { PACK_COLS, PACK_GROUPS, PACK_PIECES, type PackPiece } from './packs';
 
 const row = (r: number, c0: number, c1: number) => Array.from({ length: c1 - c0 + 1 }, (_, i) => t(c0 + i, r));
 
@@ -124,9 +125,34 @@ export const OBJECT_KEYS = Object.keys(OBJ);
 /** Objectes del full d'objectes (botí): tot el que hi ha a `ITEMS`. */
 export const LOOT_KEYS = Object.keys(ITEMS).sort().map(n => `i:${n}`);
 
-/** Definició d'un objecte per clau (`t:12`, `i:chest_gold`, `statue`…); `raw:N` = una peça qualsevol. */
+// Paquets de decorat nous (`decor_packs.png`, `scripts/decor-packs.py`): l'art va a 1× (la mida del
+// píxel de l'autor), al mig d'un bloc de caselles. Una peça de més d'una casella (els arbres) té
+// l'àncora a la casella del mig de la fila de baix: el tronc cau on es clica.
+
+/** Peça del full dels paquets: casella `(i, j)` del bloc de la peça. */
+const packTile = (p: PackPiece, i: number, j: number) => PACK_BASE + p.cell + j * PACK_COLS + i;
+const PACK_OBJ: Record<string, ObjectDef> = {};
+const _packOf = new Map<string | number, PackPiece>();
+for (const p of PACK_PIECES) {
+  const ax = Math.floor(p.w / 2), ay = p.h - 1, parts: ObjectPart[] = [];
+  for (let j = 0; j < p.h; j++) for (let i = 0; i < p.w; i++) parts.push({ dx: i - ax, dy: j - ay, tile: packTile(p, i, j) });
+  _packOf.set(packTile(p, 0, 0), p);
+  if (PACK_GROUPS.find(g => g.id === p.group)?.kind === 'object') {
+    PACK_OBJ[`p:${p.id}`] = { label: p.label, parts };
+    _packOf.set(`p:${p.id}`, p);
+  }
+}
+/** La peça dels paquets d'una clau d'objecte (`p:…`) o d'un decorat (la seva casella): per a les miniatures. */
+export const packPieceOf = (k: string | number) => _packOf.get(k) ?? null;
+/** Grups de la paleta per pestanya: etiqueta i claus dels objectes (`p:…`), en l'ordre del full. */
+export const PACK_OBJECT_GROUPS = PACK_GROUPS.filter(g => g.kind === 'object').map(g => ({
+  label: g.label, tab: g.tab, keys: PACK_PIECES.filter(p => p.group === g.id).map(p => `p:${p.id}`),
+}));
+
+/** Definició d'un objecte per clau (`t:12`, `i:chest_gold`, `p:pot_small_red`, `statue`…); `raw:N` = una peça qualsevol. */
 export function objectDef(k: string): ObjectDef | null {
   if (OBJ[k]) return OBJ[k];
+  if (PACK_OBJ[k]) return PACK_OBJ[k];
   if (k.startsWith('raw:')) { const n = +k.slice(4); return Number.isFinite(n) ? simple('', n) : null; }
   if (k.startsWith('i:') && ITEMS[k.slice(2)]) return { label: k.slice(2).replace(/_/g, ' '), parts: [{ dx: 0, dy: 0 }] };
   return null;
@@ -140,6 +166,10 @@ export const DECOR: DecorGroup[] = [
   { label: 'Catifes', tiles: [...row(2, 14, 18), ...row(3, 14, 18)] },
   { label: 'Vores d\'aigua', tiles: [13, 14, 15].flatMap(r => row(r, 15, 18)) },
   { label: 'Ombres', tiles: row(1, 14, 17) },
+  // Paquets nous: els grups de decorat (una casella cada peça).
+  ...PACK_GROUPS.filter(g => g.kind === 'decor').map(g => ({
+    label: g.label, tiles: PACK_PIECES.filter(p => p.group === g.id).map(p => packTile(p, 0, 0)),
+  })),
 ];
 
 /** Fotogrames animats del terra (aigües), per peça base i també per qualsevol fotograma. */

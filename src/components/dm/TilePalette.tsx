@@ -4,7 +4,7 @@ import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Button } from '@/components/ui/Button';
 import { useSpritePack } from '@/hooks/useSpritePack';
-import { FLOORS, WATERS, WALL_SETS, DECOR, OBJECT_KEYS, LOOT_KEYS, OBJECTS, objectDef, wallPiece } from '@/lib/tilemap/palette';
+import { FLOORS, WATERS, WALL_SETS, DECOR, OBJECT_KEYS, LOOT_KEYS, OBJECTS, PACK_OBJECT_GROUPS, objectDef, wallPiece } from '@/lib/tilemap/palette';
 import { t } from '@/lib/tilemap/model';
 import { tileThumb, worldTiles } from '@/lib/tilemap/render';
 import type { TileBrush } from '@/lib/tilemap/editor';
@@ -59,6 +59,16 @@ function PlaceBar({ brush, onBrush, move }: { brush: TileBrush; onBrush: (b: Til
 const Grid = ({ children }: { children: React.ReactNode }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{children}</div>
 );
+/** Seccions dels paquets de decorat nous (`assets/decor-packs/`) d'una pestanya. */
+function PackGroups({ tab, is, pick }: { tab: 'objectes' | 'boti'; is: (b: TileBrush) => boolean; pick: (b: TileBrush) => void }) {
+  return PACK_OBJECT_GROUPS.filter(g => g.tab === tab).map(g => (
+    <React.Fragment key={g.label}>
+      <Label>{g.label}</Label>
+      <Grid>{g.keys.map(k => <Swatch key={k} thumb={tileThumb(k)} label={objectDef(k)?.label ?? k} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}</Grid>
+    </React.Fragment>
+  ));
+}
+
 const Label = ({ children }: { children: React.ReactNode }) => (
   <div style={{ fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '8px 0 5px' }}>{children}</div>
 );
@@ -145,13 +155,15 @@ export function TilePalette({ brush, onBrush }: Props) {
               <><PlaceBar brush={brush} onBrush={onBrush} move />
               <Label>Mobles i detalls</Label><Grid>
                 {OBJECT_KEYS.map(k => <Swatch key={k} thumb={tileThumb(k)} label={OBJECTS[k].label + (OBJECTS[k].lightFt ? ' · fa llum' : '')} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}
-              </Grid></>
+              </Grid>
+              <PackGroups tab="objectes" is={is} pick={pick} /></>
             )}
             {tab === 'boti' && (
               <><PlaceBar brush={brush} onBrush={onBrush} move />
               <Label>Objectes del full de botí</Label><Grid>
                 {LOOT_KEYS.map(k => <Swatch key={k} thumb={tileThumb(k)} label={objectDef(k)?.label ?? k} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}
-              </Grid></>
+              </Grid>
+              <PackGroups tab="boti" is={is} pick={pick} /></>
             )}
             {tab === 'decorat' && <PlaceBar brush={brush} onBrush={onBrush} move={false} />}
             {tab === 'decorat' && DECOR.map(g => (

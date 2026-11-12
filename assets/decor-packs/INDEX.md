@@ -3,14 +3,14 @@
 Objectes i decorat nous per als mapes que va passar el propietari a la v5.23 (`Downloads.zip`),
 **sencers**: fulls, fitxers solts, guies, mostres i GIF, amb els noms de fitxer originals (només
 s'han canviat els noms de les carpetes de dalt i s'ha tret un nivell de carpeta repetit al Tiny
-Dungeon). **No es serveixen**: no són a `public/` i l'app encara no els fa servir.
+Dungeon). **No es serveixen**: no són a `public/`.
 
-**Fer-los servir a la paleta de Caselles**: com els temes i les icones, s'han de passar a un full
-generat per un script (retallar les peces que es vulguin, ampliar-les sense suavitzar fins a la
-casella de 48 px i posar-les a `public/sprites/`), mai copiant aquests PNG a `public/` tal qual.
-Mides de l'art: Gentle Forest, gerres i Tiny Dungeon són de **16 px** (×3 per omplir una casella);
-els cofres de **32 px**. El píxel de l'art queda més gros que el de l'Oryx: comprovar-ho al mapa
-abans de decidir l'escala.
+**A l'app (v5.24)**: `scripts/decor-packs.py` en treu la tria al full `public/sprites/decor_packs.png`
+i a `src/lib/tilemap/packs.ts` (paleta de Caselles: Objectes → Cofres, Gerres, Bosc; Botí → Objectes
+petits; Decorat → Gerres trencades). **La mida del píxel no es toca**: l'art va a 1× i, si és més
+petit que la casella de 48 px, queda al mig amb aire al voltant. Mides de l'art: Gentle Forest
+(objectes de 32 px, arbres de 80×96), gerres i cofres en cel·les de 32 px, Tiny Dungeon de 16 px.
+Una peça nova: afegir-la **al final** de `PIECES` del script i tornar-lo a executar.
 
 ⚠️ **Llicències (el repositori és públic).** El propietari va decidir pujar-los sencers igualment,
 com els `fx-packs/` i els sprites Oryx. Abans de publicar l'app fora de la colla, revisar-ho:
