@@ -126,6 +126,9 @@ let roomSeq = 0;
  * centroide i similitud d'àrea.
  */
 export function reconcileRooms(prev: Room[], faces: Point[][]): Room[] {
+  // El comptador és del mòdul i torna a 0 en recarregar la pàgina: sense això les sales noves
+  // repetien noms de les que ja hi eren («Sala 50» dues vegades).
+  for (const r of prev) { const n = /^Sala (\d+)$/.exec(r.name); if (n) roomSeq = Math.max(roomSeq, +n[1]); }
   const used = new Set<number>();
   const out: Room[] = [];
   for (const poly of faces) {

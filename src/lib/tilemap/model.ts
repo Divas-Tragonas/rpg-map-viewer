@@ -68,6 +68,11 @@ export interface TileMap {
   /** Portes: casella → joc de paret (en dona l'aspecte). La casella no bloqueja. */
   doors: Record<number, string>;
   objects: TileObject[];
+  /**
+   * Sales eliminades pel DM: una casella de terra de dins de cadascuna. La cara que la conté no
+   * es torna sala (les parets surten de les caselles i, si no, la sala tornaria a cada regeneració).
+   */
+  noRoom?: number[];
 }
 
 export const t = (c: number, r: number) => r * TERRAIN_COLS + c;
@@ -147,6 +152,10 @@ export function fitTileMap(m: TileMap, margin = TILE_MARGIN): TileFit | null {
       ground: remap(m.ground, EMPTY), overlays: m.overlays.map(o => remap(o, EMPTY)),
       wallSet: remap(m.wallSet, ''), wallRaw: remap(m.wallRaw, EMPTY),
       doors, objects: m.objects.map(o => ({ ...o, c: o.c + dc, r: o.r + dr })),
+      noRoom: m.noRoom?.flatMap(i => {
+        const nc = (i % m.cols) + dc, nr = Math.floor(i / m.cols) + dr;
+        return nc >= 0 && nr >= 0 && nc < cols && nr < rows ? [nr * cols + nc] : [];
+      }),
     },
   };
 }
@@ -157,8 +166,14 @@ export function cloneTileMap(m: TileMap): TileMap {
     ...m,
     ground: m.ground.slice(), overlays: m.overlays.map(o => o.slice()),
     wallSet: m.wallSet.slice(), wallRaw: m.wallRaw.slice(),
-    doors: { ...m.doors }, objects: m.objects.slice(),
+    doors: { ...m.doors }, objects: m.objects.slice(), noRoom: m.noRoom?.slice(),
   };
+}
+
+/** Les mateixes caselles (només poden canviar les sales eliminades): no cal tornar a cuinar el fons. */
+export function sameTiles(a: TileMap, b: TileMap): boolean {
+  return a.cols === b.cols && a.rows === b.rows && a.ground === b.ground && a.overlays === b.overlays
+    && a.wallSet === b.wallSet && a.wallRaw === b.wallRaw && a.doors === b.doors && a.objects === b.objects;
 }
 
 /** Normalitza un mapa llegit d'una partida desada (camps que podrien faltar). */
@@ -175,5 +190,6 @@ export function reviveTileMap(raw: unknown): TileMap | null {
     wallRaw: fill(m.wallRaw, EMPTY),
     doors: m.doors && typeof m.doors === 'object' ? m.doors : {},
     objects: Array.isArray(m.objects) ? m.objects : [],
+    noRoom: Array.isArray(m.noRoom) ? m.noRoom.filter(i => Number.isInteger(i) && i >= 0 && i < n) : undefined,
   };
 }

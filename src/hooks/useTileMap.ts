@@ -5,7 +5,7 @@ import type { Wall, Room, Door, LightSource } from '@/types';
 import { TILE, emptyTileMap, cloneTileMap, fitTileMap, type TileMap, type TileFit } from '@/lib/tilemap/model';
 import { applyBrush, rectCells, lineCells, isRectBrush, type TileBrush, type Cell } from '@/lib/tilemap/editor';
 import { bakeTileMap, repaintCells, tileLiveOf } from '@/lib/tilemap/render';
-import { tileWalls, tileDoors, tileLights, keepRoomFace, extendRoomFace, hidePatches } from '@/lib/tilemap/geometry';
+import { tileWalls, tileDoors, tileLights, tileRoomFaces, extendRoomFace, hidePatches, pruneNoRoom } from '@/lib/tilemap/geometry';
 import { getBBox } from '@/lib/geometry';
 import { parseTmx } from '@/lib/tilemap/tmx';
 import { objectAt, objectCells, anchorCenter, placeObjectAt } from '@/lib/tilemap/objects';
@@ -72,7 +72,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
       lights = [...manualLights, ...tileLights(m)];
     }
     // Amb mapa de caselles, cada sala s'emporta les cares de paret que hi miren (es foscaran amb ella).
-    const faces = detectRooms(walls).filter(f => !m || keepRoomFace(m, f)).map(f => (m ? extendRoomFace(m, f) : f));
+    const faces = m ? tileRoomFaces(m, detectRooms(walls)) : detectRooms(walls);
     const rooms = reconcileRooms(R.rRooms.current, faces);
     doors = pruneDoors(walls, doors);
     R.rWalls.current = walls; d.setWalls(walls);
@@ -108,6 +108,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
 
   // Desfer / carregar partida: el mapa ha canviat per fora de l'editor.
   useEffect(() => {
+    R.rTileRegen.current = regenGeometry;
     R.rTileRestore.current = (opts) => {
       const m = R.rTileMap.current;
       R.rTileSel.current = null;   // els índexs dels objectes ja no valen
@@ -212,6 +213,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
     const after = R.rTileMap.current;
     if (!after) return;
     pruneOverlays(after);   // la còpia és d'aquesta edició: es pot tocar
+    pruneNoRoom(after);     // sales eliminades que ja no cauen a terra
     R.rTileMap.current = before;
     Dref.current.pushMapEdit(label);
     R.rTileMap.current = after;

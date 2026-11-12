@@ -22,7 +22,8 @@ import { wake } from '@/lib/render/wake';
 import { reduceBgForPlayers, type BgCopy } from '@/lib/bg-reduce';
 import { monsterFromApi } from '@/lib/db-enemies';
 import { snapTokenCenter } from '@/lib/rules/cells';
-import { reviveTileMap, TILE, type TileMap } from '@/lib/tilemap/model';
+import { reviveTileMap, sameTiles, TILE, type TileMap } from '@/lib/tilemap/model';
+import { roomFloorCell } from '@/lib/tilemap/geometry';
 
 interface Setters {
   setBgLoaded: (v: boolean) => void;
@@ -481,7 +482,13 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rRooms.current = rooms; S.setRooms(rooms);
     rDoors.current = doors; S.setDoors(doors);
     rLights.current = g.lights; S.setLights(g.lights);
-    if (g.tileMap !== R.rTileMap.current) { R.rTileMap.current = g.tileMap; R.rTileRestore.current(); }
+    if (g.tileMap !== R.rTileMap.current) {
+      const cur = R.rTileMap.current;
+      R.rTileMap.current = g.tileMap;
+      // Només han canviat les sales eliminades (eliminar sala): sense tornar a cuinar ni enviar el fons.
+      if (g.tileMap && cur && sameTiles(g.tileMap, cur)) R.rTileRegen.current();
+      else R.rTileRestore.current();
+    }
     _broadcastState({});
   }, [_broadcastState]);
   const mapCmd = useCallback((label: string, mergeKey?: string) => snapCmd(label, _captureGeo, _restoreGeo, { mergeKey }), [_captureGeo, _restoreGeo]);
@@ -1342,6 +1349,9 @@ export function useDMActions(R: DMRefs, S: Setters) {
   // Re-detecta les cares tancades del graf de parets i reconcilia amb les sales
   // existents (preserva id/nom/estat). Es crida a cada canvi de parets.
   const redetectRooms = useCallback(() => {
+    // Amb mapa de caselles, el mateix camí que en pintar: les parets de les caselles es refan,
+    // les dibuixades a mà es conserven i les cares passen pel filtre de sales (`tileRoomFaces`).
+    if (R.rTileMap.current) { R.rTileRegen.current(); return; }
     const faces = detectRooms(rWalls.current);
     const rooms = reconcileRooms(rRooms.current, faces);
     rRooms.current = rooms; S.setRooms(rooms);
@@ -1417,10 +1427,14 @@ export function useDMActions(R: DMRefs, S: Setters) {
   // Elimina les parets exclusives d'aquesta sala (les que no comparteix amb cap altra),
   // i re-detecta. Per una sala aïllada això n'esborra tot el contorn; per una sala
   // subdividida, les parets compartides es conserven i les dues sales es fusionen.
+  // Només es toquen les parets DIBUIXADES A MÀ: les del mapa de caselles surten de les caselles
+  // (esborrar-ne trossos deixava el graf obert i totes les sales es tornaven boges, i a la
+  // regeneració següent tornaven igualment). Una sala feta només de caselles es marca com a
+  // eliminada al mapa (`TileMap.noRoom`) i ja no torna.
   const deleteRoom = useCallback((id: string) => {
-    _pushMapEdit('eliminar sala');
     const room = rRooms.current.find(r => r.id === id);
     if (!room) return;
+    _pushMapEdit('eliminar sala');
     const onOutline = (p: { x: number; y: number }, poly: { x: number; y: number }[], tol: number) => {
       for (let i = 0; i < poly.length; i++) {
         const a = poly[i], b = poly[(i + 1) % poly.length];
@@ -1435,14 +1449,20 @@ export function useDMActions(R: DMRefs, S: Setters) {
     const wallOnRoom = (w: Wall, poly: { x: number; y: number }[]) =>
       onOutline(w.a, poly, 9) && onOutline(w.b, poly, 9);
     const keep = rWalls.current.filter(w => {
-      if (!wallOnRoom(w, room.points)) return true;
+      if (w.tile || !wallOnRoom(w, room.points)) return true;
       // paret compartida amb una altra sala → conservar (fusiona les sales)
       return others.some(o => wallOnRoom(w, o.points));
     });
-    rWalls.current = keep; S.setWalls(keep);
+    const m = R.rTileMap.current;
+    if (keep.length !== rWalls.current.length) { rWalls.current = keep; S.setWalls(keep); }
+    else if (m) {
+      // Cap paret a mà per treure: és una sala de les caselles.
+      const cell = roomFloorCell(m, room.points);
+      if (cell !== null) R.rTileMap.current = { ...m, noRoom: [...(m.noRoom ?? []), cell] };
+    }
     rWallPenLast.current = null;
     redetectRooms();
-  }, [redetectRooms]);
+  }, [redetectRooms, _pushMapEdit]);
 
   // Cancel·la la cadena de parets en curs (Esc): treu del graf les parets afegides des
   // de l'últim cop que es va abaixar la ploma i que encara no formen cap geometria.

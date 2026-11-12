@@ -98,6 +98,47 @@ export function keepRoomFace(m: TileMap, poly: Point[]): boolean {
 }
 
 /**
+ * Cares detectades → sales del mapa de caselles: el filtre de blocs de paret (`keepRoomFace`), les
+ * sales que el DM ha eliminat (`TileMap.noRoom`) i les cares de paret que hi miren (`extendRoomFace`).
+ * ⚠️ Tota re-detecció amb mapa de caselles ha de passar per aquí: sense el filtre, el contorn de
+ * cada bloc de paret surt com una «sala» més i les sales es tornen boges.
+ */
+export function tileRoomFaces(m: TileMap, faces: Point[][]): Point[][] {
+  const off = (m.noRoom ?? []).map(i => ({ x: (i % m.cols + 0.5) * TILE, y: (Math.floor(i / m.cols) + 0.5) * TILE }));
+  return faces
+    .filter(f => keepRoomFace(m, f) && !off.some(p => pointIn(f, p.x, p.y)))
+    .map(f => extendRoomFace(m, f));
+}
+
+/** Una casella de terra de dins de la sala (ni paret, ni buit, ni porta), la més centrada; `null` si no n'hi ha. */
+export function roomFloorCell(m: TileMap, poly: Point[]): number | null {
+  let xs = Infinity, xe = -Infinity, ys = Infinity, ye = -Infinity;
+  for (const p of poly) { xs = Math.min(xs, p.x); xe = Math.max(xe, p.x); ys = Math.min(ys, p.y); ye = Math.max(ye, p.y); }
+  const cx = (xs + xe) / 2, cy = (ys + ye) / 2;
+  let best: number | null = null, bestD = Infinity;
+  for (let r = Math.floor(ys / TILE); r <= Math.ceil(ye / TILE); r++) for (let c = Math.floor(xs / TILE); c <= Math.ceil(xe / TILE); c++) {
+    if (!inMap(m, c, r) || isWall(m, c, r)) continue;
+    const i = cellOf(m, c, r);
+    if (isVoid(m, i) || i in m.doors) continue;
+    const x = (c + 0.5) * TILE, y = (r + 0.5) * TILE;
+    if (!pointIn(poly, x, y)) continue;
+    const d = Math.hypot(x - cx, y - cy);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+/** Treu les marques de sala eliminada que ja no cauen a terra (la casella s'ha esborrat o és paret). Muta `m`. */
+export function pruneNoRoom(m: TileMap): void {
+  if (!m.noRoom?.length) return;
+  const keep = m.noRoom.filter(i => {
+    const c = i % m.cols, r = Math.floor(i / m.cols);
+    return inMap(m, c, r) && !isWall(m, c, r) && !isVoid(m, i) && !(i in m.doors);
+  });
+  m.noRoom = keep.length ? keep : undefined;
+}
+
+/**
  * Sala fosca + les CARES de paret que hi miren (v5.20; des de la v5.21 només la meitat de baix). La
  * paret es veu en perspectiva: la casella de paret que té la sala just a sota té a la meitat de dalt
  * la paret vista des de dalt (que no és de cap sala i es veu sempre, com les parets laterals) i a la

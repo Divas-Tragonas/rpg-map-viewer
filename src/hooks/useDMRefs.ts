@@ -223,6 +223,9 @@ export function useDMRefs() {
   // El mapa de caselles ha canviat per fora de l'editor (desfer, carregar partida): cal
   // tornar a cuinar el fons i regenerar parets/portes/llums. L'assigna `useTileMap`.
   const rTileRestore   = useRef<(opts?: { rebake?: boolean }) => void>(() => {});
+  // Torna a fer parets/portes/llums/sales des del mapa de caselles SENSE cuinar el fons (les
+  // caselles no han canviat: una paret dibuixada a mà, una sala eliminada). L'assigna `useTileMap`.
+  const rTileRegen     = useRef<() => void>(() => {});
 
   // Cinematic refs
   const cinematicActiveRef   = useRef(false);
@@ -260,7 +263,7 @@ export function useDMRefs() {
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicRef, cinematicCamRef,
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
-    rAppStyle, rPhosphor, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileHoverPx, rTileSel, rTileFocus, rTileRestore,
+    rAppStyle, rPhosphor, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileHoverPx, rTileSel, rTileFocus, rTileRestore, rTileRegen,
     rDialog, rDialogT0, rDialogs, dialogHostRef,
     rSheetShow,
   };

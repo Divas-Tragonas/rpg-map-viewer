@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.28 — Eliminar sales del mapa de caselles ja no les trenca totes
+- Eliminar una sala d'un mapa de caselles esborrava trossos de les parets generades per les caselles (que són trams llargs compartits entre sales) i tornava a detectar les sales sense el filtre del mapa de caselles: apareixien sales fantasma damunt de les altres, els blocs de paret es tornaven «sales» i les sales perdien les cares de paret
+- Ara només s'esborren les parets dibuixades a mà; una sala feta només de caselles queda marcada com a eliminada al mapa (`TileMap.noRoom`) i ja no torna en pintar més caselles. Es desfà amb Ctrl+Z (sense tornar a enviar el fons) i es desa amb la partida
+- Totes les re-deteccions amb mapa de caselles (afegir o esborrar una paret a mà, Backspace, moure un vèrtex) passen pel mateix camí que en pintar
+- Les sales noves ja no repeteixen noms de les que hi havia després de recarregar la pàgina («Sala 50» dues vegades)
+- Cap canvi a la API
+
 ### v5.27 — Objectes a l'estil Oryx refets: volum i una sola perspectiva
 - Les 103 peces de la v5.26 es tornen a dibuixar (eren planes i algunes en vista frontal): ara totes es veuen de dalt i de davant, amb la cara de dalt clara i la del davant fosca, i una sola llum de dalt a l'esquerra
 - Bótes, gerros, olles, urnes, sacs, copes i tamborets es modelen com a sòlids de revolució: es veu la boca o la tapa en el·lipse, l'interior fosc, i les sanefes i els cèrcols segueixen la corba
