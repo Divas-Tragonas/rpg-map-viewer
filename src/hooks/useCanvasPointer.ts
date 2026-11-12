@@ -49,7 +49,9 @@ export function useCanvasPointer(R: DMRefs, h: {
     hRef.current.up();
   };
 
+  // `longPress`: el clic dret ve de mantenir premut (l'eina Caselles hi obre el menú de capes).
   const synth = (canvas: HTMLCanvasElement, x: number, y: number, button: number) => ({
+    longPress: button === 2,
     clientX: x, clientY: y, button, buttons: 0, shiftKey: false, altKey: false, ctrlKey: false, metaKey: false,
     currentTarget: canvas, target: canvas, preventDefault() {}, stopPropagation() {},
   });

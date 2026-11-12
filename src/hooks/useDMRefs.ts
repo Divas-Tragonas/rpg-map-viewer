@@ -10,6 +10,7 @@ import type { TileMap } from '@/lib/tilemap/model';
 import type { SheetShow } from '@/types';
 import type { TileLive } from '@/lib/tilemap/render';
 import type { TileBrush } from '@/lib/tilemap/editor';
+import type { TileItem } from '@/lib/tilemap/layers';
 import { newCinematicCam, type BossIntro, type CinematicCam } from '@/lib/cinematic';
 import type { SyncSocket } from '@/lib/ws';
 import { emptyHistory, type UndoHistory, type UndoCmd } from '@/lib/undo';
@@ -209,12 +210,16 @@ export function useDMRefs() {
   // Traç en curs de l'eina Caselles (pintar arrossegant o rectangle amb Maj / eina Sala).
   // `move`: pinzell «Moure», objecte arrossegat (índex a `objects`) i on s'ha agafat respecte del centre de l'àncora.
   const rTileDrag      = useRef<{ start: { c: number; r: number }; last: { c: number; r: number }; erase: boolean; rect: boolean; before: TileMap;
-    move?: { idx: number; gx: number; gy: number } } | null>(null);
+    move?: { idx: number; gx: number; gy: number };
+    // Clic dret sobre un objecte o un decorat encara sense arrossegar: en deixar anar, menú de capes (`sx`/`sy`: pantalla).
+    menu?: { item: TileItem; sx: number; sy: number } } | null>(null);
   const rTileHover     = useRef<{ c: number; r: number } | null>(null);
   // Cursor en px de mapa (pinzell «Moure»: ressaltar l'objecte de sota).
   const rTileHoverPx   = useRef<{ x: number; y: number } | null>(null);
   // Objecte triat amb el pinzell «Moure» (índex a `rTileMap.objects`): la R el gira.
   const rTileSel       = useRef<number | null>(null);
+  // Element del menú de capes obert (es ressalta al mapa mentre el menú és obert).
+  const rTileFocus     = useRef<TileItem | null>(null);
   // El mapa de caselles ha canviat per fora de l'editor (desfer, carregar partida): cal
   // tornar a cuinar el fons i regenerar parets/portes/llums. L'assigna `useTileMap`.
   const rTileRestore   = useRef<(opts?: { rebake?: boolean }) => void>(() => {});
@@ -255,7 +260,7 @@ export function useDMRefs() {
     isSpellLineDrawingRef, spellLineStartRef, rSpellPreview, rAreaPlacementPending,
     cinematicActiveRef, cinematicRef, cinematicCamRef,
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
-    rAppStyle, rPhosphor, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileHoverPx, rTileSel, rTileRestore,
+    rAppStyle, rPhosphor, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileHoverPx, rTileSel, rTileFocus, rTileRestore,
     rDialog, rDialogT0, rDialogs, dialogHostRef,
     rSheetShow,
   };

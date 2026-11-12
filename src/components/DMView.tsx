@@ -63,8 +63,9 @@ import { terrainCost } from '@/lib/rules/terrain';
 import { useAutosave } from '@/hooks/useAutosave';
 import { useStoredFlag } from '@/hooks/useStoredFlag';
 import { clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
-import { useTileMap } from '@/hooks/useTileMap';
+import { useTileMap, type TileMenuState, type TileMenuAction } from '@/hooks/useTileMap';
 import { TilePalette } from '@/components/dm/TilePalette';
+import { TileLayerMenu } from '@/components/dm/TileLayerMenu';
 import { PixelMapPanel } from '@/components/dm/PixelMapPanel';
 import { useSpritePack } from '@/hooks/useSpritePack';
 import { ensurePack } from '@/lib/sprites/pack';
@@ -408,23 +409,23 @@ export function DMView() {
     const m = R.rTileMap.current;
     setTileMapSize(has && m ? { cols: m.cols, rows: m.rows } : null);
   }, [R]);
-  const { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave, rotateSelectedObject } = useTileMap(R, {
+  // Menú de capes (clic dret sobre un objecte o un decorat amb l'eina Caselles).
+  const [tileMenu, setTileMenuState] = useState<TileMenuState | null>(null);
+  const setTileMenu = useCallback((m: TileMenuState | null) => { R.rTileFocus.current = m?.item ?? null; setTileMenuState(m); }, [R]);
+  const { createTileMap, importTmx, tileDown, tileMove, tileUp, tileLeave, rotateUnderCursor, tileMenuAt, tileMenuAction } = useTileMap(R, {
     setWalls, setRooms, setDoors, setLights, setGrid: setTileGrid,
     loadBg, replaceBgImage, shiftWorld, extendLastUndo, broadcast: _broadcastState, pushMapEdit: _pushMapEdit,
-    addCreatures: addCreatureTokens, setHasTileMap: syncTileSize,
+    addCreatures: addCreatureTokens, setHasTileMap: syncTileSize, openTileMenu: setTileMenu,
   });
-  /**
-   * Girar (tecla R o botó de la paleta): amb el pinzell «Moure», l'objecte triat; amb un decorat o un
-   * objecte, el pinzell (el que es pinti d'aquí endavant surt girat).
-   */
+  const onTileMenuAction = useCallback((a: TileMenuAction) => {
+    if (tileMenu && !tileMenuAction(tileMenu.item, a)) notify('Aquest element ja no hi és (s\'ha desfet o esborrat).', 'info');
+    setTileMenu(null);
+  }, [tileMenu, tileMenuAction, setTileMenu, notify]);
+  const closeTileMenu = useCallback(() => setTileMenu(null), [setTileMenu]);
+  /** Tecla R amb l'eina Caselles: gira 90° l'objecte o el decorat de sota el cursor. */
   const rotateTile = useCallback(() => {
-    const b = R.rTileBrush.current;
-    if (b.kind === 'move') {
-      if (!rotateSelectedObject()) notify('Clica primer l\'objecte que vols girar.', 'info');
-      return;
-    }
-    if (b.kind === 'decor' || b.kind === 'object') setTileBrush({ ...b, rot: ((b.rot ?? 0) + 1) % 4 });
-  }, [R, rotateSelectedObject, setTileBrush, notify]);
+    if (!rotateUnderCursor()) notify('Posa el cursor damunt de l\'objecte o el decorat que vols girar.', 'info');
+  }, [rotateUnderCursor, notify]);
 
   // ── Desat automàtic ────────────────────────────────────────────────────────
   // Xarxa de seguretat contra un F5: tot l'estat viu (fons, parets, sales, portes, llums,
@@ -1150,7 +1151,7 @@ export function DMView() {
     setWalls, setRooms, redetectRooms, addDoor, removeDoor, toggleDoor,
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
     setRoomRevealed, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
-    tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave },
+    tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave, menu: tileMenuAt },
     notify, openDamage: setDamagePrompt, onSpellCast, spendAmmo,
   }), [notify, spendAmmo, onSpellCast, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1820,7 +1821,7 @@ export function DMView() {
           areaSelectMode={areaSelectMode} onToggleAreaSelect={toggleAreaSelect}
           disabled={!bgLoaded}
           pixel={pixel} tilesAvailable={!!tileMapSize}
-          tilePanel={<TilePalette brush={tileBrush} onBrush={setTileBrush} onRotate={rotateTile} />}
+          tilePanel={<TilePalette brush={tileBrush} onBrush={setTileBrush} />}
           grid={{
             gridVisible, gridSize, gridSnap, gridAutoSize, gridLineWidth, gridCalibrating,
             rGridVisible: R.rGridVisible, rGridSize: R.rGridSize, rGridSnap: R.rGridSnap,
@@ -1938,6 +1939,7 @@ export function DMView() {
           }
         }}
       />
+      {drawToolState === 'tiles' && <TileLayerMenu menu={tileMenu} onAction={onTileMenuAction} onClose={closeTileMenu} />}
       <ShapeMenuOverlay
         shapeMenu={shapeMenu} onClose={() => setShapeMenu(null)}
         onAddZone={(element) => addPaintedZone(element, shapeMenu, setShapeMenu)}

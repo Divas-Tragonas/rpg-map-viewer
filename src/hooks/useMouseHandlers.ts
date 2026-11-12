@@ -73,11 +73,14 @@ interface MouseHandlerSetters {
   setPanning: (v: boolean) => void;
   /** Eina Caselles (estil Píxel): pintar i esborrar al mapa de caselles. Veure `useTileMap`. */
   tileTool?: {
-    down: (mx: number, my: number, erase: boolean, shift: boolean) => void;
+    /** `sx`/`sy`: posició de pantalla (on s'obre el menú de capes del clic dret). */
+    down: (mx: number, my: number, erase: boolean, shift: boolean, sx: number, sy: number) => void;
     /** `shift`: amb el pinzell «Moure», l'objecte s'enganxa a la casella. */
     move: (mx: number, my: number, shift?: boolean) => void;
     up: () => boolean;
     leave: () => void;
+    /** Mantenir premut a la pantalla tàctil: menú de capes de l'element del punt. */
+    menu: (mx: number, my: number, sx: number, sy: number) => boolean;
   };
   notify: import('@/types').Notify;
   /** Obre el pop-up de dany al costat del token objectiu d'un atac. */
@@ -280,7 +283,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     // Eina Caselles: botó esquerre pinta, el dret esborra (arrossegant o en rectangle amb Maj).
     if (R.rDrawTool.current === 'tiles' && S.tileTool && (e.button === 0 || e.button === 2)) {
       const { mx: tmx, my: tmy } = mc(e);
-      S.tileTool.down(tmx, tmy, e.button === 2, e.shiftKey);
+      S.tileTool.down(tmx, tmy, e.button === 2, e.shiftKey, e.clientX, e.clientY);
       e.preventDefault(); return;
     }
     if (e.button !== 0) return;
@@ -1018,8 +1021,13 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    // L'eina Caselles fa servir el clic dret per esborrar (a onMouseDown): cap menú.
-    if (R.rDrawTool.current === 'tiles' || R.rDrawTool.current === 'terrain') return;
+    // L'eina Caselles fa servir el clic dret a onMouseDown/onMouseUp (esborrar o menú de capes). A la
+    // pantalla tàctil no n'hi ha: mantenir premut (`longPress`, de `useCanvasPointer`) obre el menú.
+    if (R.rDrawTool.current === 'tiles') {
+      if ((e as unknown as { longPress?: boolean }).longPress && S.tileTool) { const { mx, my } = mc(e); S.tileTool.menu(mx, my, e.clientX, e.clientY); }
+      return;
+    }
+    if (R.rDrawTool.current === 'terrain') return;
     // Clic dret amb una màgia per col·locar: la cancel·la (com Esc)
     if (R.rAreaPlacementPending.current || R.rAttackPending.current) { cancelPendingSpell(R); return; }
     const { mx, my, sc } = mc(e);

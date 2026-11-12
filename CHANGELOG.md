@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.22 — Mapa de caselles: ordre de les capes i eina Girar
+- Clic dret (sense arrossegar) sobre un objecte o un decorat: menú amb Porta al davant · Porta endavant · Envia enrere · Envia al fons, Girar 90° i Esborrar (a la pantalla tàctil, mantenir premut). Clic dret arrossegant continua esborrant
+- Els decorats i els objectes s'apilen a la mateixa casella (fins a 4): el nou va a sobre i l'esborrador en treu un cada vegada
+- «Girar» ara és una eina: es tria i cada clic gira 90° l'objecte o el decorat de sota; la R gira el que hi ha sota el cursor. Els pinzells de la paleta ja no es giren
+
 ### v5.21 — Sales fosques: només la paret vertical, no la vista des de dalt
 - De la paret de dalt d'una sala fosca, només es fa fosca la meitat de baix (la cara vertical, on hi ha els maons i el que hi penja); la meitat de dalt és la paret vista des de dalt i es veu sempre, com les parets laterals
 - Les partides desades amb la v5.20 es corregeixen soles en carregar-les

@@ -19,39 +19,38 @@ const TABS: [Tab, string][] = [
 interface Props {
   brush: TileBrush;
   onBrush: (b: TileBrush) => void;
-  /** Girar 90° (el mateix que la tecla R): el pinzell o, amb «Moure», l'objecte triat. */
-  onRotate: () => void;
 }
 
-/** Una peça de la paleta (miniatura del full, a pixel art). `rot`: quarts de volta (es veu girada). */
-function Swatch({ thumb, label, active, onClick, rot = 0 }: { thumb: string | null; label: string; active: boolean; onClick: () => void; rot?: number }) {
+/** Una peça de la paleta (miniatura del full, a pixel art). */
+function Swatch({ thumb, label, active, onClick }: { thumb: string | null; label: string; active: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} title={label} aria-label={label} aria-pressed={active}
       style={{
         width: 40, height: 40, padding: 3, borderRadius: RADIUS.sm, cursor: 'pointer', flexShrink: 0,
         border: `1px solid ${active ? C.accent : C.border}`, background: active ? tint(C.accent, 0.14) : C.dark,
       }}>
-      {thumb && <img src={thumb} alt="" style={{ width: 32, height: 32, imageRendering: 'pixelated', display: 'block', transform: rot ? `rotate(${rot * 90}deg)` : undefined }} />}
+      {thumb && <img src={thumb} alt="" style={{ width: 32, height: 32, imageRendering: 'pixelated', display: 'block' }} />}
     </button>
   );
 }
 
 /**
- * Orientació i col·locació (pestanyes Objectes, Botí i Decorat): «Girar» (R) i, per als objectes,
- * el pinzell «Moure», que arrossega un objecte ja posat on es vulgui, fora de la graella.
+ * Eines per a les peces ja posades (pestanyes Objectes, Botí i Decorat): «Moure» arrossega un objecte
+ * on es vulgui, fora de la graella; «Girar» gira 90° cada objecte o decorat que es cliqui. Es fan
+ * servir com un pinzell més: es trien i després es clica al mapa (tornar a clicar una peça per pintar).
  */
-function PlaceBar({ rot, moving, onRotate, onMove }: { rot: number; moving: boolean; onRotate: () => void; onMove?: () => void }) {
+function PlaceBar({ brush, onBrush, move }: { brush: TileBrush; onBrush: (b: TileBrush) => void; move: boolean }) {
   return (
     <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-      {onMove && (
-        <Button size="sm" active={moving} onClick={onMove} style={{ flex: 1, height: 28 }}
-          title="Arrossega un objecte ja posat on vulguis, al píxel (Maj l'enganxa a la casella). Clica'l i prem R per girar-lo.">
+      {move && (
+        <Button size="sm" active={brush.kind === 'move'} onClick={() => onBrush({ kind: 'move' })} style={{ flex: 1, height: 28 }}
+          title="Arrossega un objecte ja posat on vulguis, al píxel (Maj l'enganxa a la casella)">
           <Move size={13} /> Moure
         </Button>
       )}
-      <Button size="sm" onClick={onRotate} style={{ flex: 1, height: 28 }}
-        title={moving ? 'Gira 90° l\'objecte triat (R)' : 'Gira 90° el que pintis d\'aquí endavant (R)'}>
-        <RedoIcon size={13} /> Girar{moving ? '' : ` · ${rot * 90}°`}
+      <Button size="sm" active={brush.kind === 'rotate'} onClick={() => onBrush({ kind: 'rotate' })} style={{ flex: 1, height: 28 }}
+        title="Clica un objecte o un decorat ja posat per girar-lo 90° (cada clic, un quart de volta). Amb qualsevol pinzell, la R gira el que hi ha sota el cursor.">
+        <RedoIcon size={13} /> Girar
       </Button>
     </div>
   );
@@ -68,7 +67,7 @@ const Label = ({ children }: { children: React.ReactNode }) => (
  * Paleta de l'eina Caselles (flyout de la barra d'eines, mode Preparar i estil Píxel).
  * «Sales» és el pinzell principal: un rectangle amb terra a dins i paret a la vora.
  */
-export function TilePalette({ brush, onBrush, onRotate }: Props) {
+export function TilePalette({ brush, onBrush }: Props) {
   const pack = useSpritePack();
   const [tab, setTab] = useState<Tab>('sala');
   // Terra i paret triats per a l'eina Sala (es recorden encara que es pinti amb un altre pinzell).
@@ -77,13 +76,8 @@ export function TilePalette({ brush, onBrush, onRotate }: Props) {
   const ready = pack.status === 'ready';
   const world = useMemo(() => (ready && tab === 'mon' ? worldTiles() : []), [ready, tab]);
 
-  // La rotació no compta per saber quina peça és la triada; en canviar de peça, es conserva.
-  const rot = brush.kind === 'decor' || brush.kind === 'object' ? brush.rot ?? 0 : 0;
-  const strip = (b: TileBrush) => JSON.stringify(b.kind === 'decor' || b.kind === 'object' ? { ...b, rot: 0 } : b);
-  const is = (b: TileBrush) => strip(b) === strip(brush);
-  const pick = (b: TileBrush) => onBrush(b.kind === 'decor' || b.kind === 'object' ? { ...b, rot } : b);
-  const moving = brush.kind === 'move';
-  const toMove = () => onBrush({ kind: 'move' });
+  const is = (b: TileBrush) => JSON.stringify(b) === JSON.stringify(brush);
+  const pick = (b: TileBrush) => onBrush(b);
 
   return (
     <div style={{ width: 312, borderRadius: RADIUS.lg, background: C.float, border: `1px solid ${C.border}`, boxShadow: SHADOW.float, pointerEvents: 'auto', display: 'flex', flexDirection: 'column', maxHeight: 'min(560px, calc(100vh - 140px))' }}>
@@ -148,22 +142,22 @@ export function TilePalette({ brush, onBrush, onRotate }: Props) {
               </>
             )}
             {tab === 'objectes' && (
-              <><PlaceBar rot={rot} moving={moving} onRotate={onRotate} onMove={toMove} />
+              <><PlaceBar brush={brush} onBrush={onBrush} move />
               <Label>Mobles i detalls</Label><Grid>
-                {OBJECT_KEYS.map(k => <Swatch key={k} rot={rot} thumb={tileThumb(k)} label={OBJECTS[k].label + (OBJECTS[k].lightFt ? ' · fa llum' : '')} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}
+                {OBJECT_KEYS.map(k => <Swatch key={k} thumb={tileThumb(k)} label={OBJECTS[k].label + (OBJECTS[k].lightFt ? ' · fa llum' : '')} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}
               </Grid></>
             )}
             {tab === 'boti' && (
-              <><PlaceBar rot={rot} moving={moving} onRotate={onRotate} onMove={toMove} />
+              <><PlaceBar brush={brush} onBrush={onBrush} move />
               <Label>Objectes del full de botí</Label><Grid>
-                {LOOT_KEYS.map(k => <Swatch key={k} rot={rot} thumb={tileThumb(k)} label={objectDef(k)?.label ?? k} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}
+                {LOOT_KEYS.map(k => <Swatch key={k} thumb={tileThumb(k)} label={objectDef(k)?.label ?? k} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}
               </Grid></>
             )}
-            {tab === 'decorat' && <PlaceBar rot={rot} moving={false} onRotate={onRotate} />}
+            {tab === 'decorat' && <PlaceBar brush={brush} onBrush={onBrush} move={false} />}
             {tab === 'decorat' && DECOR.map(g => (
               <React.Fragment key={g.label}>
                 <Label>{g.label}</Label>
-                <Grid>{g.tiles.map(tile => <Swatch key={tile} rot={rot} thumb={tileThumb(tile)} label={g.label} active={is({ kind: 'decor', tile })} onClick={() => pick({ kind: 'decor', tile })} />)}</Grid>
+                <Grid>{g.tiles.map(tile => <Swatch key={tile} thumb={tileThumb(tile)} label={g.label} active={is({ kind: 'decor', tile })} onClick={() => pick({ kind: 'decor', tile })} />)}</Grid>
               </React.Fragment>
             ))}
             {tab === 'mon' && (
@@ -175,9 +169,12 @@ export function TilePalette({ brush, onBrush, onRotate }: Props) {
         </ScrollArea>
       )}
       <div style={{ padding: '6px 10px', borderTop: `1px solid ${C.border}`, fontSize: FS.xs, color: C.dim, lineHeight: 1.5 }}
-        title={moving ? 'Arrossega un objecte on vulguis · Maj l\'enganxa a la casella · R gira l\'objecte triat · clic dret esborra'
-          : 'Arrossega per pintar · Maj omple un rectangle · R gira el decorat o l\'objecte · clic dret esborra'}>
-        {moving ? 'Arrossegar · Maj a la casella · R gira' : 'Pintar · Maj omple · R gira · clic dret esborra'}
+        title={brush.kind === 'move' ? 'Arrossega un objecte on vulguis · Maj l\'enganxa a la casella · clic dret: menú de capes'
+          : brush.kind === 'rotate' ? 'Clica un objecte o un decorat per girar-lo 90° · clic dret: menú de capes'
+          : 'Arrossega per pintar · Maj omple un rectangle · clic dret: capes (arrossegant, esborra) · R gira el de sota'}>
+        {brush.kind === 'move' ? 'Arrossegar · Maj a la casella · clic dret: capes'
+          : brush.kind === 'rotate' ? 'Clic: girar 90° · clic dret: capes'
+          : 'Pintar · Maj omple · clic dret: capes o esborrar'}
       </div>
     </div>
   );

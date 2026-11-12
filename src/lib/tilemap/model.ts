@@ -32,9 +32,14 @@ export const EMPTY = -1;
  * Objecte posat sobre el mapa (pot ocupar més d'una casella: estàtua, torxa, font…).
  * `c`/`r`: casella de l'àncora. `rot`: quarts de volta en sentit horari (0–3; tot l'objecte gira
  * al voltant del centre de l'àncora). `ox`/`oy`: desplaçament lliure en px de mapa (= píxels de
- * l'art, entre −24 i 24), per deixar-lo fora de la graella (eina «Moure»).
+ * l'art, entre −24 i 24), per deixar-lo fora de la graella (eina «Moure»). `z`: nivell per a l'ordre
+ * de les capes (menú del clic dret: porta al davant, envia al fons…); a igual nivell, el de més avall
+ * tapa el de dalt.
  */
-export interface TileObject { c: number; r: number; k: string; rot?: number; ox?: number; oy?: number }
+export interface TileObject { c: number; r: number; k: string; rot?: number; ox?: number; oy?: number; z?: number }
+
+/** Decorats que l'editor apila com a molt en una casella (cada un en una capa de `overlays`). */
+export const MAX_DECOR_STACK = 4;
 
 /**
  * Decorat girat: la rotació (quarts de volta) va dins del codi de la casella de la capa de decorat

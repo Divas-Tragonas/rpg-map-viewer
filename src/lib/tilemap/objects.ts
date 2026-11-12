@@ -63,12 +63,18 @@ export function objectCells(m: TileMap, o: TileObject, mode: 'center' | 'overlap
   return [...out];
 }
 
+/** Compara dos objectes en ordre de pintat: primer el nivell (`z`), després l'alçada i l'ordre de la llista. */
+export function objectCmp(objs: readonly TileObject[], a: number, b: number): number {
+  return ((objs[a].z ?? 0) - (objs[b].z ?? 0)) || (anchorCenter(objs[a]).y - anchorCenter(objs[b]).y) || a - b;
+}
+
 /**
- * Ordre de pintat: el de més avall tapa el de dalt (per l'alçada real de l'àncora, desplaçament
- * inclòs). Retorna els índexs de `m.objects` (estable: a la mateixa alçada, el posat després va a sobre).
+ * Ordre de pintat: primer el nivell de capa (`z`, menú del clic dret) i, al mateix nivell, el de més
+ * avall tapa el de dalt (per l'alçada real de l'àncora, desplaçament inclòs). Retorna els índexs de
+ * `m.objects` (estable: a la mateixa alçada, el posat després va a sobre).
  */
 export function objectDrawOrder(objs: readonly TileObject[]): number[] {
-  return objs.map((_, i) => i).sort((a, b) => (anchorCenter(objs[a]).y - anchorCenter(objs[b]).y) || a - b);
+  return objs.map((_, i) => i).sort((a, b) => objectCmp(objs, a, b));
 }
 
 /** Objecte de dalt de tot sota el punt (px de mapa): índex a `m.objects` o −1. */
