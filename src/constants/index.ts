@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v5.25';
+export const APP_VERSION = 'v5.26';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):

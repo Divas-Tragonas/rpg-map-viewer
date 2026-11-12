@@ -1,0 +1,723 @@
+[
+ {
+  "id": "ox_chair",
+  "label": "Cadira",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chair_dark",
+  "label": "Cadira fosca",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chair_cushion_red",
+  "label": "Cadira amb coixí vermell",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chair_cushion_blue",
+  "label": "Cadira amb coixí blau",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chair_cushion_green",
+  "label": "Cadira amb coixí verd",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_stool",
+  "label": "Tamboret",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_stool_dark",
+  "label": "Tamboret fosc",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bench",
+  "label": "Banc",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bench_dark",
+  "label": "Banc fosc",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_table_small",
+  "label": "Tauleta",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_table_small_dark",
+  "label": "Tauleta fosca",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_table_round",
+  "label": "Taula rodona",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_table_round_dark",
+  "label": "Taula rodona fosca",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_table_long",
+  "label": "Taula llarga",
+  "group": "ox_furniture",
+  "w": 144,
+  "h": 48
+ },
+ {
+  "id": "ox_table_long_dark",
+  "label": "Taula llarga fosca",
+  "group": "ox_furniture",
+  "w": 144,
+  "h": 48
+ },
+ {
+  "id": "ox_table_long_cloth_red",
+  "label": "Taula llarga amb estovalles vermelles",
+  "group": "ox_furniture",
+  "w": 144,
+  "h": 48
+ },
+ {
+  "id": "ox_table_long_cloth_blue",
+  "label": "Taula llarga amb estovalles blaves",
+  "group": "ox_furniture",
+  "w": 144,
+  "h": 48
+ },
+ {
+  "id": "ox_table_long_cloth_purple",
+  "label": "Taula llarga amb estovalles morades",
+  "group": "ox_furniture",
+  "w": 144,
+  "h": 48
+ },
+ {
+  "id": "ox_table_long_feast",
+  "label": "Taula llarga parada",
+  "group": "ox_furniture",
+  "w": 144,
+  "h": 48
+ },
+ {
+  "id": "ox_bed_red",
+  "label": "Llit vermell",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 96
+ },
+ {
+  "id": "ox_bed_blue",
+  "label": "Llit blau",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 96
+ },
+ {
+  "id": "ox_bed_green",
+  "label": "Llit verd",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 96
+ },
+ {
+  "id": "ox_bed_purple",
+  "label": "Llit morat",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 96
+ },
+ {
+  "id": "ox_bookshelf",
+  "label": "Prestatgeria plena",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bookshelf_half",
+  "label": "Prestatgeria mig buida",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bookshelf_potions",
+  "label": "Prestatgeria amb pocions",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_wardrobe",
+  "label": "Armari",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_wardrobe_dark",
+  "label": "Armari fosc",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_throne_red",
+  "label": "Tron vermell",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_throne_blue",
+  "label": "Tron blau",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_throne_purple",
+  "label": "Tron morat",
+  "group": "ox_furniture",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_small",
+  "label": "Caixa petita",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_small_dark",
+  "label": "Caixa petita fosca",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_braced",
+  "label": "Caixa reforçada",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_braced_dark",
+  "label": "Caixa reforçada fosca",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_open",
+  "label": "Caixa oberta",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_open_dark",
+  "label": "Caixa oberta fosca",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_apples",
+  "label": "Caixa de pomes",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_bottles",
+  "label": "Caixa d'ampolles",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_stack",
+  "label": "Pila de caixes",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_stack_dark",
+  "label": "Pila de caixes fosca",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_barrel_iron",
+  "label": "Bóta ferrada",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_barrel_iron_dark",
+  "label": "Bóta ferrada fosca",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_barrel_water",
+  "label": "Bóta d'aigua",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_barrel_side",
+  "label": "Bóta ajaguda",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_barrel_side_dark",
+  "label": "Bóta ajaguda fosca",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_keg",
+  "label": "Barrilet amb aixeta",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_sack",
+  "label": "Sac",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_sack_grain",
+  "label": "Sac de gra",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_sack_pile",
+  "label": "Pila de sacs",
+  "group": "ox_containers",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_tall_clay",
+  "label": "Gerro alt d'argila",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_tall_blue",
+  "label": "Gerro alt blau",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_tall_white",
+  "label": "Gerro alt blanc",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_tall_green",
+  "label": "Gerro alt verd",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_amphora_clay",
+  "label": "Àmfora d'argila",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_amphora_blue",
+  "label": "Àmfora blau",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_amphora_white",
+  "label": "Àmfora blanc",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_amphora_green",
+  "label": "Àmfora verd",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_round_clay",
+  "label": "Olla d'argila",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_round_blue",
+  "label": "Olla blau",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_round_white",
+  "label": "Olla blanc",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_round_green",
+  "label": "Olla verd",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_urn_clay",
+  "label": "Urna d'argila",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_urn_blue",
+  "label": "Urna blau",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_urn_white",
+  "label": "Urna blanc",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_urn_green",
+  "label": "Urna verd",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_broken_clay",
+  "label": "Gerro trencat d'argila",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_broken_blue",
+  "label": "Gerro trencat blau",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_broken_white",
+  "label": "Gerro trencat blanc",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_broken_green",
+  "label": "Gerro trencat verd",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_plant",
+  "label": "Gerro amb planta",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_vase_flowers",
+  "label": "Gerro amb flors",
+  "group": "ox_vases",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_closed",
+  "label": "Cofre gran tancat",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_empty",
+  "label": "Cofre gran obert",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_gold",
+  "label": "Cofre gran amb or",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_dark_closed",
+  "label": "Cofre fosc tancat",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_dark_empty",
+  "label": "Cofre fosc obert",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_iron_closed",
+  "label": "Cofre de ferro tancat",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_iron_empty",
+  "label": "Cofre de ferro obert",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chest_iron_gold",
+  "label": "Cofre de ferro amb or",
+  "group": "ox_chests",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_stack_gold",
+  "label": "Pila de monedes d'or",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_stack_silver",
+  "label": "Pila de monedes de plata",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_stack_copper",
+  "label": "Pila de monedes de coure",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_stacks_gold",
+  "label": "Piles de monedes d'or",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_stacks_silver",
+  "label": "Piles de monedes de plata",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_stacks_copper",
+  "label": "Piles de monedes de coure",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coins_loose_gold",
+  "label": "Monedes escampades d'or",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coins_loose_silver",
+  "label": "Monedes escampades de plata",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coins_loose_copper",
+  "label": "Monedes escampades de coure",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_pile_gold",
+  "label": "Munt de monedes d'or",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_pile_silver",
+  "label": "Munt de monedes de plata",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_pile_copper",
+  "label": "Munt de monedes de coure",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_hoard_gold",
+  "label": "Gran munt de monedes d'or",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_hoard_silver",
+  "label": "Gran munt de monedes de plata",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_coin_hoard_copper",
+  "label": "Gran munt de monedes de coure",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bars_gold",
+  "label": "Lingots d'or",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bars_silver",
+  "label": "Lingots de plata",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crown",
+  "label": "Corona",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_goblet",
+  "label": "Copa d'or",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_goblet_silver",
+  "label": "Copa de plata",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_gems",
+  "label": "Gemmes",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_pouch",
+  "label": "Bossa de monedes",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_jewels",
+  "label": "Joies",
+  "group": "ox_treasure",
+  "w": 48,
+  "h": 48
+ }
+]

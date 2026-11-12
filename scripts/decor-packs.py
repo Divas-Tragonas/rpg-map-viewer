@@ -19,6 +19,7 @@ pintarien una altra cosa. Les peces noves s'encabeixen als forats que quedin sen
 
     python3 scripts/decor-packs.py
 """
+import json
 import math
 import os
 from PIL import Image
@@ -38,6 +39,12 @@ GROUPS = {
     'forest': ('Bosc', 'objectes', 'object'),
     'tiny': ('Objectes petits', 'boti', 'object'),
     'broken': ('Gerres trencades', 'decorat', 'decor'),
+    # Art propi a l'estil Oryx (`scripts/oryx-style-props.py`, v5.26)
+    'ox_furniture': ('Mobles', 'objectes', 'object'),
+    'ox_containers': ('Caixes, bótes i sacs', 'objectes', 'object'),
+    'ox_vases': ('Gerros i àmfores', 'objectes', 'object'),
+    'ox_chests': ('Cofres grans', 'objectes', 'object'),
+    'ox_treasure': ('Monedes i tresor', 'boti', 'object'),
 }
 
 PIECES = []  # (id, etiqueta, grup, fitxer, x, y, w, h)
@@ -96,6 +103,11 @@ TINY = [
 ]
 for fname, label in TINY:
     add('tiny_' + fname.replace('-', '_').replace(' ', '_'), label, 'tiny', f'tiny-dungeon-items/{fname}.png', 0, 0, 16, 16)
+
+# ── Art propi a l'estil Oryx (v5.26): la llista la fa `scripts/oryx-style-props.py` (`pieces.json`) ──
+with open(os.path.join(SRC, 'oryx-style', 'pieces.json'), encoding='utf-8') as _f:
+    for _p in json.load(_f):
+        add(_p['id'], _p['label'], _p['group'], f"oryx-style/{_p['id']}.png", 0, 0, _p['w'], _p['h'])
 
 
 def block_size(w, h):

@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.26 — Objectes nous a l'estil Oryx: mobles, caixes, gerros, cofres i tresor
+- 103 peces noves dibuixades expressament amb les regles de l'Oryx (píxel a 2×, la seva rampa de fusta i de pedra, l'ombra de tres franges): omplen la casella com la caixa i la taula de l'autor
+- Objectes → «Mobles» (cadires, tamboret, banc, tauleta, taula rodona, taules llargues de 3 caselles nues, amb estovalles o parades, llits de 1×2, prestatgeries, armari, tron), «Caixes, bótes i sacs», «Gerros i àmfores» (4 formes × 4 colors, trencats, amb planta o flors) i «Cofres grans» (fusta, fusta fosca i ferro; tancats, oberts i amb or)
+- Botí → «Monedes i tresor»: piles, monedes escampades i munts d'or, plata i coure, lingots, corona, copes, gemmes, bossa i joies
+- Art propi generat amb `scripts/oryx-style-props.py` (a `assets/decor-packs/oryx-style/`); es mouen, es giren i s'ordenen com la resta. Cap canvi a la API ni a les partides desades
+
 ### v5.25 — Sales fosques: res no se'n veu fins que es descobreix
 - Pantalla de jugador: un token amb el centre a la foscor d'una sala fosca s'amaga sencer (abans en sobresortia el cap de la figureta); els enemics apareixen i desapareixen amb un fos suau en entrar i sortir de la llum
 - Mapa de caselles: les torxes, objectes (també els desplaçats o girats) i decorats que són majoritàriament dins d'una sala però en sobresurten, i les decoracions de la paret de dalt (estendards, gàrgoles), no es veuen fins que la zona es descobreix: s'hi repinta la paret o el terra que hi hauria sense la peça
