@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.20 — Sales fosques: la paret de dalt també es fa fosca
+- Al mapa de caselles, la cara de paret que mira cap a una sala (amb els estendards, teranyines, mobles o decorat que hi hagi a sobre) forma part de la sala: queda fosca amb ella i s'il·lumina quan hi ha algú a dins
+- Les partides desades abans s'actualitzen soles en carregar-les; parets, portes i moviment no canvien
+
 ### v5.19 — Mapa de caselles: girar el decorat i els objectes i moure objectes fora de la graella
 - Tecla R (o «Girar» a la paleta): el decorat i els objectes es pinten girats de 90 en 90°; la miniatura i la previsualització sota el cursor ja surten girades
 - Pinzell «Moure» (pestanyes Objectes i Botí): arrossega un objecte ja posat on vulguis, al píxel (Maj l'enganxa a la casella); clicat queda triat i la R el gira

@@ -5,7 +5,8 @@ import type { Wall, Room, Door, LightSource } from '@/types';
 import { TILE, emptyTileMap, cloneTileMap, fitTileMap, type TileMap, type TileFit } from '@/lib/tilemap/model';
 import { applyBrush, rectCells, lineCells, isRectBrush, type TileBrush, type Cell } from '@/lib/tilemap/editor';
 import { bakeTileMap, repaintCells, tileLiveOf } from '@/lib/tilemap/render';
-import { tileWalls, tileDoors, tileLights, keepRoomFace } from '@/lib/tilemap/geometry';
+import { tileWalls, tileDoors, tileLights, keepRoomFace, extendRoomFace } from '@/lib/tilemap/geometry';
+import { getBBox } from '@/lib/geometry';
 import { parseTmx } from '@/lib/tilemap/tmx';
 import { objectAt, objectCells, anchorCenter, placeObjectAt, quarter } from '@/lib/tilemap/objects';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
@@ -57,7 +58,8 @@ export function useTileMap(R: DMRefs, D: Deps) {
       doors = [...manualDoors, ...tileDoors(gen.doorSegs, R.rDoors.current)];
       lights = [...manualLights, ...tileLights(m)];
     }
-    const faces = detectRooms(walls).filter(f => !m || keepRoomFace(m, f));
+    // Amb mapa de caselles, cada sala s'emporta les cares de paret que hi miren (es foscaran amb ella).
+    const faces = detectRooms(walls).filter(f => !m || keepRoomFace(m, f)).map(f => (m ? extendRoomFace(m, f) : f));
     const rooms = reconcileRooms(R.rRooms.current, faces);
     doors = pruneDoors(walls, doors);
     R.rWalls.current = walls; d.setWalls(walls);
@@ -101,6 +103,10 @@ export function useTileMap(R: DMRefs, D: Deps) {
       if (opts?.rebake === false) {
         R.rTileCanvas.current = bakeTileMap(m);
         R.rTileLive.current = tileLiveOf(m);
+        // Partides desades abans de la v5.20: les sales no portaven les cares de paret.
+        const rooms = R.rRooms.current;
+        const ext = rooms.map(r => { const p = extendRoomFace(m, r.points); return p === r.points ? r : { ...r, points: p, bbox: getBBox(p) }; });
+        if (ext.some((r, i) => r !== rooms[i])) { R.rRooms.current = ext; Dref.current.setRooms(ext); }
         return;
       }
       const cv = bakeTileMap(m);
