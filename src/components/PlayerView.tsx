@@ -893,6 +893,8 @@ export function PlayerView() {
     const tick = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(tick);
+      // Escena a pantalla (opaca, fos acabat): el mapa de sota no es veu, no el pintem.
+      if (sceneCtlRef.current?.covering()) return;
       const now = performance.now();
       const painted = framePace(now);
       if (painted) frame();

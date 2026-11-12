@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.16 — Escena (imatge + text) molt més àgil a la pantalla de jugador
+- El text ja no repinta cada caràcter a cada fotograma: només s'escriu al DOM el que canvia, el desenfocament queda als últims caràcters (i s'apaga a l'iPad i quan va lent) i el seguiment del scroll no força el layout a cada frame
+- Ombres de text més lleugeres i fons desenfocat de la imatge pintat una sola vegada en un llenç petit
+- Mentre l'escena tapa tot el mapa, la pantalla de jugador deixa de pintar el mapa de sota
+- Mesura: temps de ràster del text −70 % (subtítols) i −89 % (pantalla completa)
+
 ### v5.15 — Càmera més àgil amb llums: reprojecció, terra explorat en coordenades de mapa i qualitat adaptativa
 - En moure o fer zoom a la càmera, les llums ja no es refan a cada fotograma: es reprojecta el rasteritzat anterior i, en aturar-se, es fa una passada final a resolució plena
 - El terra explorat es guarda en coordenades de mapa: moure la càmera no el refà

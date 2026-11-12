@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { RevealEngine } from '@/lib/textreveal';
+import { wake } from '@/lib/render/wake';
 import { SceneStage } from '@/components/scene/SceneStage';
 import {
   DEFAULT_SCENE_OPTS, IDENTITY_VIEW, SentenceWindow, viewTransform,
@@ -15,6 +16,8 @@ export interface SceneController {
   sync(s: SceneSync): void;
   /** Imatge o vídeo de l'escena (pel BroadcastChannel o pel WS). */
   media(buffer: ArrayBuffer, mimeType: string, id: string): void;
+  /** L'escena tapa del tot el mapa (opaca i ja sense fos): el mapa no cal pintar-lo. */
+  covering(): boolean;
 }
 
 const FADE_SWAP_MS = 350;
@@ -49,6 +52,7 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
   const boxRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
+  const coverRef = useRef(false);
 
   useEffect(() => {
     const urls = urlsRef.current;
@@ -73,6 +77,7 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
     };
 
     const ctl: SceneController = {
+      covering: () => coverRef.current,
       apply(next) {
         const cur = sceneRef.current;
         if (!next) {
@@ -148,13 +153,27 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
   useEffect(() => {
     let raf = 0;
     let last = 0;
+    // Qualitat adaptativa del desenfocament dels caràcters (el més car del text): en pantalles
+    // tàctils comença apagat; si el ritme real cau per sota de ~38 fps s'apaga, i es torna a
+    // encendre quan va sobrat. Es mesura només mentre hi ha caràcters esvaint-se.
+    let ema = 16, blurChangedAt = 0, lastTf = '';
+    const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+    if (coarse) (engRef.current ??= new RevealEngine()).blur = false;
     const tick = (ts: number) => {
       raf = requestAnimationFrame(tick);
       const sc = sceneRef.current;
       const eng = engRef.current;
-      const dt = last ? Math.min(80, ts - last) : 16;
+      const rawDt = last ? ts - last : 16;
+      const dt = Math.min(80, rawDt);
       last = ts;
       if (!sc || !eng) return;
+      if (!coarse && eng.passed > eng.solid && rawDt < 100) {
+        ema = ema * 0.9 + rawDt * 0.1;
+        if (ts - blurChangedAt > 2000) {
+          if (eng.blur && ema > 26) { eng.blur = false; blurChangedAt = ts; }
+          else if (!eng.blur && ema < 18) { eng.blur = true; blurChangedAt = ts; }
+        }
+      }
       const t = tgtRef.current;
       eng.tick(dt);
       eng.follow(t.pos, t.cps);
@@ -173,12 +192,25 @@ export function SceneOverlay({ controllerRef }: { controllerRef: React.RefObject
         cur.panYNorm += (tg.panYNorm - cur.panYNorm) * EL;
         cur.kbTxPct += (tg.kbTxPct - cur.kbTxPct) * EL;
         cur.kbTyPct += (tg.kbTyPct - cur.kbTyPct) * EL;
-        inner.style.transform = viewTransform(cur, sizeRef.current.w, sizeRef.current.h);
+        // Només s'escriu si ha canviat (l'enquadrament convergeix i, un cop quiet, no cal tocar el DOM).
+        const tf = viewTransform(cur, sizeRef.current.w, sizeRef.current.h);
+        if (tf !== lastTf) { inner.style.transform = tf; lastTf = tf; }
       }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // El mapa de sota no cal pintar-lo mentre l'escena el tapa del tot: es marca 1,5 s després que
+  // l'escena quedi visible (fos d'entrada acabat) i es desmarca (i es desperta el bucle del
+  // mapa) en començar a amagar-se.
+  useEffect(() => {
+    if (visible && !fading) {
+      const t = setTimeout(() => { coverRef.current = true; }, 1500);
+      return () => clearTimeout(t);
+    }
+    if (coverRef.current) { coverRef.current = false; wake(); }
+  }, [visible, fading]);
 
   return (
     <div

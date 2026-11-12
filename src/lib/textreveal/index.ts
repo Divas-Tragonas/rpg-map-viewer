@@ -52,12 +52,22 @@ export class RevealEngine {
   clock = 0;      // rellotge lògic (ms)
   bounds: number[] = [];
   paraSet: Set<number> = new Set();
+  // Rendiment (iPad, ordinador just): un `filter: blur()` per caràcter és molt car (cada span
+  // en fa una superfície pròpia). Només els `blurMax` últims caràcters en tenen, el desenfocament
+  // va a passos de 0,3 px i només s'escriu al DOM el que ha canviat de debò. `blur = false`
+  // (l'escena el baixa sola si la pantalla va lenta) deixa només l'esvaïment d'opacitat.
+  blur = true;
+  blurMax = 10;
+  private op: Float32Array = new Float32Array(0);   // opacitat ja escrita a cada span
+  private bl: Uint8Array = new Uint8Array(0);       // nivell de desenfocament ja escrit (0 = cap)
+  private scrollAt = -1e9;
 
   setText(text: string, container: HTMLElement): void {
     this.chars = text;
     this.n = text.length;
     this.pos = 0; this.passed = 0; this.solid = 0; this.target = 0; this.dwell = 0; this.clock = 0;
     this.revealStart = new Array(this.n).fill(Infinity);
+    this.op = new Float32Array(this.n); this.bl = new Uint8Array(this.n);
     this.units = [];
     container.innerHTML = '';
     if (!text) { this.bounds = []; this.paraSet = new Set(); return; }
@@ -79,7 +89,7 @@ export class RevealEngine {
 
   clearVisual(): void {
     for (let i = 0; i < this.passed; i++) {
-      if (this.units[i]) { this.units[i].style.opacity = '0'; this.units[i].style.filter = ''; }
+      if (this.units[i]) { this.units[i].style.opacity = '0'; this.units[i].style.filter = ''; this.op[i] = 0; this.bl[i] = 0; }
     }
     for (let j = 0; j < this.n; j++) this.revealStart[j] = Infinity;
     this.passed = 0; this.solid = 0;
@@ -104,7 +114,7 @@ export class RevealEngine {
     this.clearVisual();
     for (let i = 0; i < k; i++) {
       this.revealStart[i] = -1e12;
-      if (this.units[i]) { this.units[i].style.opacity = '1'; this.units[i].style.filter = 'none'; }
+      if (this.units[i]) { this.units[i].style.opacity = '1'; this.units[i].style.filter = 'none'; this.op[i] = 1; this.bl[i] = 0; }
     }
     this.passed = k; this.solid = k; this.pos = t; this.target = t;
   }
@@ -164,17 +174,24 @@ export class RevealEngine {
   render(fadeMs: number, stage?: HTMLElement | null): void {
     if (!this.n) return;
     while (this.solid < this.passed && (this.clock - this.revealStart[this.solid]) >= fadeMs) {
-      this.units[this.solid].style.opacity = '1';
-      this.units[this.solid].style.filter = 'none';
+      const i = this.solid, st = this.units[i].style;
+      if (this.op[i] !== 1) { st.opacity = '1'; this.op[i] = 1; }
+      if (this.bl[i]) { st.filter = 'none'; this.bl[i] = 0; }
       this.solid++;
     }
+    const blurFrom = this.passed - this.blurMax;
     for (let i = this.solid; i < this.passed; i++) {
       let p = (this.clock - this.revealStart[i]) / fadeMs; p = p < 0 ? 0 : p > 1 ? 1 : p;
       const o = p * p * (3 - 2 * p); // smoothstep
-      this.units[i].style.opacity = o.toFixed(3);
-      this.units[i].style.filter = o > 0.985 ? 'none' : `blur(${((1 - o) * 2.4).toFixed(2)}px)`;
+      const q = Math.round(o * 32) / 32;   // passos d'1/32: sota el que es distingeix
+      const st = this.units[i].style;
+      if (this.op[i] !== q) { st.opacity = String(q); this.op[i] = q; }
+      const lvl = (this.blur && i >= blurFrom && o < 0.985) ? Math.max(1, Math.round((1 - o) * 2.4 / 0.3)) : 0;
+      if (this.bl[i] !== lvl) { st.filter = lvl ? `blur(${(lvl * 0.3).toFixed(1)}px)` : 'none'; this.bl[i] = lvl; }
     }
-    if (stage) this.follow_scroll(stage);
+    // El seguiment del scroll llegeix la geometria (layout forçat amb tots els spans bruts): només
+    // cada 150 ms, que amb 40 px de marge sobra fins i tot a 55 caràcters per segon.
+    if (stage && this.clock - this.scrollAt >= 150) { this.scrollAt = this.clock; this.follow_scroll(stage); }
   }
 
   // Re-anivella `solid` (en pausa, en moure el control de suavitat).

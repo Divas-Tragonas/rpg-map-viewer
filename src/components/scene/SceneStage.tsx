@@ -13,6 +13,54 @@ const BAND: Record<SceneOpts['place'], React.CSSProperties> = {
 };
 
 /**
+ * Fons desenfocat de les imatges que no omplen l'escenari (`contain`). Abans era un
+ * `filter: blur(36px)` damunt de tota la pantalla (molt car a l'iPad, que el repetia en cada
+ * fos i transformació); ara es pinta UNA vegada en un llenç petit (la imatge reduïda per passos
+ * i enfosquida) i el navegador l'amplia amb suavitzat, que ja és un desenfocament.
+ */
+function BlurBackdrop({ url }: { url: string }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    let dead = false;
+    const im = new Image();
+    im.onload = () => {
+      const cv = ref.current;
+      if (dead || !cv || !im.naturalWidth) return;
+      const W = 96, H = 54;
+      cv.width = W; cv.height = H;
+      // Reducció per passos (mitja mida cada vegada) perquè no hi hagi aliàsing.
+      let src: CanvasImageSource = im;
+      let sw = im.naturalWidth, sh = im.naturalHeight;
+      // «cover»: retall centrat amb la proporció del llenç.
+      let sx = 0, sy = 0, cw = sw, ch = sh;
+      if (sw / sh > W / H) { cw = sh * W / H; sx = (sw - cw) / 2; } else { ch = sw * H / W; sy = (sh - ch) / 2; }
+      const first = document.createElement('canvas');
+      const tw = Math.max(W, Math.round(cw / 2)), th = Math.max(H, Math.round(ch / 2));
+      first.width = tw; first.height = th;
+      const fx = first.getContext('2d')!;
+      fx.imageSmoothingQuality = 'high';
+      fx.drawImage(src, sx, sy, cw, ch, 0, 0, tw, th);
+      src = first; sw = tw; sh = th;
+      while (sw > W * 2) {
+        const nw = Math.max(W, Math.round(sw / 2)), nh = Math.max(H, Math.round(sh / 2));
+        const c = document.createElement('canvas'); c.width = nw; c.height = nh;
+        const x = c.getContext('2d')!; x.imageSmoothingQuality = 'high';
+        x.drawImage(src, 0, 0, sw, sh, 0, 0, nw, nh);
+        src = c; sw = nw; sh = nh;
+      }
+      const g = cv.getContext('2d')!;
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(src, 0, 0, sw, sh, 0, 0, W, H);
+      g.fillStyle = 'rgba(8,6,4,0.8)';   // ≈ brightness(0.22)
+      g.fillRect(0, 0, W, H);
+    };
+    im.src = url;
+    return () => { dead = true; };
+  }, [url]);
+  return <canvas ref={ref} style={{ position: 'absolute', inset: -60, width: 'calc(100% + 120px)', height: 'calc(100% + 120px)', transform: 'scale(1.12)' }} />;
+}
+
+/**
  * Escenari de l'Escena: imatge o vídeo de fons + text. És el MATEIX per a la
  * previsualització del DM i per a la pantalla del jugador (així el DM veu el que veuran),
  * i totes les mides són proporcionals a l'escenari.
@@ -80,11 +128,13 @@ export function SceneStage({ mediaUrl, mimeType, hasMedia, opts, mediaInnerRef, 
     ? {
       fontFamily: FONT_SERIF, fontSize: fontPx, lineHeight: 1.42, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
       color: '#f6efe0', letterSpacing: '0.01em',
-      textShadow: '0 2px 4px rgba(0,0,0,0.95), 0 0 16px rgba(0,0,0,0.85)',
+      // Una sola ombra petita: el text-shadow es pinta per CADA caràcter (un span per lletra) i el
+      // de 16 px de desenfocament era el gruix del cost del text; la franja fosca ja dóna el contrast.
+      textShadow: '0 1px 3px rgba(0,0,0,0.95)',
     }
     : {
       fontFamily: FONT_SERIF, fontSize: fontPx, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-      maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', textAlign: PLACE_ALIGN[opts.place], color: '#ece3d0', textShadow: '0 2px 24px rgba(0,0,0,0.6)',
+      maxWidth: '24em', margin: '0 auto', letterSpacing: '0.005em', textAlign: PLACE_ALIGN[opts.place], color: '#ece3d0',
     };
 
   return (
@@ -97,9 +147,9 @@ export function SceneStage({ mediaUrl, mimeType, hasMedia, opts, mediaInnerRef, 
             onAnimationEnd={top && layers.length > 1 ? () => setLayers(ls => ls.slice(-1)) : undefined}
             style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', animation: top && layers.length > 1 ? 'scene-slide-in 0.9s ease-in-out both' : undefined }}>
             {!video && !cover && (
-              <div style={{ position: 'absolute', inset: -60, backgroundImage: `url(${l.url})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(36px) brightness(0.22) saturate(0.45)', transform: 'scale(1.12)' }} />
+              <BlurBackdrop url={l.url} />
             )}
-            <div ref={top ? mediaInnerRef : undefined} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center' }}>
+            <div ref={top ? mediaInnerRef : undefined} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', transformOrigin: 'center center', willChange: top ? 'transform' : undefined }}>
               {video
                 ? <video src={l.url} autoPlay loop muted playsInline draggable={false} style={mediaStyle} />
                 : <img src={l.url} alt="" draggable={false} style={mediaStyle} />}
