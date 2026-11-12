@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.23 — Paquets nous de decorat al repositori
+- Nou `assets/decor-packs/` amb quatre paquets sencers: Gentle Forest (bosc, tres paletes), Treasure Chests, Breakable Pots i Tiny Dungeon Items (32 objectes de 16 px)
+- Catàleg `assets/decor-packs/INDEX.md` amb què hi ha a cada paquet, les mides i l'avís de llicències; encara no surten a la paleta de Caselles
+
 ### v5.22 — Mapa de caselles: ordre de les capes i eina Girar
 - Clic dret (sense arrossegar) sobre un objecte o un decorat: menú amb Porta al davant · Porta endavant · Envia enrere · Envia al fons, Girar 90° i Esborrar (a la pantalla tàctil, mantenir premut). Clic dret arrossegant continua esborrant
 - Els decorats i els objectes s'apilen a la mateixa casella (fins a 4): el nou va a sobre i l'esborrador en treu un cada vegada
