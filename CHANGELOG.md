@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.21 — Sales fosques: només la paret vertical, no la vista des de dalt
+- De la paret de dalt d'una sala fosca, només es fa fosca la meitat de baix (la cara vertical, on hi ha els maons i el que hi penja); la meitat de dalt és la paret vista des de dalt i es veu sempre, com les parets laterals
+- Les partides desades amb la v5.20 es corregeixen soles en carregar-les
+
 ### v5.20 — Sales fosques: la paret de dalt també es fa fosca
 - Al mapa de caselles, la cara de paret que mira cap a una sala (amb els estendards, teranyines, mobles o decorat que hi hagi a sobre) forma part de la sala: queda fosca amb ella i s'il·lumina quan hi ha algú a dins
 - Les partides desades abans s'actualitzen soles en carregar-les; parets, portes i moviment no canvien

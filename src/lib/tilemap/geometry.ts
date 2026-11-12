@@ -98,11 +98,13 @@ export function keepRoomFace(m: TileMap, poly: Point[]): boolean {
 }
 
 /**
- * Sala fosca + les CARES de paret que hi miren (v5.20). La paret es veu en perspectiva: la casella
- * de paret que té la sala just a sota mostra la seva cara (maó, estendards, teranyines, el que hi
- * hagi posat) cap a dins d'aquella sala, però les parets (`tileWalls`) van a l'aresta paret/terra i
+ * Sala fosca + les CARES de paret que hi miren (v5.20; des de la v5.21 només la meitat de baix). La
+ * paret es veu en perspectiva: la casella de paret que té la sala just a sota té a la meitat de dalt
+ * la paret vista des de dalt (que no és de cap sala i es veu sempre, com les parets laterals) i a la
+ * de baix la paret vertical, la cara (maó, estendards, teranyines, el que hi hagi posat), que mira
+ * cap a dins d'aquella sala, però les parets (`tileWalls`) van a l'aresta paret/terra i
  * la cara quedava fora del polígon: amb la sala fosca, la cara i el que hi havia a sobre es veien.
- * Aquí s'hi afegeixen: el polígon passa a ser «sala ∪ cares», així la foscor, la llum del token de
+ * Aquí s'hi afegeix aquesta meitat: el polígon passa a ser «sala ∪ cares», així la foscor, la llum del token de
  * dins (la sala pròpia), la memòria d'explorat i el clic de la sala les inclouen sense tocar res més.
  * Les parets i les col·lisions no canvien (la cara continua sent paret per moure's).
  *
@@ -138,16 +140,24 @@ export function extendRoomFace(m: TileMap, poly: Point[]): Point[] {
     }
   }
   const sub = (gx: number, gy: number) => gx >= gx0 && gy >= gy0 && gx < gx0 + W && gy < gy0 + Hh && inside[(gy - gy0) * W + (gx - gx0)] === 1;
-  const faces: [number, number][] = [];
+  // Cada cara: la meitat de baix (la paret vertical) a dins; la de dalt (la paret vista des de dalt)
+  // a fora. Si ja hi és tal qual, no es toca (idempotent). La v5.20 hi posava la casella sencera:
+  // es torna a deixar només la meitat de baix. Una casella de paret amb la sala també a sobre és
+  // un pilar de dins de la sala i es queda com és.
+  let changed = false;
+  const set = (gx: number, gy: number, v: 0 | 1) => {
+    const k = (gy - gy0) * W + (gx - gx0);
+    if (inside[k] !== v) { inside[k] = v; changed = true; }
+  };
   for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
     if (!inMap(m, c, r) || !isWall(m, c, r) || !inMap(m, c, r + 1)) continue;
-    if (sub(2 * c, 2 * r) || sub(2 * c + 1, 2 * r) || sub(2 * c, 2 * r + 1) || sub(2 * c + 1, 2 * r + 1)) continue;
     if (isWall(m, c, r + 1) || cellOf(m, c, r + 1) in m.doors) continue;
     if (!sub(2 * c, 2 * r + 2) || !sub(2 * c + 1, 2 * r + 2)) continue;
-    faces.push([c, r]);
+    if (sub(2 * c, 2 * r - 1) || sub(2 * c + 1, 2 * r - 1)) continue;
+    set(2 * c, 2 * r, 0); set(2 * c + 1, 2 * r, 0);
+    set(2 * c, 2 * r + 1, 1); set(2 * c + 1, 2 * r + 1, 1);
   }
-  if (!faces.length) return poly;
-  for (const [c, r] of faces) for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) inside[(2 * r + dy - gy0) * W + (2 * c + dx - gx0)] = 1;
+  if (!changed) return poly;
 
   // Contorn de les mitges caselles: arestes dirigides amb l'interior a la dreta (sentit horari a la
   // pantalla), encadenades en voltes; es queda la més gran (la de fora) sense els vèrtexs alineats.
