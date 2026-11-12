@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.29 — Objectes a l'estil Oryx: tercera versió, a la mida de píxel de l'autor
+- Estudi del full de l'autor píxel a píxel: l'art és a 48 px natius amb detall d'1 px (no 24 px ampliats), les cares són d'un sol to i el detall és dibuix (cantell clar, claus, desgast a les vores, esquerdes), no degradats
+- Les 103 peces es tornen a dibuixar amb aquestes regles: el píxel ja és de la mateixa mida que el de la taula, la caixa i la bóta originals, amb els mateixos colors, proporcions i ombra
+- Taules, cadires, llits, prestatgeries i armari segueixen la taula de l'autor (tauler, cantell, potes i ombra entre les potes); caixes i bótes, la caixa i la bóta; cofres i munts d'or, el cofre del full d'objectes; monedes, la moneda
+- Mateixos noms i mateix lloc al full: els objectes ja posats als mapes canvien de dibuix sols. Cap canvi a la API
 ### v5.28 — Eliminar sales del mapa de caselles ja no les trenca totes
 - Eliminar una sala d'un mapa de caselles esborrava trossos de les parets generades per les caselles (que són trams llargs compartits entre sales) i tornava a detectar les sales sense el filtre del mapa de caselles: apareixien sales fantasma damunt de les altres, els blocs de paret es tornaven «sales» i les sales perdien les cares de paret
 - Ara només s'esborren les parets dibuixades a mà; una sala feta només de caselles queda marcada com a eliminada al mapa (`TileMap.noRoom`) i ja no torna en pintar més caselles. Es desfà amb Ctrl+Z (sense tornar a enviar el fons) i es desa amb la partida
