@@ -89,6 +89,11 @@ let _exploredCanvas: HTMLCanvasElement | null = null;
 let _exploredSig = '';
 let _exploredScale = 1;
 let _memCanvas: HTMLCanvasElement | null = null;
+// Portes i peces que sobresurten ja descobertes: una porta que els jugadors han vist es continua veient
+// quan la llum se'n va, com el terra explorat (la porta no és al terra memoritzat: és una part viva), i
+// el tros d'una torxa o d'un objecte que surt de la sala deixa d'amagar-se. Clau → el punt, per poder-les
+// oblidar en resetejar una sala: `d:<id>|0`/`d:<id>|1` (les dues bandes d'una porta), `i:<x>,<y>` (peça).
+const _seen = new Map<string, Point>();
 const EXPLORED_MAX = 1600;   // costat màxim (px) de la màscara d'explorat
 const MEM_DIM = 0.38;        // brillantor del terreny memoritzat (0..1)
 
@@ -101,6 +106,7 @@ function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; sc
     _exploredCanvas.width = w; _exploredCanvas.height = h;
     _exploredCanvas.getContext('2d')!.clearRect(0, 0, w, h);
     _exploredSig = sig; _exploredScale = scale;
+    _seen.clear();   // les portes i les peces descobertes van amb l'explorat
     // La màscara s'ha reiniciat (mapa nou): cal tornar a acumular encara que res s'hagi mogut.
     _exploredDirty = true;
     _exploredVer++;
@@ -261,6 +267,7 @@ function collectLights(fc: FrameContext): Light[] {
  * mida que l'anterior i, si no, s'hi veuria el terreny memoritzat de l'altre lloc).
  */
 export function resetExplored(): void {
+  _seen.clear();
   _exploredDirty = true;
   _exploredVer++;
   _exploredSig = '';
@@ -271,6 +278,7 @@ export function clearExploredAt(points: { x: number; y: number }[]): void {
   // la zona il·luminada ARA no es tornaria a memoritzar fins que algú es mogués).
   _exploredDirty = true;
   _exploredVer++;
+  if (points.length >= 3) for (const [k, p] of _seen) if (pointInPoly(p.x, p.y, points)) _seen.delete(k);
   if (!_exploredCanvas || points.length < 3) return;
   const ectx = _exploredCanvas.getContext('2d')!;
   ectx.save();
@@ -604,6 +612,172 @@ function drawEye(ctx: CanvasRenderingContext2D, cx: number, cy: number, sc: numb
   ctx.restore();
 }
 
+// ── Què queda a la foscor (pantalla de jugador) ─────────────────────────────────
+// La foscor tapa el polígon de cada sala, però un token, una torxa o un objecte que en sobresurt
+// es veia per fora (el cap d'una figureta, la flama d'una torxa de paret), i les portes de caselles
+// es pinten sempre per sobre de la foscor: una porta del fons d'una sala encara per explorar
+// deia als jugadors per on havien d'anar. Per decidir-ho cal saber si un PUNT és a la foscor:
+// dins d'una sala fosca (no revelada) i fora de tota llum. `prepareDarkness` fa aquest càlcul
+// (animació de revelat, llums, polígons de visió) UN cop per fotograma i el guarda: `renderRooms`
+// el fa servir per pintar, i els tokens (que es pinten abans) i les portes (després) per preguntar.
+
+interface DarkPrep {
+  /** El `FrameContext` del fotograma (cada fotograma en crea un de nou). */
+  fc: FrameContext;
+  rooms: Room[];
+  anim: Record<string, number>;
+  fills: { room: Room; alpha: number }[];
+  /** Sales que són fosques de debò (revelat a mitges per sota de la meitat). */
+  dark: Room[];
+  lights: Light[];
+  lw: { walls: Wall[]; sig: string } | null;
+  polys: LightPoly[];
+  anyRecomputed: boolean;
+}
+let _prep: DarkPrep | null = null;
+
+/**
+ * Animació de revelat de les sales, llums i polígons de visió del fotograma (un sol cop per `fc`:
+ * tot porta animacions que avancen a cada crida).
+ */
+function prepareDarkness(fc: FrameContext): DarkPrep {
+  if (_prep && _prep.fc === fc) return _prep;
+  const rooms = fc.rRooms?.current ?? [];
+  const isDM = fc.isDM;
+  const anim = fc.roomRevealAnimRef?.current ?? {};
+  const fills: { room: Room; alpha: number }[] = [];
+  const dark: Room[] = [];
+  const animOut: Record<string, number> = fc.roomRevealAnimRef ? fc.roomRevealAnimRef.current : {};
+  for (const room of rooms) {
+    const tgt = room.dark && !room.revealed ? 1 : 0;
+    const prev = anim[room.id] ?? tgt;
+    const next = prev + (tgt - prev) * REVEAL_LERP;
+    animOut[room.id] = Math.abs(next - tgt) < 0.004 ? tgt : next;
+    const a = animOut[room.id] ?? tgt;
+    if (room.dark && a > 0.004) {
+      fills.push({ room, alpha: isDM ? 0.14 + a * 0.5 : a });
+      if (a >= 0.5 && room.points.length >= 3) dark.push(room);
+    }
+  }
+  let lights: Light[] = [];
+  let lw: DarkPrep['lw'] = null;
+  const polys: LightPoly[] = [];
+  let anyRecomputed = false;
+  if (fills.length > 0) {
+    lights = collectLights(fc);
+    // Parets efectives per a la llum: amb els forats de porta ANIMATS (obrir/tancar suau).
+    lw = lights.length > 0 ? lightWalls(fc) : null;
+    if (lw) {
+      // Polígons de visibilitat de cada llum + la sala que conté el token (perquè dins de la
+      // seva sala vegi tot el radi, sense ombres internes).
+      // El polígon de cada llum es recalcula NOMÉS si la llum s'ha mogut / ha canviat de
+      // radi o si les parets efectives han canviat; si no, es reutilitza el de la memòria
+      // cau (cas normal: entre moviments res no canvia i el raycasting era gratuït).
+      const fnow = performance.now();
+      const wallsSig = lw.sig;
+      const seenVis = new Set<string>();
+      for (const li of lights) {
+        seenVis.add(li.key);
+        const vsig = `${wallsSig}|${Math.round(li.x)},${Math.round(li.y)},${Math.round(li.r)}`;
+        let ent = _visCache.get(li.key);
+        if (ent && ent.sig !== vsig && ent.ws === wallsSig && fnow - ent.t < LIGHT_LEVELS[_lodLevel].throttle) {
+          wake();   // polígon de fa un instant (mateix límit de ritme que el rasteritzat)
+        } else if (!ent || ent.sig !== vsig) {
+          ent = { sig: vsig, ws: wallsSig, t: fnow, poly: visibilityPolygon({ x: li.x, y: li.y }, lw.walls, li.r) };
+          _visCache.set(li.key, ent);
+          anyRecomputed = true;
+        }
+        if (ent.poly.length < 3) continue;
+        const room = roomAt(rooms, li.x, li.y);
+        polys.push({ li, poly: ent.poly, roomPts: room?.points });
+      }
+      for (const k of _visCache.keys()) if (!seenVis.has(k)) { _visCache.delete(k); anyRecomputed = true; }
+    }
+  }
+  _prep = { fc, rooms, anim: animOut, fills, dark, lights, lw, polys, anyRecomputed };
+  return _prep;
+}
+
+/** El punt (px de mapa) és a la foscor: dins d'una sala fosca i on cap llum no hi arriba. */
+function hiddenAt(p: DarkPrep, x: number, y: number): boolean {
+  let inDark = false;
+  for (const rm of p.dark) {
+    const b = rm.bbox;
+    if (x < b.left || x > b.right || y < b.top || y > b.bottom) continue;
+    if (pointInPoly(x, y, rm.points)) { inDark = true; break; }
+  }
+  if (!inDark) return false;
+  for (const { li, poly, roomPts } of p.polys) {
+    if (li.intensity < 0.5) continue;
+    // El gradient és ple fins al 90% del radi i s'esvaeix fins a la vora: a mig camí ja és fosc.
+    const dx = x - li.x, dy = y - li.y, rr = li.r * 0.95;
+    if (dx * dx + dy * dy > rr * rr) continue;
+    if ((roomPts && pointInPoly(x, y, roomPts)) || pointInPoly(x, y, poly)) return false;
+  }
+  return true;
+}
+
+/**
+ * Pantalla de jugador: el punt (px de mapa, el centre d'un token) queda a la foscor? Els tokens es
+ * pinten ABANS que la foscor: es fa servir el càlcul del fotograma anterior (la llum va un fotograma
+ * enrere, imperceptible) i només es refà ara si encara no n'hi ha o les sales han canviat (partida
+ * nova, jugador que acaba d'entrar), perquè un enemic d'una sala fosca no es vegi ni un instant.
+ */
+export function inDarkness(fc: FrameContext, x: number, y: number): boolean {
+  if (!(fc.rRooms?.current ?? []).length) return false;
+  return hiddenAt(prepSoFar(fc), x, y);
+}
+
+/** El càlcul d'aquest fotograma si ja s'ha fet; si no, el de l'anterior mentre les sales siguin les mateixes. */
+function prepSoFar(fc: FrameContext): DarkPrep {
+  const rooms = fc.rRooms?.current ?? [];
+  return _prep && (_prep.fc === fc || _prep.rooms === rooms) ? _prep : prepareDarkness(fc);
+}
+
+/**
+ * Quines portes es veuen a la pantalla de jugador (`drawTileLive`, `drawTileDoorsOver`): les que
+ * tenen alguna banda a la vista (fora de les sales fosques o il·luminada) o que ja s'havien vist.
+ * Una porta amb les dues bandes a la foscor i mai vista no es pinta i en el seu lloc hi va paret
+ * (si no, una porta al fons d'una sala gran explorada a mitges ensenyava per on s'havia d'anar).
+ * Abans de `renderRooms` fa servir el càlcul del fotograma anterior (com `inDarkness`).
+ */
+export function doorsShown(fc: FrameContext, doors: readonly Door[]): (id: string) => boolean {
+  const p = prepSoFar(fc);
+  if (!p.dark.length) return () => true;
+  const shown = new Set<string>();
+  // A cada banda de la porta, a un quart de casella del tram (dins de la casella de la porta).
+  const q = (fc.rGridSize.current > 0 ? fc.rGridSize.current : 48) / 4;
+  for (const d of doors) {
+    const dx = d.b.x - d.a.x, dy = d.b.y - d.a.y, len = Math.hypot(dx, dy);
+    if (len < 1e-6) { shown.add(d.id); continue; }
+    const mx = (d.a.x + d.b.x) / 2, my = (d.a.y + d.b.y) / 2, nx = -dy / len * q, ny = dx / len * q;
+    for (let s = 0; s < 2; s++) {
+      const key = `d:${d.id}|${s}`;
+      const x = s ? mx - nx : mx + nx, y = s ? my - ny : my + ny;
+      if (!hiddenAt(p, x, y)) _seen.set(key, { x, y });
+      if (_seen.has(key)) shown.add(d.id);
+    }
+  }
+  return id => shown.has(id);
+}
+
+/**
+ * Peces del mapa de caselles que sobresurten d'una sala (`TileLive.hide`): s'amaguen mentre el seu punt
+ * de dins de la sala (`x, y`) és a la foscor i encara no s'ha descobert. Un cop il·luminat, queda
+ * descobert (com les portes). Abans de `renderRooms` fa servir el càlcul del fotograma anterior.
+ */
+export function itemsHidden(fc: FrameContext): (x: number, y: number) => boolean {
+  const p = prepSoFar(fc);
+  if (!p.dark.length) return () => false;
+  return (x, y) => {
+    const key = `i:${x},${y}`;
+    if (_seen.has(key)) return false;
+    if (hiddenAt(p, x, y)) return true;
+    _seen.set(key, { x, y });
+    return false;
+  };
+}
+
 /**
  * Sales detectades. Al jugador: foscor opaca a les sales fosques no revelades (fade suau
  * en revelar). Al DM: overlay semitransparent (per veure-hi a través) + contorn + nom +
@@ -615,7 +789,6 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
   const rooms = rRooms.current;
   if (!rooms || rooms.length === 0) return;
   const { isDM, sc, ox, oy } = fc;
-  const anim = fc.roomRevealAnimRef?.current ?? {};
   const hovId = fc.rHoveredRoomId?.current ?? null;
   const fnow = performance.now();
 
@@ -636,28 +809,15 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
     return !(b.right < vx0 || b.left > vx1 || b.bottom < vy0 || b.top > vy1);
   };
 
-  // 1) Actualitzar l'animació de revelat i recollir la foscor a pintar de cada sala.
-  const fills: { room: Room; alpha: number }[] = [];
-  const visFills: { room: Room; alpha: number }[] = [];
-  const animOut: Record<string, number> = fc.roomRevealAnimRef ? fc.roomRevealAnimRef.current : {};
-  for (const room of rooms) {
-    const tgt = room.dark && !room.revealed ? 1 : 0;
-    const prev = anim[room.id] ?? tgt;
-    const next = prev + (tgt - prev) * REVEAL_LERP;
-    animOut[room.id] = Math.abs(next - tgt) < 0.004 ? tgt : next;
-    const a = animOut[room.id] ?? tgt;
-    if (room.dark && a > 0.004) {
-      const f = { room, alpha: isDM ? 0.14 + a * 0.5 : a };
-      fills.push(f);
-      if (onScreen(room)) visFills.push(f);
-    }
-  }
+  // 1) Animació de revelat, llums i polígons de visió (`prepareDarkness`: els tokens ja l'han pogut
+  //    demanar abans, per saber si són a la foscor) i, aquí, la part que es pinta a la pantalla.
+  const prep = prepareDarkness(fc);
+  const { fills, lights, lw, polys, anyRecomputed } = prep;
+  const animOut = prep.anim;
+  const visFills = fills.filter(f => onScreen(f.room));
 
   // 2) Capa de foscor amb la llum dels tokens de jugador retallada (línia de visió).
   if (fills.length > 0) {
-    const lights = collectLights(fc);
-    // Parets efectives per a la llum: amb els forats de porta ANIMATS (obrir/tancar suau).
-    const lw = lights.length > 0 ? lightWalls(fc) : null;
     const walls = lw?.walls ?? [];
     if (lights.length === 0) {
       // Sense fonts de llum: pintar la foscor directament (com sempre).
@@ -676,31 +836,7 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       octx.clearRect(0, 0, off.width, off.height);
       octx.setTransform(ctx.getTransform());
       fillDarkness(octx, visFills);
-      // Polígons de visibilitat de cada llum + la sala que conté el token (perquè dins de la
-      // seva sala vegi tot el radi, sense ombres internes).
-      // El polígon de cada llum es recalcula NOMÉS si la llum s'ha mogut / ha canviat de
-      // radi o si les parets efectives han canviat; si no, es reutilitza el de la memòria
-      // cau (cas normal: entre moviments res no canvia i el raycasting era gratuït).
-      const polys: LightPoly[] = [];
       const wallsSig = lw!.sig;
-      let anyRecomputed = false;
-      const seenVis = new Set<string>();
-      for (const li of lights) {
-        seenVis.add(li.key);
-        const vsig = `${wallsSig}|${Math.round(li.x)},${Math.round(li.y)},${Math.round(li.r)}`;
-        let ent = _visCache.get(li.key);
-        if (ent && ent.sig !== vsig && ent.ws === wallsSig && fnow - ent.t < LIGHT_LEVELS[_lodLevel].throttle) {
-          wake();   // polígon de fa un instant (mateix límit de ritme que el rasteritzat)
-        } else if (!ent || ent.sig !== vsig) {
-          ent = { sig: vsig, ws: wallsSig, t: fnow, poly: visibilityPolygon({ x: li.x, y: li.y }, walls, li.r) };
-          _visCache.set(li.key, ent);
-          anyRecomputed = true;
-        }
-        if (ent.poly.length < 3) continue;
-        const room = roomAt(rooms, li.x, li.y);
-        polys.push({ li, poly: ent.poly, roomPts: room?.points });
-      }
-      for (const k of _visCache.keys()) if (!seenVis.has(k)) { _visCache.delete(k); anyRecomputed = true; }
       // Esborra la llum actual del tot: unió de la sala pròpia + vessament per portes.
       if (carveLights(octx, polys, wallsSig, rooms, fnow)) {
         // Qualitat adaptativa: veure `LIGHT_LEVELS`.

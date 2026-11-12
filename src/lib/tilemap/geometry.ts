@@ -5,10 +5,10 @@
  * dibuixades a mà, sense que el DM n'hagi de dibuixar cap.
  */
 import type { Wall, Door, LightSource, Point } from '@/types';
-import { TILE, type TileMap, cellOf, isWall, isVoid, inMap } from './model';
+import { TILE, type TileMap, cellOf, isWall, isVoid, inMap, decodeDecor } from './model';
 import { objectDef } from './palette';
-import { doorAxis } from './render';
-import { objectLightPoint } from './objects';
+import { doorAxis, opaqueBox, rotateBox, cellLayers, plainFaceFor, type Box, type HidePatch } from './render';
+import { objectLightPoint, placedParts } from './objects';
 
 /**
  * Parets: una aresta a cada costat entre una casella de paret i una que no ho és. Les que
@@ -205,6 +205,112 @@ export function extendRoomFace(m: TileMap, poly: Point[]): Point[] {
   const signed = (ps: Point[]) => ps.reduce((s, a, i) => { const b = ps[(i + 1) % ps.length]; return s + a.x * b.y - b.x * a.y; }, 0);
   if (Math.sign(signed(pts)) !== Math.sign(signed(poly))) pts.reverse();
   return pts;
+}
+
+/**
+ * Peces que són majoritàriament dins d'una sala però en sobresurten (v5.23): objectes (torxes, mobles,
+ * botí, també els girats o moguts fora de la graella) i decorats. Es mira el rectangle dels seus píxels
+ * no transparents (`opaqueBox`): si més de la meitat de l'àrea és dins d'una sala i la resta en surt (a
+ * la paret, a fora), la peça «és» d'aquella sala. Com que la sala pot ser fosca, la pantalla de jugador
+ * en repinta el tros de fora amb el que hi hauria sense la peça mentre la sala hi és fosca
+ * (`drawTileHidden`): la flama de la torxa de paret o el barril desplaçat ja no es veuen per fora.
+ * També les cares de paret decorades (estendard, gàrgola) de la paret de dalt d'una sala. Les sales
+ * són els polígons de `rRooms` (amb les cares de paret, `extendRoomFace`), totes: si són fosques o no
+ * es mira a cada fotograma. Si el full de sprites encara no hi és, la peça no compta.
+ */
+export function hidePatches(m: TileMap, rooms: Point[][]): HidePatch[] {
+  const polys = rooms.filter(p => p.length >= 3).map(poly => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of poly) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    return { poly, x0, x1, y0, y1, xs: [...new Set(poly.map(p => p.x))], ys: [...new Set(poly.map(p => p.y))] };
+  });
+  if (!polys.length) return [];
+  const out: HidePatch[] = [];
+  const at = (b: Box, x: number, y: number): Box => ({ x0: x + b.x0, y0: y + b.y0, x1: x + b.x1, y1: y + b.y1 });
+  // `skip`: el decorat (capa i casella) que no s'ha de tornar a pintar.
+  const take = (boxes: Box[], skip?: { layer: number; i: number }) => {
+    if (!boxes.length) return;
+    let tot = 0;
+    for (const b of boxes) tot += (b.x1 - b.x0) * (b.y1 - b.y0);
+    if (tot <= 0) return;
+    for (const P of polys) {
+      if (!boxes.some(b => b.x1 > P.x0 && b.x0 < P.x1 && b.y1 > P.y0 && b.y0 < P.y1)) continue;
+      // Àrea dins de la sala: cada rectangle es parteix per les línies del polígon que el travessen (i,
+      // per als polígons amb costats inclinats, en 8×8) i cada tros compta sencer si el seu centre hi és.
+      let ins = 0, cx = 0, cy = 0;
+      for (const b of boxes) {
+        const cut = (lo: number, hi: number, lines: number[]) => {
+          const v = [lo, hi, ...lines.filter(x => x > lo && x < hi)];
+          for (let k = 1; k < 8; k++) v.push(lo + (hi - lo) * k / 8);
+          return [...new Set(v)].sort((a, c) => a - c);
+        };
+        const xs = cut(b.x0, b.x1, P.xs), ys = cut(b.y0, b.y1, P.ys);
+        for (let j = 0; j + 1 < ys.length; j++) for (let i = 0; i + 1 < xs.length; i++) {
+          const mx = (xs[i] + xs[i + 1]) / 2, my = (ys[j] + ys[j + 1]) / 2;
+          if (!pointIn(P.poly, mx, my)) continue;
+          const a = (xs[i + 1] - xs[i]) * (ys[j + 1] - ys[j]);
+          ins += a; cx += mx * a; cy += my * a;
+        }
+      }
+      if (ins / tot <= 0.5) continue;
+      if (ins >= tot - 0.5) return;   // tota a dins: ja la tapa la foscor
+      const cells: HidePatch['cells'] = [];
+      const seen = new Set<number>();
+      for (const b of boxes) {
+        for (let r = Math.floor(b.y0 / TILE); r <= Math.ceil(b.y1 / TILE) - 1; r++) for (let c = Math.floor(b.x0 / TILE); c <= Math.ceil(b.x1 / TILE) - 1; c++) {
+          if (!inMap(m, c, r)) continue;
+          const i = cellOf(m, c, r);
+          if (seen.has(i)) continue;
+          seen.add(i);
+          cells.push({ c, r, l: cellLayers(m, c, r, skip && skip.i === i ? skip.layer : -1) });
+        }
+      }
+      out.push({ x: Math.round(cx / ins), y: Math.round(cy / ins), rects: boxes, cells });
+      return;
+    }
+  };
+  for (const o of m.objects) {
+    const boxes: Box[] = [];
+    for (const pp of placedParts(o)) {
+      // Una peça animada: la unió de tots els fotogrames (la flama de la torxa es mou).
+      const tiles: (number | string)[] = o.k.startsWith('i:') ? [o.k] : pp.part.frames ?? (pp.part.tile !== undefined ? [pp.part.tile] : []);
+      let u: Box | null = null;
+      for (const tl of tiles) {
+        const b = opaqueBox(tl); if (!b) continue;
+        u = u ? { x0: Math.min(u.x0, b.x0), y0: Math.min(u.y0, b.y0), x1: Math.max(u.x1, b.x1), y1: Math.max(u.y1, b.y1) } : b;
+      }
+      if (u) boxes.push(at(rotateBox(u, pp.rot), pp.x, pp.y));
+    }
+    take(boxes);
+  }
+  // Decorat: una peça per casella i capa (també girada). Només les caselles que toquen alguna sala.
+  m.overlays.forEach((layer, k) => {
+    for (let i = 0; i < layer.length; i++) {
+      const code = layer[i];
+      if (code < 0) continue;
+      const c = i % m.cols, r = Math.floor(i / m.cols), x = c * TILE, y = r * TILE;
+      if (!polys.some(P => x + TILE > P.x0 && x < P.x1 && y + TILE > P.y0 && y < P.y1)) continue;
+      const { tile, rot } = decodeDecor(code);
+      const b = opaqueBox(tile);
+      if (b) take([at(rotateBox(b, rot), x, y)], { layer: k, i });
+    }
+  });
+  // Cares de paret decorades d'una sala (la meitat de baix és de la sala, `extendRoomFace`): l'estendard
+  // o la gàrgola pugen per la meitat de dalt, que es veu sempre. Mentre la sala no s'ha descobert, la
+  // casella es repinta amb la cara llisa.
+  for (let r = 0; r < m.rows; r++) for (let c = 0; c < m.cols; c++) {
+    if (!isWall(m, c, r)) continue;
+    const plain = plainFaceFor(m, c, r);
+    if (plain < 0) continue;
+    const x = c * TILE, y = r * TILE, px = x + TILE / 2, py = y + TILE * 3 / 4;
+    if (!polys.some(P => px > P.x0 && px < P.x1 && py > P.y0 && py < P.y1 && pointIn(P.poly, px, py))) continue;
+    const l = cellLayers(m, c, r);
+    l[l.length - 1] = { t: plain };
+    // Casella sencera: la meitat de baix la torna a tapar la foscor, però així la vora antialiàsada de la
+    // foscor es barreja amb la cara llisa i no amb l'estendard.
+    out.push({ x: px, y: py, rects: [{ x0: x, y0: y, x1: x + TILE, y1: y + TILE }], cells: [{ c, r, l }] });
+  }
+  return out;
 }
 
 function pointIn(poly: Point[], x: number, y: number): boolean {

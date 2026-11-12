@@ -3,8 +3,9 @@
  * que passa a ser el fons) i les parts vives que es pinten cada fotograma (aigua, torxes,
  * portes, que s'obren i es tanquen).
  */
-import { sheet } from '@/lib/sprites/pack';
+import { sheet, type SheetId } from '@/lib/sprites/pack';
 import { blit, drawItem } from '@/lib/sprites/draw';
+import { ITEMS } from '@/lib/sprites/manifest';
 import {
   TILE, TERRAIN_COLS, ITEM_BASE, ITEM_COLS, WORLD_BASE, WORLD_COLS, WORLD_PX, THEME_BASE, PACK_BASE,
   type TileMap, type TileObject, cellOf, isWall, isVoid, inMap, decodeDecor,
@@ -14,24 +15,75 @@ import { PACK_COLS } from './packs';
 import { t } from './model';
 import { placedParts, objectCells, objectDrawOrder, quarter } from './objects';
 
+/** D'on surt una peça codificada (veure `model.ts`): full i retall (quadrat de costat `s`). */
+function tileSrc(tile: number): { id: SheetId; sx: number; sy: number; s: number } {
+  if (tile >= PACK_BASE) {
+    const i = tile - PACK_BASE;
+    return { id: 'decor_packs', sx: (i % PACK_COLS) * TILE, sy: Math.floor(i / PACK_COLS) * TILE, s: TILE };
+  }
+  if (tile >= THEME_BASE) {
+    const i = tile - THEME_BASE;
+    return { id: 'terrain_themes', sx: (i % TERRAIN_COLS) * TILE, sy: Math.floor(i / TERRAIN_COLS) * TILE, s: TILE };
+  }
+  if (tile >= WORLD_BASE) {
+    const i = tile - WORLD_BASE;
+    return { id: 'map', sx: (i % WORLD_COLS) * WORLD_PX, sy: Math.floor(i / WORLD_COLS) * WORLD_PX, s: WORLD_PX };
+  }
+  if (tile >= ITEM_BASE) {
+    const i = tile - ITEM_BASE;
+    return { id: 'items', sx: (i % ITEM_COLS) * TILE, sy: Math.floor(i / ITEM_COLS) * TILE, s: TILE };
+  }
+  return { id: 'terrain', sx: (tile % TERRAIN_COLS) * TILE, sy: Math.floor(tile / TERRAIN_COLS) * TILE, s: TILE };
+}
+
 /** Pinta una peça codificada (veure `model.ts`) al quadrat (dx, dy, size). */
 export function drawTile(ctx: CanvasRenderingContext2D, tile: number, dx: number, dy: number, size = TILE): void {
   if (tile < 0) return;
-  if (tile >= PACK_BASE) {
-    const i = tile - PACK_BASE;
-    blit(ctx, 'decor_packs', (i % PACK_COLS) * TILE, Math.floor(i / PACK_COLS) * TILE, TILE, TILE, dx, dy, size, size);
-  } else if (tile >= THEME_BASE) {
-    const i = tile - THEME_BASE;
-    blit(ctx, 'terrain_themes', (i % TERRAIN_COLS) * TILE, Math.floor(i / TERRAIN_COLS) * TILE, TILE, TILE, dx, dy, size, size);
-  } else if (tile >= WORLD_BASE) {
-    const i = tile - WORLD_BASE;
-    blit(ctx, 'map', (i % WORLD_COLS) * WORLD_PX, Math.floor(i / WORLD_COLS) * WORLD_PX, WORLD_PX, WORLD_PX, dx, dy, size, size);
-  } else if (tile >= ITEM_BASE) {
-    const i = tile - ITEM_BASE;
-    blit(ctx, 'items', (i % ITEM_COLS) * TILE, Math.floor(i / ITEM_COLS) * TILE, TILE, TILE, dx, dy, size, size);
-  } else {
-    blit(ctx, 'terrain', (tile % TERRAIN_COLS) * TILE, Math.floor(tile / TERRAIN_COLS) * TILE, TILE, TILE, dx, dy, size, size);
+  const { id, sx, sy, s } = tileSrc(tile);
+  blit(ctx, id, sx, sy, s, s, dx, dy, size, size);
+}
+
+/** Rectangle en px de mapa (o dins d'una casella). */
+export interface Box { x0: number; y0: number; x1: number; y1: number }
+
+/**
+ * Rectangle dels píxels no transparents d'una peça (codi de casella) o d'un objecte del botí (`i:nom`),
+ * dins del quadrat de la casella (0–48). `null`: tota transparent, o el full encara no hi és (llavors
+ * no es desa: es tornarà a mirar). Es calcula un cop per peça.
+ */
+const _opaque = new Map<string, Box | null>();
+export function opaqueBox(tile: number | string): Box | null {
+  const key = String(tile);
+  if (_opaque.has(key)) return _opaque.get(key)!;
+  let src: { id: SheetId; sx: number; sy: number; s: number } | null = null;
+  if (typeof tile === 'string') {
+    const p = ITEMS[tile.startsWith('i:') ? tile.slice(2) : tile];
+    if (p) src = { id: 'items', sx: p[0], sy: p[1], s: TILE };
+  } else if (tile >= 0) src = tileSrc(tile);
+  if (!src) { _opaque.set(key, null); return null; }
+  const img = sheet(src.id);
+  if (!img || typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = c.height = TILE;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  if (!g) return null;
+  g.imageSmoothingEnabled = false;
+  g.drawImage(img, src.sx, src.sy, src.s, src.s, 0, 0, TILE, TILE);
+  const d = g.getImageData(0, 0, TILE, TILE).data;
+  let x0 = TILE, y0 = TILE, x1 = 0, y1 = 0;
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    if (d[(y * TILE + x) * 4 + 3] < 24) continue;   // l'ombra gairebé transparent no compta
+    if (x < x0) x0 = x; if (y < y0) y0 = y; if (x + 1 > x1) x1 = x + 1; if (y + 1 > y1) y1 = y + 1;
   }
+  const box = x1 > x0 && y1 > y0 ? { x0, y0, x1, y1 } : null;
+  _opaque.set(key, box);
+  return box;
+}
+
+/** `opaqueBox` girat `rot` quarts de volta (en sentit horari) al voltant del centre de la casella. */
+export function rotateBox(b: Box, rot: number | undefined): Box {
+  let r = b;
+  for (let q = quarter(rot); q > 0; q--) r = { x0: TILE - r.y1, y0: r.x0, x1: TILE - r.y0, y1: r.x1 };
+  return r;
 }
 
 /**
@@ -102,24 +154,59 @@ export function wallTileFor(m: TileMap, c: number, r: number): number {
   return W(MID_COLS[h % MID_COLS.length], 1);
 }
 
+/**
+ * Si la casella és una cara de paret amb decoració (estendard, calavera, gàrgola, que pugen per sobre de
+ * la meitat de la casella), la cara llisa del mateix joc; si no, −1. Veure `hidePatches`.
+ */
+export function plainFaceFor(m: TileMap, c: number, r: number): number {
+  const i = cellOf(m, c, r);
+  if (m.wallRaw[i] >= 0) return -1;
+  const set = WALL_BY_ID.get(m.wallSet[i]);
+  if (!set) return -1;
+  const tile = wallTileFor(m, c, r);
+  return [3, 4, 5, 6].some(col => tile === wallPiece(set, col, 2)) ? wallPiece(set, 1, 2) : -1;
+}
+
 /** Les dues orientacions d'una porta: dins d'una paret horitzontal (veïns E-O) o vertical (N-S). */
 export function doorAxis(m: TileMap, c: number, r: number): 'h' | 'v' {
   return isWall(m, c - 1, r) && isWall(m, c + 1, r) ? 'h' : 'v';
 }
 
-/** Pinta tota la part estàtica d'una casella (terra, decorats, ombra, paret, objectes quiets). */
-function drawCellStatic(ctx: CanvasRenderingContext2D, m: TileMap, c: number, r: number) {
-  const i = cellOf(m, c, r), x = c * TILE, y = r * TILE;
-  ctx.clearRect(x, y, TILE, TILE);
+/**
+ * Capa de la part estàtica d'una casella: una peça (`t`), un decorat (`d`, codi amb la rotació) o una
+ * peça translúcida (`a`, l'ombra de la paret). Viatja al jugador dins de `TileLive.hide`.
+ */
+export interface CellLayer { t: number; d?: 1; a?: number }
+
+/**
+ * La part estàtica d'una casella, de baix a dalt (terra, decorats, ombra, paret). `skipDecor`: sense la
+ * capa de decorat d'aquest índex (veure `TileLive.hide`).
+ */
+export function cellLayers(m: TileMap, c: number, r: number, skipDecor = -1): CellLayer[] {
+  const i = cellOf(m, c, r), out: CellLayer[] = [];
   const g = m.ground[i];
-  if (g >= 0) drawTile(ctx, groundAnim(g)?.frames[0] ?? g, x, y);
-  for (const o of m.overlays) if (o[i] >= 0) drawDecor(ctx, o[i], x, y);
+  if (g >= 0) out.push({ t: groundAnim(g)?.frames[0] ?? g });
+  m.overlays.forEach((o, k) => { if (o[i] >= 0 && k !== skipDecor) out.push({ t: o[i], d: 1 }); });
   const wall = isWall(m, c, r);
   // Ombra de la paret de dalt sobre el terra (com als mapes d'exemple de l'autor).
-  if (!wall && r > 0 && isWall(m, c, r - 1) && !(i in m.doors)) {
-    ctx.globalAlpha = 0.9; drawTile(ctx, t(14, 1), x, y); ctx.globalAlpha = 1;
+  if (!wall && r > 0 && isWall(m, c, r - 1) && !(i in m.doors)) out.push({ t: t(14, 1), a: 0.9 });
+  if (wall) out.push({ t: wallTileFor(m, c, r) });
+  return out;
+}
+
+function drawCellLayers(ctx: CanvasRenderingContext2D, layers: readonly CellLayer[], x: number, y: number) {
+  for (const l of layers) {
+    if (l.a !== undefined) ctx.globalAlpha = l.a;
+    if (l.d) drawDecor(ctx, l.t, x, y); else drawTile(ctx, l.t, x, y);
+    if (l.a !== undefined) ctx.globalAlpha = 1;
   }
-  if (wall) drawTile(ctx, wallTileFor(m, c, r), x, y);
+}
+
+/** Pinta tota la part estàtica d'una casella (terra, decorats, ombra, paret). */
+function drawCellStatic(ctx: CanvasRenderingContext2D, m: TileMap, c: number, r: number) {
+  const x = c * TILE, y = r * TILE;
+  ctx.clearRect(x, y, TILE, TILE);
+  drawCellLayers(ctx, cellLayers(m, c, r), x, y);
 }
 
 /**
@@ -192,23 +279,34 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
  * Peça d'una porta. `shadow`: l'ombra de sota (translúcida). `edge`: no és porta sinó PARET (la vora de
  * dalt del tram de baix d'una porta lateral): els tokens van per sobre de la porta però per sota d'això.
  */
-export interface DoorPiece { dy: number; tile: number; shadow?: boolean; edge?: boolean }
+export interface DoorPiece { dy: number; tile: number; shadow?: boolean; edge?: boolean; /** Només la meitat de dalt de la casella. */ half?: boolean }
 
 export interface TileLive {
   /** Peces animades: posició (px de mapa, cantonada) + fotogrames; `rot` = quarts de volta (objecte girat). */
   anims: { x: number; y: number; frames: number[]; ms: number; rot?: number }[];
   /**
    * Portes del mapa de caselles: posició i peces tancada/oberta del seu joc. Cada peça va a
-   * la casella de la porta (`dy` 0) o a la de dalt (`dy` −1), on sobresurt l'art.
+   * la casella de la porta (`dy` 0) o a la de dalt (`dy` −1), on sobresurt l'art. `wall`: com es
+   * veuria la casella si hi hagués paret en lloc de porta (`doorAsWall`): la pantalla de jugador la
+   * pinta així mentre la porta és a la foscor i no s'ha vist (opcional: partides d'abans, sense).
    */
-  doors: { id: string; x: number; y: number; closed: DoorPiece[]; open: DoorPiece[] }[];
+  doors: { id: string; x: number; y: number; closed: DoorPiece[]; open: DoorPiece[]; wall?: DoorPiece[] }[];
   /**
    * Caselles on un token NO es pot posar: paret o buit (sense terra). Una lletra per casella,
    * fila a fila ('1' = sòlida). La porta no hi és: bloqueja segons si és oberta (veure
    * `tileBlocker`). Viatja amb `tileLive` perquè la pantalla de jugador no té el mapa sencer.
    */
   solid?: { cols: number; rows: number; cells: string };
+  /**
+   * Objectes i decorats que són majoritàriament dins d'una sala però en sobresurten (la flama d'una
+   * torxa de paret, un barril desplaçat): `geometry.ts` → `hidePatches`. Mentre el punt `x,y` (dins de
+   * la sala) és a la foscor i no s'ha descobert, la pantalla de jugador repinta els rectangles `rects`
+   * amb el que hi hauria sense la peça (`cells`, `drawTileHidden`).
+   */
+  hide?: HidePatch[];
 }
+
+export interface HidePatch { x: number; y: number; rects: Box[]; cells: { c: number; r: number; l: CellLayer[] }[] }
 
 export function tileLiveOf(m: TileMap): TileLive {
   const anims: TileLive['anims'] = [];
@@ -247,6 +345,7 @@ export function tileLiveOf(m: TileMap): TileLive {
       id: `td_${i}`, x: c * TILE, y: r * TILE,
       closed: h ? [{ dy: 0, tile: W(10, 1) }, { dy: 1, tile: W(10, 2), shadow: true }] : [sideEdge, ...piece(12)],
       open: h ? [...piece(11), { dy: 1, tile: W(11, 2), shadow: true }] : [sideEdge, ...piece(13)],
+      wall: doorAsWall(m, c, r, setId),
     });
   }
   let cells = '';
@@ -255,6 +354,33 @@ export function tileLiveOf(m: TileMap): TileLive {
     cells += !(i in m.doors) && (isWall(m, c, r) || isVoid(m, i)) ? '1' : '0';
   }
   return { anims, doors, solid: { cols: m.cols, rows: m.rows, cells } };
+}
+
+/**
+ * La casella d'una porta (i la de dalt, on sobresurt la porta lateral) com es veurien amb paret en
+ * lloc de porta: el que la pantalla de jugador hi pinta mentre la porta és a la foscor i ningú no
+ * l'ha vista. Sense això hi quedava un forat negre a la paret, que també deia on era la porta. Si
+ * sota hi ha una sala, la meitat de baix de la casella seria la cara de la paret, que és de la sala
+ * (`extendRoomFace`) i es queda fosca: només es pinta la de dalt (`half`).
+ */
+function doorAsWall(m: TileMap, c: number, r: number, setId: string): DoorPiece[] {
+  const i = cellOf(m, c, r);
+  const prevSet = m.wallSet[i], prevDoor = m.doors[i];
+  // Es prova sobre el mateix mapa i es deixa tal com era (és síncron).
+  m.wallSet[i] = setId; delete m.doors[i];
+  try {
+    const out: DoorPiece[] = [];
+    const roomBelow = (cc: number, rr: number) => inMap(m, cc, rr + 1) && !isWall(m, cc, rr + 1) && !isVoid(m, cellOf(m, cc, rr + 1));
+    const here = wallTileFor(m, c, r);
+    if (here >= 0) out.push({ dy: 0, tile: here, ...(roomBelow(c, r) ? { half: true } : {}) });
+    if (inMap(m, c, r - 1) && isWall(m, c, r - 1)) {
+      const up = wallTileFor(m, c, r - 1);
+      if (up >= 0) out.push({ dy: -1, tile: up });
+    }
+    return out;
+  } finally {
+    m.wallSet[i] = prevSet; m.doors[i] = prevDoor;
+  }
 }
 
 /**
@@ -297,7 +423,8 @@ export function doorOpenById(doors: readonly { id: string; open?: boolean }[]): 
  * Pinta les parts vives en coords de mapa (dins de la transformació del mapa). `openById`
  * diu l'estat actual de cada porta (`rDoors`, que es pot obrir i tancar a mitja partida).
  */
-export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean, now: number) {
+export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean, now: number,
+  shown?: (id: string) => boolean) {
   if (!live || !sheet('terrain')) return;
   for (const a of live.anims) {
     const tile = a.frames[Math.floor(now / a.ms) % a.frames.length];
@@ -305,6 +432,9 @@ export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | nul
     else drawTile(ctx, tile, a.x, a.y);
   }
   for (const d of live.doors) {
+    // Porta amagada (pantalla de jugador): la muntant de la porta lateral sobresurt a la casella de
+    // dalt, fora de la foscor. `drawTileDoorsOver` hi posarà la paret.
+    if (shown && !shown(d.id)) continue;
     for (const p of openById(d.id) ? d.open : d.closed) drawTile(ctx, p.tile, d.x, d.y + p.dy * TILE);
   }
 }
@@ -313,16 +443,50 @@ export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | nul
  * Torna a pintar les portes DAMUNT de la foscor de les sales (després de `renderRooms`). La
  * casella d'una porta queda partida entre dues sales i la foscor de la que és fosca en tapava
  * la meitat (o tota, si totes dues ho eren): una porta es veu sempre, com les parets. Les
- * ombres no es repinten (són translúcides: es doblarien a la part il·luminada).
+ * ombres no es repinten (són translúcides: es doblarien a la part il·luminada). `shown` (pantalla de
+ * jugador, `doorsShown` de `darkrooms.ts`): només les portes que tenen alguna banda a la vista o que
+ * ja s'havien vist; a la resta s'hi pinta la paret que hi hauria sense porta (`wall`).
  */
-export function drawTileDoorsOver(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean) {
+export function drawTileDoorsOver(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean,
+  shown?: (id: string) => boolean) {
   if (!live || !live.doors.length || !sheet('terrain')) return;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   for (const d of live.doors) {
+    if (shown && !shown(d.id)) {
+      // A la foscor i mai vista: es veu paret (no un forat negre que digui on és la porta).
+      for (const p of d.wall ?? []) {
+        const y = d.y + p.dy * TILE;
+        if (!p.half) { drawTile(ctx, p.tile, d.x, y); continue; }
+        ctx.save(); ctx.beginPath(); ctx.rect(d.x, y, TILE, TILE / 2); ctx.clip();
+        drawTile(ctx, p.tile, d.x, y);
+        ctx.restore();
+      }
+      continue;
+    }
     for (const p of openById(d.id) ? d.open : d.closed) if (!p.shadow) drawTile(ctx, p.tile, d.x, d.y + p.dy * TILE);
   }
   ctx.restore();
+}
+
+/**
+ * Pantalla de jugador, ABANS de la foscor (just després de `drawTileLive`): per a cada peça de
+ * `TileLive.hide` encara amagada (`hidden(x, y)`), repinta el seu rectangle amb el que hi hauria sense
+ * la peça. El tros de dins de la sala el torna a tapar la foscor (amb la vora antialiàsada barrejada amb
+ * la paret llisa i no amb la peça), i el de fora queda net.
+ */
+export function drawTileHidden(ctx: CanvasRenderingContext2D, live: TileLive | null, hidden: (x: number, y: number) => boolean) {
+  if (!live?.hide?.length || !sheet('terrain')) return;
+  for (const p of live.hide) {
+    if (!hidden(p.x, p.y)) continue;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.beginPath();
+    for (const b of p.rects) ctx.rect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+    ctx.clip();
+    for (const cell of p.cells) drawCellLayers(ctx, cell.l, cell.c * TILE, cell.r * TILE);
+    ctx.restore();
+  }
 }
 
 /**
@@ -330,10 +494,12 @@ export function drawTileDoorsOver(ctx: CanvasRenderingContext2D, live: TileLive 
  * tornar a pintar els tokens damunt de les portes: les portes es pinten sobre la foscor de les sales
  * (`drawTileDoorsOver`) i, sense això, tapaven el token que hi passava pel davant.
  */
-export function clipTileDoors(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean): boolean {
+export function clipTileDoors(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean,
+  shown?: (id: string) => boolean): boolean {
   if (!live || !live.doors.length) return false;
   ctx.beginPath();
   for (const d of live.doors) {
+    if (shown && !shown(d.id)) continue;
     for (const p of openById(d.id) ? d.open : d.closed) if (!p.shadow) ctx.rect(d.x, d.y + p.dy * TILE, TILE, TILE);
   }
   ctx.clip();
@@ -362,11 +528,13 @@ function edgeMinus(edge: number, over: number[]): HTMLCanvasElement | null {
  * porta lateral) allà on no hi ha porta a sobre. Així el token que passa per la porta queda per
  * sobre de la porta i per sota de la paret, al DM i a la pantalla de jugador igual.
  */
-export function drawTileDoorEdgesOver(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean) {
+export function drawTileDoorEdgesOver(ctx: CanvasRenderingContext2D, live: TileLive | null, openById: (id: string) => boolean,
+  shown?: (id: string) => boolean) {
   if (!live || !live.doors.length || !sheet('terrain')) return;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   for (const d of live.doors) {
+    if (shown && !shown(d.id)) continue;
     const parts = openById(d.id) ? d.open : d.closed;
     parts.forEach((p, i) => {
       if (!p.edge) return;

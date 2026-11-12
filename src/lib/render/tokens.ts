@@ -10,6 +10,7 @@ import { drawStatusFx, hasStatusFx } from '@/lib/sprites/statusfx';
 import { pointInPolygon } from '@/lib/geometry';
 import { FIG_SCALE, FOOT_FLAT, creatureBounds, placeFigure, pixelSpriteOf, spreadOffset, spreadScale, spreadHover, activeTokenKeys, noteTokenState, footOf, footEllipse, SHADOW_RX, SHADOW_RY, figureMid } from './token-geom';
 import { isTurnToken } from '@/lib/turn';
+import { inDarkness } from './darkrooms';
 
 // ── Estil Píxel: el token és una figureta (criatura del paquet Oryx) ───────────
 // Cap a on mira cada token: es gira quan es mou cap a l'esquerra (els sprites miren a la dreta).
@@ -550,7 +551,9 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
     if (isDM) {
       enAlpha = isVis ? 1 : 0.3;
     } else {
-      const target = (!isVis || isInvis) ? 0 : 1;
+      // A la foscor d'una sala fosca, el token s'amaga SENCER (la foscor només tapa el polígon de la
+      // sala i el cap de la figureta, o el que en sobresortís, es veia per fora).
+      const target = (!isVis || isInvis || inDarkness(fc, ep.x, ep.y)) ? 0 : 1;
       const prev = (invisAlphaRef.current[`lib_${en.id}`] as number | undefined) ?? target;
       const next = prev + (target - prev) * 0.07;
       invisAlphaRef.current[`lib_${en.id}`] = Math.abs(next - target) < 0.004 ? target : next;
@@ -852,6 +855,8 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];
     const isInvis = plCondIds.includes('invisible');
     if (isInvis && !isDM) return;
+    // Pantalla de jugador: a la foscor d'una sala fosca (sense llum pròpia ni d'un altre), sencer amagat.
+    if (!isDM && inDarkness(fc, ppos.x + R, ppos.y + R)) return;
     const isDefeated = !!rDefeated.current[`pl_${pl.id}`];
     let colorProg = 0, crossProg = 0;
     if (isDefeated) {

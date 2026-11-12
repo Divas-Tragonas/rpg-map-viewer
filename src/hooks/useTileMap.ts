@@ -5,7 +5,7 @@ import type { Wall, Room, Door, LightSource } from '@/types';
 import { TILE, emptyTileMap, cloneTileMap, fitTileMap, type TileMap, type TileFit } from '@/lib/tilemap/model';
 import { applyBrush, rectCells, lineCells, isRectBrush, type TileBrush, type Cell } from '@/lib/tilemap/editor';
 import { bakeTileMap, repaintCells, tileLiveOf } from '@/lib/tilemap/render';
-import { tileWalls, tileDoors, tileLights, keepRoomFace, extendRoomFace } from '@/lib/tilemap/geometry';
+import { tileWalls, tileDoors, tileLights, keepRoomFace, extendRoomFace, hidePatches } from '@/lib/tilemap/geometry';
 import { getBBox } from '@/lib/geometry';
 import { parseTmx } from '@/lib/tilemap/tmx';
 import { objectAt, objectCells, anchorCenter, placeObjectAt } from '@/lib/tilemap/objects';
@@ -42,6 +42,9 @@ interface Deps {
   openTileMenu: (menu: TileMenuState) => void;
 }
 
+/** Parts vives del mapa més el que cal amagar de les peces que sobresurten de les sales (`hidePatches`). */
+const liveOf = (m: TileMap, rooms: Room[]) => ({ ...tileLiveOf(m), hide: hidePatches(m, rooms.map(r => r.points)) });
+
 /** Retard del cuinat després d'un traç: el DM veu el canvi a l'instant (cuinat local), els jugadors en rebre'l. */
 const BAKE_DEBOUNCE = 350;
 
@@ -76,7 +79,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
     R.rRooms.current = rooms; d.setRooms(rooms);
     R.rDoors.current = doors; d.setDoors(doors);
     R.rLights.current = lights; d.setLights(lights);
-    R.rTileLive.current = m ? tileLiveOf(m) : null;
+    R.rTileLive.current = m ? liveOf(m, rooms) : null;
     d.broadcast({});
   }, [R]);
 
@@ -112,11 +115,11 @@ export function useTileMap(R: DMRefs, D: Deps) {
       if (!m) { R.rTileCanvas.current = null; R.rTileLive.current = null; return; }
       if (opts?.rebake === false) {
         R.rTileCanvas.current = bakeTileMap(m);
-        R.rTileLive.current = tileLiveOf(m);
         // Partides desades abans de la v5.20: les sales no portaven les cares de paret.
         const rooms = R.rRooms.current;
         const ext = rooms.map(r => { const p = extendRoomFace(m, r.points); return p === r.points ? r : { ...r, points: p, bbox: getBBox(p) }; });
         if (ext.some((r, i) => r !== rooms[i])) { R.rRooms.current = ext; Dref.current.setRooms(ext); }
+        R.rTileLive.current = liveOf(m, R.rRooms.current);
         return;
       }
       const cv = bakeTileMap(m);

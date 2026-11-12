@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.25 — Sales fosques: res no se'n veu fins que es descobreix
+- Pantalla de jugador: un token amb el centre a la foscor d'una sala fosca s'amaga sencer (abans en sobresortia el cap de la figureta); els enemics apareixen i desapareixen amb un fos suau en entrar i sortir de la llum
+- Mapa de caselles: les torxes, objectes (també els desplaçats o girats) i decorats que són majoritàriament dins d'una sala però en sobresurten, i les decoracions de la paret de dalt (estendards, gàrgoles), no es veuen fins que la zona es descobreix: s'hi repinta la paret o el terra que hi hauria sense la peça
+- Portes del mapa de caselles: una porta amb les dues bandes a la foscor i que encara no s'ha vist es veu com un tros de paret; quan algú la il·lumina queda descoberta i es continua veient. «Resetejar explorat» també les torna a amagar
+- Cap canvi a la API ni a les partides desades (es recalcula en carregar-les)
+
 ### v5.24 — Paquets de decorat a la paleta de Caselles
 - Objectes: seccions noves «Cofres» (5 models en 3 colors, tancats i oberts), «Gerres» (3 mides en 4 colors) i «Bosc» (soca, roca, mata, falguera i dos arbres grans, en tres paletes)
 - Botí: secció «Objectes petits» (31 objectes: pocions, claus, monedes, armes, calavera, torxa…); Decorat: «Gerres trencades»

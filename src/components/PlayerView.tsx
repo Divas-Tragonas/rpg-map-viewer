@@ -9,7 +9,7 @@ import { BC_CHANNEL, APP_VERSION } from '@/constants';
 import {
   renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
-import { renderRooms, clearExploredAt } from '@/lib/render/darkrooms';
+import { renderRooms, clearExploredAt, doorsShown, itemsHidden } from '@/lib/render/darkrooms';
 import { advanceStrokeAnim as _advStroke, replayStroke as _replayStroke } from '@/lib/render/drawing';
 import { renderSpells, spellShake, followSpellPreview, spellsSettled } from '@/lib/render/spells';
 import { renderTokenScene, blitLayer, renderDragGhost, nameScaleFor } from '@/lib/render/tokens';
@@ -28,7 +28,7 @@ import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, subscribePack } from '@/lib/sprites/pack';
 import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
 import { DialogHost } from '@/lib/dialog/host';
-import { drawTileLive, drawTileDoorsOver, drawTileDoorEdgesOver, clipTileDoors, doorOpenById, tileBlocker, type TileLive } from '@/lib/tilemap/render';
+import { drawTileLive, drawTileDoorsOver, drawTileDoorEdgesOver, drawTileHidden, clipTileDoors, doorOpenById, tileBlocker, type TileLive } from '@/lib/tilemap/render';
 import { PhosphorScreen, scanlinePx } from '@/lib/phosphor/screen';
 
 // Diagnòstic de connexió de la pantalla d'espera. Sense això, un mòbil que no pot
@@ -1018,7 +1018,10 @@ export function PlayerView() {
       // Parts vives del mapa de caselles: sota de tot (la foscor de les sales les tapa).
       if (rTileLive.current) {
         const doors = rDoors.current;
-        drawTileLive(ctx, rTileLive.current, doorOpenById(doors), performance.now());
+        drawTileLive(ctx, rTileLive.current, doorOpenById(doors), performance.now(), doorsShown(fc, doors));
+        // Torxes, objectes i estendards que sobresurten d'una sala fosca encara no descoberta: es tornen
+        // a pintar les caselles sense la peça (el tros de dins el tapa la foscor).
+        drawTileHidden(ctx, rTileLive.current, itemsHidden(fc));
       }
       renderPaintedZones(ctx, fc);
       renderShapePreview(ctx, fc);
@@ -1051,20 +1054,22 @@ export function PlayerView() {
       // La foscor de les sales fosques es pinta DAMUNT de tot: així qualsevol token,
       // dibuix o spell dins d'una sala fosca queda amagat als jugadors (fog of war).
       renderRooms(ctx, fc);
-      // Les portes del mapa de caselles es veuen sempre, com les parets: la foscor d'una sala
-      // en tapava la meitat de la casella (cada meitat és d'una sala).
+      // Les portes del mapa de caselles es pinten per sobre de la foscor (la d'una sala en tapava la
+      // meitat de la casella: cada meitat és d'una sala), però només les que tenen alguna banda a la
+      // vista o ja vistes (`doorsShown`): una porta amb les dues bandes a la foscor no es veu.
       if (rTileLive.current) {
         const doors = rDoors.current;
-        drawTileDoorsOver(ctx, rTileLive.current, doorOpenById(doors));
+        const shown = doorsShown(fc, doors);
+        drawTileDoorsOver(ctx, rTileLive.current, doorOpenById(doors), shown);
         if (scene.tokens) {
           const open = doorOpenById(doors);
           ctx.save();
-          if (clipTileDoors(ctx, rTileLive.current, open)) blitLayer(ctx, scene.tokens);
+          if (clipTileDoors(ctx, rTileLive.current, open, shown)) blitLayer(ctx, scene.tokens);
           ctx.restore();
-          drawTileDoorEdgesOver(ctx, rTileLive.current, open);
+          drawTileDoorEdgesOver(ctx, rTileLive.current, open, shown);
           if (scene.names) {
             ctx.save();
-            if (clipTileDoors(ctx, rTileLive.current, open)) blitLayer(ctx, scene.names);
+            if (clipTileDoors(ctx, rTileLive.current, open, shown)) blitLayer(ctx, scene.names);
             ctx.restore();
           }
         }
