@@ -3,6 +3,10 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.18 — Fòsfor: parpelleig com a capa de CSS (GPU a zero en repòs) i figuretes més àgils en espera
+- El parpelleig del mode Fòsfor és una capa negra d'opacitat animada (compositor); el shader ja no es repeteix en repòs: amb l'escena quieta no es toca la GPU
+- L'animació d'espera de les figuretes va un ~30 % més ràpida (230 ms per fotograma, abans 300)
+
 ### v5.17 — Mode Fòsfor molt més àgil a les tauletes
 - La conversió a la paleta es fa amb una taula de colors calculada una sola vegada (una lectura per píxel en lloc d'OKLab + 32 comparacions)
 - Amb l'escena quieta ja no es repeteix la passada de paleta: només el parpelleig (a ~30 fps)

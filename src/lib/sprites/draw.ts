@@ -14,7 +14,7 @@ export const TILE = 48;
  * sotragada a cada volta.
  */
 const CREATURE_CYCLE = [0, 1, 2, 1];
-const CREATURE_FRAME_MS = 300;
+const CREATURE_FRAME_MS = 230;   // era 300 (v5.18: l'espera es notava lenta)
 
 export function creatureNames(): string[] { return Object.keys(CREATURES); }
 /**

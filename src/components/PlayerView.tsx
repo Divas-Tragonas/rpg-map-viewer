@@ -1163,6 +1163,7 @@ export function PlayerView() {
           Sense punter: el drag dels tokens continua anant al canvas de sota. */}
       <canvas ref={phosphorCanvasRef}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, pointerEvents: 'none', display: 'none' }} />
+      {phosphor && <div className="phosphor-flicker" />}
       {phosphor && <div ref={phosphorGlassRef} className="phosphor-glass" />}
       <div
         ref={bgTransitionRef}

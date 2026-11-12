@@ -218,6 +218,9 @@ function newTex(gl: WebGLRenderingContext): WebGLTexture | null {
 type Media = HTMLImageElement | HTMLVideoElement;
 type U = WebGLUniformLocation | null;
 
+/** Guany que compensa l'enfosquiment mitjà de la capa de parpelleig de CSS (opacitat 0–0,046, mitjana ~0,023). */
+const FLICKER_GAIN = 1.023;
+
 export class PhosphorScreen {
   private gl: WebGLRenderingContext | null = null;
   private progPal: WebGLProgram | null = null;
@@ -310,7 +313,7 @@ export class PhosphorScreen {
   }
 
   /** Amaga el llenç (mode apagat). */
-  hide() { this.show(false); }
+  hide() { this.show(false); this.palValid = false; }
 
   dispose() { this.gl?.getExtension('WEBGL_lose_context')?.loseContext(); }
 
@@ -318,7 +321,7 @@ export class PhosphorScreen {
    * Un fotograma. `media` és el fons (posicionat amb `left/top/width/height` en px CSS, el mateix
    * espai que el canvas del mapa) i `map` el canvas del mapa, de mida `W×H`.
    */
-  draw(media: Media | null, map: HTMLCanvasElement, W: number, H: number, now: number, fresh = true) {
+  draw(media: Media | null, map: HTMLCanvasElement, W: number, H: number, _now: number, fresh = true) {
     const gl = this.gl;
     if (!this.gpu || !gl) { this.show(false); return; }
     this.show(true);
@@ -377,17 +380,22 @@ export class PhosphorScreen {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         this.palValid = true;
       }
-      // Passada 2: tub.
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, W, H);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.texPal);
-      gl.useProgram(this.progCrt);
-      gl.uniform2f(this.u.res, W, H);
-      gl.uniform1f(this.u.line, scanlinePx(H));
-      const ts = now / 1000;
-      gl.uniform1f(this.u.flick, 1 + 0.015 * Math.sin(ts * 37) + 0.008 * Math.sin(ts * 113));
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      // Passada 2: tub (corbatura, línies, punts RGB i halo). També només si ha canviat alguna
+      // cosa: el resultat és estàtic i el llenç es queda tal com està. El parpelleig ja NO és al
+      // shader (el temps el feia repetir-ho tot a cada fotograma): és una capa negra d'opacitat
+      // animada (`.phosphor-flicker` a `globals.css`, que va al compositor sense tocar la GPU del
+      // llenç); aquí només es compensa el seu enfosquiment mitjà.
+      if (dirty) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, W, H);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.texPal);
+        gl.useProgram(this.progCrt);
+        gl.uniform2f(this.u.res, W, H);
+        gl.uniform1f(this.u.line, scanlinePx(H));
+        gl.uniform1f(this.u.flick, FLICKER_GAIN);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
     } catch (err) {
       // Fons d'un altre origen (no es pot llegir) o GPU sense memòria: escena normal.
       console.error('Fòsfor: sense WebGL', err);

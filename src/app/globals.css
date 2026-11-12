@@ -48,5 +48,18 @@ input[type=color] { cursor: pointer; }
   box-shadow: 0 0 0 100vmax #000, inset 0 0 14vmin rgba(0, 0, 0, 0.6), inset 0 0 2vmin rgba(0, 0, 0, 0.5);
 }
 
+/* Mode Fòsfor: parpelleig del tub. Capa negra damunt del llenç del fòsfor (zIndex 3, per sota dels
+   rètols i de tot el DOM) amb l'opacitat animada: va al compositor, sense tornar a pintar res.
+   Reprodueix el que feia el shader (±2,3 % de brillantor, dues freqüències sense relació). */
+@keyframes phosphor-flicker {
+  0% { opacity: 0 } 9% { opacity: .03 } 17% { opacity: .008 } 26% { opacity: .042 } 34% { opacity: .012 }
+  47% { opacity: .046 } 55% { opacity: .016 } 66% { opacity: .034 } 78% { opacity: .004 } 88% { opacity: .038 } 100% { opacity: 0 }
+}
+.phosphor-flicker {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none; background: #000; opacity: 0;
+  animation: phosphor-flicker 0.83s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .phosphor-flicker { animation: none; opacity: .023; } }
+
 /* Escena: fos d'entrada de cada imatge nova (diapositives), per sobre de l'anterior. */
 @keyframes scene-slide-in { from { opacity: 0 } to { opacity: 1 } }
