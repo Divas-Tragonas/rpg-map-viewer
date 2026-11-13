@@ -48,6 +48,23 @@ GROUPS = {
     # v5.30: brutícia de terra i el cau de goblins
     'ox_rubble': ('Runa i brutícia', 'decorat', 'decor'),
     'ox_goblin': ('Cau de goblins', 'objectes', 'object'),
+    # v5.32: paquets de textures de CraftPix (`assets/texture-packs/`), vegeu `TEXTURE_SETS`
+    'tx_trees': ('Arbres i troncs', 'objectes', 'object'),
+    'tx_bushes': ('Arbusts i plantes', 'objectes', 'object'),
+    'tx_crystals': ('Cristalls', 'objectes', 'object'),
+    'tx_ruins': ('Ruïnes', 'objectes', 'object'),
+    'tx_forest': ('Bosc màgic', 'objectes', 'object'),
+    'tx_rocks': ('Roques i pedres', 'objectes', 'object'),
+    'tx_rocky': ('Zona rocosa', 'objectes', 'object'),
+    'tx_cave': ('Coves', 'objectes', 'object'),
+    'tx_cursed_plants': ('Terra maleïda: plantes', 'objectes', 'object'),
+    'tx_cursed_bones': ('Terra maleïda: ossos', 'objectes', 'object'),
+    'tx_cursed_other': ('Terra maleïda: altres', 'objectes', 'object'),
+    'tx_undead_graves': ('Morts vivents: tombes', 'objectes', 'object'),
+    'tx_undead_bones': ('Morts vivents: ossos i calaveres', 'objectes', 'object'),
+    'tx_undead_trees': ('Morts vivents: arbres i plantes', 'objectes', 'object'),
+    'tx_undead_other': ('Morts vivents: ruïnes i altres', 'objectes', 'object'),
+    'tx_icons': ('Icones de fantasia', 'boti', 'object'),
 }
 
 PIECES = []  # (id, etiqueta, grup, fitxer, x, y, w, h)
@@ -114,6 +131,88 @@ with open(os.path.join(SRC, 'oryx-style', 'pieces.json'), encoding='utf-8') as _
         add(_p['id'], _p['label'], _p['group'], f"oryx-style/{_p['id']}.png", 0, 0, _p['w'], _p['h'])
         if _p.get('flies'):
             FLIES[_p['id']] = _p['flies']
+
+# ── Paquets de textures de CraftPix (v5.32, `assets/texture-packs/`): només les peces ja retallades ──
+# Cada peça és un PNG solt; es tria la variant «amb ombra» (les altres —sense ombra, ombra amb herba—
+# són còpies del mateix dibuix). ⚠️ Peces noves (o paquets nous) sempre AL FINAL i en ordre estable:
+# els mapes desats guarden el número de la casella del full.
+TX = os.path.join('..', 'texture-packs')
+WORDS = {
+    'bones': 'ossos', 'bone': 'ossos', 'grave': 'tomba', 'ruin': 'ruïna', 'ruins': 'ruïnes', 'rock': 'roca',
+    'tree': 'arbre', 'plant': 'planta', 'crystal': 'cristall', 'scull': 'calavera', 'sculls': 'calaveres',
+    'pile': 'munt', 'door': 'porta', 'arm': 'braç', 'dead': 'mort', 'broken': 'trencat', 'thorn': 'espinós',
+    'bush': 'arbust', 'cactus': 'cactus', 'fern': 'falguera', 'mushroom': 'bolet', 'mushrooms': 'bolets',
+    'autumn': 'tardor', 'snow': 'neu', 'burned': 'cremat', 'blue': 'blau', 'orange': 'taronja', 'pink': 'rosa',
+    'red': 'vermell', 'green': 'verd', 'white': 'blanc', 'black': 'negre', 'yellow': 'groc', 'violet': 'violeta',
+    'flowers': 'flors', 'simple': 'simple', 'sand': 'sorra', 'water': 'aigua', 'brown': 'marró', 'gray': 'gris',
+    'light': 'clar', 'dark': 'fosc', 'grass': 'herba', 'ground': 'terra', 'caves': 'cova', 'cave': 'cova',
+    'entrance': 'entrada', 'dragon': 'drac', 'full': 'sencer', 'body': 'cos', 'tail': 'cua', 'wing': 'ala',
+    'eye': 'ull', 'eyes': 'ulls', 'many': 'molts', 'jaws': 'queixals', 'meat': 'carn', 'flower': 'flor',
+    'fetus': 'fetus', 'luminous': 'lluminós', 'curved': 'corbat', 'swirling': 'cargolat', 'living': 'viu',
+    'gazebo': 'glorieta', 'idol': 'ídol', 'deer': 'cérvol', 'human': 'humà', 'wolf': 'llop', 'willow': 'salze',
+    'mega': 'mega', 'balls': 'boles', 'ent': 'ent', 'man': 'home', 'woman': 'dona', 'building': 'edifici',
+    'gates': 'portes', 'totem': 'tòtem', 'statue': 'estàtua', 'caveman': 'home de les cavernes', 'web': 'teranyina',
+    'cocoon': 'capoll', 'centipede': 'centpeus', 'skeleton': 'esquelet', 'dinosaur': 'dinosaure', 'demon': 'dimoni',
+    'magic': 'màgic', 'circle': 'cercle', 'lich': 'lich', 'head': 'cap', 'part': 'part', 'vertical': 'vertical',
+    'pearl': 'perla', 'liana': 'liana', 'bridges': 'ponts', 'bonefire': 'foguera d\'ossos', 'beige': 'beix',
+    'shadow': '', 'no': '', 'rpck': 'roca', 'chanterelles': 'rovellons', 'tree1': 'arbre',
+}
+
+
+def tx_label(stem, strip=()):
+    """«Bones_shadow1_3» → «Ossos 1 3»: paraules traduïdes, la resta tal qual, números al final."""
+    import re
+    words = re.findall(r'[A-Za-z]+|\d+', stem.replace('-', ' '))
+    out = []
+    for w in words:
+        if w.lower() in strip:
+            continue
+        t = WORDS.get(w.lower(), w.lower()) if not w.isdigit() else w
+        if t:
+            out.append(t)
+    lab = ' '.join(out).strip() or stem
+    return lab[0].upper() + lab[1:]
+
+
+def tx_id(prefix, stem):
+    import re
+    return prefix + '_' + re.sub(r'[^a-z0-9]+', '_', stem.lower()).strip('_')
+
+
+def tx_add(prefix, pack, subdir, group, accept=lambda s: True, grouper=None, strip=('shadow',)):
+    """Afegeix tots els PNG d'una carpeta (en ordre alfabètic) que `accept` deixa passar."""
+    d = os.path.join(SRC, TX, pack, subdir)
+    for f in sorted(os.listdir(d)):
+        if not f.lower().endswith('.png'):
+            continue
+        stem = f[:-4]
+        if not accept(stem):
+            continue
+        im = Image.open(os.path.join(d, f))
+        w, h = im.size
+        g = grouper(stem) if grouper else group
+        add(tx_id(prefix, stem + '_' + str(w)), tx_label(stem, strip), g, f'{TX}/{pack}/{subdir}/{f}', 0, 0, w, h)
+
+
+import re as _re
+tx_add('tree', 'trees', 'PNG/Assets_separately/Trees_shadow', 'tx_trees')
+tx_add('bush', 'bushes', 'PNG/Assets_shadow', 'tx_bushes')
+tx_add('crys', 'crystals', 'PNG/Assets_shadow', 'tx_crystals')
+tx_add('ruin', 'ruins', 'PNG/Assets_shadow', 'tx_ruins')
+tx_add('wood', 'forest-objects', 'PNG/Assets', 'tx_forest')
+tx_add('rock', 'rocks-stones', 'PNG/Objects_separately', 'tx_rocks',
+       accept=lambda s: 'no_shadow' not in s and 'grass_shadow' not in s)
+tx_add('rocky', 'rocky-area', 'PNG/Objects_separately', 'tx_rocky')
+for _sz in ('16', '32', '64', '128', '256'):
+    tx_add('cave' + _sz, 'cave-objects', f'PNG/Objects_separately/{_sz}', 'tx_cave')
+tx_add('curs', 'cursed-land', 'PNG/Objects_separetely', None, grouper=lambda s: (
+    'tx_cursed_bones' if s.startswith('Bones') else
+    'tx_cursed_plants' if _re.search(r'plant|flower|Fetus', s) else 'tx_cursed_other'))
+tx_add('und', 'undead-tileset', 'PNG/Objects_separately', None, grouper=lambda s: (
+    'tx_undead_graves' if s.startswith('Grave') else
+    'tx_undead_bones' if _re.match(r'(Bones|Pile_sculls|Scull|Dead_arm)', s) else
+    'tx_undead_trees' if _re.match(r'(Tree|Broken|Dead_tree|Thorn|Plant)', s) else 'tx_undead_other'))
+tx_add('icon', 'fantasy-icons', 'PNG/Separately', 'tx_icons', accept=lambda s: not s.endswith('_2'), strip=('icon',))
 
 
 def block_size(w, h):
