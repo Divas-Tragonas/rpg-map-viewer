@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Objectes nous «a l'estil Oryx» (v5.26; refets a la v5.27 i a la v5.29): mobles, caixes, bótes,
+Objectes nous «a l'estil Oryx» (v5.26; refets a la v5.27 i a la v5.29; goblins a la v5.30): mobles, caixes, bótes,
 gerros, cofres i tresor dibuixats per codi. Art propi: es pot redistribuir amb el repositori.
 
 ESTUDI DE L'ESTIL (mesurat píxel a píxel a `uf_terrain.png` i `uf_items.png`; és el que mana):
@@ -64,12 +64,21 @@ GREEN = ['#c0f0b0', '#6cd070', '#2fa84f', '#208a3c', '#187030', '#125824', '#0c4
 PURPLE = ['#e4c0ff', '#b880e8', '#9050c8', '#7a3cb0', '#642e94', '#4e2276', '#3a1858', '#28103c', '#180a24']
 WHITEC = ['#ffffff', '#f4f4f4', '#e4e4e4', '#cfcfcf', '#b6b6b6', '#8e8e8e', '#6c6c6c', '#4a4a4a', '#2c2c2c']
 TEAL = ['#c8f4ff', '#6cdcf8', '#0fc4f1', '#0b91d2', '#0863a3', '#064c80', '#04385e', '#032640', '#021826']
+BONE = ['#ffffff', '#e4dfd2', '#bfb8a8', '#a39c8c', '#857f72', '#69645a', '#4e4a43', '#35322d', '#1f1d1a']
+MUD = ['#9a7a50', '#806440', '#6a5234', '#57422a', '#463421', '#36281a', '#281d13', '#1b130c', '#0f0a06']
+SLIME = ['#e4f78c', '#bce04e', '#93c236', '#6fa22a', '#508222', '#39621a', '#264612', '#172d0b', '#0c1a05']
+RUST = ['#e8ac7c', '#cc8850', '#ac6a38', '#8e5029', '#703d1e', '#542c15', '#3a1e0e', '#251308', '#150a04']
+RAG = ['#c0c098', '#a2a27a', '#868660', '#6c6c4c', '#55553b', '#40402c', '#2d2d1f', '#1d1d14', '#0f0f0a']
+STRAW = ['#f6e8a4', '#e6d074', '#cfb452', '#b29840', '#907a33', '#6e5d28', '#4e421d', '#322a13', '#191509']
+MEAT = ['#f6b8a8', '#e28e7e', '#c66660', '#a64c4c', '#863a3a', '#662c2c', '#481f1f', '#2d1313', '#170a0a']
+FIRE = ['#ffffff', '#fff6a8', '#ffd444', '#ffa024', '#f06412', '#c23e0a', '#822605', '#4a1603', '#220b01']
 DARK = ['#3a3a3a', '#2d2d2d', '#262626', '#1f1f1f', '#1a1a1a', '#161616', '#121212', '#0e0e0e', '#0a0a0a']
 
 MATS = {
     'wood': WOOD, 'stone': STONE, 'iron': IRON, 'gold': GOLD, 'trim': GOLD, 'coin': GOLD, 'cloth': RED, 'cer': CLAY,
     'band': PAPER, 'sack': BURLAP, 'paper': PAPER, 'water': TEAL, 'leaf': GREEN, 'red': RED, 'blue': BLUE,
     'green': GREEN, 'purple': PURPLE, 'clay': CLAY, 'silver': SILVER, 'white': WHITEC, 'dark': DARK, 'hinge': GOLD,
+    'bone': BONE, 'mud': MUD, 'slime': SLIME, 'rust': RUST, 'rag': RAG, 'straw': STRAW, 'meat': MEAT, 'fire': FIRE,
 }
 SHADOW = {1: (1, 1, 1, 64), 2: (0, 0, 0, 38), 3: (0, 0, 0, 13)}
 
@@ -841,7 +850,7 @@ def vase(shape, top=None):
 
 # ───────────────────────── Cofres (el cofre de l'autor, a mida de moble) ─────────────────────────
 
-def gold_mound(cv, cx, base, rx, ry, seed, mat='coin'):
+def gold_mound(cv, cx, base, rx, ry, seed, mat='coin', sparkle=True):
     """El munt d'or del cofre de l'autor: una mitja el·lipse d'un sol to, la vora de dalt a dentetes,
     puntets foscos entre les monedes i espurnes blanques en creu."""
     for x in range(int(cx - rx), int(cx + rx) + 1):
@@ -862,7 +871,7 @@ def gold_mound(cv, cx, base, rx, ry, seed, mat='coin'):
                 i = 1
             cv.p(x, y, mat, i)
     k = 0
-    for n in range(40):
+    for n in range(40 if sparkle else 0):
         h = hsh(n, 3, seed)
         x, y = int(cx - rx * 0.6 + h % int(rx * 1.2 + 1)), int(base - ry * 0.75 + (h >> 5) % max(1, int(ry * 0.6)))
         if all(cv.g.get((x + a, y + b), ('', 0))[0] == mat for a, b in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1))):
@@ -1050,6 +1059,680 @@ def jewels():
     return cv
 
 
+# ───────────────────────── Runa i brutícia (decorat de terra) ─────────────────────────
+# Com els ossos, la pols i els bassals de l'autor: siluetes planes d'un o dos tons, vistes de dalt,
+# amb una ombra d'1 px a sota (`contact`). Res no omple la casella: són restes escampades.
+
+def contact(cv):
+    """L'ombra dels ossos de l'autor: 1 px d'alfa 64 sota cada píxel que no en té cap a sota."""
+    for (x, y) in list(cv.g):
+        if cv.solid(x, y) and (x, y + 1) not in cv.g:
+            cv.p(x, y + 1, 'sh', 1)
+
+
+def rock(cv, x, y, w, h, seed, mat='stone', tones=(2, 4, 6)):
+    """Una pedra: contorn irregular, clara a dalt (mira amunt), fosca a baix (mira endavant)."""
+    for i in range(w):
+        t = i / (w - 1) if w > 1 else 0.5
+        arch = math.sin(math.pi * t) ** 0.6
+        y0 = y + round((1 - arch) * h * 0.6) + (hsh(i, seed, 1) % 2 if 0 < i < w - 1 else 0)
+        y1 = y + h - 1 - round((1 - arch) * h * 0.25)
+        for yy in range(y0, y1 + 1):
+            f = (yy - y0) / max(1, y1 - y0)
+            cv.p(x + i, yy, mat, tones[0] if f < 0.38 else tones[1] if f < 0.78 else tones[2])
+    if w > 7:
+        cv.p(x + w // 2 + 1, y + h // 2, mat, tones[2]); cv.p(x + w // 2, y + h // 2 - 1, mat, tones[2])
+
+
+def blob(cv, cx, cy, rx, ry, seed, mat, tone, rim=None):
+    """Una taca o un bassal: el contorn ondulat dels bassals de l'autor, un to i la vora d'un altre."""
+    pts = set()
+    for y in range(int(cy - ry * 1.4), int(cy + ry * 1.4) + 1):
+        for x in range(int(cx - rx * 1.4), int(cx + rx * 1.4) + 1):
+            a = math.atan2((y - cy) / ry, (x - cx) / rx)
+            lim = 1 + 0.17 * math.sin(3 * a + seed) + 0.1 * math.sin(5 * a + seed * 2.3)
+            if math.hypot((x - cx) / rx, (y - cy) / ry) <= lim:
+                pts.add((x, y))
+    for x, y in pts:
+        edge = any((x + a, y + b) not in pts for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+        cv.p(x, y, mat, rim if (edge and rim is not None) else tone)
+    return pts
+
+
+def board(cv, x0, y0, x1, y1, w=3, tones=(2, 3, 5), mat='wood'):
+    """Un tauló a terra: gruix `w`, el cantell de dalt clar i el de baix fosc, les puntes estellades."""
+    n = max(abs(x1 - x0), abs(y1 - y0), 1)
+    for k in range(n + 1):
+        x, y = round(x0 + (x1 - x0) * k / n), round(y0 + (y1 - y0) * k / n)
+        ww = w - (1 if k in (0, n) or (k in (1, n - 1) and hsh(k, x0, y0) % 2) else 0)
+        for j in range(ww):
+            cv.p(x, y + j, mat, tones[0] if j == 0 else tones[2] if j == ww - 1 else tones[1])
+    cv.p(round(x0 + (x1 - x0) * 0.3), round(y0 + (y1 - y0) * 0.3) + 1, mat, tones[2])
+
+
+BONE_A = ['.2.2....', '2222....', '.222....', '..222...', '...222..', '....222.', '....2222', '....2.2.']
+BONE_B = ['....2.2.', '....2222', '....222.', '...222..', '..222...', '.222....', '2222....', '.2.2....']
+BONE_H = ['2........2', '2222222222', '2........2']
+SKULL_S = ['.2222.', '222222', '2.22.2', '222222', '.2222.', '.2.22.']
+RIBS = ['.2..2..2..2..', '2..2..2..2..2', '2222222222222', '2..2..2..2..2', '.2..2..2..2..']
+FISHBONE = ['..........2..2..2.......', '22.......2..2..2..2..222', '.2222222222222222222.2.2', '22.......2..2..2..2..222',
+            '..........2..2..2.......']
+HORNED = ['2..........2', '22........22', '.22.2222.22.', '..22222222..', '..2.2222.2..', '..22222222..', '...22..22...',
+          '...222222...', '....2..2....']
+FLY = {'f': ('dark', 3), 'w': ('white', 0)}
+
+
+def flies(cv, pts):
+    for x, y in pts:
+        cv.art(x, y, ['w.w', '.f.'], key=FLY)
+
+
+def rubble(seed, big, small):
+    cv = Cv()
+    done = []
+    n = seed * 97
+    while len(done) < big + small:
+        n = (n * 1103515245 + 12345) % 2147483648
+        is_big = len(done) < big
+        w = (8 + (n >> 4) % 5) if is_big else (3 + (n >> 4) % 3)
+        h = (6 + (n >> 9) % 3) if is_big else (2 + (n >> 9) % 2)
+        x, y = 4 + (n >> 12) % (40 - w), 6 + (n >> 18) % (34 - h)
+        if all(x + w + 1 < a or a + c + 1 < x or y + h + 1 < b or b + d + 1 < y for a, b, c, d in done):
+            done.append((x, y, w, h))
+    for i, (x, y, w, h) in enumerate(sorted(done, key=lambda r: r[1] + r[3])):
+        rock(cv, x, y, w, h, seed + i)
+    for k in range(10):                                            # pols i grava
+        h = hsh(k, seed, 7)
+        cv.p(5 + h % 38, 6 + (h >> 6) % 36, 'stone', 4)
+    contact(cv)
+    return cv
+
+
+def bricks():
+    cv = Cv()
+    def brick(x, y, w, h):
+        cv.r(x, y, x + w - 1, y + h - 3, 'clay', 5); cv.hl(x, x + w - 1, y, 'clay', 4)
+        cv.r(x, y + h - 2, x + w - 1, y + h - 1, 'clay', 7)
+        cv.p(x + w - 1, y, None); cv.p(x, y + h - 1, None)
+    for x, y, w, h in ((6, 8, 11, 7), (24, 5, 9, 6), (30, 17, 12, 7), (10, 22, 10, 7), (22, 30, 11, 7), (5, 34, 7, 5)):
+        brick(x, y, w, h)
+    for x, y in ((20, 14), (36, 9), (18, 20), (39, 30), (16, 33), (28, 24), (8, 18), (34, 38), (25, 16)):
+        cv.r(x, y, x + 1 + hsh(x, y) % 2, y + 1, 'clay', 5 + hsh(y, x) % 2)
+    for k in range(10):
+        h = hsh(k, 3, 9)
+        cv.p(4 + h % 40, 5 + (h >> 6) % 38, 'stone', 3)
+    contact(cv)
+    return cv
+
+
+def dirt_pile():
+    cv = Cv()
+    blob(cv, 24, 26, 15, 9, 2.0, 'mud', 3, 4)
+    blob(cv, 22, 23, 10, 5, 4.0, 'mud', 2)
+    for x, y in ((14, 24), (30, 27), (25, 20), (19, 29), (33, 23)):
+        cv.p(x, y, 'mud', 1)
+    rock(cv, 31, 28, 5, 3, 3); rock(cv, 9, 30, 4, 3, 5); rock(cv, 22, 31, 3, 2, 8)
+    contact(cv)
+    return cv
+
+
+def puddle(mat, tone, rim, seed, bubbles=False, drips=True):
+    cv = Cv()
+    blob(cv, 23, 24, 13, 9, seed, mat, tone, rim)
+    if drips:
+        blob(cv, 39, 14, 3, 2, seed + 1, mat, tone, rim); blob(cv, 8, 37, 2.4, 1.8, seed + 2, mat, tone, rim)
+        cv.p(42, 20, mat, rim); cv.p(5, 32, mat, rim); cv.p(36, 36, mat, rim)
+    cv.hl(15, 19, 19, mat, tone - 1); cv.p(14, 20, mat, tone - 1)                # el reflex
+    if bubbles:
+        for x, y in ((22, 23), (29, 27), (17, 28)):
+            cv.art(x, y, ['.11.', '1..1', '1..1', '.11.'], mat); cv.p(x + 1, y + 1, 'white', 0)
+    return cv
+
+
+def stain(seed):
+    """Taca de greix: només ombra, deixa veure el terra de sota."""
+    cv = Cv()
+    blob(cv, 23, 24, 14, 9, seed, 'sh', 2, 3)
+    blob(cv, 22, 23, 9, 5, seed + 2, 'sh', 1)
+    blob(cv, 39, 33, 3, 2, seed + 1, 'sh', 2)
+    return cv
+
+
+def blood_dry():
+    cv = Cv()
+    blob(cv, 22, 23, 9, 6, 1.4, 'red', 6, 5)
+    blob(cv, 34, 30, 4, 3, 2.2, 'red', 6, 5)
+    for x, y in ((9, 15), (12, 12), (36, 18), (40, 24), (14, 33), (30, 38), (8, 28), (27, 12), (33, 13), (18, 36)):
+        cv.p(x, y, 'red', 5)
+        if hsh(x, y) % 2:
+            cv.p(x + 1, y, 'red', 6)
+    for k in range(7):                                             # el rastre, cap a la dreta
+        cv.r(36 + k, 33 + k // 2, 37 + k, 33 + k // 2, 'red', 6)
+    return cv
+
+
+def dung(scatter=False):
+    cv = Cv()
+    K = {'h': ('mud', 2)}
+    if scatter:
+        for x, y in ((10, 12), (22, 9), (31, 18), (15, 25), (27, 30), (36, 34), (8, 35)):
+            cv.art(x, y, ['.44.', '4h55', '4556', '.66.'], 'mud', K)
+        flies(cv, ((19, 17), (33, 26)))
+    else:
+        cv.art(13, 14, ['.........44.........', '........4h45........', '........4455........', '......4444555.......',
+                        '.....44h4445556.....', '.....44444555566....', '....4444445555566...', '..44h44444555555666.',
+                        '.444444444555555566.', '4444h4444455555556666', '4444444444555555566666', '.44444444555555566666.',
+                        '..5555555555566666...'], 'mud', K)
+        flies(cv, ((9, 13), (35, 10), (38, 22), (20, 8)))
+    contact(cv)
+    return cv
+
+
+def bones(kind):
+    cv = Cv()
+    if kind == 'gnawed':
+        cv.art(8, 10, BONE_A, 'bone'); cv.art(27, 8, BONE_B, 'bone'); cv.art(16, 22, RIBS, 'bone')
+        cv.art(32, 28, BONE_A, 'bone'); cv.art(9, 32, BONE_H, 'bone'); cv.art(25, 36, SKULL_S, 'bone')
+        for x, y in ((21, 14), (38, 22), (14, 38), (36, 40), (6, 24)):
+            cv.p(x, y, 'bone', 2)
+    if kind == 'fish':
+        cv.art(11, 14, FISHBONE, 'bone'); cv.art(14, 30, FISHBONE[1:4], 'bone'); cv.p(13, 15, None)
+        for x, y in ((9, 24), (37, 23), (30, 37), (40, 34)):
+            cv.p(x, y, 'bone', 2)
+    if kind == 'horned':
+        cv.art(18, 14, HORNED, 'bone'); cv.art(8, 30, BONE_H, 'bone'); cv.art(30, 28, BONE_A, 'bone')
+        cv.art(14, 36, ['2.2.2.2', '2222222'], 'bone')
+    contact(cv)
+    return cv
+
+
+def rags(kind=0):
+    cv = Cv()
+    if kind == 0:
+        pts = blob(cv, 22, 23, 12, 8, 3.3, 'rag', 3, 4)
+        for xa, ya, xb, yb in ((14, 20, 22, 25), (24, 18, 30, 26), (17, 27, 26, 29)):
+            cv.line(xa, ya, xb, yb, 'rag', 5)
+        for x, y in ((19, 22), (20, 22), (27, 25)):                # forats
+            cv.p(x, y, None)
+        blob(cv, 37, 34, 4, 2.4, 1.0, 'rag', 4, 5)
+        cv.line(33, 12, 40, 16, 'rag', 3); cv.line(33, 13, 40, 17, 'rag', 5)
+    else:
+        blob(cv, 23, 24, 13, 7, 5.1, 'cloth', 5, 6)
+        blob(cv, 21, 22, 7, 3, 2.0, 'cloth', 4)
+        for xa, ya, xb, yb in ((13, 22, 20, 27), (26, 21, 33, 27)):
+            cv.line(xa, ya, xb, yb, 'cloth', 7)
+        for x, y in ((18, 25), (29, 23), (30, 23), (24, 28)):
+            cv.p(x, y, None)
+        for x in range(12, 34, 3):                                 # serrell esfilagarsat
+            cv.p(x, 32, 'cloth', 6); cv.p(x + 1, 33, 'cloth', 6)
+    contact(cv)
+    return cv
+
+
+def planks():
+    cv = Cv()
+    board(cv, 6, 14, 30, 9); board(cv, 14, 26, 41, 31, w=4); board(cv, 8, 36, 22, 30); board(cv, 28, 16, 40, 22)
+    for xa, ya, xb, yb in ((33, 9, 37, 8), (5, 24, 9, 26), (25, 38, 30, 39), (38, 36, 41, 34), (20, 20, 23, 21)):
+        cv.line(xa, ya, xb, yb, 'wood', 3)
+    for x, y in ((12, 13), (26, 11), (20, 28), (36, 31)):          # claus
+        cv.p(x, y, 'iron', 6)
+    contact(cv)
+    return cv
+
+
+def ashes():
+    cv = Cv()
+    blob(cv, 23, 25, 14, 9, 0.7, 'stone', 4, 5)
+    blob(cv, 22, 24, 9, 5, 2.9, 'stone', 3)
+    board(cv, 12, 22, 30, 28, w=3, tones=(6, 7, 8)); board(cv, 16, 30, 33, 20, w=3, tones=(6, 7, 8))
+    for x, y in ((20, 25), (25, 23), (28, 26), (17, 27)):
+        cv.p(x, y, 'fire', 4); cv.p(x + 1, y, 'fire', 5)
+    for x, y in ((10, 20), (35, 30), (30, 17), (14, 32), (37, 22)):
+        cv.p(x, y, 'stone', 2)
+    return cv
+
+
+def scraps():
+    cv = Cv()
+    K = {'r': ('red', 3), 'R': ('red', 5), 'c': ('paper', 2), 'C': ('paper', 4), 's': ('wood', 6), 'm': ('clay', 2),
+         'M': ('clay', 4), 'n': ('clay', 6), 'b': ('bone', 2), 'g': ('slime', 4)}
+    cv.art(8, 10, ['...s....', '.rrsrr..', 'rrccccR.', '.rcCccR.', '..cccc..', '.rccCcR.', 'rrrccRR.', '.rrRRR..'], key=K)     # cor de poma
+    cv.art(22, 18, ['......mmmm..', '....mmmmmmm.', '...mmmMmmmMm', '...mmmmmmMMn', '....MmmMMMn.', '...bMMMnnn..', '..bb........',
+                    '.bb.........', 'bbbb........', 'b.b.........'], key=K)                                               # os amb carn
+    cv.art(10, 30, ['.mmmm..', 'mmgmMM.', 'mMmgMMn', '.MMnnn.'], key=K)                                                     # crosta florida
+    for x, y in ((20, 12), (33, 34), (36, 14), (17, 38), (28, 36)):
+        cv.p(x, y, 'clay', 3)
+    flies(cv, ((31, 12), (6, 24)))
+    contact(cv)
+    return cv
+
+
+def fish_rotten():
+    cv = Cv()
+    K = {'a': ('slime', 5), 'b': ('slime', 6), 'c': ('rag', 2), 'e': ('dark', 3), 'w': ('bone', 2), 'd': ('slime', 7)}
+    cv.art(8, 16, ['.....aaaaaaaaa.............', '...aaacccccccaaaa.......aa.', '..aacccccccccccaaaa...aaab.', '.aaecccwcwcwcccccaaaaaaabb.',
+                   'aaaccccwcwcwcccccccbaaabbb.', '.aacccccccccccccbbbb.aaabb.', '..abbcccccccbbbbbb.....aab.', '....bbbbbbbbbb.........bb..'], key=K)
+    blob(cv, 22, 33, 9, 3, 2.0, 'sh', 2)
+    flies(cv, ((14, 10), (28, 11), (36, 26), (6, 28)))
+    contact(cv)
+    return cv
+
+
+def straw(seed=1, dense=True):
+    cv = Cv()
+    n = seed * 31
+    for k in range(120 if dense else 55):
+        n = (n * 1103515245 + 12345) % 2147483648
+        rho = math.sqrt(((n >> 8) % 1000) / 1000)
+        a = ((n >> 3) % 628) / 100
+        x, y = 23.5 + rho * 19 * math.cos(a), 24 + rho * 13 * math.sin(a)
+        ang = ((n >> 14) % 314) / 100
+        ln = 3 + (n >> 20) % 4
+        cv.line(round(x), round(y), round(x + ln * math.cos(ang)), round(y + ln * math.sin(ang) * 0.6), 'straw',
+                (2, 3, 3, 4, 5)[(n >> 6) % 5])
+    return cv
+
+
+def glass():
+    cv = Cv()
+    K = {'w': ('white', 0), 'c': ('clay', 2)}
+    for x, y, rows in ((8, 10, ['.1...', '122..', '1223.', '.233.']), (24, 8, ['..12', '.122', '1223', '.33.']), (33, 20, ['1....', '12...', '1223.', '.2233']),
+                       (14, 26, ['.12.', '1223', '.23.']), (26, 32, ['..1..', '.122.', '12233', '.233.']), (38, 34, ['12', '23'])):
+        cv.art(x, y, rows, 'green'); cv.p(x + 1, y + 1, 'white', 0)
+    cv.art(17, 15, ['.cc.....', '.33.....', '.33.....', '2333....', '23w33...', '233333..', '.3333w..', '..3.3...'], 'green', K)   # el coll de l'ampolla
+    for x, y in ((21, 28), (31, 14), (10, 36), (36, 28), (20, 38)):
+        cv.p(x, y, 'green', 1)
+    contact(cv)
+    return cv
+
+
+def jug_tipped():
+    cv = Cv()
+    blob(cv, 33, 30, 9, 5, 1.9, 'purple', 6, 5)                    # el vi vessat
+    cv.hl(30, 34, 28, 'purple', 4)
+    K = {'d': ('dark', 3), 'h': ('clay', 1)}
+    cv.art(5, 14, ['.....222222222........', '...2222222222222......', '..22hh2222222222233...', '.222h22222222222223333', '.222222222222222223dd3',
+                   '2222222222222222223dd3', '2233333333333333333dd3', '.333333333333333333333', '.3333333333333334433..', '..33444444444444444...',
+                   '...4444444444444......', '.....444444444........'], 'clay', K)
+    cv.vl(12, 15, 24, 'band', 2); cv.vl(13, 15, 24, 'band', 2)
+    contact(cv)
+    return cv
+
+
+def mushrooms(mat, spot):
+    cv = Cv()
+    def shroom(x, y, w):
+        h = max(3, w // 2)
+        for j in range(h):
+            inset = (h - 1 - j) if j < h - 1 else 0
+            for i in range(inset, w - inset):
+                cv.p(x + i, y + j, mat, 2 if j == 0 else 3 if j < h - 1 else 5)
+        cv.r(x + w // 2 - 1, y + h, x + w // 2, y + h + 2, 'bone', 2); cv.vl(x + w // 2, y + h, y + h + 2, 'bone', 3)
+        if w > 5:
+            cv.p(x + 2, y + 1, *spot); cv.p(x + w - 3, y + 2 if h > 3 else y + 1, *spot)
+    for x, y, w in ((9, 12, 9), (21, 8, 6), (28, 18, 11), (14, 26, 7), (33, 32, 6), (22, 33, 5), (6, 34, 5)):
+        shroom(x, y, w)
+    contact(cv)
+    return cv
+
+
+def rat():
+    cv = Cv()
+    K = {'e': ('dark', 3), 't': ('meat', 2), 'p': ('meat', 1)}
+    cv.art(10, 18, ['........4444444.........', '...44.4444444444444.....', '..4pp4444444444444444...', '.444444e44444444444444..',
+                    'p4444444444444444444444t', '.5544444444444444444455tt', '...5555p5555555p55555...tt', '.....p......p............ttt'], 'stone', K)
+    blob(cv, 22, 29, 8, 2.4, 1.0, 'red', 6)
+    contact(cv)
+    return cv
+
+
+def chains():
+    cv = Cv()
+    def link(x, y, flat):
+        cv.art(x, y, ['.33.', '3..5', '.55.'] if flat else ['35', '35', '35'], 'iron')
+    pts = [(8 + k * 3, 14 + round(5 * math.sin(k * 0.55))) for k in range(11)]
+    for k, (x, y) in enumerate(pts):
+        link(x, y, k % 2 == 0)
+    for k in range(8):
+        link(10 + k * 3, 30 + round(3 * math.sin(k * 0.8 + 1)), k % 2 == 0)
+    for x, y in ((2, 11), (39, 9), (33, 31)):                      # manilles
+        cv.art(x, y, ['.3333.', '33..35', '3....5', '3....5', '35..55', '.5555.'], 'iron')
+    contact(cv)
+    return cv
+
+
+def rusty():
+    cv = Cv()
+    for k in range(26):                                            # espasa rovellada, en diagonal
+        x, y = 12 + k, 27 - round(k * 0.62)
+        cv.p(x, y - 1, 'iron', 3 if hsh(k, 1) % 4 else 5)
+        cv.p(x, y, 'rust', 2 if hsh(k, 2) % 3 else 4)
+        cv.p(x, y + 1, 'rust', 4 if hsh(k, 3) % 3 else 6)
+    cv.art(37, 9, ['..3', '.32', '32.'], 'iron')                   # la punta, escantellada
+    cv.line(9, 22, 14, 31, 'iron', 5); cv.line(10, 22, 15, 31, 'iron', 6)       # creuera
+    cv.art(5, 28, ['...55', '..55.', '.55..', '44...', '44...'], 'wood')
+    # tros d'escut
+    for y in range(28, 42):
+        for x in range(24, 44):
+            d = math.hypot(x - 36, y - 40)
+            if 0 < d <= 11 and x < 36 + (y - 30) * 0.5 and y < 40:
+                cv.p(x, y, 'iron' if d > 9.6 else 'wood', 5 if d > 9.6 else (4 if (x + y) % 5 else 5))
+    cv.p(31, 35, 'iron', 4); cv.p(28, 37, 'iron', 4)
+    contact(cv)
+    return cv
+
+
+def footprints():
+    cv = Cv()
+    foot = ['2.2.2', '2.2.2', '.....', '.222.', '22222', '22222', '.222.', '.222.', '..2..']
+    for x, y in ((9, 31), (19, 23), (26, 12), (36, 4)):
+        for j, row in enumerate(foot):
+            for i, ch in enumerate(row):
+                if ch != '.':
+                    cv.p(x + i, y + j, 'sh', 1)
+    for x, y in ((14, 38), (33, 18), (8, 22)):
+        cv.p(x, y, 'sh', 2); cv.p(x + 1, y + 1, 'sh', 2)
+    return cv
+
+
+def scrawl():
+    cv = Cv()
+    rows = ['....44444444....', '..444......444..', '.44..........44.', '.4............4.', '4..444....444..4', '4..444....444..4',
+            '4..444....444..4', '4......44......4', '.4.....44.....4.', '.44..........44.', '..444.4.4.4.44..', '....4.4.4.4.4...',
+            '....444444444...']
+    cv.art(16, 6, rows, 'red')
+    cv.line(8, 26, 40, 40, 'red', 4); cv.line(40, 26, 8, 40, 'red', 4)
+    for x, y in ((6, 24), (9, 23), (41, 24), (38, 23), (6, 41), (9, 42), (41, 41), (38, 42)):
+        cv.r(x, y, x + 1, y + 1, 'red', 4)
+    for x, y in ((20, 19), (28, 20), (20, 20), (20, 21)):          # regalims
+        cv.p(x, y, 'red', 5)
+    return cv
+
+
+# ───────────────────────── Cau de goblins (objectes) ─────────────────────────
+
+def rubble_pile():
+    cv = Cv()
+    layers = [(9, ((18, 11, 9),)), (15, ((11, 12, 10), (24, 10, 8))), (22, ((6, 10, 9), (16, 13, 10), (30, 11, 9))),
+              (30, ((2, 11, 9), (13, 9, 8), (22, 12, 10), (34, 11, 9)))]
+    for li, (y, rocks) in enumerate(layers):                       # de dalt (fons) a baix (davant)
+        for k, (x, w, h) in enumerate(rocks):
+            rock(cv, x, y + (li + k) % 2, w, h, li * 7 + k)
+    for x, y, w in ((0, 39, 4), (41, 38, 5), (20, 41, 4), (30, 41, 3)):
+        rock(cv, x, y, w, 3, x)
+    cv.drop(2)
+    return cv
+
+
+def trash_heap():
+    cv = Cv()
+    steps = 10
+    prof = [(38 - 20 * math.cos(math.pi / 2 * k / steps), max(0.6, 19 * math.sin(math.pi / 2 * k / steps))) for k in range(steps + 1)]
+    lathe(cv, 23.5, prof, 'mud', base=4, hollow=False)
+    board(cv, 8, 30, 26, 22); board(cv, 22, 34, 40, 30, w=4)
+    blob(cv, 30, 22, 6, 3.4, 3.0, 'rag', 3, 4); blob(cv, 14, 36, 5, 2.6, 1.2, 'cloth', 5, 6)
+    cv.art(20, 15, SKULL_S, 'bone'); cv.art(28, 34, BONE_A, 'bone'); cv.art(9, 24, FISHBONE[1:4], 'bone')
+    cv.art(33, 25, ['.cc.', '.33.', '2333', '2w33', '2333', '.33.'], 'green', {'c': ('clay', 2), 'w': ('white', 0)})
+    cv.art(15, 20, ['.rr.', 'rrrR', '.RR.'], key={'r': ('red', 3), 'R': ('red', 5)})
+    rock(cv, 4, 37, 6, 4, 2); rock(cv, 37, 38, 5, 3, 4)
+    flies(cv, ((12, 12), (34, 14), (26, 8)))
+    cv.drop(2)
+    return cv
+
+
+SKULL_L = ['..222222..', '.22222222.', '2222222222', '2277227722', '2277227722', '2222772222', '.22222222.', '.32323232.',
+           '..3.3.3.3.']
+
+
+def skull_pile():
+    cv = Cv()
+    for x, y in ((14, 8), (24, 9), (8, 18), (19, 19), (30, 18), (3, 29), (14, 30), (25, 30), (36, 29)):
+        cv.art(x, y, SKULL_L, 'bone')
+        cv.hl(x + 1, x + 8, y + 9, 'bone', 5)
+    cv.art(2, 39, BONE_H, 'bone'); cv.art(30, 40, BONE_H, 'bone')
+    cv.drop(2)
+    return cv
+
+
+def totem():
+    cv = Cv()
+    cv.r(22, 4, 25, 42, 'wood', 5); cv.vl(22, 4, 42, 'wood', 4); cv.vl(25, 4, 42, 'wood', 6)
+    cv.hl(22, 25, 3, 'wood', 2)
+    for y in (12, 22, 31):
+        cv.p(23, y, 'wood', 7); cv.p(24, y + 2, 'wood', 7)
+    cv.r(10, 14, 37, 16, 'wood', 5); cv.hl(10, 37, 14, 'wood', 3); cv.hl(10, 37, 16, 'wood', 6)      # travesser
+    cv.art(19, 5, SKULL_L, 'bone')
+    for x in (7, 33):                                              # cranis penjats
+        cv.vl(x + 3, 17, 19, 'rag', 3); cv.art(x, 20, SKULL_S, 'bone')
+    for x, y, m in ((12, 8, 'red'), (33, 8, 'red'), (9, 10, 'slime'), (36, 10, 'slime')):          # plomes
+        cv.art(x, y, ['.2.', '232', '232', '.4.', '.4.'], m)
+    cv.art(20, 24, ['4.4444.4', '44444444', '.4.44.4.'], 'rag')                                     # corda
+    rock(cv, 15, 39, 8, 5, 1); rock(cv, 25, 40, 7, 4, 3)
+    cv.drop(2)
+    return cv
+
+
+def banner():
+    cv = Cv()
+    cv.r(22, 2, 24, 43, 'wood', 5); cv.vl(22, 2, 43, 'wood', 4)
+    cv.art(21, 0, ['.222.', '23334'], 'bone')
+    cv.r(8, 6, 38, 7, 'wood', 5); cv.hl(8, 38, 6, 'wood', 3)
+    for x in range(10, 37):                                        # la tela, esparracada per baix
+        bottom = 30 + (hsh(x // 3, 0, 4) % 6) - (3 if x % 9 == 4 else 0)
+        for y in range(8, bottom):
+            cv.p(x, y, 'cloth', 4 if (x - 10) % 9 not in (0, 8) else 5)
+        cv.p(x, bottom, 'cloth', 6)
+    cv.hl(10, 36, 8, 'cloth', 6)
+    for x, y in ((14, 20), (15, 21), (30, 16), (31, 16), (20, 27)):                              # forats
+        cv.p(x, y, None)
+    cv.art(18, 11, ['.222222.', '22222222', '2.2222.2', '2.2222.2', '22222222', '.22..22.', '.222222.', '..2.2.2.'], 'bone')
+    cv.art(15, 21, ['2.........2', '.22.....22.', '...22.22...', '.....2.....', '...22.22...', '.22.....22.'], 'bone')
+    rock(cv, 17, 40, 7, 4, 2); rock(cv, 24, 41, 6, 3, 5)
+    cv.drop(2)
+    return cv
+
+
+FLAME = ['......4......', '.....44......', '.....434.....', '....44344....', '....43334..4.', '.4.4433344.44', '.44433233444.',
+         '.44332223344.', '4433221223344', '4433211123344', '4433211123344', '.44322122344.', '.44332223344.', '..443333344..']
+
+
+def cauldron():
+    cv = Cv()
+    board(cv, 6, 36, 24, 40, w=3, tones=(5, 6, 8)); board(cv, 22, 41, 42, 36, w=3, tones=(5, 6, 8))
+    for x, y in ((9, 34), (37, 33), (5, 38), (40, 39)):            # flames que surten per sota
+        cv.art(x - 2, y - 4, ['..2..', '.232.', '23132', '.343.'], 'fire')
+    lathe(cv, 23.5, [(15, 12.5), (17, 14.5), (24, 16), (31, 14), (36, 8.5)], 'iron', base=7, shade=False,
+          cap=(17.5, 12, lambda dx, dz: ('slime', 4 if dx * dx + dz * dz > 100 else 3)))
+    for (x, y), t in list(cv.g.items()):
+        if t == ('iron', 7) and y < 18:
+            cv.p(x, y, 'iron', 6)                                  # la vora de dalt
+    for x, y in ((18, 16), (26, 19), (22, 21)):                    # bombolles
+        cv.art(x, y, ['.11.', '1..1', '.11.'], 'slime'); cv.p(x + 1, y, 'white', 0)
+    cv.art(27, 13, ['.2', '22', '2.', '2.'], 'bone')               # un os que sobresurt
+    for x in (7, 39):
+        cv.art(x - 1, 20, ['.66.', '6..6', '6..6', '.66.'], 'iron')
+    cv.hl(14, 20, 27, 'iron', 6); cv.hl(13, 16, 28, 'iron', 6)     # el reflex de la panxa
+    cv.drop(2)
+    return cv
+
+
+def campfire(lit):
+    cv = Cv()
+    blob(cv, 23.5, 27, 12, 7, 1.3, 'stone', 5, 6)
+    board(cv, 12, 24, 34, 29, w=3, tones=(6, 7, 8)); board(cv, 14, 31, 33, 22, w=3, tones=(6, 7, 8))
+    for x, y in ((20, 26), (27, 25), (23, 29), (17, 28), (30, 28)):
+        cv.p(x, y, 'fire', 3 if lit else 5); cv.p(x + 1, y, 'fire', 4 if lit else 6)
+    for k in range(10):                                            # el rotlle de pedres
+        a = 2 * math.pi * k / 10 + 0.2
+        w = 7 if k % 2 else 6
+        rock(cv, round(23.5 + 17 * math.cos(a) - w / 2), round(27 + 10.5 * math.sin(a) - 2), w, 5, k)
+    contact(cv)
+    if lit:                                                        # la flama, per davant de les pedres del fons
+        cv.art(17, 9, FLAME, 'fire')
+        cv.p(21, 5, 'fire', 3); cv.p(27, 7, 'fire', 4); cv.p(19, 8, 'fire', 4)             # espurnes
+    else:
+        cv.art(20, 12, ['..5...', '.5....', '..5.5.', '...5..'], 'stone')       # un fil de fum
+    return cv
+
+
+def straw_bed():
+    cv = Cv()
+    pts = blob(cv, 23.5, 25, 18, 12, 0.4, 'straw', 4, 5)
+    n = 7
+    for k in range(150):
+        n = (n * 1103515245 + 12345) % 2147483648
+        x, y = 3 + (n >> 6) % 42, 9 + (n >> 13) % 32
+        ang = ((n >> 20) % 314) / 100
+        ln = 3 + (n >> 3) % 4
+        for t in range(ln):
+            px, py = round(x + t * math.cos(ang)), round(y + t * math.sin(ang) * 0.6)
+            if (px, py) in pts:
+                cv.p(px, py, 'straw', (2, 3, 3, 5)[(n >> 9) % 4])
+    blob(cv, 26, 27, 11, 7, 2.2, 'mud', 3, 5)                      # la pell
+    for x, y in ((22, 25), (29, 28), (25, 30), (31, 24), (20, 29)):
+        cv.r(x, y, x + 1, y, 'mud', 2)
+    cv.art(15, 21, ['2.2', '.2.'], 'mud'); cv.art(36, 31, ['.2.', '2.2'], 'mud')
+    blob(cv, 11, 17, 5, 3, 1.1, 'rag', 3, 4); cv.hl(9, 13, 16, 'rag', 2)       # el coixí de draps
+    cv.drop(1, (1, 2))
+    return cv
+
+
+def crate_broken():
+    cv = Cv()
+    crate_box(cv, 7, 34, 8, 24, 40, kind='open')
+    for (x, y) in list(cv.g):                                      # el cantó de la dreta, esbotzat
+        jag = 27 + abs(((y * 0.37) % 2.0) - 1.0) * 5
+        if x > jag and y < 33 + (x - 27) * 0.4:
+            cv.p(x, y, None)
+    board(cv, 30, 30, 44, 34); board(cv, 33, 38, 45, 36, w=4); board(cv, 36, 22, 44, 26)
+    for xa, ya, xb, yb in ((38, 16, 42, 15), (40, 29, 44, 30), (32, 42, 36, 43)):
+        cv.line(xa, ya, xb, yb, 'wood', 3)
+    cv.drop(2)
+    return cv
+
+
+def barrel_broken():
+    cv = Cv()
+    stave = lambda L, th: 1 if (th + 9.0) % 0.3927 < 0.085 else 0
+    hoop = lambda L, th: 'iron' if 29.5 <= L <= 31.6 else None
+    jag = lambda th: 14 + 9 * abs(((th * 2.5 / math.pi + 0.3) % 2.0) - 1.0)
+    lathe(cv, 19.5, BARREL, 'wood', base=6, mod=stave, mat_at=hoop, shade=False, cut=jag)
+    for (x, y), t in list(cv.g.items()):
+        if t[0] == 'iron':
+            cv.p(x, y, 'iron', 5 if x < 16 else 6)
+    board(cv, 33, 26, 45, 30, tones=(3, 5, 6)); board(cv, 34, 36, 46, 33, tones=(3, 5, 6)); board(cv, 36, 18, 44, 21, tones=(3, 5, 6))
+    for y in range(36, 46):                                        # un cèrcol a terra
+        for x in range(26, 46):
+            d = ((x - 36) / 9.0) ** 2 + ((y - 41) / 3.6) ** 2
+            if 0.62 <= d <= 1.0:
+                cv.p(x, y, 'iron', 5 if y < 41 else 6)
+    cv.drop(2)
+    return cv
+
+
+def cage(inside=None):
+    cv = Cv()
+    x0, x1 = 7, 40
+    cv.r(x0, 5, x1, 22, 'sh', 1)                                   # per dalt es veu el fons, a les fosques
+    if inside == 'bones':
+        cv.art(14, 10, SKULL_L, 'bone'); cv.art(26, 12, BONE_A, 'bone'); cv.art(17, 30, RIBS, 'bone')
+    for x in range(x0 + 4, x1 - 2, 5):                             # barrots de dalt
+        cv.vl(x, 5, 22, 'iron', 4)
+    cv.frame(x0, 4, x1, 23, 'iron', 4); cv.frame(x0 + 1, 5, x1 - 1, 22, 'iron', 5)
+    cv.hl(x0, x1, 4, 'iron', 3)
+    cv.hl(x0, x1, 24, 'iron', 3)                                   # cantell del davant
+    cv.r(x0, 25, x1, 41, 'sh', 1)
+    if inside == 'bones':
+        cv.art(17, 32, RIBS, 'bone'); cv.art(10, 34, SKULL_S, 'bone')
+    cv.r(x0, 25, x1, 26, 'iron', 6); cv.r(x0, 40, x1, 41, 'iron', 7)
+    for x in range(x0, x1 + 1, 5):                                 # barrots del davant
+        cv.vl(x, 25, 41, 'iron', 5); cv.vl(x + 1, 25, 41, 'iron', 6) if x + 1 <= x1 else None
+    cv.art(27, 30, ['.33.', '3..3', '2222', '2332', '2222'], 'gold')                           # el cadenat
+    cv.drop(2)
+    return cv
+
+
+def barricade():
+    cv = Cv()
+    for k, (x, top) in enumerate(((4, 12), (11, 6), (18, 10), (25, 4), (32, 9), (39, 13))):
+        for y in range(top, 41):
+            inset = max(0, 3 - (y - top)) // 2 if y < top + 6 else 0
+            for i in range(inset, 5 - inset):
+                cv.p(x + i, y, 'wood', 3 if i == inset else 5 if i == 4 - inset else 4)
+        cv.p(x + 2, top, 'wood', 1); cv.p(x + 2, top + 1, 'wood', 2)
+        cv.p(x + 1, top + 14 + k % 3, 'wood', 6)
+    for y in (22, 33):                                             # travessers lligats
+        cv.r(2, y, 45, y + 2, 'wood', 3); cv.hl(2, 45, y, 'wood', 2); cv.hl(2, 45, y + 2, 'wood', 6)
+        for x in (5, 12, 19, 26, 33, 40):
+            cv.art(x, y - 1, ['3.3', '.3.', '3.3', '.3.', '3.3'], 'rag')
+    cv.drop(2)
+    return cv
+
+
+def bone_heap():
+    cv = Cv()
+    gold_mound(cv, 23.5, 37, 18, 17, 23, mat='bone', sparkle=False)
+    for x, y in ((6, 34), (18, 37), (30, 35)):
+        cv.art(x, y, SKULL_L[:7], 'bone'); cv.hl(x + 1, x + 8, y + 7, 'bone', 5)
+    cv.art(14, 22, SKULL_S, 'bone'); cv.art(27, 25, BONE_A, 'bone'); cv.art(20, 14, BONE_B, 'bone'); cv.art(16, 30, RIBS, 'bone')
+    cv.drop(2, (1, 2))
+    return cv
+
+
+def build_goblin():
+    """v5.30 — Runa i brutícia (decorat de terra) i el cau de goblins (objectes)."""
+    R, G = 'ox_rubble', 'ox_goblin'
+    add('ox_rubble_a', 'Runa', R, rubble(1, 3, 6))
+    add('ox_rubble_b', 'Runa escampada', R, rubble(2, 1, 9))
+    add('ox_rubble_c', 'Pedres grosses', R, rubble(3, 4, 3))
+    add('ox_bricks', 'Maons trencats', R, bricks())
+    add('ox_dirt_pile', 'Munt de terra', R, dirt_pile())
+    add('ox_mud', 'Bassal de fang', R, puddle('mud', 5, 4, 1.0))
+    add('ox_slime', 'Bassal llefiscós', R, puddle('slime', 3, 2, 2.2, bubbles=True))
+    add('ox_stain', 'Taca de greix', R, stain(0.6))
+    add('ox_blood_dry', 'Sang seca', R, blood_dry())
+    add('ox_dung', 'Femta', R, dung())
+    add('ox_dung_scatter', 'Cagarades', R, dung(True))
+    add('ox_bones_gnawed', 'Ossos rosegats', R, bones('gnawed'))
+    add('ox_bones_fish', 'Espines de peix', R, bones('fish'))
+    add('ox_bones_horned', 'Crani banyut', R, bones('horned'))
+    add('ox_rags', 'Parracs', R, rags(0))
+    add('ox_rags_red', 'Drap esparracat', R, rags(1))
+    add('ox_planks', 'Fustes trencades', R, planks())
+    add('ox_ashes', 'Cendres', R, ashes())
+    add('ox_scraps', 'Restes de menjar', R, scraps())
+    add('ox_fish_rotten', 'Peix podrit', R, fish_rotten())
+    add('ox_straw', 'Palla', R, straw(1))
+    add('ox_straw_thin', 'Palla escampada', R, straw(4, False))
+    add('ox_glass', 'Vidres trencats', R, glass())
+    add('ox_jug_tipped', 'Gerra bolcada', R, jug_tipped())
+    add('ox_mushrooms', 'Bolets', R, mushrooms('red', ('white', 0)))
+    add('ox_mushrooms_cave', 'Bolets de cova', R, mushrooms('slime', ('slime', 0)))
+    add('ox_rat', 'Rata morta', R, rat())
+    add('ox_chains', 'Cadenes i manilles', R, chains())
+    add('ox_rusty', 'Ferralla rovellada', R, rusty())
+    add('ox_footprints', 'Petjades', R, footprints())
+    add('ox_scrawl', 'Gargot de goblin', R, scrawl())
+    add('ox_rubble_pile', 'Munt de runa', G, rubble_pile())
+    add('ox_trash_heap', 'Munt d\'escombraries', G, trash_heap())
+    add('ox_skull_pile', 'Pila de cranis', G, skull_pile())
+    add('ox_bone_heap', 'Munt d\'ossos', G, bone_heap())
+    add('ox_totem', 'Tòtem de cranis', G, totem())
+    add('ox_banner_goblin', 'Estendard esparracat', G, banner())
+    add('ox_banner_goblin_green', 'Estendard esparracat verd', G, banner(), {'cloth': GREEN})
+    add('ox_cauldron', 'Olla de brou', G, cauldron())
+    add('ox_campfire', 'Foguera', G, campfire(True))
+    add('ox_campfire_dead', 'Foguera apagada', G, campfire(False))
+    add('ox_straw_bed', 'Jaç de palla', G, straw_bed())
+    add('ox_crate_broken', 'Caixa esbotzada', G, crate_broken())
+    add('ox_barrel_broken', 'Bóta rebentada', G, barrel_broken())
+    add('ox_cage', 'Gàbia', G, cage())
+    add('ox_cage_bones', 'Gàbia amb ossos', G, cage('bones'))
+    add('ox_barricade', 'Barricada d\'estaques', G, barricade())
+
+
+
+
 def build():
     F, K, V, X, T = 'ox_furniture', 'ox_containers', 'ox_vases', 'ox_chests', 'ox_treasure'
     cloth = lambda r: {'cloth': r}
@@ -1118,6 +1801,7 @@ def build():
     add('ox_gems', 'Gemmes', T, gems())
     add('ox_pouch', 'Bossa de monedes', T, pouch())
     add('ox_jewels', 'Joies', T, jewels())
+    build_goblin()
 
 
 def main():

@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.30 — Runa, brutícia i el cau de goblins
+- Decorat → «Runa i brutícia» (31 peces de terra, que s'apilen): runa i pedres, maons trencats, munt de terra, bassals de fang i llefiscós, taca de greix, sang seca, femta, ossos rosegats, espines, crani banyut, parracs, fustes trencades, cendres, restes de menjar, peix podrit, palla, vidres trencats, gerra bolcada, bolets, rata morta, cadenes, ferralla rovellada, petjades i un gargot de goblin
+- Objectes → «Cau de goblins» (16 peces): munt de runa, munt d'escombraries, pila de cranis, munt d'ossos, tòtem de cranis, estendards esparracats, olla de brou, foguera encesa i apagada, jaç de palla, caixa esbotzada, bóta rebentada, gàbia (buida i amb ossos) i barricada d'estaques
+- Mateix estil que la resta (48 px natius, tons plans, ombra d'1 px sota les restes com els ossos de l'autor). La foguera és només dibuix: no fa llum. Cap canvi a la API ni a les partides desades
+
 ### v5.29 — Objectes a l'estil Oryx: tercera versió, a la mida de píxel de l'autor
 - Estudi del full de l'autor píxel a píxel: l'art és a 48 px natius amb detall d'1 px (no 24 px ampliats), les cares són d'un sol to i el detall és dibuix (cantell clar, claus, desgast a les vores, esquerdes), no degradats
 - Les 103 peces es tornen a dibuixar amb aquestes regles: el píxel ja és de la mateixa mida que el de la taula, la caixa i la bóta originals, amb els mateixos colors, proporcions i ombra

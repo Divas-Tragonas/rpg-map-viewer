@@ -45,6 +45,9 @@ GROUPS = {
     'ox_vases': ('Gerros i àmfores', 'objectes', 'object'),
     'ox_chests': ('Cofres grans', 'objectes', 'object'),
     'ox_treasure': ('Monedes i tresor', 'boti', 'object'),
+    # v5.30: brutícia de terra i el cau de goblins
+    'ox_rubble': ('Runa i brutícia', 'decorat', 'decor'),
+    'ox_goblin': ('Cau de goblins', 'objectes', 'object'),
 }
 
 PIECES = []  # (id, etiqueta, grup, fitxer, x, y, w, h)

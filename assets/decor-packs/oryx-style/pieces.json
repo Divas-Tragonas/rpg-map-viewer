@@ -719,5 +719,334 @@
   "group": "ox_treasure",
   "w": 48,
   "h": 48
+ },
+ {
+  "id": "ox_rubble_a",
+  "label": "Runa",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_rubble_b",
+  "label": "Runa escampada",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_rubble_c",
+  "label": "Pedres grosses",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bricks",
+  "label": "Maons trencats",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_dirt_pile",
+  "label": "Munt de terra",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_mud",
+  "label": "Bassal de fang",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_slime",
+  "label": "Bassal llefiscós",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_stain",
+  "label": "Taca de greix",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_blood_dry",
+  "label": "Sang seca",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_dung",
+  "label": "Femta",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_dung_scatter",
+  "label": "Cagarades",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bones_gnawed",
+  "label": "Ossos rosegats",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bones_fish",
+  "label": "Espines de peix",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bones_horned",
+  "label": "Crani banyut",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_rags",
+  "label": "Parracs",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_rags_red",
+  "label": "Drap esparracat",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_planks",
+  "label": "Fustes trencades",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_ashes",
+  "label": "Cendres",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_scraps",
+  "label": "Restes de menjar",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_fish_rotten",
+  "label": "Peix podrit",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_straw",
+  "label": "Palla",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_straw_thin",
+  "label": "Palla escampada",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_glass",
+  "label": "Vidres trencats",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_jug_tipped",
+  "label": "Gerra bolcada",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_mushrooms",
+  "label": "Bolets",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_mushrooms_cave",
+  "label": "Bolets de cova",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_rat",
+  "label": "Rata morta",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_chains",
+  "label": "Cadenes i manilles",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_rusty",
+  "label": "Ferralla rovellada",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_footprints",
+  "label": "Petjades",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_scrawl",
+  "label": "Gargot de goblin",
+  "group": "ox_rubble",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_rubble_pile",
+  "label": "Munt de runa",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_trash_heap",
+  "label": "Munt d'escombraries",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_skull_pile",
+  "label": "Pila de cranis",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_bone_heap",
+  "label": "Munt d'ossos",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_totem",
+  "label": "Tòtem de cranis",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_banner_goblin",
+  "label": "Estendard esparracat",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_banner_goblin_green",
+  "label": "Estendard esparracat verd",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_cauldron",
+  "label": "Olla de brou",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_campfire",
+  "label": "Foguera",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_campfire_dead",
+  "label": "Foguera apagada",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_straw_bed",
+  "label": "Jaç de palla",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_crate_broken",
+  "label": "Caixa esbotzada",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_barrel_broken",
+  "label": "Bóta rebentada",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_cage",
+  "label": "Gàbia",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_cage_bones",
+  "label": "Gàbia amb ossos",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
+ },
+ {
+  "id": "ox_barricade",
+  "label": "Barricada d'estaques",
+  "group": "ox_goblin",
+  "w": 48,
+  "h": 48
  }
 ]

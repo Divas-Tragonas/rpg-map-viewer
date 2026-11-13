@@ -4,7 +4,7 @@
  */
 export const PACK_COLS = 20;
 
-export type PackGroupId = 'chests' | 'pots' | 'forest' | 'tiny' | 'broken' | 'ox_furniture' | 'ox_containers' | 'ox_vases' | 'ox_chests' | 'ox_treasure';
+export type PackGroupId = 'chests' | 'pots' | 'forest' | 'tiny' | 'broken' | 'ox_furniture' | 'ox_containers' | 'ox_vases' | 'ox_chests' | 'ox_treasure' | 'ox_rubble' | 'ox_goblin';
 export interface PackGroup { id: PackGroupId; label: string; tab: 'objectes' | 'boti' | 'decorat'; kind: 'object' | 'decor' }
 export const PACK_GROUPS: PackGroup[] = [
   { id: 'chests', label: 'Cofres', tab: 'objectes', kind: 'object' },
@@ -17,6 +17,8 @@ export const PACK_GROUPS: PackGroup[] = [
   { id: 'ox_vases', label: 'Gerros i àmfores', tab: 'objectes', kind: 'object' },
   { id: 'ox_chests', label: 'Cofres grans', tab: 'objectes', kind: 'object' },
   { id: 'ox_treasure', label: 'Monedes i tresor', tab: 'boti', kind: 'object' },
+  { id: 'ox_rubble', label: 'Runa i brutícia', tab: 'decorat', kind: 'decor' },
+  { id: 'ox_goblin', label: 'Cau de goblins', tab: 'objectes', kind: 'object' },
 ];
 
 /**
@@ -232,4 +234,51 @@ export const PACK_PIECES: PackPiece[] = [
   { id: 'ox_gems', label: 'Gemmes', group: 'ox_treasure', cell: 250, w: 1, h: 1, art: [6, 11, 36, 31] },
   { id: 'ox_pouch', label: 'Bossa de monedes', group: 'ox_treasure', cell: 251, w: 1, h: 1, art: [7, 16, 39, 29] },
   { id: 'ox_jewels', label: 'Joies', group: 'ox_treasure', cell: 252, w: 1, h: 1, art: [4, 7, 38, 31] },
+  { id: 'ox_rubble_a', label: 'Runa', group: 'ox_rubble', cell: 253, w: 1, h: 1, art: [4, 8, 36, 30] },
+  { id: 'ox_rubble_b', label: 'Runa escampada', group: 'ox_rubble', cell: 254, w: 1, h: 1, art: [5, 6, 37, 34] },
+  { id: 'ox_rubble_c', label: 'Pedres grosses', group: 'ox_rubble', cell: 255, w: 1, h: 1, art: [5, 6, 38, 34] },
+  { id: 'ox_bricks', label: 'Maons trencats', group: 'ox_rubble', cell: 256, w: 1, h: 1, art: [5, 5, 37, 38] },
+  { id: 'ox_dirt_pile', label: 'Munt de terra', group: 'ox_rubble', cell: 257, w: 1, h: 1, art: [10, 16, 31, 22] },
+  { id: 'ox_mud', label: 'Bassal de fang', group: 'ox_rubble', cell: 258, w: 1, h: 1, art: [5, 12, 38, 28] },
+  { id: 'ox_slime', label: 'Bassal llefiscós', group: 'ox_rubble', cell: 259, w: 1, h: 1, art: [5, 13, 38, 26] },
+  { id: 'ox_stain', label: 'Taca de greix', group: 'ox_rubble', cell: 260, w: 1, h: 1, art: [8, 14, 35, 22] },
+  { id: 'ox_blood_dry', label: 'Sang seca', group: 'ox_rubble', cell: 261, w: 1, h: 1, art: [8, 12, 36, 27] },
+  { id: 'ox_dung', label: 'Femta', group: 'ox_rubble', cell: 262, w: 1, h: 1, art: [9, 8, 32, 20] },
+  { id: 'ox_dung_scatter', label: 'Cagarades', group: 'ox_rubble', cell: 263, w: 1, h: 1, art: [8, 9, 32, 31] },
+  { id: 'ox_bones_gnawed', label: 'Ossos rosegats', group: 'ox_rubble', cell: 264, w: 1, h: 1, art: [6, 8, 34, 35] },
+  { id: 'ox_bones_fish', label: 'Espines de peix', group: 'ox_rubble', cell: 265, w: 1, h: 1, art: [9, 14, 32, 25] },
+  { id: 'ox_bones_horned', label: 'Crani banyut', group: 'ox_rubble', cell: 266, w: 1, h: 1, art: [8, 14, 30, 25] },
+  { id: 'ox_rags', label: 'Parracs', group: 'ox_rubble', cell: 267, w: 1, h: 1, art: [9, 12, 33, 26] },
+  { id: 'ox_rags_red', label: 'Drap esparracat', group: 'ox_rubble', cell: 268, w: 1, h: 1, art: [7, 17, 30, 18] },
+  { id: 'ox_planks', label: 'Fustes trencades', group: 'ox_rubble', cell: 269, w: 1, h: 1, art: [5, 8, 37, 33] },
+  { id: 'ox_ashes', label: 'Cendres', group: 'ox_rubble', cell: 270, w: 1, h: 1, art: [9, 15, 32, 19] },
+  { id: 'ox_scraps', label: 'Restes de menjar', group: 'ox_rubble', cell: 271, w: 1, h: 1, art: [6, 10, 31, 30] },
+  { id: 'ox_fish_rotten', label: 'Peix podrit', group: 'ox_rubble', cell: 272, w: 1, h: 1, art: [6, 10, 33, 27] },
+  { id: 'ox_straw', label: 'Palla', group: 'ox_rubble', cell: 273, w: 1, h: 1, art: [2, 12, 44, 27] },
+  { id: 'ox_straw_thin', label: 'Palla escampada', group: 'ox_rubble', cell: 274, w: 1, h: 1, art: [2, 12, 44, 26] },
+  { id: 'ox_glass', label: 'Vidres trencats', group: 'ox_rubble', cell: 275, w: 1, h: 1, art: [8, 8, 32, 32] },
+  { id: 'ox_jug_tipped', label: 'Gerra bolcada', group: 'ox_rubble', cell: 276, w: 1, h: 1, art: [5, 14, 39, 23] },
+  { id: 'ox_mushrooms', label: 'Bolets', group: 'ox_rubble', cell: 277, w: 1, h: 1, art: [6, 8, 33, 33] },
+  { id: 'ox_mushrooms_cave', label: 'Bolets de cova', group: 'ox_rubble', cell: 278, w: 1, h: 1, art: [6, 8, 33, 33] },
+  { id: 'ox_rat', label: 'Rata morta', group: 'ox_rubble', cell: 279, w: 1, h: 1, art: [10, 18, 28, 15] },
+  { id: 'ox_chains', label: 'Cadenes i manilles', group: 'ox_rubble', cell: 280, w: 1, h: 1, art: [2, 9, 43, 29] },
+  { id: 'ox_rusty', label: 'Ferralla rovellada', group: 'ox_rubble', cell: 281, w: 1, h: 1, art: [5, 9, 36, 32] },
+  { id: 'ox_footprints', label: 'Petjades', group: 'ox_rubble', cell: 282, w: 1, h: 1, art: [8, 4, 33, 36] },
+  { id: 'ox_scrawl', label: 'Gargot de goblin', group: 'ox_rubble', cell: 283, w: 1, h: 1, art: [6, 6, 37, 38] },
+  { id: 'ox_rubble_pile', label: 'Munt de runa', group: 'ox_goblin', cell: 284, w: 1, h: 1, art: [1, 9, 44, 39] },
+  { id: 'ox_trash_heap', label: 'Munt d\'escombraries', group: 'ox_goblin', cell: 285, w: 1, h: 1, art: [4, 8, 39, 40] },
+  { id: 'ox_skull_pile', label: 'Pila de cranis', group: 'ox_goblin', cell: 286, w: 1, h: 1, art: [2, 8, 44, 40] },
+  { id: 'ox_bone_heap', label: 'Munt d\'ossos', group: 'ox_goblin', cell: 287, w: 1, h: 1, art: [6, 14, 36, 34] },
+  { id: 'ox_totem', label: 'Tòtem de cranis', group: 'ox_goblin', cell: 288, w: 1, h: 1, art: [7, 3, 32, 45] },
+  { id: 'ox_banner_goblin', label: 'Estendard esparracat', group: 'ox_goblin', cell: 289, w: 1, h: 1, art: [8, 0, 31, 48] },
+  { id: 'ox_banner_goblin_green', label: 'Estendard esparracat verd', group: 'ox_goblin', cell: 290, w: 1, h: 1, art: [8, 0, 31, 48] },
+  { id: 'ox_cauldron', label: 'Olla de brou', group: 'ox_goblin', cell: 291, w: 1, h: 1, art: [3, 8, 40, 40] },
+  { id: 'ox_campfire', label: 'Foguera', group: 'ox_goblin', cell: 292, w: 1, h: 1, art: [3, 5, 40, 36] },
+  { id: 'ox_campfire_dead', label: 'Foguera apagada', group: 'ox_goblin', cell: 293, w: 1, h: 1, art: [3, 12, 40, 29] },
+  { id: 'ox_straw_bed', label: 'Jaç de palla', group: 'ox_goblin', cell: 294, w: 1, h: 1, art: [4, 12, 42, 27] },
+  { id: 'ox_crate_broken', label: 'Caixa esbotzada', group: 'ox_goblin', cell: 295, w: 1, h: 1, art: [7, 8, 39, 40] },
+  { id: 'ox_barrel_broken', label: 'Bóta rebentada', group: 'ox_goblin', cell: 296, w: 1, h: 1, art: [5, 8, 42, 40] },
+  { id: 'ox_cage', label: 'Gàbia', group: 'ox_goblin', cell: 297, w: 1, h: 1, art: [7, 4, 34, 44] },
+  { id: 'ox_cage_bones', label: 'Gàbia amb ossos', group: 'ox_goblin', cell: 298, w: 1, h: 1, art: [7, 4, 34, 44] },
+  { id: 'ox_barricade', label: 'Barricada d\'estaques', group: 'ox_goblin', cell: 299, w: 1, h: 1, art: [2, 4, 44, 43] },
 ];
