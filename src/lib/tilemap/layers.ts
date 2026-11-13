@@ -171,16 +171,17 @@ export function pruneOverlays(m: TileMap): void {
 }
 
 /**
- * Mou un decorat (capa `k` de la casella `from`) a la casella `to`, a sobre dels que hi hagi (`stackDecor`),
- * conservant-ne la rotació. Els decorats són per casella: es mouen de casella en casella, no al píxel.
- * Retorna la capa on ha anat a parar i les caselles tocades, o `null` si no cal o no es pot (mateixa casella,
- * fora del mapa, o ja hi ha la mateixa peça a dalt de tot de la destinació).
+ * Converteix el decorat en un objecte d'una sola peça (`raw:<peça>`, amb la mateixa rotació) a la mateixa
+ * casella (sobre una còpia): així es pot moure al píxel com qualsevol objecte (pinzell «Moure»). Un
+ * decorat és un codi per casella i no té posició fora de la graella; un objecte sí. Contrapartida: els
+ * objectes es pinten sempre per sobre dels decorats. Retorna l'índex de l'objecte nou i les caselles tocades.
  */
-export function moveDecor(m: TileMap, k: number, from: number, to: number, max: number): { k: number; cells: number[] } | null {
-  const code = m.overlays[k]?.[from];
-  if (code === undefined || code < 0 || from === to || to < 0 || to >= m.cols * m.rows) return null;
-  if (!stackDecor(m, to, code, max)) return null;
-  const nk = decorStack(m, to).pop()!;
-  m.overlays[k][from] = -1;
-  return { k: nk, cells: [from, to] };
+export function decorToObject(m: TileMap, it: Extract<TileItem, { kind: 'decor' }>): { idx: number; cells: number[] } | null {
+  const code = m.overlays[it.k]?.[it.i];
+  if (code === undefined || code < 0) return null;
+  const { tile, rot } = decodeDecor(code);
+  m.overlays[it.k][it.i] = -1;
+  const o: TileObject = { c: it.i % m.cols, r: Math.floor(it.i / m.cols), k: `raw:${tile}`, ...(quarter(rot) ? { rot: quarter(rot) } : {}) };
+  m.objects = [...m.objects, o];
+  return { idx: m.objects.length - 1, cells: [it.i] };
 }

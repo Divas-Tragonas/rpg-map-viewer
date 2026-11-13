@@ -5,7 +5,7 @@ La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/
 
 ### v5.31 — Mosques que voleten i decorat que es pot moure
 - Les mosques de la femta, les cagarades, les restes de menjar, el peix podrit i el munt d'escombraries ja no són un dibuix quiet: l'art en surt net i el joc hi pinta mosques que giren i s'esmunyen al voltant de cada punt, batent les ales (DM i jugador, sota la foscor de les sales, giren amb la peça). Sense dependre del bestiari: es dibuixen amb píxels, a l'estil de l'art d'abans
-- El pinzell «Moure» també mou els decorats (pestanya Decorat inclosa): s'arrossega de casella en casella, a sobre del que hi hagi, conservant la rotació; un pas del desfer. Els objectes continuen movent-se al píxel
+- El pinzell «Moure» també mou els decorats (pestanya Decorat inclosa), **al píxel i fora de la graella** com els objectes (Maj l'enganxa a la casella): en agafar-lo es converteix en un objecte d'una peça (`raw:<peça>`) amb la mateixa rotació; un clic sense moure'l el deixa com era. Un decorat mogut es pinta per sobre dels decorats (com tots els objectes) i es pot girar i ordenar amb el menú de capes
 - Cap canvi a la API ni a les partides desades (les mosques surten dels codis de casella ja desats)
 
 ### v5.30 — Runa, brutícia i el cau de goblins
