@@ -59,14 +59,25 @@ function PlaceBar({ brush, onBrush, move }: { brush: TileBrush; onBrush: (b: Til
 const Grid = ({ children }: { children: React.ReactNode }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{children}</div>
 );
+/**
+ * Secció d'un grup dels paquets de decorat. Els grups grans (més de 40 peces: les textures de CraftPix)
+ * surten plegats i només es dibuixen en obrir-los: milers de miniatures alhora feien pesada la paleta.
+ */
+function PackGroupSection({ label, keys, is, pick }: { label: string; keys: string[]; is: (b: TileBrush) => boolean; pick: (b: TileBrush) => void }) {
+  const big = keys.length > 40;
+  const [open, setOpen] = useState(!big);
+  return (
+    <>
+      <div onClick={big ? () => setOpen(o => !o) : undefined} style={{ cursor: big ? 'pointer' : 'default' }}>
+        <Label>{big ? `${open ? '▾' : '▸'} ` : ''}{label}{big ? ` (${keys.length})` : ''}</Label>
+      </div>
+      {open && <Grid>{keys.map(k => <Swatch key={k} thumb={tileThumb(k)} label={objectDef(k)?.label ?? k} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}</Grid>}
+    </>
+  );
+}
 /** Seccions dels paquets de decorat nous (`assets/decor-packs/`) d'una pestanya. */
 function PackGroups({ tab, is, pick }: { tab: 'objectes' | 'boti'; is: (b: TileBrush) => boolean; pick: (b: TileBrush) => void }) {
-  return PACK_OBJECT_GROUPS.filter(g => g.tab === tab).map(g => (
-    <React.Fragment key={g.label}>
-      <Label>{g.label}</Label>
-      <Grid>{g.keys.map(k => <Swatch key={k} thumb={tileThumb(k)} label={objectDef(k)?.label ?? k} active={is({ kind: 'object', key: k })} onClick={() => pick({ kind: 'object', key: k })} />)}</Grid>
-    </React.Fragment>
-  ));
+  return PACK_OBJECT_GROUPS.filter(g => g.tab === tab).map(g => <PackGroupSection key={g.label} label={g.label} keys={g.keys} is={is} pick={pick} />);
 }
 
 const Label = ({ children }: { children: React.ReactNode }) => (

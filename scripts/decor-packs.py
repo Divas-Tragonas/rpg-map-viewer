@@ -27,7 +27,13 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'assets', 'decor-packs')
 OUT_PNG = os.path.join(ROOT, 'public', 'sprites', 'decor_packs.png')
+OUT_PNG2 = os.path.join(ROOT, 'public', 'sprites', 'decor_sheets.png')
 OUT_TS = os.path.join(ROOT, 'src', 'lib', 'tilemap', 'packs.ts')
+# Les peces retallades dels fulls de tessel·les (v5.33) van a un segon full (cap navegador no vol una imatge de
+# 25.000 px d'alçada). Els seus índexs comencen a `PACK2_OFF`: el codi de casella és PACK_BASE + índex igual que al primer.
+PACK2_OFF = 20000
+SHEET_GROUPS = {'tx_dungeon', 'tx_guild', 'tx_glass', 'tx_home', 'tx_chapel', 'tx_farm', 'tx_bridges', 'tx_roads',
+                'tx_cursed_land', 'tx_undead_land'}
 TILE = 48
 COLS = 20
 
@@ -65,6 +71,17 @@ GROUPS = {
     'tx_undead_trees': ('Morts vivents: arbres i plantes', 'objectes', 'object'),
     'tx_undead_other': ('Morts vivents: ruïnes i altres', 'objectes', 'object'),
     'tx_icons': ('Icones de fantasia', 'boti', 'object'),
+    # v5.33: peces retallades dels fulls de tessel·les (`tx_sheet`)
+    'tx_dungeon': ('Masmorra (fulls)', 'objectes', 'object'),
+    'tx_guild': ('Gremi (fulls)', 'objectes', 'object'),
+    'tx_glass': ('Taller de vidre (fulls)', 'objectes', 'object'),
+    'tx_home': ('Casa i jardí (fulls)', 'objectes', 'object'),
+    'tx_chapel': ('Capella (fulls)', 'objectes', 'object'),
+    'tx_farm': ('Granja (fulls)', 'objectes', 'object'),
+    'tx_bridges': ('Ponts (fulls)', 'objectes', 'object'),
+    'tx_roads': ('Camins (fulls)', 'objectes', 'object'),
+    'tx_cursed_land': ('Terra maleïda: terreny (fulls)', 'objectes', 'object'),
+    'tx_undead_land': ('Morts vivents: terreny (fulls)', 'objectes', 'object'),
 }
 
 PIECES = []  # (id, etiqueta, grup, fitxer, x, y, w, h)
@@ -215,6 +232,124 @@ tx_add('und', 'undead-tileset', 'PNG/Objects_separately', None, grouper=lambda s
 tx_add('icon', 'fantasy-icons', 'PNG/Separately', 'tx_icons', accept=lambda s: not s.endswith('_2'), strip=('icon',))
 
 
+# ── Fulls de tessel·les (v5.33): cada peça = una taca connexa del full (un objecte, una casa, un tros de
+# camí o de vora d'aigua; no s'hi usen els fulls `water_detilazation`: són només ones i brillantors per posar sobre l'aigua) retallada al que es veu. Les tessel·les són de 16 px (3×3 = una casella de 48):
+# a 1×, com la resta. ⚠️ Els fulls enormes (taques de més de 4 caselles) es tallen en blocs de 48 px
+# alineats a la graella de 16, i els de dues peces idèntiques només en deixen una.
+def tx_components(path, gap=1):
+    """Caixes (x0, y0, x1, y1) de les taques connexes de l'alfa d'un full, en ordre de lectura."""
+    import numpy as np
+    from collections import deque
+    a = np.array(Image.open(path).convert('RGBA'))[:, :, 3] > 0
+    h, w = a.shape
+    d = a.copy()
+    for dy in range(-gap, gap + 1):
+        for dx in range(-gap, gap + 1):
+            d |= np.roll(np.roll(a, dy, 0), dx, 1)
+    lab = np.zeros((h, w), np.int32)
+    boxes = []
+    for y in range(h):
+        for x in range(w):
+            if d[y, x] and not lab[y, x]:
+                k = len(boxes) + 1
+                q = deque([(y, x)]); lab[y, x] = k
+                x0 = x1 = x; y0 = y1 = y
+                while q:
+                    cy, cx = q.popleft()
+                    x0 = min(x0, cx); x1 = max(x1, cx); y0 = min(y0, cy); y1 = max(y1, cy)
+                    for ny in (cy - 1, cy, cy + 1):
+                        for nx in (cx - 1, cx, cx + 1):
+                            if 0 <= ny < h and 0 <= nx < w and d[ny, nx] and not lab[ny, nx]:
+                                lab[ny, nx] = k; q.append((ny, nx))
+                sub = a[y0:y1 + 1, x0:x1 + 1]
+                ys, xs = np.where(sub)
+                if len(ys) >= 4:
+                    boxes.append((x0 + int(xs.min()), y0 + int(ys.min()), x0 + int(xs.max()) + 1, y0 + int(ys.max()) + 1))
+    boxes.sort(key=lambda b: (b[1] // 16, b[0]))
+    return boxes
+
+
+_TX_SEEN = set()
+
+
+def tx_sheet(prefix, pack, rel, group, label, gap=1):
+    path = os.path.join(SRC, TX, pack, rel)
+    im = Image.open(path).convert('RGBA')
+    n = 0
+    for (x0, y0, x1, y1) in tx_components(path, gap):
+        w, h = x1 - x0, y1 - y0
+        if w > 192 or h > 192:   # taca enorme: blocs de 48 px alineats a la graella de 16
+            gx, gy = x0 // 16 * 16, y0 // 16 * 16
+            crops = [(x, y, min(x + 48, x1 + 15), min(y + 48, y1 + 15))
+                     for y in range(gy, y1, 48) for x in range(gx, x1, 48)]
+        else:
+            crops = [(x0, y0, x1, y1)]
+        for (a, b, c, d) in crops:
+            c, d = min(c, im.width), min(d, im.height)
+            art = im.crop((a, b, c, d))
+            bb = art.getbbox()
+            if not bb:
+                continue
+            a, b, c, d = a + bb[0], b + bb[1], a + bb[2], b + bb[3]
+            art = im.crop((a, b, c, d))
+            key = (art.size, art.tobytes())
+            if key in _TX_SEEN:
+                continue
+            _TX_SEEN.add(key)
+            n += 1
+            add(f'{prefix}_{n:03d}', f'{label} {n}', group, f'{TX}/{pack}/{rel}', a, b, c - a, d - b)
+
+
+for _args in [
+    ('dg_obj', 'dungeon-assets', 'PNG/Objects.png', 'tx_dungeon', 'Objectes de masmorra'),
+    ('dg_wall', 'dungeon-assets', 'PNG/walls_floor.png', 'tx_dungeon', 'Parets i terra de masmorra'),
+    ('dg_crkf', 'dungeon-assets', 'PNG/decorative_cracks_floor.png', 'tx_dungeon', 'Esquerdes de terra'),
+    ('dg_crkw', 'dungeon-assets', 'PNG/decorative_cracks_walls.png', 'tx_dungeon', 'Esquerdes de paret'),
+    ('dp_obj', 'dungeon-props', 'PNG/Objects.png', 'tx_dungeon', 'Atrezzo de masmorra'),
+    ('dp_skull', 'dungeon-props', 'PNG/scull.png', 'tx_dungeon', 'Calavera gegant'),
+    ('dp_web', 'dungeon-props', 'PNG/web.png', 'tx_dungeon', 'Teranyina'),
+    ('dp_flask', 'dungeon-props', 'PNG/Flasks_monsters.png', 'tx_dungeon', 'Flascons de monstres'),
+    ('dp_cann', 'dungeon-props', 'PNG/Cannon_restricted_size.png', 'tx_dungeon', 'Canó'),
+    ('do_oth', 'dungeon-objects', 'PNG/Other_objects.png', 'tx_dungeon', 'Altres objectes'),
+    ('do_ped', 'dungeon-objects', 'PNG/pedestals.png', 'tx_dungeon', 'Pedestals'),
+    ('do_sup', 'dungeon-objects', 'PNG/supplies_objects.png', 'tx_dungeon', 'Provisions'),
+    ('gh_int', 'guild-hall', 'PNG/Interior_objects.png', 'tx_guild', 'Interior del gremi'),
+    ('gh_ext', 'guild-hall', 'PNG/Exterior.png', 'tx_guild', 'Exterior del gremi'),
+    ('gh_win', 'guild-hall', 'PNG/Windows_doors.png', 'tx_guild', 'Finestres i portes'),
+    ('gh_wi', 'guild-hall', 'PNG/Walls_interior.png', 'tx_guild', 'Parets interiors'),
+    ('gh_ws', 'guild-hall', 'PNG/Walls_street.png', 'tx_guild', 'Parets de carrer'),
+    ('gh_crk', 'guild-hall', 'PNG/Decorative_cracks.png', 'tx_guild', 'Esquerdes'),
+    ('gb_int', 'glassblowers', 'PNG/Interior_objects.png', 'tx_glass', 'Interior del taller'),
+    ('gb_ext', 'glassblowers', 'PNG/Exterior_house.png', 'tx_glass', 'Exterior del taller'),
+    ('gb_wi', 'glassblowers', 'PNG/Walls_interior.png', 'tx_glass', 'Parets interiors'),
+    ('mc_int', 'main-characters-home', 'PNG/Interior.png', 'tx_home', 'Interior de la casa'),
+    ('mc_ext', 'main-characters-home', 'PNG/exterior.png', 'tx_home', 'Exterior de la casa'),
+    ('mc_det', 'main-characters-home', 'PNG/house_details.png', 'tx_home', 'Detalls de la casa'),
+    ('mc_grs', 'main-characters-home', 'PNG/ground_grass_details.png', 'tx_home', 'Herba i detalls'),
+    ('mc_wf', 'main-characters-home', 'PNG/walls_floor.png', 'tx_home', 'Parets i terra de la casa'),
+    ('cp_int', 'chapel', 'PNG/Interior_objects.png', 'tx_chapel', 'Interior de la capella'),
+    ('cp_ext', 'chapel', 'PNG/Exterior.png', 'tx_chapel', 'Exterior de la capella'),
+    ('cp_wi', 'chapel', 'PNG/Walls_Interior.png', 'tx_chapel', 'Parets de la capella'),
+    ('cp_sta', 'chapel', 'PNG/Animation/Statues.png', 'tx_chapel', 'Estàtues'),
+    ('fa_pla', 'farm-plants', 'PNG/Plants.png', 'tx_farm', 'Plantes de conreu'),
+    ('fa_sup', 'farm-plants', 'PNG/Supplies.png', 'tx_farm', 'Eines i caixes'),
+    ('br_br', 'bridges', 'PNG_n_Tiled/Bridges.png', 'tx_bridges', 'Pont'),
+    ('rd_gg', 'path-road', 'PNG_Tiled/Ground_grass.png', 'tx_roads', 'Herba'),
+    *[(f'rd_{k}{v[0]}', 'path-road', f'PNG_Tiled/Road{k}{v[1]}.png', 'tx_roads', f'Camí {k}{v[2]}')
+      for k in range(1, 6) for v in (('', '', ''), ('g', '_grass', ' (herba)'), ('t', '_ground', ' (terra)'))
+      if os.path.exists(os.path.join(SRC, TX, 'path-road', f'PNG_Tiled/Road{k}{v[1]}.png'))],
+    ('cl_gnd', 'cursed-land', 'PNG/Ground.png', 'tx_cursed_land', 'Terra'),
+    ('cl_det', 'cursed-land', 'PNG/details.png', 'tx_cursed_land', 'Detalls'),
+    ('cl_spt', 'cursed-land', 'PNG/spots.png', 'tx_cursed_land', 'Taques'),
+    ('cl_bri', 'cursed-land', 'PNG/bridges.png', 'tx_cursed_land', 'Ponts'),
+    ('cl_wc', 'cursed-land', 'PNG/Water_coasts.png', 'tx_cursed_land', 'Vora d\'aigua'),
+    ('ud_gnd', 'undead-tileset', 'PNG/Ground_rocks.png', 'tx_undead_land', 'Terra de roca'),
+    ('ud_det', 'undead-tileset', 'PNG/Details.png', 'tx_undead_land', 'Detalls'),
+    ('ud_wc', 'undead-tileset', 'PNG/Water_coasts.png', 'tx_undead_land', 'Vora d\'aigua'),
+]:
+    tx_sheet(*_args)
+
+
 def block_size(w, h):
     """Caselles que ocupa una peça: les justes per encabir-la, amb amplada senar (centrada a l'àncora)."""
     cw, ch = math.ceil(w / TILE), math.ceil(h / TILE)
@@ -226,51 +361,61 @@ def block_size(w, h):
 def main():
     ids = [p[0] for p in PIECES]
     assert len(ids) == len(set(ids)), 'ids repetits'
-    # Col·locació «el primer forat on cap», en l'ordre de `PIECES`: una peça nova al final no mou les d'abans.
-    occ = set()
-    placed = []
-    for p in PIECES:
-        cw, ch = block_size(p[6], p[7])
-        assert cw <= COLS
-        r = 0
-        while True:
-            spot = next((c for c in range(COLS - cw + 1)
-                         if all((c + i, r + j) not in occ for i in range(cw) for j in range(ch))), None)
-            if spot is not None:
-                break
-            r += 1
-        for i in range(cw):
-            for j in range(ch):
-                occ.add((spot + i, r + j))
-        placed.append((p, spot, r, cw, ch))
-    rows = max(r + ch for _, _, r, _, ch in placed)
-    sheet = Image.new('RGBA', (COLS * TILE, rows * TILE), (0, 0, 0, 0))
     cache = {}
-    out = []
-    for (pid, label, group, path, x, y, w, h), c, r, cw, ch in placed:
-        if path not in cache:
-            cache[path] = Image.open(os.path.join(SRC, path)).convert('RGBA')
-        art = cache[path].crop((x, y, x + w, y + h))
-        ax, ay = (cw * TILE - w) // 2, (ch * TILE - h) // 2   # al mig del bloc, a 1×
-        sheet.alpha_composite(art, (c * TILE + ax, r * TILE + ay))
-        bb = art.getbbox() or (0, 0, w, h)   # el que es veu (miniatura de la paleta)
-        out.append((pid, label, group, r * COLS + c, cw, ch, ax + bb[0], ay + bb[1], bb[2] - bb[0], bb[3] - bb[1]))
-    os.makedirs(os.path.dirname(OUT_PNG), exist_ok=True)
-    sheet.save(OUT_PNG, optimize=True)
-    try:  # com els altres fulls: optimitzador sense pèrdua si hi és (`pip install pyoxipng`)
-        import oxipng
-        oxipng.optimize(OUT_PNG, level=4)
-    except ImportError:
-        pass
+
+    def build(pieces, off, out_png):
+        """«El primer forat on cap», en l'ordre de `pieces`: una peça nova al final no mou les d'abans."""
+        occ = set()
+        placed = []
+        for p in pieces:
+            cw, ch = block_size(p[6], p[7])
+            assert cw <= COLS
+            r = 0
+            while True:
+                spot = next((c for c in range(COLS - cw + 1)
+                             if all((c + i, r + j) not in occ for i in range(cw) for j in range(ch))), None)
+                if spot is not None:
+                    break
+                r += 1
+            for i in range(cw):
+                for j in range(ch):
+                    occ.add((spot + i, r + j))
+            placed.append((p, spot, r, cw, ch))
+        rows = max(r + ch for _, _, r, _, ch in placed)
+        sheet = Image.new('RGBA', (COLS * TILE, rows * TILE), (0, 0, 0, 0))
+        res = []
+        for (pid, label, group, path, x, y, w, h), c, r, cw, ch in placed:
+            if path not in cache:
+                cache[path] = Image.open(os.path.join(SRC, path)).convert('RGBA')
+            art = cache[path].crop((x, y, x + w, y + h))
+            ax, ay = (cw * TILE - w) // 2, (ch * TILE - h) // 2   # al mig del bloc, a 1×
+            sheet.alpha_composite(art, (c * TILE + ax, r * TILE + ay))
+            bb = art.getbbox() or (0, 0, w, h)   # el que es veu (miniatura de la paleta)
+            res.append((pid, label, group, off + r * COLS + c, cw, ch, ax + bb[0], ay + bb[1], bb[2] - bb[0], bb[3] - bb[1]))
+        os.makedirs(os.path.dirname(out_png), exist_ok=True)
+        sheet.save(out_png, optimize=True)
+        try:  # com els altres fulls: optimitzador sense pèrdua si hi és (`pip install pyoxipng`)
+            import oxipng
+            oxipng.optimize(out_png, level=4)
+        except ImportError:
+            pass
+        return res, rows
+
+    out, rows = build([p for p in PIECES if p[2] not in SHEET_GROUPS], 0, OUT_PNG)
+    out2, rows2 = build([p for p in PIECES if p[2] in SHEET_GROUPS], PACK2_OFF, OUT_PNG2)
+    order = {p[0]: i for i, p in enumerate(PIECES)}
+    out = sorted(out + out2, key=lambda o: order[o[0]])
 
     js = lambda s: "'" + s.replace('\\', '\\\\').replace("'", "\\'") + "'"
-    fl = lambda i: f', flies: {json.dumps(FLIES[i])}' if i in FLIES else ''
+    fl2 = lambda i: f', {json.dumps(FLIES[i])}' if i in FLIES else ''
     lines = [
         '/**',
         ' * GENERAT per `scripts/decor-packs.py` — no editar a mà (tocar el script i tornar-lo a executar).',
         ' * Peces dels paquets de `assets/decor-packs/` al full `public/sprites/decor_packs.png`.',
         ' */',
         f'export const PACK_COLS = {COLS};',
+        '/** Índex (`cell`) a partir del qual les peces són al segon full, `decor_sheets.png` (índex local = cell − PACK2_OFF). */',
+        f'export const PACK2_OFF = {PACK2_OFF};',
         '',
         'export type PackGroupId = ' + ' | '.join(js(g) for g in GROUPS) + ';',
         'export interface PackGroup { id: PackGroupId; label: string; tab: \'objectes\' | \'boti\' | \'decorat\'; kind: \'object\' | \'decor\' }',
@@ -283,15 +428,18 @@ def main():
         ' * `w`×`h` = caselles del bloc, `art` = el rectangle que es veu dins del bloc (px), per a la miniatura.',
         ' */',
         'export interface PackPiece { id: string; label: string; group: PackGroupId; cell: number; w: number; h: number; art: [number, number, number, number]; flies?: [number, number][] }',
+        '/** Constructor compacte: amb milers de peces, un literal d\'objecte per peça feia explotar el tipus unió de TypeScript. */',
+        'const P = (id: string, label: string, group: PackGroupId, cell: number, w: number, h: number, a: number, b: number, c: number, d: number, flies?: [number, number][]): PackPiece =>',
+        '  (flies ? { id, label, group, cell, w, h, art: [a, b, c, d], flies } : { id, label, group, cell, w, h, art: [a, b, c, d] });',
         'export const PACK_PIECES: PackPiece[] = [',
-        *[f'  {{ id: {js(i)}, label: {js(l)}, group: {js(g)}, cell: {cell}, w: {w}, h: {h}, art: [{a}, {b}, {c}, {d}]{fl(i)} }},'
+        *[f'  P({js(i)}, {js(l)}, {js(g)}, {cell}, {w}, {h}, {a}, {b}, {c}, {d}{fl2(i)}),'
           for i, l, g, cell, w, h, a, b, c, d in out],
         '];',
         '',
     ]
     with open(OUT_TS, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
-    print(f'{len(out)} peces, full {COLS * TILE}×{rows * TILE} → {os.path.relpath(OUT_PNG, ROOT)}, {os.path.relpath(OUT_TS, ROOT)}')
+    print(f'{len(out)} peces: full 1 {COLS * TILE}×{rows * TILE}, full 2 {COLS * TILE}×{rows2 * TILE} → {os.path.relpath(OUT_TS, ROOT)}')
 
 
 if __name__ == '__main__':

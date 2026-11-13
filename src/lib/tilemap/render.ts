@@ -11,7 +11,7 @@ import {
   type TileMap, type TileObject, cellOf, isWall, isVoid, inMap, decodeDecor,
 } from './model';
 import { WALL_BY_ID, objectDef, groundAnim, wallPiece, packPieceOf } from './palette';
-import { PACK_COLS } from './packs';
+import { PACK_COLS, PACK2_OFF } from './packs';
 import { t } from './model';
 import { flySpotsOf, drawFlies, type FlySpot } from './flies';
 import { placedParts, objectCells, objectDrawOrder, quarter } from './objects';
@@ -19,8 +19,8 @@ import { placedParts, objectCells, objectDrawOrder, quarter } from './objects';
 /** D'on surt una peça codificada (veure `model.ts`): full i retall (quadrat de costat `s`). */
 function tileSrc(tile: number): { id: SheetId; sx: number; sy: number; s: number } {
   if (tile >= PACK_BASE) {
-    const i = tile - PACK_BASE;
-    return { id: 'decor_packs', sx: (i % PACK_COLS) * TILE, sy: Math.floor(i / PACK_COLS) * TILE, s: TILE };
+    const i = tile - PACK_BASE, two = i >= PACK2_OFF, k = two ? i - PACK2_OFF : i;   // `decor_sheets.png`: veure packs.ts
+    return { id: two ? 'decor_sheets' : 'decor_packs', sx: (k % PACK_COLS) * TILE, sy: Math.floor(k / PACK_COLS) * TILE, s: TILE };
   }
   if (tile >= THEME_BASE) {
     const i = tile - THEME_BASE;
@@ -572,8 +572,9 @@ export function tileThumb(tile: number | string, size = 32): string | null {
     // Paquets nous: l'art és petit al mig de la casella (1×); la miniatura en retalla només el que es veu
     // i l'amplia a múltiples sencers mentre hi càpiga (els arbres, més grans, s'encongeixen).
     const [ax, ay, aw, ah] = pack.art, fit = Math.min(size / aw, size / ah), k = fit >= 1 ? Math.floor(fit) : fit;
-    const sx = (pack.cell % PACK_COLS) * TILE + ax, sy = Math.floor(pack.cell / PACK_COLS) * TILE + ay;
-    blit(ctx, 'decor_packs', sx, sy, aw, ah, Math.round((size - aw * k) / 2), Math.round((size - ah * k) / 2), aw * k, ah * k);
+    const two = pack.cell >= PACK2_OFF, k0 = two ? pack.cell - PACK2_OFF : pack.cell;
+    const sx = (k0 % PACK_COLS) * TILE + ax, sy = Math.floor(k0 / PACK_COLS) * TILE + ay;
+    blit(ctx, two ? 'decor_sheets' : 'decor_packs', sx, sy, aw, ah, Math.round((size - aw * k) / 2), Math.round((size - ah * k) / 2), aw * k, ah * k);
   } else if (typeof tile === 'string') {
     // Objecte: es pinten totes les seves peces encabides al quadrat.
     const def = objectDef(tile); if (!def) return null;

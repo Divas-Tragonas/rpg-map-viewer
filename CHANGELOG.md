@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.33 — Criatures i fulls de tessel·les de CraftPix a l'app
+- 16 figuretes noves al bestiari i al selector de figureta (animals, plantes depredadores, monjos, sacerdot, ciutadans, lluitador), amb la mateixa animació d'espera, mirall, grisos i aros que les d'Oryx; en català («Senglar», «Monjo 1»…)
+- Objectes → ~2.500 peces noves retallades dels fulls de tessel·les (masmorra, gremi, taller de vidre, casa, capella, granja, ponts, camins, terrenys maleït i de morts vivents), que es mouen, giren i ordenen com la resta; segon full `decor_sheets.png` (els codis de casella no canvien)
+- La paleta plega els grups grans i només els dibuixa en obrir-los
+- Arreglat: `packs.ts` ja no peta a TypeScript («union type too complex») amb tantes peces: es genera amb un constructor
+- Cap canvi a la API ni a les partides desades
+
 ### v5.32 — 24 paquets de textures de CraftPix al repositori i a la paleta
 - `assets/texture-packs/`: només els PNG dels 24 paquets (2.319 fitxers, 19 MB); fora `.psd`, `.aseprite`, `.tmx`, `.pdf`, `.url`, readmes, llicències, publicitat i PNG repetits
 - Objectes → Arbres i troncs, Arbusts i plantes, Cristalls, Ruïnes, Bosc màgic, Roques i pedres, Zona rocosa, Coves, Terra maleïda i Morts vivents (820 peces) i Botí → Icones de fantasia (135): es posen, mouen, giren i ordenen per capes com la resta d'objectes

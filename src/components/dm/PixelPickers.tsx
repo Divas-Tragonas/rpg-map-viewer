@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { X, DieIcon } from '@/components/icons';
 import { useSpritePack } from '@/hooks/useSpritePack';
+import { CP_INFO } from '@/lib/sprites/cp-creatures';
 import { creatureNames, creatureThumb, drawFace, FACE_COUNT, parseSprite } from '@/lib/sprites/draw';
 import { PORTRAIT_CATEGORIES, partLabel, randomPortrait, drawPortrait, portraitDataUrl, type PortraitChoice } from '@/lib/sprites/portrait';
 import { drawPortraitPart } from '@/lib/sprites/draw';
@@ -38,7 +39,7 @@ function Modal({ title, width, onClose, children }: { title: string; width: numb
   );
 }
 
-const nice = (n: string) => n.replace(/_/g, ' ');
+const nice = (n: string) => (CP_INFO[n]?.[0].toLowerCase()) ?? n.replace(/_/g, ' ');
 
 /** Tria de figureta (criatura del paquet Oryx) per a un token. */
 export function SpritePicker({ value, onPick, onClose }: { value?: string; onPick: (s: string | undefined) => void; onClose: () => void }) {

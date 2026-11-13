@@ -8,6 +8,7 @@
  * servir el més semblant: el DM ho pot canviar al menú del token.
  */
 import { PARTY_CREATURES } from '@/lib/sprites/manifest';
+import { CP_INFO } from '@/lib/sprites/cp-creatures';
 import { MONSTERS, type Monster } from '@/lib/monsters';
 
 /** XP per valor de desafiament (Manual del DM, taula «Experience Points by Challenge Rating»). */
@@ -127,6 +128,9 @@ const S: Record<string, string> = {
   flies: 'insect_swarm',
   worm: 'grick',
   worm_giant: 'purple_worm',
+  // Persones dels paquets de CraftPix (`cp_*`); els animals i les plantes no tenen bloc de 5e al repertori
+  cp_monk1: 'commoner', cp_monk2: 'commoner', cp_monk3: 'commoner', cp_monk4: 'commoner', cp_priest: 'priest',
+  cp_citizen1: 'commoner', cp_citizen2: 'commoner', cp_fighter: 'guard',
   // Aberracions, llimes i altres
   beholder: 'spectator',
   beholder_deep: 'beholder',
@@ -265,7 +269,7 @@ export const ENEMY_TEMPLATES: readonly EnemyTemplate[] = [...GENERIC, ...CASTLE,
 /** Criatura del paquet Oryx com a plantilla (id `oryx_<nom>`, igual que els tokens d'un `.tmx`). */
 export function creatureTemplate(name: string): EnemyTemplate {
   const st = creatureStats(name);
-  const nice = name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
+  const nice = CP_INFO[name]?.[0] ?? name.replace(/_/g, ' ').replace(/^\w/, ch => ch.toUpperCase());
   return {
     id: `oryx_${name}`, name: nice, color: '#f85149', hpMax: st?.hp ?? 10,
     ...(() => { const z = SIZE_TOKEN[creatureMonster(name)?.size ?? 'M']; return { R: z.R, sm: z.sm }; })(),

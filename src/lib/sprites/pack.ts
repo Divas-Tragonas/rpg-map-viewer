@@ -15,8 +15,12 @@ export const SHEET_FILES = {
   // Temes de masmorra (gel, volcà…) recolorits del terreny (`scripts/oryx-themes.py`).
   terrain_themes: 'uf_terrain_themes.png',
   items: 'uf_items.png',
+  // Criatures dels paquets de CraftPix (`scripts/craftpix-creatures.py`).
+  cp_creatures: 'cp_creatures.png',
   // Cofres, gerres, bosc i objectes petits dels paquets nous (`scripts/decor-packs.py`, `assets/decor-packs/`).
   decor_packs: 'decor_packs.png',
+  // Peces retallades dels fulls de tessel·les de CraftPix (segon full de `scripts/decor-packs.py`).
+  decor_sheets: 'decor_sheets.png',
   fx: 'uf_FX.png',
   impact: 'uf_FX_impact.png',
   // Animacions d'efectes dels paquets nous (`scripts/fx-atlas.py` a partir de `assets/fx-packs/`).

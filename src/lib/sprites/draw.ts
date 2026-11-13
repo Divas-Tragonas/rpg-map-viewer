@@ -6,6 +6,7 @@ import { sheet, type SheetId } from './pack';
 import { CREATURES, ITEMS, PORTRAIT_PARTS } from './manifest';
 import { CREATURE_VARIANTS } from './variants';
 import { isKit, kitSheet, parseKit } from './kit';
+import { CP_CELL, CP_CREATURES } from './cp-creatures';
 
 export const TILE = 48;
 /**
@@ -16,7 +17,7 @@ export const TILE = 48;
 const CREATURE_CYCLE = [0, 1, 2, 1];
 const CREATURE_FRAME_MS = 230;   // era 300 (v5.18: l'espera es notava lenta)
 
-export function creatureNames(): string[] { return Object.keys(CREATURES); }
+export function creatureNames(): string[] { return [...Object.keys(CREATURES), ...Object.keys(CP_CREATURES)]; }
 /**
  * Variant de color d'una figureta (`scripts/oryx-variants.py`): viatja dins del nom (`goblin~2`),
  * o sigui que la porten sols el STATE, la partida, el rètol, els diàlegs i les cinemàtiques, sense
@@ -35,13 +36,14 @@ export const creatureVariants = (name: string): readonly string[] => CREATURE_VA
 
 /** La figureta existeix? Accepta el nom amb variant i les de la Forja (`kit:…`, veure `kit.ts`). */
 export const hasCreature = (n: string | undefined | null): n is string =>
-  !!n && (isKit(n) ? !!parseKit(n) : parseSprite(n).name in CREATURES);
+  !!n && (isKit(n) ? !!parseKit(n) : parseSprite(n).name in CREATURES || n in CP_CREATURES);
 
 const FRAMES = 3;  // fotogrames de l'animació d'espera (els 3 primers del full)
 const variantSheet = (variant: number) => `heroes_v${variant}` as SheetId;
 /** El full que pinta exactament aquesta figureta ja hi és? (per no desar a les memòries cau l'original en lloc de la variant) */
 export const sheetReady = (sprite: string) => {
   if (isKit(sprite)) return !!kitSheet(sprite);
+  if (sprite in CP_CREATURES) return !!sheet('cp_creatures');
   const v = parseSprite(sprite).variant; return !!sheet(v ? variantSheet(v) : 'heroes');
 };
 
@@ -75,6 +77,16 @@ export function drawCreature(ctx: CanvasRenderingContext2D, sprite: string, fram
     else { ctx.save(); ctx.translate(dx + size, dy); ctx.scale(-1, 1); ctx.drawImage(strip, sx, 0, TILE, TILE, 0, 0, size, size); ctx.restore(); }
     ctx.imageSmoothingEnabled = prev;
     return true;
+  }
+  const cp = CP_CREATURES[sprite];
+  if (cp) {
+    // CraftPix (`cp_creatures.png`): caselles de 64 px, el mateix píxel que l'Oryx (un píxel de l'art = size/48 px).
+    // El mig de 48 px de la casella cau dins del quadrat; el que sobra surt per les vores.
+    const k = size / TILE, o = (CP_CELL - TILE) / 2 * k, sx = cp[0] + (frame % FRAMES) * CP_CELL;
+    if (!flip) return blit(ctx, 'cp_creatures', sx, cp[1], CP_CELL, CP_CELL, dx - o, dy - o, CP_CELL * k, CP_CELL * k);
+    ctx.save(); ctx.translate(dx + size, dy); ctx.scale(-1, 1);
+    blit(ctx, 'cp_creatures', sx, cp[1], CP_CELL, CP_CELL, -o, -o, CP_CELL * k, CP_CELL * k);
+    ctx.restore(); return true;
   }
   const { name, variant } = parseSprite(sprite);
   const p = CREATURES[name]; if (!p) return false;
