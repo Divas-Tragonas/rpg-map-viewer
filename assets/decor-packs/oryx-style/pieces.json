@@ -788,14 +788,42 @@
   "label": "Femta",
   "group": "ox_rubble",
   "w": 48,
-  "h": 48
+  "h": 48,
+  "flies": [
+   [
+    10,
+    14
+   ],
+   [
+    36,
+    11
+   ],
+   [
+    39,
+    23
+   ],
+   [
+    21,
+    9
+   ]
+  ]
  },
  {
   "id": "ox_dung_scatter",
   "label": "Cagarades",
   "group": "ox_rubble",
   "w": 48,
-  "h": 48
+  "h": 48,
+  "flies": [
+   [
+    20,
+    18
+   ],
+   [
+    34,
+    27
+   ]
+  ]
  },
  {
   "id": "ox_bones_gnawed",
@@ -851,14 +879,42 @@
   "label": "Restes de menjar",
   "group": "ox_rubble",
   "w": 48,
-  "h": 48
+  "h": 48,
+  "flies": [
+   [
+    32,
+    13
+   ],
+   [
+    7,
+    25
+   ]
+  ]
  },
  {
   "id": "ox_fish_rotten",
   "label": "Peix podrit",
   "group": "ox_rubble",
   "w": 48,
-  "h": 48
+  "h": 48,
+  "flies": [
+   [
+    15,
+    11
+   ],
+   [
+    29,
+    12
+   ],
+   [
+    37,
+    27
+   ],
+   [
+    7,
+    29
+   ]
+  ]
  },
  {
   "id": "ox_straw",
@@ -949,7 +1005,21 @@
   "label": "Munt d'escombraries",
   "group": "ox_goblin",
   "w": 48,
-  "h": 48
+  "h": 48,
+  "flies": [
+   [
+    13,
+    13
+   ],
+   [
+    35,
+    15
+   ],
+   [
+    27,
+    9
+   ]
+  ]
  },
  {
   "id": "ox_skull_pile",

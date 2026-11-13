@@ -3,6 +3,11 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.31 — Mosques que voleten i decorat que es pot moure
+- Les mosques de la femta, les cagarades, les restes de menjar, el peix podrit i el munt d'escombraries ja no són un dibuix quiet: l'art en surt net i el joc hi pinta mosques que giren i s'esmunyen al voltant de cada punt, batent les ales (DM i jugador, sota la foscor de les sales, giren amb la peça). Sense dependre del bestiari: es dibuixen amb píxels, a l'estil de l'art d'abans
+- El pinzell «Moure» també mou els decorats (pestanya Decorat inclosa): s'arrossega de casella en casella, a sobre del que hi hagi, conservant la rotació; un pas del desfer. Els objectes continuen movent-se al píxel
+- Cap canvi a la API ni a les partides desades (les mosques surten dels codis de casella ja desats)
+
 ### v5.30 — Runa, brutícia i el cau de goblins
 - Decorat → «Runa i brutícia» (31 peces de terra, que s'apilen): runa i pedres, maons trencats, munt de terra, bassals de fang i llefiscós, taca de greix, sang seca, femta, ossos rosegats, espines, crani banyut, parracs, fustes trencades, cendres, restes de menjar, peix podrit, palla, vidres trencats, gerra bolcada, bolets, rata morta, cadenes, ferralla rovellada, petjades i un gargot de goblin
 - Objectes → «Cau de goblins» (16 peces): munt de runa, munt d'escombraries, pila de cranis, munt d'ossos, tòtem de cranis, estendards esparracats, olla de brou, foguera encesa i apagada, jaç de palla, caixa esbotzada, bóta rebentada, gàbia (buida i amb ossos) i barricada d'estaques

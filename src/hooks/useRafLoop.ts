@@ -10,7 +10,7 @@ import { renderRooms, renderWalls, renderWallDraft, renderDoorDraft, renderLight
 import { viewRect, clampCamToMap, camToView } from '@/lib/camera';
 import { drawTileLive, drawTileDoorsOver, drawTileDoorEdgesOver, doorOpenById, drawObject, drawDecor } from '@/lib/tilemap/render';
 import { TILE, decorCode } from '@/lib/tilemap/model';
-import { objectAt, objectBox } from '@/lib/tilemap/objects';
+import { objectBox } from '@/lib/tilemap/objects';
 import { itemAt, itemBox, refreshItem } from '@/lib/tilemap/layers';
 import { WALL_BY_ID } from '@/lib/tilemap/palette';
 import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
@@ -330,7 +330,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
           const hp = R.rTileHoverPx.current, sel = R.rTileSel.current;
           if (hp && !drag) {
             if (brush.kind === 'rotate') { const it = itemAt(m, hp.x, hp.y); if (it) box(itemBox(m, it), false); }
-            else { const under = objectAt(m, hp.x, hp.y); if (under >= 0 && under !== sel) box(objectBox(m.objects[under]), false); }
+            else { const it = itemAt(m, hp.x, hp.y); if (it && !(it.kind === 'object' && it.idx === sel)) box(itemBox(m, it), false); }
           }
           if (brush.kind === 'move' && sel != null && m.objects[sel]) box(objectBox(m.objects[sel]), true);
         }

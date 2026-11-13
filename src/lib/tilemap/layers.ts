@@ -169,3 +169,18 @@ export function pruneOverlays(m: TileMap): void {
   const keep = m.overlays.filter((o, k) => k === 0 || o.some(v => v >= 0));
   if (keep.length !== m.overlays.length) m.overlays = keep;
 }
+
+/**
+ * Mou un decorat (capa `k` de la casella `from`) a la casella `to`, a sobre dels que hi hagi (`stackDecor`),
+ * conservant-ne la rotació. Els decorats són per casella: es mouen de casella en casella, no al píxel.
+ * Retorna la capa on ha anat a parar i les caselles tocades, o `null` si no cal o no es pot (mateixa casella,
+ * fora del mapa, o ja hi ha la mateixa peça a dalt de tot de la destinació).
+ */
+export function moveDecor(m: TileMap, k: number, from: number, to: number, max: number): { k: number; cells: number[] } | null {
+  const code = m.overlays[k]?.[from];
+  if (code === undefined || code < 0 || from === to || to < 0 || to >= m.cols * m.rows) return null;
+  if (!stackDecor(m, to, code, max)) return null;
+  const nk = decorStack(m, to).pop()!;
+  m.overlays[k][from] = -1;
+  return { k: nk, cells: [from, to] };
+}

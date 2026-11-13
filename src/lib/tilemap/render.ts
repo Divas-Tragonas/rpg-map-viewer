@@ -13,6 +13,7 @@ import {
 import { WALL_BY_ID, objectDef, groundAnim, wallPiece, packPieceOf } from './palette';
 import { PACK_COLS } from './packs';
 import { t } from './model';
+import { flySpotsOf, drawFlies, type FlySpot } from './flies';
 import { placedParts, objectCells, objectDrawOrder, quarter } from './objects';
 
 /** D'on surt una peça codificada (veure `model.ts`): full i retall (quadrat de costat `s`). */
@@ -284,6 +285,8 @@ export interface DoorPiece { dy: number; tile: number; shadow?: boolean; edge?: 
 export interface TileLive {
   /** Peces animades: posició (px de mapa, cantonada) + fotogrames; `rot` = quarts de volta (objecte girat). */
   anims: { x: number; y: number; frames: number[]; ms: number; rot?: number }[];
+  /** Mosques dels decorats bruts: on voleten (px de mapa); es pinten animades a sobre de tot (`drawFlies`). */
+  flies?: FlySpot[];
   /**
    * Portes del mapa de caselles: posició i peces tancada/oberta del seu joc. Cada peça va a
    * la casella de la porta (`dy` 0) o a la de dalt (`dy` −1), on sobresurt l'art. `wall`: com es
@@ -324,6 +327,14 @@ export function tileLiveOf(m: TileMap): TileLive {
       if (p.frames) anims.push({ x, y, frames: p.frames, ms: p.ms ?? 300, ...(rot ? { rot } : {}) });
     }
   }
+  // Mosques: de cada decorat (capa de `overlays`) i de cada peça d'objecte que en porta.
+  const flies: FlySpot[] = [];
+  for (const layer of m.overlays) for (let i = 0; i < layer.length; i++) {
+    if (layer[i] < 0) continue;
+    const { tile, rot } = decodeDecor(layer[i]);
+    flies.push(...flySpotsOf(tile, (i % m.cols) * TILE, Math.floor(i / m.cols) * TILE, rot));
+  }
+  for (const o of m.objects) for (const { part: p, x, y, rot } of placedParts(o)) if (p.tile != null) flies.push(...flySpotsOf(p.tile, x, y, rot));
   const doors: TileLive['doors'] = [];
   for (const [k, setId] of Object.entries(m.doors)) {
     const i = +k, c = i % m.cols, r = Math.floor(i / m.cols);
@@ -353,7 +364,7 @@ export function tileLiveOf(m: TileMap): TileLive {
     const c = i % m.cols, r = Math.floor(i / m.cols);
     cells += !(i in m.doors) && (isWall(m, c, r) || isVoid(m, i)) ? '1' : '0';
   }
-  return { anims, doors, solid: { cols: m.cols, rows: m.rows, cells } };
+  return { anims, doors, ...(flies.length ? { flies } : {}), solid: { cols: m.cols, rows: m.rows, cells } };
 }
 
 /**
@@ -431,6 +442,7 @@ export function drawTileLive(ctx: CanvasRenderingContext2D, live: TileLive | nul
     if (a.rot) drawRot(ctx, a.x, a.y, TILE, a.rot, (x, y) => drawTile(ctx, tile, x, y));
     else drawTile(ctx, tile, a.x, a.y);
   }
+  drawFlies(ctx, live.flies, now);
   for (const d of live.doors) {
     // Porta amagada (pantalla de jugador): la muntant de la porta lateral sobresurt a la casella de
     // dalt, fora de la foscor. `drawTileDoorsOver` hi posarà la paret.

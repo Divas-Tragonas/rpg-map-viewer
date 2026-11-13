@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { DMRefs } from './useDMRefs';
 import type { Wall, Room, Door, LightSource } from '@/types';
-import { TILE, emptyTileMap, cloneTileMap, fitTileMap, type TileMap, type TileFit } from '@/lib/tilemap/model';
+import { TILE, MAX_DECOR_STACK, cellOf, inMap, emptyTileMap, cloneTileMap, fitTileMap, type TileMap, type TileFit } from '@/lib/tilemap/model';
 import { applyBrush, rectCells, lineCells, isRectBrush, type TileBrush, type Cell } from '@/lib/tilemap/editor';
 import { bakeTileMap, repaintCells, tileLiveOf } from '@/lib/tilemap/render';
 import { tileWalls, tileDoors, tileLights, tileRoomFaces, extendRoomFace, hidePatches, pruneNoRoom } from '@/lib/tilemap/geometry';
@@ -10,7 +10,7 @@ import { getBBox } from '@/lib/geometry';
 import { parseTmx } from '@/lib/tilemap/tmx';
 import { objectAt, objectCells, anchorCenter, placeObjectAt } from '@/lib/tilemap/objects';
 import {
-  itemAt, refreshItem, layerOpsFor, applyLayerOp, rotateItem, removeItem, pruneOverlays,
+  itemAt, refreshItem, layerOpsFor, applyLayerOp, rotateItem, removeItem, pruneOverlays, moveDecor,
   type TileItem, type LayerOp,
 } from '@/lib/tilemap/layers';
 
@@ -182,17 +182,30 @@ export function useTileMap(R: DMRefs, D: Deps) {
     if (R.rTileCanvas.current) repaintCells(R.rTileCanvas.current, work, [...objectCells(work, o, 'overlap'), ...objectCells(work, next, 'overlap')]);
   }, [R]);
 
+  /** Pinzell «Moure» sobre un decorat: va a la casella del cursor (a sobre dels que hi hagi). */
+  const moveDecorTo = useCallback((cell: Cell) => {
+    const drag = R.rTileDrag.current, md = drag?.moveDecor; if (!drag || !md) return;
+    const m = R.rTileMap.current; if (!m || !inMap(m, cell.c, cell.r)) return;
+    const work = m === drag.before ? cloneTileMap(m) : m;
+    const res = moveDecor(work, md.k, md.i, cellOf(work, cell.c, cell.r), MAX_DECOR_STACK);
+    if (!res) return;
+    R.rTileMap.current = work;
+    drag.moveDecor = { k: res.k, i: cellOf(work, cell.c, cell.r) };
+    if (R.rTileCanvas.current) repaintCells(R.rTileCanvas.current, work, res.cells);
+  }, [R]);
+
   const tileMove = useCallback((mx: number, my: number, shift = false) => {
     const cell = cellAt(mx, my);
     R.rTileHover.current = cell;
     R.rTileHoverPx.current = { x: mx, y: my };
     const drag = R.rTileDrag.current; if (!drag) return;
     if (drag.move) { moveObject(mx, my, shift); return; }
+    if (drag.moveDecor) { moveDecorTo(cell); return; }
     if (cell.c === drag.last.c && cell.r === drag.last.r) return;
     drag.menu = undefined;   // ja no és un clic: esborra (la línia de sota inclou la casella d'on ha sortit)
     if (!drag.rect) paint(lineCells(drag.last, cell), drag.erase ? { kind: 'erase' } : R.rTileBrush.current);
     drag.last = cell;
-  }, [R, paint, moveObject]);
+  }, [R, paint, moveObject, moveDecorTo]);
 
   /** Posa el llenç ajustat (mapa nou, contingut mogut, fons cuinat a la mida nova). */
   const applyFit = useCallback((fit: TileFit, before: TileMap) => {
@@ -246,7 +259,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
       return true;
     }
     if (R.rTileMap.current === drag.before) return true;   // no ha canviat res
-    commit(drag.before, drag.move ? 'moure un objecte' : 'pintar caselles');
+    commit(drag.before, drag.move ? 'moure un objecte' : drag.moveDecor ? 'moure un decorat' : 'pintar caselles');
     return true;
   }, [R, paint, commit]);
 
@@ -291,7 +304,12 @@ export function useTileMap(R: DMRefs, D: Deps) {
       // Clic a un objecte: el tria (la R el gira) i es pot arrossegar. Clic en buit: cap triat.
       const idx = objectAt(m, mx, my);
       R.rTileSel.current = idx >= 0 ? idx : null;
-      if (idx < 0) return;
+      if (idx < 0) {
+        // Sense objecte: el decorat de dalt de la casella (es mou de casella en casella).
+        const it = itemAt(m, mx, my);
+        if (it?.kind === 'decor') R.rTileDrag.current = { start: cell, last: cell, erase: false, rect: false, before: m, moveDecor: { k: it.k, i: it.i } };
+        return;
+      }
       const a = anchorCenter(m.objects[idx]);
       R.rTileDrag.current = { start: cell, last: cell, erase: false, rect: false, before: m, move: { idx, gx: mx - a.x, gy: my - a.y } };
       return;

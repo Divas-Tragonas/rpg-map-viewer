@@ -329,8 +329,13 @@ def legs(cv, xs, y0, y1, w=4, mat='wood'):
 PIECES = []  # (id, etiqueta, grup, imatge)
 
 
+FLY_SPOTS = {}   # id de la peça → punts on voleten mosques
+
+
 def add(pid, label, group, cv, over=None):
     PIECES.append((pid, label, group, cv.image(over)))
+    if getattr(cv, 'flies', None):
+        FLY_SPOTS[pid] = cv.flies
 
 
 def variants(pid, label, group, cv, vs):
@@ -1123,8 +1128,9 @@ FLY = {'f': ('dark', 3), 'w': ('white', 0)}
 
 
 def flies(cv, pts):
-    for x, y in pts:
-        cv.art(x, y, ['w.w', '.f.'], key=FLY)
+    """v5.31: les mosques ja no es pinten a l'art (serien quietes): es guarden com a punts (`cv.flies`, px de la
+    peça) i el joc les anima a sobre (`drawTileLive`, `lib/tilemap/flies.ts`)."""
+    cv.flies = [(x + 1, y + 1) for x, y in pts]   # el centre de l'antic dibuix de 3×2
 
 
 def rubble(seed, big, small):
@@ -1812,7 +1818,8 @@ def main():
     meta = []
     for pid, label, group, im in PIECES:
         im.save(os.path.join(OUT, pid + '.png'), optimize=True)
-        meta.append({'id': pid, 'label': label, 'group': group, 'w': im.width, 'h': im.height})
+        meta.append({'id': pid, 'label': label, 'group': group, 'w': im.width, 'h': im.height,
+                     **({'flies': FLY_SPOTS[pid]} if pid in FLY_SPOTS else {})})
     with open(os.path.join(OUT, 'pieces.json'), 'w', encoding='utf-8') as f:
         json.dump(meta, f, ensure_ascii=False, indent=1)
         f.write('\n')

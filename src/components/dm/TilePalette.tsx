@@ -44,7 +44,7 @@ function PlaceBar({ brush, onBrush, move }: { brush: TileBrush; onBrush: (b: Til
     <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
       {move && (
         <Button size="sm" active={brush.kind === 'move'} onClick={() => onBrush({ kind: 'move' })} style={{ flex: 1, height: 28 }}
-          title="Arrossega un objecte ja posat on vulguis, al píxel (Maj l'enganxa a la casella)">
+          title="Arrossega un objecte ja posat on vulguis, al píxel (Maj l'enganxa a la casella). Un decorat es mou de casella en casella.">
           <Move size={13} /> Moure
         </Button>
       )}
@@ -165,7 +165,7 @@ export function TilePalette({ brush, onBrush }: Props) {
               </Grid>
               <PackGroups tab="boti" is={is} pick={pick} /></>
             )}
-            {tab === 'decorat' && <PlaceBar brush={brush} onBrush={onBrush} move={false} />}
+            {tab === 'decorat' && <PlaceBar brush={brush} onBrush={onBrush} move />}
             {tab === 'decorat' && DECOR.map(g => (
               <React.Fragment key={g.label}>
                 <Label>{g.label}</Label>
@@ -181,7 +181,7 @@ export function TilePalette({ brush, onBrush }: Props) {
         </ScrollArea>
       )}
       <div style={{ padding: '6px 10px', borderTop: `1px solid ${C.border}`, fontSize: FS.xs, color: C.dim, lineHeight: 1.5 }}
-        title={brush.kind === 'move' ? 'Arrossega un objecte on vulguis · Maj l\'enganxa a la casella · clic dret: menú de capes'
+        title={brush.kind === 'move' ? 'Arrossega un objecte on vulguis (un decorat, de casella en casella) · Maj l\'enganxa a la casella · clic dret: menú de capes'
           : brush.kind === 'rotate' ? 'Clica un objecte o un decorat per girar-lo 90° · clic dret: menú de capes'
           : 'Arrossega per pintar · Maj omple un rectangle · clic dret: capes (arrossegant, esborra) · R gira el de sota'}>
         {brush.kind === 'move' ? 'Arrossegar · Maj a la casella · clic dret: capes'

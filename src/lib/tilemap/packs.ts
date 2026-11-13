@@ -25,7 +25,7 @@ export const PACK_GROUPS: PackGroup[] = [
  * Una peça: `cell` = índex de la casella de dalt a l'esquerra del bloc al full (fila·PACK_COLS + columna),
  * `w`×`h` = caselles del bloc, `art` = el rectangle que es veu dins del bloc (px), per a la miniatura.
  */
-export interface PackPiece { id: string; label: string; group: PackGroupId; cell: number; w: number; h: number; art: [number, number, number, number] }
+export interface PackPiece { id: string; label: string; group: PackGroupId; cell: number; w: number; h: number; art: [number, number, number, number]; flies?: [number, number][] }
 export const PACK_PIECES: PackPiece[] = [
   { id: 'chest_iron_1_closed', label: 'Cofre ferrat 1 (tancat)', group: 'chests', cell: 0, w: 1, h: 1, art: [14, 17, 20, 19] },
   { id: 'chest_iron_1_open', label: 'Cofre ferrat 1 (obert)', group: 'chests', cell: 1, w: 1, h: 1, art: [14, 12, 20, 24] },
@@ -243,8 +243,8 @@ export const PACK_PIECES: PackPiece[] = [
   { id: 'ox_slime', label: 'Bassal llefiscós', group: 'ox_rubble', cell: 259, w: 1, h: 1, art: [5, 13, 38, 26] },
   { id: 'ox_stain', label: 'Taca de greix', group: 'ox_rubble', cell: 260, w: 1, h: 1, art: [8, 14, 35, 22] },
   { id: 'ox_blood_dry', label: 'Sang seca', group: 'ox_rubble', cell: 261, w: 1, h: 1, art: [8, 12, 36, 27] },
-  { id: 'ox_dung', label: 'Femta', group: 'ox_rubble', cell: 262, w: 1, h: 1, art: [9, 8, 32, 20] },
-  { id: 'ox_dung_scatter', label: 'Cagarades', group: 'ox_rubble', cell: 263, w: 1, h: 1, art: [8, 9, 32, 31] },
+  { id: 'ox_dung', label: 'Femta', group: 'ox_rubble', cell: 262, w: 1, h: 1, art: [13, 14, 22, 14], flies: [[10, 14], [36, 11], [39, 23], [21, 9]] },
+  { id: 'ox_dung_scatter', label: 'Cagarades', group: 'ox_rubble', cell: 263, w: 1, h: 1, art: [8, 9, 32, 31], flies: [[20, 18], [34, 27]] },
   { id: 'ox_bones_gnawed', label: 'Ossos rosegats', group: 'ox_rubble', cell: 264, w: 1, h: 1, art: [6, 8, 34, 35] },
   { id: 'ox_bones_fish', label: 'Espines de peix', group: 'ox_rubble', cell: 265, w: 1, h: 1, art: [9, 14, 32, 25] },
   { id: 'ox_bones_horned', label: 'Crani banyut', group: 'ox_rubble', cell: 266, w: 1, h: 1, art: [8, 14, 30, 25] },
@@ -252,8 +252,8 @@ export const PACK_PIECES: PackPiece[] = [
   { id: 'ox_rags_red', label: 'Drap esparracat', group: 'ox_rubble', cell: 268, w: 1, h: 1, art: [7, 17, 30, 18] },
   { id: 'ox_planks', label: 'Fustes trencades', group: 'ox_rubble', cell: 269, w: 1, h: 1, art: [5, 8, 37, 33] },
   { id: 'ox_ashes', label: 'Cendres', group: 'ox_rubble', cell: 270, w: 1, h: 1, art: [9, 15, 32, 19] },
-  { id: 'ox_scraps', label: 'Restes de menjar', group: 'ox_rubble', cell: 271, w: 1, h: 1, art: [6, 10, 31, 30] },
-  { id: 'ox_fish_rotten', label: 'Peix podrit', group: 'ox_rubble', cell: 272, w: 1, h: 1, art: [6, 10, 33, 27] },
+  { id: 'ox_scraps', label: 'Restes de menjar', group: 'ox_rubble', cell: 271, w: 1, h: 1, art: [8, 10, 29, 30], flies: [[32, 13], [7, 25]] },
+  { id: 'ox_fish_rotten', label: 'Peix podrit', group: 'ox_rubble', cell: 272, w: 1, h: 1, art: [8, 16, 26, 21], flies: [[15, 11], [29, 12], [37, 27], [7, 29]] },
   { id: 'ox_straw', label: 'Palla', group: 'ox_rubble', cell: 273, w: 1, h: 1, art: [2, 12, 44, 27] },
   { id: 'ox_straw_thin', label: 'Palla escampada', group: 'ox_rubble', cell: 274, w: 1, h: 1, art: [2, 12, 44, 26] },
   { id: 'ox_glass', label: 'Vidres trencats', group: 'ox_rubble', cell: 275, w: 1, h: 1, art: [8, 8, 32, 32] },
@@ -266,7 +266,7 @@ export const PACK_PIECES: PackPiece[] = [
   { id: 'ox_footprints', label: 'Petjades', group: 'ox_rubble', cell: 282, w: 1, h: 1, art: [8, 4, 33, 36] },
   { id: 'ox_scrawl', label: 'Gargot de goblin', group: 'ox_rubble', cell: 283, w: 1, h: 1, art: [6, 6, 37, 38] },
   { id: 'ox_rubble_pile', label: 'Munt de runa', group: 'ox_goblin', cell: 284, w: 1, h: 1, art: [1, 9, 44, 39] },
-  { id: 'ox_trash_heap', label: 'Munt d\'escombraries', group: 'ox_goblin', cell: 285, w: 1, h: 1, art: [4, 8, 39, 40] },
+  { id: 'ox_trash_heap', label: 'Munt d\'escombraries', group: 'ox_goblin', cell: 285, w: 1, h: 1, art: [4, 15, 39, 33], flies: [[13, 13], [35, 15], [27, 9]] },
   { id: 'ox_skull_pile', label: 'Pila de cranis', group: 'ox_goblin', cell: 286, w: 1, h: 1, art: [2, 8, 44, 40] },
   { id: 'ox_bone_heap', label: 'Munt d\'ossos', group: 'ox_goblin', cell: 287, w: 1, h: 1, art: [6, 14, 36, 34] },
   { id: 'ox_totem', label: 'Tòtem de cranis', group: 'ox_goblin', cell: 288, w: 1, h: 1, art: [7, 3, 32, 45] },

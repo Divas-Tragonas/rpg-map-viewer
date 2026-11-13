@@ -51,6 +51,7 @@ GROUPS = {
 }
 
 PIECES = []  # (id, etiqueta, grup, fitxer, x, y, w, h)
+FLIES = {}   # id → punts (px de la casella) on voleten mosques (v5.31, de `pieces.json`)
 
 
 def add(pid, label, group, path, x, y, w, h):
@@ -111,6 +112,8 @@ for fname, label in TINY:
 with open(os.path.join(SRC, 'oryx-style', 'pieces.json'), encoding='utf-8') as _f:
     for _p in json.load(_f):
         add(_p['id'], _p['label'], _p['group'], f"oryx-style/{_p['id']}.png", 0, 0, _p['w'], _p['h'])
+        if _p.get('flies'):
+            FLIES[_p['id']] = _p['flies']
 
 
 def block_size(w, h):
@@ -162,6 +165,7 @@ def main():
         pass
 
     js = lambda s: "'" + s.replace('\\', '\\\\').replace("'", "\\'") + "'"
+    fl = lambda i: f', flies: {json.dumps(FLIES[i])}' if i in FLIES else ''
     lines = [
         '/**',
         ' * GENERAT per `scripts/decor-packs.py` — no editar a mà (tocar el script i tornar-lo a executar).',
@@ -179,9 +183,9 @@ def main():
         ' * Una peça: `cell` = índex de la casella de dalt a l\'esquerra del bloc al full (fila·PACK_COLS + columna),',
         ' * `w`×`h` = caselles del bloc, `art` = el rectangle que es veu dins del bloc (px), per a la miniatura.',
         ' */',
-        'export interface PackPiece { id: string; label: string; group: PackGroupId; cell: number; w: number; h: number; art: [number, number, number, number] }',
+        'export interface PackPiece { id: string; label: string; group: PackGroupId; cell: number; w: number; h: number; art: [number, number, number, number]; flies?: [number, number][] }',
         'export const PACK_PIECES: PackPiece[] = [',
-        *[f'  {{ id: {js(i)}, label: {js(l)}, group: {js(g)}, cell: {cell}, w: {w}, h: {h}, art: [{a}, {b}, {c}, {d}] }},'
+        *[f'  {{ id: {js(i)}, label: {js(l)}, group: {js(g)}, cell: {cell}, w: {w}, h: {h}, art: [{a}, {b}, {c}, {d}]{fl(i)} }},'
           for i, l, g, cell, w, h, a, b, c, d in out],
         '];',
         '',
