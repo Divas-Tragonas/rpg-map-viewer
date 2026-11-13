@@ -317,7 +317,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
         const drag = R.rTileDrag.current, hv = R.rTileHover.current;
         // Pinzells «Moure» i «Girar»: vora a l'element de sota el cursor i, més marcada, al triat amb
         // «Moure» (la R el gira) i al del menú de capes obert.
-        const moving = (brush.kind === 'move' || brush.kind === 'rotate') && !drag?.erase;
+        const moving = ((brush.kind === 'move' || brush.kind === 'rotate') && !drag?.erase) || !!drag?.move;
         const box = (bx: { x0: number; y0: number; x1: number; y1: number } | null, strong: boolean) => {
           if (!bx) return;
           ctx.save();
@@ -332,7 +332,7 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
             if (brush.kind === 'rotate') { const it = itemAt(m, hp.x, hp.y); if (it) box(itemBox(m, it), false); }
             else { const it = itemAt(m, hp.x, hp.y); if (it && !(it.kind === 'object' && it.idx === sel)) box(itemBox(m, it), false); }
           }
-          if (brush.kind === 'move' && sel != null && m.objects[sel]) box(objectBox(m.objects[sel]), true);
+          if ((brush.kind === 'move' || drag?.move) && sel != null && m.objects[sel]) box(objectBox(m.objects[sel]), true);
         }
         const focus = R.rTileFocus.current && refreshItem(m, R.rTileFocus.current);
         if (focus) box(itemBox(m, focus), true);

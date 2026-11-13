@@ -63,9 +63,12 @@ export function objectCells(m: TileMap, o: TileObject, mode: 'center' | 'overlap
   return [...out];
 }
 
-/** Compara dos objectes en ordre de pintat: primer el nivell (`z`), després l'alçada i l'ordre de la llista. */
+/**
+ * Compara dos objectes en ordre de pintat: primer els de darrere de les parets (`under`), després el
+ * nivell (`z`), l'alçada i l'ordre de la llista.
+ */
 export function objectCmp(objs: readonly TileObject[], a: number, b: number): number {
-  return ((objs[a].z ?? 0) - (objs[b].z ?? 0)) || (anchorCenter(objs[a]).y - anchorCenter(objs[b]).y) || a - b;
+  return ((objs[a].under ? 0 : 1) - (objs[b].under ? 0 : 1)) || ((objs[a].z ?? 0) - (objs[b].z ?? 0)) || (anchorCenter(objs[a]).y - anchorCenter(objs[b]).y) || a - b;
 }
 
 /**

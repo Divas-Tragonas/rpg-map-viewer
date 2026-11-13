@@ -22,7 +22,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Sala + arrossegar', 'Rectangle amb terra a dins i paret a la vora'],
       ['Arrossegar', 'Pintar amb el pinzell triat a la paleta'],
       ['Maj + arrossegar', 'Omplir un rectangle amb el pinzell'],
-      ['Clic dret', 'Sobre un objecte o un decorat: ordre de les capes (porta al davant, envia al fons…), girar i esborrar'],
+      ['Clic dret', 'Sobre un objecte o un decorat: ordre de les capes (porta al davant, envia al fons, darrere de la paret…), moure, girar i esborrar'],
       ['Clic dret + arrossegar', 'Esborrar (objecte → decorat → porta → paret → terra)'],
       ['Porta', 'Clic a una paret recta entre dues sales'],
       ['Girar + clic · R', 'Girar 90° l\'objecte o el decorat (la R, el de sota el cursor)'],

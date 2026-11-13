@@ -37,9 +37,10 @@ export const EMPTY = -1;
  * al voltant del centre de l'àncora). `ox`/`oy`: desplaçament lliure en px de mapa (= píxels de
  * l'art, entre −24 i 24), per deixar-lo fora de la graella (eina «Moure»). `z`: nivell per a l'ordre
  * de les capes (menú del clic dret: porta al davant, envia al fons…); a igual nivell, el de més avall
- * tapa el de dalt.
+ * tapa el de dalt. `under`: es pinta **per darrere de les parets** (la paret és una capa més del menú:
+ * «Envia enrere» la travessa); sense, per sobre, com sempre.
  */
-export interface TileObject { c: number; r: number; k: string; rot?: number; ox?: number; oy?: number; z?: number }
+export interface TileObject { c: number; r: number; k: string; rot?: number; ox?: number; oy?: number; z?: number; under?: true }
 
 /** Decorats que l'editor apila com a molt en una casella (cada un en una capa de `overlays`). */
 export const MAX_DECOR_STACK = 4;

@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.34 — Moure des del clic dret i objectes darrere de la paret
+- Editor de caselles → el menú del clic dret sobre un objecte o un decorat té «Moure»: la peça queda enganxada al cursor (amb qualsevol pinzell triat) i un clic la deixa, al píxel; Maj l'enganxa a la casella, Esc o clic dret ho cancel·len
+- La paret entra al sistema de capes: un objecte que toca una paret es pot enviar **darrere de la paret** amb «Envia enrere» / «Envia al fons» (i tornar-lo a treure amb «Porta endavant» / «Porta al davant»), per exemple el moble acostat al mur de baix d'una sala. Ho tria el DM peça a peça; no es calcula res de la sala
+- El menú diu quan una ordre travessa la paret i si la peça ja hi és darrere
+- Cap canvi a la API ni a les partides desades (camp opcional `under` dels objectes)
+
 ### v5.33 — Criatures i fulls de tessel·les de CraftPix a l'app
 - 16 figuretes noves al bestiari i al selector de figureta (animals, plantes depredadores, monjos, sacerdot, ciutadans, lluitador), amb la mateixa animació d'espera, mirall, grisos i aros que les d'Oryx; en català («Senglar», «Monjo 1»…)
 - Objectes → ~2.500 peces noves retallades dels fulls de tessel·les (masmorra, gremi, taller de vidre, casa, capella, granja, ponts, camins, terrenys maleït i de morts vivents), que es mouen, giren i ordenen com la resta; segon full `decor_sheets.png` (els codis de casella no canvien)

@@ -419,6 +419,7 @@ export function DMView() {
   });
   const onTileMenuAction = useCallback((a: TileMenuAction) => {
     if (tileMenu && !tileMenuAction(tileMenu.item, a)) notify('Aquest element ja no hi és (s\'ha desfet o esborrat).', 'info');
+    else if (a === 'move') notify('Mou el cursor i clica on el vulguis deixar (Maj: a la casella · Esc: cancel·lar).', 'info');
     setTileMenu(null);
   }, [tileMenu, tileMenuAction, setTileMenu, notify]);
   const closeTileMenu = useCallback(() => setTileMenu(null), [setTileMenu]);

@@ -203,13 +203,6 @@ function drawCellLayers(ctx: CanvasRenderingContext2D, layers: readonly CellLaye
   }
 }
 
-/** Pinta tota la part estàtica d'una casella (terra, decorats, ombra, paret). */
-function drawCellStatic(ctx: CanvasRenderingContext2D, m: TileMap, c: number, r: number) {
-  const x = c * TILE, y = r * TILE;
-  ctx.clearRect(x, y, TILE, TILE);
-  drawCellLayers(ctx, cellLayers(m, c, r), x, y);
-}
-
 /**
  * Peces d'un objecte (girat i desplaçat). `which`: només les quietes (cuinat), només les animades
  * (parts vives) o totes (previsualització de l'editor, amb el fotograma de `now`).
@@ -250,10 +243,15 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
     const c = i % m.cols, r = Math.floor(i / m.cols);
     for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (inMap(m, c + dc, r + dr)) todo.add(cellOf(m, c + dc, r + dr));
   }
+  // Ordre: terra, decorats i ombra de cada casella → objectes de darrere de les parets (`under`) →
+  // parets → la resta d'objectes. La paret és l'última capa de `cellLayers`.
+  const walls: { x: number; y: number; l: CellLayer }[] = [];
   for (const i of todo) {
-    const c = i % m.cols, r = Math.floor(i / m.cols);
-    ctx.fillStyle = '#000'; ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
-    drawCellStatic(ctx, m, c, r);
+    const c = i % m.cols, r = Math.floor(i / m.cols), x = c * TILE, y = r * TILE;
+    ctx.fillStyle = '#000'; ctx.fillRect(x, y, TILE, TILE);
+    const layers = cellLayers(m, c, r);
+    if (isWall(m, c, r) && layers.length) walls.push({ x, y, l: layers.pop()! });
+    drawCellLayers(ctx, layers, x, y);
   }
   // Objectes: el de més avall tapa el de dalt (`objectDrawOrder`). En un repintat parcial, retallat a
   // les caselles repintades: tornar a pintar damunt d'una que no s'ha esborrat en fosquejaria l'ombra
@@ -264,11 +262,10 @@ export function repaintCells(cv: HTMLCanvasElement, m: TileMap, cells: Iterable<
     for (const i of todo) ctx.rect((i % m.cols) * TILE, Math.floor(i / m.cols) * TILE, TILE, TILE);
     ctx.clip();
   }
-  for (const k of objectDrawOrder(m.objects)) {
-    const o = m.objects[k];
-    if (cells && !objectCells(m, o, 'overlap').some(i => todo.has(i))) continue;
-    drawObject(ctx, o, 'static');
-  }
+  const order = objectDrawOrder(m.objects).filter(k => !cells || objectCells(m, m.objects[k], 'overlap').some(i => todo.has(i)));
+  for (const k of order) if (m.objects[k].under) drawObject(ctx, m.objects[k], 'static');
+  for (const w of walls) drawCellLayers(ctx, [w.l], w.x, w.y);
+  for (const k of order) if (!m.objects[k].under) drawObject(ctx, m.objects[k], 'static');
   if (cells) ctx.restore();
 }
 

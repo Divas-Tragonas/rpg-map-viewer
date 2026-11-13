@@ -10,13 +10,16 @@ import { getBBox } from '@/lib/geometry';
 import { parseTmx } from '@/lib/tilemap/tmx';
 import { objectAt, objectCells, anchorCenter, placeObjectAt } from '@/lib/tilemap/objects';
 import {
-  itemAt, refreshItem, layerOpsFor, applyLayerOp, rotateItem, removeItem, pruneOverlays, decorToObject,
+  itemAt, refreshItem, layerOpsFor, applyLayerOp, rotateItem, removeItem, pruneOverlays, decorToObject, wallNextTo,
   type TileItem, type LayerOp,
 } from '@/lib/tilemap/layers';
 
-/** Menú del clic dret sobre un objecte o un decorat (posició de pantalla i què es pot fer). */
-export interface TileMenuState { x: number; y: number; item: TileItem; ops: Record<LayerOp, boolean> }
-export type TileMenuAction = LayerOp | 'rotate' | 'delete';
+/**
+ * Menú del clic dret sobre un objecte o un decorat (posició de pantalla i què es pot fer). `wall`: on és
+ * la paret dins de la pila de l'objecte (`wallNextTo`), per dir-ho a les ordres que la travessen.
+ */
+export interface TileMenuState { x: number; y: number; item: TileItem; ops: Record<LayerOp, boolean>; wall: ReturnType<typeof wallNextTo> }
+export type TileMenuAction = LayerOp | 'rotate' | 'delete' | 'move';
 import { detectRooms, reconcileRooms } from '@/lib/rooms/detect';
 import { pruneDoors } from '@/lib/rooms/doors';
 
@@ -112,6 +115,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
     R.rTileRestore.current = (opts) => {
       const m = R.rTileMap.current;
       R.rTileSel.current = null;   // els índexs dels objectes ja no valen
+      R.rTileDrag.current = null;  // ni el traç o el moviment en curs (un «Moure» del menú a mitges)
       Dref.current.setHasTileMap(!!m);
       if (!m) { R.rTileCanvas.current = null; R.rTileLive.current = null; return; }
       if (opts?.rebake === false) {
@@ -187,6 +191,12 @@ export function useTileMap(R: DMRefs, D: Deps) {
     R.rTileHover.current = cell;
     R.rTileHoverPx.current = { x: mx, y: my };
     const drag = R.rTileDrag.current; if (!drag) return;
+    if (drag.move && drag.sticky && !drag.grabbed) {
+      // «Moure» del menú: s'agafa per on és el cursor en tornar al mapa (l'objecte no fa cap salt).
+      const o = R.rTileMap.current?.objects[drag.move.idx];
+      if (o) { const a = anchorCenter(o); drag.move.gx = mx - a.x; drag.move.gy = my - a.y; }
+      drag.grabbed = true;
+    }
     if (drag.move) { moveObject(mx, my, shift); return; }
     if (cell.c === drag.last.c && cell.r === drag.last.r) return;
     drag.menu = undefined;   // ja no és un clic: esborra (la línia de sota inclou la casella d'on ha sortit)
@@ -231,8 +241,33 @@ export function useTileMap(R: DMRefs, D: Deps) {
     } else scheduleSend();
   }, [R, regenGeometry, scheduleSend, applyFit]);
 
+  /** Cancel·la el «Moure» del menú a mitges (clic dret o Esc): tot torna com era. */
+  const cancelSticky = useCallback((): boolean => {
+    const drag = R.rTileDrag.current; if (!drag?.sticky || !drag.move) return false;
+    const cur = R.rTileMap.current, o = cur?.objects[drag.move.idx];
+    R.rTileDrag.current = null;
+    if (!cur || cur === drag.before) return true;
+    R.rTileMap.current = drag.before;
+    if (drag.converted != null) R.rTileSel.current = null;   // torna a ser un decorat
+    if (R.rTileCanvas.current) {
+      const back = drag.converted != null ? [drag.converted] : objectCells(drag.before, drag.before.objects[drag.move.idx], 'overlap');
+      repaintCells(R.rTileCanvas.current, drag.before, [...(o ? objectCells(cur, o, 'overlap') : []), ...back]);
+    }
+    return true;
+  }, [R]);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && cancelSticky()) { e.stopPropagation(); e.preventDefault(); } };
+    window.addEventListener('keydown', esc, true);
+    return () => window.removeEventListener('keydown', esc, true);
+  }, [cancelSticky]);
+
   const tileUp = useCallback(() => {
     const drag = R.rTileDrag.current; if (!drag) return false;
+    if (drag.sticky) {
+      // Encara segueix el cursor: el deixa el clic següent. Si s'ha canviat d'eina, es cancel·la.
+      if (R.rDrawTool.current !== 'tiles') { cancelSticky(); return false; }
+      return true;
+    }
     if (drag.rect) {
       const brush = drag.erase ? { kind: 'erase' as const } : R.rTileBrush.current;
       // Rectangle amb un pinzell normal (Maj) = omplir-lo; l'eina Sala fa vora de paret.
@@ -242,7 +277,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
     if (drag.menu) {
       // Clic dret sense arrossegar sobre un objecte o un decorat: menú de capes.
       const m = R.rTileMap.current, it = m && refreshItem(m, drag.menu.item);
-      if (m && it) Dref.current.openTileMenu({ x: drag.menu.sx, y: drag.menu.sy, item: it, ops: layerOpsFor(m, it) });
+      if (m && it) Dref.current.openTileMenu({ x: drag.menu.sx, y: drag.menu.sy, item: it, ops: layerOpsFor(m, it), wall: wallNextTo(m, it) });
       return true;
     }
     if (R.rTileMap.current === drag.before) return true;   // no ha canviat res
@@ -257,7 +292,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
     }
     commit(drag.before, drag.move ? (drag.converted != null ? 'moure un decorat' : 'moure un objecte') : 'pintar caselles');
     return true;
-  }, [R, paint, commit]);
+  }, [R, paint, commit, cancelSticky]);
 
   /**
    * Canvia un sol element (menú de capes, girar): còpia del mapa, canvi, repintat i un pas del desfer.
@@ -287,6 +322,16 @@ export function useTileMap(R: DMRefs, D: Deps) {
   }, [R, editItem]);
   const tileDown = useCallback((mx: number, my: number, erase: boolean, shift: boolean, sx = 0, sy = 0) => {
     const m = R.rTileMap.current; if (!m) return;
+    const sticky = R.rTileDrag.current;
+    if (sticky?.sticky && sticky.move) {
+      // «Moure» del menú: el clic el deixa aquí (el `tileUp` d'aquest clic ho tanca); el clic dret ho cancel·la.
+      if (erase) { cancelSticky(); return; }
+      // Sense haver mogut el cursor (pantalla tàctil): el centre va on es toca.
+      if (!sticky.grabbed) { sticky.move.gx = 0; sticky.move.gy = 0; sticky.grabbed = true; }
+      moveObject(mx, my, shift);
+      sticky.sticky = false;
+      return;
+    }
     const cell = cellAt(mx, my);
     const brush = erase ? { kind: 'erase' as const } : R.rTileBrush.current;
     // Clic dret sobre un objecte o un decorat: si no s'arrossega, menú de capes (en deixar anar);
@@ -321,7 +366,7 @@ export function useTileMap(R: DMRefs, D: Deps) {
     const rect = isRectBrush(brush) || shift;
     R.rTileDrag.current = { start: cell, last: cell, erase, rect, before: m };
     if (!rect) paint([cell], brush);
-  }, [R, paint, rotateAt]);
+  }, [R, paint, rotateAt, moveObject, cancelSticky]);
 
 
   /** Tecla R: gira el que hi ha sota el cursor (o l'objecte triat). */
@@ -334,18 +379,41 @@ export function useTileMap(R: DMRefs, D: Deps) {
   const tileMenuAt = useCallback((mx: number, my: number, sx: number, sy: number): boolean => {
     const m = R.rTileMap.current; if (!m) return false;
     const it = itemAt(m, mx, my); if (!it) return false;
-    Dref.current.openTileMenu({ x: sx, y: sy, item: it, ops: layerOpsFor(m, it) });
+    Dref.current.openTileMenu({ x: sx, y: sy, item: it, ops: layerOpsFor(m, it), wall: wallNextTo(m, it) });
+    return true;
+  }, [R]);
+
+  /**
+   * «Moure» del menú de capes: l'element queda enganxat al cursor (sense cap botó premut) fins al clic
+   * que el deixa, amb qualsevol pinzell triat. Un decorat es converteix en objecte, com amb el pinzell
+   * «Moure» (`decorToObject`); si es deixa a la mateixa casella sense moure'l, continua sent decorat.
+   */
+  const startStickyMove = useCallback((item: TileItem): boolean => {
+    const m = R.rTileMap.current;
+    if (!m || R.rTileDrag.current) return false;
+    const it = refreshItem(m, item); if (!it) return false;
+    let idx: number, converted: number | undefined;
+    if (it.kind === 'decor') {
+      const work = cloneTileMap(m), res = decorToObject(work, it); if (!res) return false;
+      R.rTileMap.current = work;
+      if (R.rTileCanvas.current) repaintCells(R.rTileCanvas.current, work, res.cells);
+      idx = res.idx; converted = it.i;
+    } else idx = it.idx;
+    const o = R.rTileMap.current!.objects[idx], cell = { c: o.c, r: o.r };
+    R.rTileSel.current = idx;
+    R.rTileDrag.current = { start: cell, last: cell, erase: false, rect: false, before: m, converted, move: { idx, gx: 0, gy: 0 }, sticky: true };
     return true;
   }, [R]);
 
   /** Una ordre del menú de capes. */
   const tileMenuAction = useCallback((item: TileItem, a: TileMenuAction): boolean => {
     const what = item.kind === 'object' ? 'un objecte' : 'un decorat';
+    if (a === 'move') return startStickyMove(item);
     if (a === 'rotate') return editItem(item, `girar ${what}`, rotateItem);
     if (a === 'delete') return editItem(item, `esborrar ${what}`, removeItem);
     const label = { front: 'portar al davant', forward: 'portar endavant', backward: 'enviar enrere', back: 'enviar al fons' }[a];
     return editItem(item, `${label} ${what}`, (w, it) => applyLayerOp(w, it, a));
-  }, [editItem]);
+  }, [editItem, startStickyMove]);
 
   const tileLeave = useCallback(() => { R.rTileHover.current = null; R.rTileHoverPx.current = null; }, [R]);
 

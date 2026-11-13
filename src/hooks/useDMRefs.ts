@@ -211,6 +211,9 @@ export function useDMRefs() {
   // `move`: pinzell «Moure», objecte arrossegat (índex a `objects`) i on s'ha agafat respecte del centre de l'àncora.
   const rTileDrag      = useRef<{ start: { c: number; r: number }; last: { c: number; r: number }; erase: boolean; rect: boolean; before: TileMap;
     move?: { idx: number; gx: number; gy: number };
+    // «Moure» del menú de capes: l'objecte segueix el cursor sense cap botó premut fins al clic que el deixa
+    // (el clic dret o Esc ho cancel·len). `grabbed`: ja s'ha fixat per on s'agafa (primer moviment del cursor).
+    sticky?: boolean; grabbed?: boolean;
     // Pinzell «Moure» ha agafat un decorat (l'ha convertit en objecte, `decorToObject`): casella d'origen, per desfer-ho si no es mou.
     converted?: number;
     // Clic dret sobre un objecte o un decorat encara sense arrossegar: en deixar anar, menú de capes (`sx`/`sy`: pantalla).

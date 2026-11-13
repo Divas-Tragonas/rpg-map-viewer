@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import { C, FS, RADIUS, SHADOW, tint } from '@/constants';
-import { RedoIcon, Trash2 } from '@/components/icons';
+import { Move, RedoIcon, Trash2 } from '@/components/icons';
 import type { TileMenuState, TileMenuAction } from '@/hooks/useTileMap';
 import type { LayerOp } from '@/lib/tilemap/layers';
 
@@ -45,8 +45,9 @@ function Item({ label, title, disabled, danger, icon, onClick }: {
 
 /**
  * Menú del clic dret sobre un objecte o un decorat del mapa de caselles (eina Caselles): ordre de les
- * capes, girar i esborrar. Un objecte s'ordena entre els objectes que se li encavalquen; un decorat,
- * entre els decorats de la seva casella (els objectes van sempre per sobre dels decorats).
+ * capes, moure, girar i esborrar. Un objecte s'ordena entre els objectes que se li encavalquen i, si
+ * toca una paret, també respecte de la paret (pot quedar-hi darrere); un decorat, entre els decorats de
+ * la seva casella (els objectes van sempre per sobre dels decorats).
  */
 export function TileLayerMenu({ menu, onAction, onClose }: Props) {
   useEffect(() => {
@@ -61,7 +62,19 @@ export function TileLayerMenu({ menu, onAction, onClose }: Props) {
   if (!menu) return null;
   const what = menu.item.kind === 'object' ? 'Objecte' : 'Decorat';
   const alone = !Object.values(menu.ops).some(Boolean);
-  const H = 4 * 31 + 2 * 31 + 60;
+  const H = 4 * 31 + 3 * 31 + 80;
+  const behind = menu.item.kind === 'object' && !!menu.item.obj.under;
+  /** Text de l'ordre quan el pas següent és travessar la paret. */
+  const wallHint = (op: LayerOp): string | null => {
+    if (op === 'forward' && menu.wall.above) return 'Passa per davant de la paret';
+    if (op === 'backward' && menu.wall.below) return 'Passa per darrere de la paret';
+    if (op === 'back' && menu.wall.inStack && !behind) return 'Per sota de tots, també de la paret';
+    if (op === 'front' && behind) return 'Per sobre de tots, també de la paret';
+    return null;
+  };
+  const wallLabel = (op: LayerOp): string | null =>
+    op === 'forward' && menu.wall.above ? 'Porta davant de la paret'
+      : op === 'backward' && menu.wall.below ? 'Envia darrere de la paret' : null;
   return (
     <div data-tilemenu onContextMenu={e => e.preventDefault()}
       style={{
@@ -72,16 +85,17 @@ export function TileLayerMenu({ menu, onAction, onClose }: Props) {
       }}>
       <div style={{ padding: '4px 10px 6px', fontSize: FS.xs, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}
         title={menu.item.kind === 'object'
-          ? 'S\'ordena entre els objectes que se li encavalquen (sempre per sobre dels decorats)'
+          ? 'S\'ordena entre els objectes que se li encavalquen (sempre per sobre dels decorats) i, si toca una paret, també respecte de la paret'
           : 'S\'ordena entre els decorats de la mateixa casella (els objectes van sempre per sobre)'}>
-        {what} · ordre
+        {what} · ordre{behind ? ' · darrere de la paret' : ''}
       </div>
       {LAYER_ITEMS.map(it => (
-        <Item key={it.op} label={it.label} disabled={!menu.ops[it.op]}
-          title={menu.ops[it.op] ? it.hint : alone ? `No té cap altre ${menu.item.kind === 'object' ? 'objecte' : 'decorat'} a sobre ni a sota` : it.op === 'front' || it.op === 'forward' ? 'Ja és al davant de tot' : 'Ja és al fons de tot'}
+        <Item key={it.op} label={wallLabel(it.op) ?? it.label} disabled={!menu.ops[it.op]}
+          title={menu.ops[it.op] ? wallHint(it.op) ?? it.hint : alone ? `No té cap altre ${menu.item.kind === 'object' ? 'objecte' : 'decorat'} a sobre ni a sota` : it.op === 'front' || it.op === 'forward' ? 'Ja és al davant de tot' : 'Ja és al fons de tot'}
           onClick={() => onAction(it.op)} />
       ))}
       <div style={{ height: 1, background: C.border, margin: '4px 6px' }} />
+      <Item label="Moure" icon={<Move size={13} />} title="Queda enganxat al cursor: un clic el deixa (Maj l'enganxa a la casella; Esc o clic dret ho cancel·len)" onClick={() => onAction('move')} />
       <Item label="Girar 90°" icon={<RedoIcon size={13} />} onClick={() => onAction('rotate')} />
       <Item label="Esborrar" danger icon={<Trash2 size={13} />} onClick={() => onAction('delete')} />
     </div>

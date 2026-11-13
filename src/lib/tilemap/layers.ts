@@ -8,10 +8,15 @@
  * escales). Un objecte s'ordena entre els objectes que se li encavalquen (`z`); un decorat, entre els
  * decorats de la seva casella (capes d'`overlays`).
  *
+ * Les parets són una capa més de la pila d'un objecte que en toca alguna: els objectes `under` van per
+ * darrere de la paret i la resta per davant (`objectStack`). «Envia enrere» des del de més avall dels de
+ * davant el passa darrere de la paret, i «Porta endavant» el torna a treure. No es calcula res de la
+ * sala: és el DM qui tria quin objecte queda tapat pel mur.
+ *
  * Totes les funcions que canvien el mapa treballen sobre una còpia (`cloneTileMap`) i retornen les
  * caselles tocades (per repintar el cuinat), o `null` si no hi ha res a fer.
  */
-import { TILE, type TileMap, type TileObject, cellOf, inMap, decodeDecor, decorCode } from './model';
+import { TILE, type TileMap, type TileObject, cellOf, inMap, isWall, decodeDecor, decorCode } from './model';
 import { objectAt, objectBox, objectCells, objectCmp, quarter } from './objects';
 
 export type TileItem =
@@ -62,10 +67,35 @@ function overlapping(m: TileMap, idx: number): number[] {
   }).sort((a, b2) => objectCmp(m.objects, a, b2));
 }
 
+/** L'objecte toca alguna casella de paret (encara que sigui un píxel). */
+export const touchesWall = (m: TileMap, o: TileObject) =>
+  objectCells(m, o, 'overlap').some(i => isWall(m, i % m.cols, Math.floor(i / m.cols)));
+
+/** La paret dins de la pila d'un objecte (`objectStack`). */
+const WALL = -1;
+
+/**
+ * Pila de l'objecte, de baix a dalt: els objectes de darrere de la paret (`under`), la paret (`WALL`) i
+ * la resta. La paret hi surt si l'objecte en toca alguna, o si ja és darrere (així sempre en pot sortir).
+ */
+function objectStack(m: TileMap, idx: number): number[] {
+  const l = overlapping(m, idx);
+  const o = m.objects[idx];
+  if (!o.under && !touchesWall(m, o)) return l;
+  return [...l.filter(j => m.objects[j].under), WALL, ...l.filter(j => !m.objects[j].under)];
+}
+
 /** Posició de l'element dins de la seva pila (0 = el de baix) i quants n'hi ha. */
 function stackPos(m: TileMap, it: TileItem): { pos: number; n: number } {
-  if (it.kind === 'object') { const l = overlapping(m, it.idx); return { pos: l.indexOf(it.idx), n: l.length }; }
+  if (it.kind === 'object') { const l = objectStack(m, it.idx); return { pos: l.indexOf(it.idx), n: l.length }; }
   const l = decorStack(m, it.i); return { pos: l.indexOf(it.k), n: l.length };
+}
+
+/** On és la paret respecte de l'objecte dins de la seva pila: just a sobre, just a sota, o enlloc a tocar. */
+export function wallNextTo(m: TileMap, it: TileItem): { above: boolean; below: boolean; inStack: boolean } {
+  if (it.kind !== 'object' || !m.objects[it.idx]) return { above: false, below: false, inStack: false };
+  const l = objectStack(m, it.idx), pos = l.indexOf(it.idx);
+  return { above: l[pos + 1] === WALL, below: pos > 0 && l[pos - 1] === WALL, inStack: l.includes(WALL) };
 }
 
 /** Quines ordres de capa tenen efecte (per desactivar la resta al menú). */
@@ -106,19 +136,37 @@ export function applyLayerOp(m: TileMap, it: TileItem, op: LayerOp): number[] | 
     return [it.i];
   }
   const objs = m.objects.slice();
-  const list = overlapping(m, it.idx), pos = list.indexOf(it.idx);
-  if (op === 'front') {
-    const top = Math.max(...list.map(j => objs[j].z ?? 0));
-    objs[it.idx] = { ...objs[it.idx], z: top + 1 };
-  } else if (op === 'back') {
-    const low = Math.min(...list.map(j => objs[j].z ?? 0));
-    objs[it.idx] = { ...objs[it.idx], z: low - 1 };
-  } else if (op === 'forward') {
-    raiseAbove(objs, list, it.idx, list[pos + 1]);
-  } else {
-    // Enviar enrere = portar endavant el que té just a sota.
-    raiseAbove(objs, list, list[pos - 1], it.idx);
-  }
+  const stack = objectStack(m, it.idx), pos = stack.indexOf(it.idx);
+  const hasWall = stack.includes(WALL);
+  const list = stack.filter(j => j !== WALL);
+  /** Els altres objectes de la pila de la banda de la paret que es demana. */
+  const side = (under: boolean) => list.filter(j => j !== it.idx && !!objs[j].under === under);
+  /** Deixa l'objecte a la banda `under` de la paret amb el nivell `z` (0 = sense camp). */
+  const put = (under: boolean, z: number) => {
+    const { z: _z, under: _u, ...rest } = objs[it.idx]; void _z; void _u;
+    objs[it.idx] = { ...rest, ...(z ? { z } : {}), ...(under ? { under: true as const } : {}) };
+  };
+  /** A dalt de tot (`top`) o a baix de tot d'una banda: el nivell de l'extrem i, si no n'hi ha prou, un més. */
+  const putAtEdge = (under: boolean, top: boolean) => {
+    const others = side(under);
+    if (!others.length) { put(under, 0); return; }
+    const zs = others.map(j => objs[j].z ?? 0);
+    const edge = top ? Math.max(...zs) : Math.min(...zs);
+    put(under, edge);
+    const wrong = others.some(j => top ? objectCmp(objs, it.idx, j) < 0 : objectCmp(objs, it.idx, j) > 0);
+    if (wrong) put(under, edge + (top ? 1 : -1));
+  };
+  const under = !!objs[it.idx].under;
+  if (op === 'front') putAtEdge(false, true);
+  // Al fons de tot: darrere de la paret, si en té a la pila.
+  else if (op === 'back') putAtEdge(under || hasWall, false);
+  else if (op === 'forward') {
+    // Travessar la paret: queda just a sobre (a baix de tot dels de davant).
+    if (stack[pos + 1] === WALL) putAtEdge(false, false);
+    else raiseAbove(objs, side(under).concat(it.idx).sort((a, b) => objectCmp(objs, a, b)), it.idx, stack[pos + 1]);
+  } else if (stack[pos - 1] === WALL) putAtEdge(true, true);
+  // Enviar enrere = portar endavant el que té just a sota.
+  else raiseAbove(objs, side(under).concat(it.idx).sort((a, b) => objectCmp(objs, a, b)), stack[pos - 1], it.idx);
   m.objects = objs;
   return list.flatMap(j => objectCells(m, objs[j], 'overlap'));
 }
