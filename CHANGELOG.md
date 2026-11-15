@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.35 — Figuretes amb càmera: prova de detecció (fase 0)
+- Pàgina nova `/tracker`: obre una càmera (p. ex. l'iPhone com a webcam del PC) i detecta les bases pintades de 5 colors, amb l'estat de cada figureta (quieta, es mou, no es veu)
+- Clicar una base al vídeo n'agafa el color; cada color s'ajusta amb lliscadors (to, marge, saturació, brillantor) i es desa al navegador
+- Vistes Càmera / Barrejat / Màscara per comprovar que el polaritzador fa desaparèixer el mapa del monitor; fps i temps de procés; fixar l'exposició si la càmera ho permet
+- Encara no mou cap token. Cap canvi a la API ni a les partides desades
+
 ### v5.34 — Moure des del clic dret i objectes darrere de la paret
 - Editor de caselles → el menú del clic dret sobre un objecte o un decorat té «Moure»: la peça queda enganxada al cursor (amb qualsevol pinzell triat) i un clic la deixa, al píxel; Maj l'enganxa a la casella, Esc o clic dret ho cancel·len
 - La paret entra al sistema de capes: un objecte que toca una paret es pot enviar **darrere de la paret** amb «Envia enrere» / «Envia al fons» (i tornar-lo a treure amb «Porta endavant» / «Porta al davant»), per exemple el moble acostat al mur de baix d'una sala. Ho tria el DM peça a peça; no es calcula res de la sala

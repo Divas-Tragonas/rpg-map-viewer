@@ -21,6 +21,7 @@
 | `/player` | `PlayerView` | Vista del jugador (pantalla secundària) |
 | `/player?embed=1` | `PlayerView` | La mateixa, incrustada al tauler de missions de la wiki (veure «Pantalla de jugador dins de la wiki») |
 | `/expositor` | `ExpositorPage` | **Visor local** per a un monitor de recanvi: obres un fitxer a mà i es veu a pantalla completa. **No és l'Expositor del DM** (no rep res del BC ni del WS) |
+| `/tracker` | `TrackerView` | **Figuretes físiques amb càmera** (fase 0: només detecció de les bases de color, no envia res). Veure «Figuretes físiques amb càmera» a `tokens-i-combat.md` |
 | `/login` | `SiteLoginPage` | Contrasenya de la web (veure «Contrasenya de la web»). Pública |
 | `/admin/*` | back office | Enemics i personatges de la API; demana també el login de la API (`/admin/login`) |
 
@@ -50,7 +51,8 @@ src/
 │   ├── fonts/              # EBGaramond-latin.woff2 + OFL.txt (llicència: s'ha de distribuir amb la font)
 │   ├── page.tsx            # → <DMView />
 │   ├── player/page.tsx     # → <PlayerView />
-│   └── expositor/page.tsx  # Visor local per a un monitor de recanvi (no sincronitzat)
+│   ├── expositor/page.tsx  # Visor local per a un monitor de recanvi (no sincronitzat)
+│   └── tracker/page.tsx    # → <TrackerView /> (figuretes físiques amb càmera; `lib/tracker/detect.ts`)
 ├── components/
 │   ├── DMView.tsx          # Component principal DM (estat + orquestració)
 │   ├── PlayerView.tsx      # Component jugador
