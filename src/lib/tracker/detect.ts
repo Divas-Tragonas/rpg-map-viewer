@@ -24,6 +24,8 @@ export interface ColorSlot {
   valMin: number;
   /** Color de mostra (`#rrggbb`), per pintar-lo a la UI. */
   swatch: string;
+  /** Jugador (`Player.id`) que mou aquesta figureta. Absent/`null` = no mou cap token. */
+  playerId?: number | null;
 }
 
 export interface Blob {

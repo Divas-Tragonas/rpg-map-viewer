@@ -1,21 +1,27 @@
 'use client';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useStoredString } from '@/hooks/useStoredFlag';
+import { type MoveResult, useTrackerSync } from '@/hooks/useTrackerSync';
+import type { CamRect, Point } from '@/types';
 import { C, FS, RADIUS, FONT_SERIF } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import {
   type BlobState, type ColorSlot, DEFAULT_SLOTS, StillTracker,
   detect, hsvToHex, looksLikeSkin, sampleHsv, slotFromSample,
 } from '@/lib/tracker/detect';
+import {
+  CORNER_NAMES, SCREEN_CORNERS, type Homography, applyH, gridInfo, homography, mapToScreen,
+  samePlace, screenToMap, tokenPosFor,
+} from '@/lib/tracker/geometry';
 
 /**
- * `/tracker` — fase 0 del seguiment de figuretes físiques amb càmera.
+ * `/tracker` — figuretes físiques amb càmera.
  *
- * Només detecta: obre una càmera, troba les bases de color i diu si cada figureta és quieta,
- * es mou o s'ha perdut. Encara no envia res al DM. Serveix per provar el muntatge real
- * (càmera a sobre del monitor-tauler, polaritzador, llum, pintura de les bases) i ajustar
- * els colors abans de fer el tracker de debò. Veure «Figuretes físiques amb càmera» a
- * `docs/tokens-i-combat.md`.
+ * Obre una càmera, troba les bases de color i diu si cada figureta és quieta, es mou o
+ * s'ha perdut (fase 0). Amb el tauler calibrat (les 4 cantonades del monitor clicades al
+ * vídeo) i cada color assignat a un jugador, quan una figureta queda quieta en una altra
+ * casella mou el seu token amb `TOKEN_MOVE`, com el drag de la pantalla de jugador (fase 1).
+ * Veure «Figuretes físiques amb càmera» a `docs/tokens-i-combat.md`.
  */
 
 const STORE_KEY = 'rpg_tracker_v1';
@@ -28,9 +34,17 @@ interface Settings {
   view: ViewMode;
   deviceId: string;
   res: 720 | 1080;
+  /** Cantonades de la imatge del monitor al vídeo (normalitzades 0..1), en l'ordre de `CORNER_NAMES`. */
+  corners: Point[] | null;
+  /** Mida (px CSS) de la pantalla de jugador del tauler, triada de les que envien `VIEWPORT`. 0 = cap. */
+  screenW: number;
+  screenH: number;
 }
 
-const DEFAULTS: Settings = { slots: DEFAULT_SLOTS, procW: 480, minArea: 40, view: 'camera', deviceId: '', res: 1080 };
+const DEFAULTS: Settings = {
+  slots: DEFAULT_SLOTS, procW: 480, minArea: 40, view: 'camera', deviceId: '', res: 1080,
+  corners: null, screenW: 0, screenH: 0,
+};
 
 function parseSettings(raw: string): Settings {
   try {
@@ -41,6 +55,20 @@ function parseSettings(raw: string): Settings {
 }
 
 interface Status { state: BlobState; area: number; extra: number; cx: number; cy: number }
+interface SlotMsg { text: string; color: string }
+
+/** Mida de la pantalla del tauler: la triada o, si només n'hi ha una, aquella. */
+function tableScreen(s: Settings, screens: { w: number; h: number }[]): { W: number; H: number } | null {
+  if (s.screenW > 0 && s.screenH > 0) return { W: s.screenW, H: s.screenH };
+  return screens.length === 1 ? { W: screens[0].w, H: screens[0].h } : null;
+}
+
+/** L'enquadrament del DM ha canviat (pan o zoom) des de l'última sincronització? */
+function camMovedSince(a: CamRect | null, b: CamRect | null): boolean {
+  if (!a || !b) return false;
+  const tol = 0.005 * Math.max(a.w, 1);
+  return Math.abs(a.cx - b.cx) > tol || Math.abs(a.cy - b.cy) > tol || Math.abs(a.w - b.w) > tol || Math.abs(a.h - b.h) > tol;
+}
 
 const noSubscribe = () => () => {};
 
@@ -76,6 +104,57 @@ export function TrackerView() {
   const frameRef = useRef<ImageData | null>(null);
   const trackerRef = useRef(new StillTracker());
   const rafRef = useRef(0);
+
+  // ── Tauler i connexió amb el DM (fase 1) ──────────────────────────────────
+  /** Índex de la cantonada que s'espera en calibrar (`null` = no s'està calibrant). */
+  const [calibrating, setCalibratingState] = useState<number | null>(null);
+  const calibratingRef = useRef<number | null>(null);
+  const setCalibrating = useCallback((v: number | null) => { calibratingRef.current = v; setCalibratingState(v); }, []);
+  /** Última detecció (per a «Posar els tokens on són les figuretes»). */
+  const lastRef = useRef<{ best: (import('@/lib/tracker/detect').Blob | null)[]; states: BlobState[] } | null>(null);
+  const [draftCorners, setDraftCorners] = useState<Point[]>([]);
+  const draftRef = useRef<Point[]>([]);
+  // Enviar moviments: no es desa (cada sessió comença apagat, per no moure res per sorpresa).
+  const [sendOn, setSendOn] = useState(false);
+  const sendOnRef = useRef(false);
+  const [slotMsg, setSlotMsg] = useState<Record<number, SlotMsg>>({});
+  const [camMoved, setCamMoved] = useState(false);
+  /** On era cada figureta (càmera, 0..1) l'últim cop que es va donar per bona. `null` = encara no se sap. */
+  const settledRef = useRef<(Point | null)[]>([]);
+  /** Enquadrament del DM quan figuretes i tokens coincidien (per avisar si el DM fa pan o zoom). */
+  const camAtSyncRef = useRef<CamRect | null>(null);
+
+  const flashSlot = useCallback((i: number, msg: SlotMsg) => {
+    setSlotMsg(p => ({ ...p, [i]: msg }));
+    setTimeout(() => setSlotMsg(p => {
+      if (p[i] !== msg) return p;
+      const rest = { ...p };
+      delete rest[i];
+      return rest;
+    }), 6000);
+  }, []);
+
+  const onResult = useCallback((id: string, result: MoveResult) => {
+    const i = settingsRef.current.slots.findIndex(sl => sl.playerId != null && `pl_${sl.playerId}` === id);
+    if (i < 0) return;
+    flashSlot(i, result === 'ok' ? { text: 'token mogut', color: C.ok }
+      : result === 'rebutjat' ? { text: 'el DM no ho permet: torna la figureta on era', color: C.enemy }
+      : { text: 'el DM no respon', color: C.warn });
+  }, [flashSlot]);
+
+  const { world, connected, players, screens, available, moveToken } = useTrackerSync(onResult);
+  const screensRef = useRef(screens);
+  useEffect(() => { screensRef.current = screens; }, [screens]);
+
+  /** Homografia càmera → pantalla (i la inversa, per pintar el tauler sobre el vídeo). */
+  const hom = useMemo(() => {
+    const c = settings.corners;
+    if (!c || c.length !== 4) return null;
+    const fwd = homography(c, SCREEN_CORNERS), inv = homography(SCREEN_CORNERS, c);
+    return fwd && inv ? { fwd, inv } : null;
+  }, [settings.corners]);
+  const homRef = useRef<{ fwd: Homography; inv: Homography } | null>(null);
+  useEffect(() => { homRef.current = hom; }, [hom]);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -113,7 +192,39 @@ export function TrackerView() {
       frameRef.current = img;
       const res = detect(img.data, pw, ph, s.slots, s.minArea);
       const states = trackerRef.current.update(res.best, tStart);
+      lastRef.current = { best: res.best, states };
       const ms = performance.now() - tStart;
+
+      // ── Càmera → mapa i enviament de moviments ──
+      const w = world.current;
+      const hm = homRef.current;
+      const scr = tableScreen(s, screensRef.current);
+      const cam = w.cam;
+      const g = gridInfo(w.gridSize, w.gridOriginX, w.gridOriginY, w.gridSnap);
+      const toMap = hm && scr && cam
+        ? (p: Point) => { const q = applyH(hm.fwd, p); return { map: screenToMap(q.x, q.y, scr.W, scr.H, cam), inside: q.x >= -0.02 && q.x <= 1.02 && q.y >= -0.02 && q.y <= 1.02 }; }
+        : null;
+      if (toMap && sendOnRef.current) {
+        res.best.forEach((b, i) => {
+          const sl = s.slots[i];
+          if (!b || !sl?.enabled || sl.playerId == null || states[i] !== 'quieta') return;
+          const id = `pl_${sl.playerId}`;
+          if (!w.players.some(p => p.id === sl.playerId)) return;
+          const cur = { x: b.cx, y: b.cy };
+          const now = toMap(cur);
+          if (!now.inside) return; // fora del tauler (a la vora de la taula, a la mà…)
+          const R = w.tokenSize[id] ?? 22;
+          const prev = settledRef.current[i];
+          settledRef.current[i] = cur;
+          // Primer cop que es veu quieta: només es pren com a referència. Es mou el token quan
+          // la figureta canvia de casella respecte d'on era (no quan el DM mou el token a mà).
+          if (!prev || samePlace(toMap(prev).map, now.map, g, R)) return;
+          const target = tokenPosFor(now.map, R, g);
+          const at = w.pos[id];
+          if (at && Math.hypot(at.x - target.x, at.y - target.y) < 1) return;
+          moveToken(id, target.x, target.y);
+        });
+      }
 
       // Capa de dibuix a 2× la imatge processada (prou nítida per a les etiquetes).
       const ow = pw * 2, oh = ph * 2;
@@ -140,6 +251,15 @@ export function TrackerView() {
           octx.drawImage(mask, 0, 0, ow, oh);
         }
       }
+      drawBoard(octx, ow, oh, {
+        corners: calibratingRef.current !== null ? draftRef.current : s.corners,
+        closed: calibratingRef.current === null,
+        inv: hm?.inv ?? null, scr, cam, g,
+        tokens: w.players.filter(p => p.visible !== false).map(p => {
+          const id = `pl_${p.id}`, at = w.pos[id], R = w.tokenSize[id] ?? 22;
+          return at ? { name: p.name, color: p.color, c: { x: at.x + R, y: at.y + R } } : null;
+        }).filter(t => t !== null),
+      });
       octx.lineWidth = 3;
       octx.lineJoin = 'round';
       octx.font = `bold ${FS.xl}px sans-serif`;
@@ -155,7 +275,8 @@ export function TrackerView() {
         octx.fillStyle = '#fff'; octx.fill();
         octx.fillStyle = sl.swatch;
         octx.strokeStyle = '#000'; octx.lineWidth = 4;
-        const label = `${sl.name}${res.extra[i] ? ` +${res.extra[i]}` : ''}`;
+        const who = sl.playerId != null ? w.players.find(p => p.id === sl.playerId)?.name : undefined;
+        const label = `${who ?? sl.name}${res.extra[i] ? ` +${res.extra[i]}` : ''}`;
         octx.strokeText(label, b.maxX * 2 + 10, b.minY * 2 + FS.xl);
         octx.fillText(label, b.maxX * 2 + 10, b.minY * 2 + FS.xl);
         octx.lineWidth = 3;
@@ -166,6 +287,7 @@ export function TrackerView() {
       if (now - lastUi > 200) {
         lastUi = now;
         setStatus(res.best.map((b, i) => ({ state: states[i], area: b?.area ?? 0, extra: res.extra[i], cx: b?.cx ?? 0, cy: b?.cy ?? 0 })));
+        setCamMoved(sendOnRef.current && camMovedSince(camAtSyncRef.current, w.cam));
       }
       if (now - t0 > 1000) {
         setPerf({ fps: Math.round((frames * 1000) / (now - t0)), ms: Math.round((acc / frames) * 10) / 10, vw, vh, pw, ph });
@@ -173,7 +295,7 @@ export function TrackerView() {
       }
     };
     step();
-  }, []);
+  }, [world, moveToken]);
 
   const start = useCallback(async () => {
     setError('');
@@ -242,6 +364,22 @@ export function TrackerView() {
     const img = frameRef.current;
     if (!img) return;
     const r = e.currentTarget.getBoundingClientRect();
+    if (calibratingRef.current !== null) {
+      const pt = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+      const next = [...draftRef.current, pt];
+      draftRef.current = next;
+      setDraftCorners(next);
+      if (next.length < 4) { setCalibrating(next.length); return; }
+      setCalibrating(null);
+      if (!homography(next, SCREEN_CORNERS)) {
+        setError('Aquestes 4 cantonades no formen un rectangle vàlid (n\'hi ha tres en línia?). Torna a calibrar.');
+        return;
+      }
+      setError('');
+      setSettings(p => ({ ...p, corners: next }));
+      settledRef.current = [];
+      return;
+    }
     const x = Math.round(((e.clientX - r.left) / r.width) * img.width);
     const y = Math.round(((e.clientY - r.top) / r.height) * img.height);
     const hsv = sampleHsv(img.data, img.width, img.height, x, y, 2);
@@ -255,7 +393,47 @@ export function TrackerView() {
       ...p,
       slots: p.slots.map((sl, i) => (i === selected ? { ...sl, ...th, enabled: true, swatch: hsvToHex(th.hue, Math.max(0.6, hsv[1]), Math.max(0.7, hsv[2])) } : sl)),
     }));
-  }, [selected, setSettings]);
+  }, [selected, setSettings, setCalibrating]);
+
+  const startCalibration = useCallback(() => {
+    draftRef.current = [];
+    setDraftCorners([]);
+    setCalibrating(0);
+  }, [setCalibrating]);
+
+  const toggleSend = useCallback((on: boolean) => {
+    sendOnRef.current = on;
+    setSendOn(on);
+    // En engegar, la posició actual de cada figureta és la referència: no es mou res fins
+    // que algú en mogui una.
+    settledRef.current = [];
+    camAtSyncRef.current = world.current.cam;
+  }, [world]);
+
+  /** Mou cada token assignat a on hi ha ara la seva figureta (per començar o després d'un pan del DM). */
+  const syncAll = useCallback(() => {
+    const s = settingsRef.current, w = world.current, hm = homRef.current, last = lastRef.current;
+    const scr = tableScreen(s, screensRef.current);
+    if (!hm || !scr || !w.cam || !last) return;
+    const g = gridInfo(w.gridSize, w.gridOriginX, w.gridOriginY, w.gridSnap);
+    let n = 0;
+    last.best.forEach((b, i) => {
+      const sl = s.slots[i];
+      if (!b || last.states[i] !== 'quieta' || !sl?.enabled || sl.playerId == null || !w.players.some(p => p.id === sl.playerId)) return;
+      const q = applyH(hm.fwd, { x: b.cx, y: b.cy });
+      if (q.x < 0 || q.x > 1 || q.y < 0 || q.y > 1) return;
+      const id = `pl_${sl.playerId}`, R = w.tokenSize[id] ?? 22;
+      const t = tokenPosFor(screenToMap(q.x, q.y, scr.W, scr.H, w.cam!), R, g);
+      settledRef.current[i] = { x: b.cx, y: b.cy };
+      const at = w.pos[id];
+      if (at && Math.hypot(at.x - t.x, at.y - t.y) < 1) return;
+      moveToken(id, t.x, t.y);
+      n++;
+    });
+    camAtSyncRef.current = w.cam;
+    setCamMoved(false);
+    setError(n === 0 ? 'Cap token per moure: o ja són al seu lloc, o no hi ha cap figureta assignada dins del tauler.' : '');
+  }, [world, moveToken]);
 
   const patchSlot = (i: number, patch: Partial<ColorSlot>) =>
     setSettings(p => ({
@@ -275,7 +453,9 @@ export function TrackerView() {
       <main style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
         <header style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
           <h1 style={{ fontFamily: FONT_SERIF, fontSize: 24, margin: 0, color: C.bright }}>Figuretes amb càmera</h1>
-          <span style={{ color: C.dim }}>Fase 0 · prova de detecció (encara no mou cap token)</span>
+          <span style={{ color: sendOn ? C.ok : C.dim }}>
+            {sendOn ? '● Les figuretes mouen els tokens dels jugadors' : 'Enviament aturat: les figuretes no mouen cap token'}
+          </span>
         </header>
 
         {!secure && (
@@ -285,10 +465,22 @@ export function TrackerView() {
           </Notice>
         )}
         {error && <Notice color={C.enemy}>{error}</Notice>}
+        {calibrating !== null && (
+          <Notice color={C.accent}>
+            Calibratge: clica al vídeo la cantonada <b>{calibrating + 1} de 4</b>, la de <b>{CORNER_NAMES[calibrating]}</b> de la
+            imatge del monitor (tal com la veu el DM, no com la veu la càmera). Si el polaritzador fa negra la pantalla, gira&apos;l mentre calibres.
+          </Notice>
+        )}
+        {camMoved && (
+          <Notice color={C.warn}>
+            El DM ha mogut o ampliat el mapa: les figuretes ja no són a sobre dels seus tokens. Recol·loqueu-les, o premeu
+            «Posar els tokens on són les figuretes».
+          </Notice>
+        )}
 
         <div
           onClick={onVideoClick}
-          title="Clica la base d'una figureta per agafar-ne el color"
+          title={calibrating !== null ? `Clica la cantonada ${calibrating + 1}` : "Clica la base d'una figureta per agafar-ne el color"}
           style={{ position: 'relative', width: '100%', maxHeight: 'calc(100vh - 140px)', aspectRatio: aspect, background: '#000', borderRadius: RADIUS.lg, overflow: 'hidden', cursor: running ? 'crosshair' : 'default', border: `1px solid ${C.border}`, alignSelf: 'center' }}
         >
           <video ref={videoRef} playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', visibility: settings.view === 'mask' ? 'hidden' : 'visible' }} />
@@ -303,7 +495,7 @@ export function TrackerView() {
         <footer style={{ color: C.dim, fontSize: FS.sm, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <span>{running ? `${perf.fps} fps · ${perf.ms} ms per fotograma` : 'aturada'}</span>
           {running && <span>Càmera {perf.vw}×{perf.vh} · es processa a {perf.pw}×{perf.ph}</span>}
-          <span>Clica una base al vídeo per donar el seu color al slot seleccionat.</span>
+          <span>Clica una base al vídeo per donar el seu color al slot seleccionat. Les línies blanques són la graella del mapa i els cercles discontinus, on són ara els tokens.</span>
         </footer>
       </main>
 
@@ -334,6 +526,61 @@ export function TrackerView() {
           )}
         </Section>
 
+        <Section title="Tauler">
+          <Row label={hom ? 'Calibrat' : 'Sense calibrar'}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <Button size="sm" variant={hom ? 'secondary' : 'primary'} disabled={!running} onClick={startCalibration}>
+                {calibrating !== null ? `Cantonada ${calibrating + 1}/4…` : hom ? 'Tornar a calibrar' : 'Calibrar'}
+              </Button>
+              {calibrating !== null && <Button size="sm" variant="ghost" onClick={() => { setCalibrating(null); setDraftCorners([]); draftRef.current = []; }}>Cancel·lar</Button>}
+            </div>
+          </Row>
+          {draftCorners.length > 0 && calibrating !== null && <span style={{ color: C.dim, fontSize: FS.xs }}>{draftCorners.length} de 4 cantonades</span>}
+          <span style={{ fontSize: FS.sm }}>Pantalla de jugador del tauler</span>
+          <select
+            value={settings.screenW > 0 ? `${settings.screenW}x${settings.screenH}` : ''}
+            onChange={e => {
+              const [W, H] = e.target.value.split('x').map(Number);
+              setSettings(p => ({ ...p, screenW: W || 0, screenH: H || 0 }));
+            }}
+            style={inputStyle}
+          >
+            <option value="">{screens.length === 1 ? `Automàtica (${screens[0].w}×${screens[0].h})` : 'Tria-la…'}</option>
+            {settings.screenW > 0 && !screens.some(x => x.w === settings.screenW && x.h === settings.screenH) && (
+              <option value={`${settings.screenW}x${settings.screenH}`}>{settings.screenW}×{settings.screenH} (ara no es veu)</option>
+            )}
+            {screens.map(x => <option key={x.id} value={`${x.w}x${x.h}`}>Pantalla de {x.w}×{x.h}</option>)}
+          </select>
+          {screens.length === 0 && (
+            <span style={{ color: C.warn, fontSize: FS.xs }}>No es veu cap pantalla de jugador. Obre <code>/player</code> a pantalla completa al monitor del tauler, en aquest mateix PC.</span>
+          )}
+        </Section>
+
+        <Section title="Dungeon Master">
+          {!available ? (
+            <span style={{ color: C.enemy, fontSize: FS.sm }}>Aquest navegador no pot parlar amb el DM (sense BroadcastChannel).</span>
+          ) : (
+            <span style={{ color: connected ? C.ok : C.warn, fontSize: FS.sm }}>
+              ● {connected ? `Connectat · ${players.length} jugador${players.length === 1 ? '' : 's'}` : 'Esperant el DM (obre l\'app del DM en aquest PC)'}
+            </span>
+          )}
+          <Row label="Moure tokens">
+            <Seg value={sendOn ? 'on' : 'off'} options={[['off', 'No'], ['on', 'Sí']]} onChange={v => toggleSend(v === 'on')} />
+          </Row>
+          {sendOn && (!hom || !tableScreen(settings, screens) || !connected) && (
+            <span style={{ color: C.warn, fontSize: FS.xs }}>
+              Encara no es pot moure res: {[!connected && 'falta el DM', !hom && 'falta calibrar el tauler', !tableScreen(settings, screens) && 'falta triar la pantalla del tauler'].filter(Boolean).join(', ')}.
+            </span>
+          )}
+          <Button size="sm" disabled={!hom || !connected || !running} onClick={syncAll} title="Mou cada token assignat a on hi ha ara la seva figureta">
+            Posar els tokens on són les figuretes
+          </Button>
+          <span style={{ color: C.dim, fontSize: FS.xs }}>
+            Quan una figureta queda quieta mig segon en una altra casella, el seu token s&apos;hi mou. El DM ho valida com si el jugador
+            l&apos;hagués arrossegat: en combat, només el del torn i dins dels peus que li queden.
+          </span>
+        </Section>
+
         <Section title="Vista">
           <Seg value={settings.view} options={[['camera', 'Càmera'], ['mix', 'Barrejat'], ['mask', 'Màscara']]} onChange={v => setSettings(p => ({ ...p, view: v }))} />
           <Row label={`Processar a ${settings.procW} px`}>
@@ -360,6 +607,18 @@ export function TrackerView() {
                     <span style={{ color: STATE_COLOR[st.state], fontSize: FS.sm, whiteSpace: 'nowrap' }}>● {STATE_LABEL[st.state]}</span>
                   )}
                 </div>
+                <select
+                  value={sl.playerId ?? ''}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => patchSlot(i, { playerId: e.target.value === '' ? null : Number(e.target.value) })}
+                  style={{ ...inputStyle, padding: '2px 6px' }}
+                  title="Quin token mou aquesta figureta"
+                >
+                  <option value="">No mou cap token</option>
+                  {sl.playerId != null && !players.some(p => p.id === sl.playerId) && <option value={sl.playerId}>Jugador {sl.playerId} (no és a la partida)</option>}
+                  {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                {slotMsg[i] && <span style={{ color: slotMsg[i].color, fontSize: FS.xs }}>{slotMsg[i].text}</span>}
                 {isSel && (
                   <>
                     <Slider label="To" value={sl.hue} min={0} max={359} step={1} unit="°" onChange={v => patchSlot(i, { hue: v })} />
@@ -394,6 +653,73 @@ export function TrackerView() {
       </aside>
     </div>
   );
+}
+
+interface BoardDraw {
+  corners: Point[] | null;
+  closed: boolean;
+  inv: Homography | null;
+  scr: { W: number; H: number } | null;
+  cam: CamRect | null;
+  g: ReturnType<typeof gridInfo>;
+  tokens: { name: string; color: string; c: Point }[];
+}
+
+/**
+ * Pinta damunt del vídeo el que el tracker creu que hi ha al tauler: el contorn calibrat,
+ * la graella del mapa i on són ara els tokens de jugador. Si la graella pintada no cau
+ * sobre la del monitor, el calibratge (o la pantalla triada) no és bo.
+ */
+function drawBoard(ctx: CanvasRenderingContext2D, ow: number, oh: number, d: BoardDraw) {
+  const P = (p: Point) => ({ x: p.x * ow, y: p.y * oh });
+  if (d.inv && d.scr && d.cam && d.g.gs > 0) {
+    const { inv, scr, cam, g } = d;
+    const a = screenToMap(0, 0, scr.W, scr.H, cam), b = screenToMap(1, 1, scr.W, scr.H, cam);
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    let n = 0;
+    for (let x = g.gox + Math.ceil((a.x - g.gox) / g.gs) * g.gs; x <= b.x && n < 300; x += g.gs, n++) {
+      const u = mapToScreen({ x, y: 0 }, scr.W, scr.H, cam).x;
+      const p0 = P(applyH(inv, { x: u, y: 0 })), p1 = P(applyH(inv, { x: u, y: 1 }));
+      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+    }
+    for (let y = g.goy + Math.ceil((a.y - g.goy) / g.gs) * g.gs; y <= b.y && n < 600; y += g.gs, n++) {
+      const v = mapToScreen({ x: 0, y }, scr.W, scr.H, cam).y;
+      const p0 = P(applyH(inv, { x: 0, y: v })), p1 = P(applyH(inv, { x: 1, y: v }));
+      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+    }
+    ctx.stroke();
+  }
+  if (d.inv && d.scr && d.cam) {
+    ctx.font = `${FS.md}px sans-serif`;
+    for (const t of d.tokens) {
+      const q = mapToScreen(t.c, d.scr.W, d.scr.H, d.cam);
+      if (q.x < 0 || q.x > 1 || q.y < 0 || q.y > 1) continue;
+      const p = P(applyH(d.inv, q));
+      ctx.strokeStyle = t.color; ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.name, p.x - 14, p.y + 30);
+    }
+  }
+  const c = d.corners;
+  if (c && c.length > 0) {
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 2;
+    ctx.beginPath();
+    c.forEach((p, i) => { const q = P(p); if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y); });
+    if (d.closed && c.length === 4) ctx.closePath();
+    ctx.stroke();
+    ctx.fillStyle = C.accent;
+    ctx.font = `bold ${FS.lg}px sans-serif`;
+    c.forEach((p, i) => {
+      const q = P(p);
+      ctx.beginPath(); ctx.arc(q.x, q.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText(String(i + 1), q.x + 9, q.y - 9);
+    });
+  }
 }
 
 const inputStyle: React.CSSProperties = {

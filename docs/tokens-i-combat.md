@@ -235,37 +235,61 @@
 - **Escena dels tokens** (`renderTokenScene`, DM i jugador): tokens → (`between`) → noms. Els noms es pinten en una capa i s'esvaeixen (`NAME_FADE`, `destination-out`) allà on hi ha la silueta d'una figureta (`fc.figMask`, que omple `maskFigure` amb la mateixa funció que pinta la figura).
 - **Portes de caselles**: el token que hi passa va per sobre de la porta i per sota de la PARET (`DoorPiece.edge`: la vora de dalt del tram de baix d'una porta lateral). `drawTileDoorEdgesOver` torna a pintar la vora, menys els píxels de la porta que hi van a sobre (`edgeMinus`), després dels tokens: al DM com a `between`; a la pantalla de jugador, els tokens i els noms es queden en capes (`keepTokens`) que es tornen a posar retallades a les caselles de les portes (`clipTileDoors`) després de `drawTileDoorsOver`, amb la vora entre totes dues. ⚠️ Un token dins d'una sala fosca no revelada que sigui sobre la casella d'una porta s'hi veuria.
 
-## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/detect.ts`, v5.35)
+## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `useTrackerSync`, v5.35–v5.36)
 
 Objectiu: les figuretes reals que els jugadors mouen damunt d'un monitor fet servir de tauler mouen els tokens de
-jugador de l'app. **Fase 0 (feta): només detecció**, per provar el muntatge; encara no envia res al DM.
+jugador de l'app. **Fet: detecció (fase 0) i moviment dels tokens (fase 1).**
 
-- **Muntatge previst**: monitor LCD horitzontal dins d'una estructura (el tauler), mostrant la pantalla de jugador;
-  càmera zenital fixada a l'estructura (iPhone 11 com a webcam del PC amb Càmera de Continuïtat, Camo o DroidCam; la
-  GoPro HERO4 només per HDMI amb capturadora). **Polaritzador lineal davant de la càmera** (el vidre d'unes ulleres de
-  sol polaritzades): la llum de l'LCD és polaritzada i, girant-lo, el mapa es veu gairebé negre per a la càmera; les
-  figuretes no. Cada figureta (5) porta la vora de la base pintada d'un color viu i mat, **sense vermells ni taronges**
-  (la pell de les mans).
-- **Detecció** (`detect`): imatge reduïda (`procW` 320/480/640), cada píxel a HSV i assignat al color de to més proper
-  dins del seu marge (`hueTol`, `satMin`, `valMin`), flood fill de taques connexes i, de cada color, la més grossa
-  (`extra` = quantes més n'hi ha: soroll). `StillTracker`: «quieta» si fa 500 ms que no es mou més de l'1 % de
-  l'amplada, «perduda» si fa 400 ms que no es veu.
-- **UI** (`TrackerView`): triar càmera i resolució, clicar una base al vídeo per donar-ne el color al slot
-  seleccionat (`sampleHsv` + `slotFromSample`), ajustar cada color amb lliscadors, vistes Càmera / Barrejat / Màscara,
-  fps i ms per fotograma, i fixar l'exposició i el balanç de blancs (`single-shot`) si la càmera ho permet des del
-  navegador. Tot es desa al navegador (`rpg_tracker_v1`, `useStoredString`).
-- ⚠️ **Només en una pàgina segura**: el navegador no obre la càmera per `http` fora de `localhost`. El tracker s'obre
-  al PC on hi ha la càmera (`http://localhost:3001/tracker`), no a la tablet ni al navegador del mòbil.
-- **Proves sense càmera**: Chromium accepta un vídeo `.y4m` com a webcam falsa
-  (`--use-fake-device-for-media-stream --use-file-for-fake-video-capture=fitxer.y4m`).
+- **Muntatge previst**: monitor LCD horitzontal dins d'una estructura (el tauler), mostrant `/player` a pantalla
+  completa; càmera zenital fixada a l'estructura (iPhone 11 com a webcam del PC amb Càmera de Continuïtat, Camo o
+  DroidCam; la GoPro HERO4 només per HDMI amb capturadora). **Polaritzador lineal davant de la càmera** (el vidre
+  d'unes ulleres de sol polaritzades): la llum de l'LCD és polaritzada i, girant-lo, el mapa es veu gairebé negre per a
+  la càmera; les figuretes no. Cada figureta (5) porta la vora de la base pintada d'un color viu i mat, **sense vermells
+  ni taronges** (la pell de les mans).
+- ⚠️ **Tot al mateix PC**: el DM, la pantalla de jugador del tauler i `/tracker`. La càmera només s'obre en una pàgina
+  segura (`http://localhost:3001/tracker` o `https`), i el tracker parla amb el DM **només pel BroadcastChannel**.
 
-**Fases següents (pendents)** — cap necessita canvis a la API (`TOKEN_MOVE` ja va del client al DM pel BC i el WS):
-1. **Tracker**: calibratge amb una graella de ~20 marcadors pintats a la pantalla del tauler (interpolació per
-   trossos: corregeix l'ull de peix sense model de lent), càmera → coordenades de mapa i `TOKEN_MOVE` només quan una
-   figureta passa a «quieta» en una altra casella.
-2. **Mode tauler**: la pantalla del tauler a escala fixa (1 casella = 1 polzada física) i sense seguir el pan/zoom
-   del DM (una figureta física no es mou amb el mapa); el tracker en pausa quan el DM canvia el tros visible.
-   Assignació color → jugador (`pl_*`) al DM.
-3. **Combat**: un moviment físic no vàlid no es pot fer rebotar (`bounceBack`): silueta de moviment pendent al DM
-   amb acceptar / ignorar.
+### Detecció (`lib/tracker/detect.ts`)
+- Imatge reduïda (`procW` 320/480/640), cada píxel a HSV i assignat al color de to més proper dins del seu marge
+  (`hueTol`, `satMin`, `valMin`), flood fill de taques connexes i, de cada color, la més grossa (`extra` = quantes més
+  n'hi ha: soroll). `StillTracker`: «quieta» si fa 500 ms que no es mou més de l'1 % de l'amplada, «perduda» si fa
+  400 ms que no es veu.
+- UI: clicar una base al vídeo en dona el color al slot seleccionat (`sampleHsv` + `slotFromSample`), lliscadors per
+  color, vistes Càmera / Barrejat / Màscara, fixar l'exposició (`single-shot`) si la càmera ho permet. Tot es desa al
+  navegador (`rpg_tracker_v1`, `useStoredString`), **menys «Moure tokens», que sempre comença apagat**.
 
+### De la càmera al mapa (`lib/tracker/geometry.ts`)
+- **Calibratge**: el DM clica al vídeo les 4 cantonades de la imatge del monitor (en l'ordre de `CORNER_NAMES`, tal
+  com la veu el DM). `homography` (4 punts, eliminació gaussiana) porta càmera (0..1) → pantalla (0..1).
+- **Pantalla → mapa**: la mateixa regla «contain» que `camToView` (`screenToMap`), amb l'enquadrament `cam` del DM i
+  la mida de la pantalla del tauler. La mida surt dels `VIEWPORT` que les pantalles de jugador ja envien (es tria a
+  «Pantalla de jugador del tauler»; si només n'hi ha una, és aquella). El tracker **no envia `VIEWPORT`**: el DM no el
+  compta com a pantalla.
+- **Comprovació visual**: damunt del vídeo es pinten la graella del mapa i on són ara els tokens de jugador (cercles
+  discontinus), passats per la homografia inversa. Si no cauen sobre el monitor, el calibratge o la pantalla triada no
+  són bons.
+
+### Moure els tokens (`useTrackerSync` + bucle de `TrackerView`)
+- El tracker demana l'estat amb `PLAYER_READY` (cada 3 s fins que arriba un `STRUCT`) i n'escolta `players`, `pos`,
+  `cam`, la graella i `tokenSizeOverride` del `STATE`/`STRUCT`, i `TOKEN_RELAY`.
+- Cada color s'assigna a un jugador. Quan la figureta passa a «quieta» **en una altra casella respecte d'on era la
+  darrera vegada** (`settledRef`, en coordenades de càmera i comparat amb la transformació d'ara), s'envia
+  `TOKEN_MOVE {id: 'pl_N', x, y}` amb la posició encaixada com el drag de `/player` (`tokenPosFor` = `snapPos`). El
+  primer cop que es veu una figureta només en pren la referència. Per tant **només envia quan algú mou una figureta**:
+  si el DM mou el token a mà, el tracker no el torna on és la figureta.
+- El DM valida com sempre (`handlePlayerTokenMove`: torn, bloqueig, parets, peus). La resposta és un `TOKEN_RELAY`: a
+  la posició enviada = acceptat; a una altra = rebutjat → «el DM no ho permet: torna la figureta on era»; res en 2,5 s
+  → «el DM no respon».
+- **«Posar els tokens on són les figuretes»**: envia la posició de totes les figuretes quietes (per començar la
+  partida o després d'un pan del DM).
+- **Pan o zoom del DM**: les figuretes físiques no es mouen amb el mapa. Si l'enquadrament canvia des de l'última
+  sincronització (`camMovedSince`), el tracker avisa. Les que es moguin després van bé (es calcula amb el `cam` d'ara).
+- **Proves sense càmera ni DM**: Chromium accepta un vídeo `.y4m` com a webcam falsa
+  (`--use-fake-device-for-media-stream --use-file-for-fake-video-capture=fitxer.y4m`), i una pàgina del mateix origen
+  pot fer de DM pel BroadcastChannel (respondre `PLAYER_READY` amb un `STRUCT`, enviar `VIEWPORT` i contestar
+  `TOKEN_MOVE` amb `TOKEN_RELAY`).
+
+**Pendent**:
+1. **Mode tauler**: la pantalla del tauler a escala fixa (1 casella = 1 polzada física) i sense seguir el pan/zoom del
+   DM; canviar el tros visible amb una acció explícita.
+2. **Combat**: en lloc de només avisar del rebuig, una silueta de moviment pendent al DM (acceptar / ignorar).

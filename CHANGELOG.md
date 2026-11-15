@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.36 — Figuretes amb càmera: les figuretes mouen els tokens (fase 1)
+- `/tracker` es connecta amb el DM (mateix PC) i, quan una figureta queda quieta en una altra casella, mou el token del jugador assignat al seu color, encaixat a la casella com si l'hagués arrossegat
+- Calibratge del tauler clicant les 4 cantonades del monitor al vídeo, i tria de la pantalla de jugador del tauler; damunt del vídeo es veuen la graella del mapa i on són els tokens, per comprovar-ho
+- El DM ho valida com sempre (torn, parets, peus): si no ho permet, el tracker diu de tornar la figureta on era
+- «Posar els tokens on són les figuretes» per començar; avís quan el DM fa pan o zoom i les figuretes ja no coincideixen
+- «Moure tokens» comença sempre apagat. Cap canvi a la API ni a les partides desades
+
 ### v5.35 — Figuretes amb càmera: prova de detecció (fase 0)
 - Pàgina nova `/tracker`: obre una càmera (p. ex. l'iPhone com a webcam del PC) i detecta les bases pintades de 5 colors, amb l'estat de cada figureta (quieta, es mou, no es veu)
 - Clicar una base al vídeo n'agafa el color; cada color s'ajusta amb lliscadors (to, marge, saturació, brillantor) i es desa al navegador

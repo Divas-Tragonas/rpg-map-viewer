@@ -23,7 +23,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
 | `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
 | `VIEWPORT` | Jugador→DM | Mida del canvas d'aquella pantalla (`{id,w,h}`). El DM en fa la llista del menú de pantalles de la barra superior |
-| `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta |
+| `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta. També l'envia el tracker de figuretes (`/tracker`, només BC: veure «Figuretes físiques amb càmera» a `tokens-i-combat.md`) |
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
 | `STATE.appStyle` / `STATE.tileLive` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat. Els sprites NO viatgen: cada pantalla els carrega de `public/sprites/` |
 | `STATE.phosphor` / `STRUCT.phosphor` | DM→Jugador | Mode Fòsfor (boolean, lleuger, sempre): la pantalla de jugador es veu com una TV de tub antiga. Veure «Mode Fòsfor» |
