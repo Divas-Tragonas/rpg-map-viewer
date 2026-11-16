@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { BC_CHANNEL } from '@/constants';
-import type { CamRect, Player, PosMap, TokenSizeMap } from '@/types';
+import type { BoardView, CamRect, Player, PosMap, TokenSizeMap } from '@/types';
 
 /**
  * Connexió del tracker de figuretes (`/tracker`) amb el DM pel `BroadcastChannel`.
@@ -17,12 +17,14 @@ import type { CamRect, Player, PosMap, TokenSizeMap } from '@/types';
  * s'obre per `localhost` o `https`). No envia `VIEWPORT`: el DM no el compta com a pantalla.
  */
 
-export interface ScreenInfo { id: string; w: number; h: number; seen: number }
+export interface ScreenInfo { id: string; w: number; h: number; seen: number; tauler: boolean }
 
 export interface TrackerWorld {
   players: Player[];
   pos: PosMap;
   cam: CamRect | null;
+  /** Mode tauler (`lib/board.ts`): si està encès, la pantalla del tauler no mostra `cam`. */
+  board: BoardView | null;
   gridSize: number;
   gridOriginX: number;
   gridOriginY: number;
@@ -34,7 +36,7 @@ export type MoveResult = 'ok' | 'rebutjat' | 'sense resposta';
 
 const noSubscribe = () => () => {};
 
-const EMPTY: TrackerWorld = { players: [], pos: {}, cam: null, gridSize: 0, gridOriginX: 0, gridOriginY: 0, gridSnap: false, tokenSize: {} };
+const EMPTY: TrackerWorld = { players: [], pos: {}, cam: null, board: null, gridSize: 0, gridOriginX: 0, gridOriginY: 0, gridSnap: false, tokenSize: {} };
 
 export function useTrackerSync(onResult: (id: string, result: MoveResult) => void) {
   const world = useRef<TrackerWorld>({ ...EMPTY });
@@ -70,6 +72,7 @@ export function useTrackerSync(onResult: (id: string, result: MoveResult) => voi
         if (m.type === 'STRUCT') { gotStruct = true; setConnected(true); }
         if (m.pos) w.pos = { ...(m.pos as PosMap) };
         if (m.cam) w.cam = m.cam as CamRect;
+        if (m.board !== undefined) w.board = (m.board as BoardView | null) ?? null;
         if (Array.isArray(m.players)) { w.players = m.players as Player[]; setPlayers(w.players); }
         if (typeof m.gridSize === 'number') w.gridSize = m.gridSize;
         if (typeof m.gridOriginX === 'number') w.gridOriginX = m.gridOriginX;
@@ -85,7 +88,7 @@ export function useTrackerSync(onResult: (id: string, result: MoveResult) => voi
           onResultRef.current(id, Math.hypot(p.x - x, p.y - y) < 1 ? 'ok' : 'rebutjat');
         }
       } else if (m.type === 'VIEWPORT' && typeof m.id === 'string' && Number(m.w) > 0 && Number(m.h) > 0) {
-        screensRef.current[m.id] = { id: m.id, w: Number(m.w), h: Number(m.h), seen: Date.now() };
+        screensRef.current[m.id] = { id: m.id, w: Number(m.w), h: Number(m.h), seen: Date.now(), tauler: m.tauler === true };
         publishScreens();
       }
     };
@@ -109,7 +112,8 @@ export function useTrackerSync(onResult: (id: string, result: MoveResult) => voi
     const bc = bcRef.current;
     if (!bc) return;
     pending.current[id] = { x, y, t: Date.now() };
-    bc.postMessage({ type: 'TOKEN_MOVE', id, x, y });
+    // `src`: el DM sap que és una figureta (si el rebutja, no pot rebotar: queda pendent).
+    bc.postMessage({ type: 'TOKEN_MOVE', id, x, y, src: 'figureta' });
   }, []);
 
   return { world, connected, players, screens, available, moveToken };

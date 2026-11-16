@@ -1,7 +1,8 @@
 'use client';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useStoredString } from '@/hooks/useStoredFlag';
-import { type MoveResult, useTrackerSync } from '@/hooks/useTrackerSync';
+import { type MoveResult, type TrackerWorld, useTrackerSync } from '@/hooks/useTrackerSync';
+import { boardCam } from '@/lib/board';
 import type { CamRect, Point } from '@/types';
 import { C, FS, RADIUS, FONT_SERIF } from '@/constants';
 import { Button } from '@/components/ui/Button';
@@ -57,10 +58,19 @@ function parseSettings(raw: string): Settings {
 interface Status { state: BlobState; area: number; extra: number; cx: number; cy: number }
 interface SlotMsg { text: string; color: string }
 
-/** Mida de la pantalla del tauler: la triada o, si només n'hi ha una, aquella. */
-function tableScreen(s: Settings, screens: { w: number; h: number }[]): { W: number; H: number } | null {
+/**
+ * Mida de la pantalla del tauler: la triada a mà; si no, la oberta amb `?tauler=1`; si no, la
+ * única que hi hagi.
+ */
+function tableScreen(s: Settings, screens: { w: number; h: number; tauler: boolean }[]): { W: number; H: number } | null {
   if (s.screenW > 0 && s.screenH > 0) return { W: s.screenW, H: s.screenH };
-  return screens.length === 1 ? { W: screens[0].w, H: screens[0].h } : null;
+  const t = screens.find(x => x.tauler) ?? (screens.length === 1 ? screens[0] : null);
+  return t ? { W: t.w, H: t.h } : null;
+}
+
+/** Enquadrament que mostra la pantalla del tauler: el del mode tauler si està encès, si no el del DM. */
+function tableCam(w: TrackerWorld, scr: { W: number; H: number } | null): CamRect | null {
+  return (scr ? boardCam(w.board, scr.W, scr.H, w.gridSize) : null) ?? w.cam;
 }
 
 /** L'enquadrament del DM ha canviat (pan o zoom) des de l'última sincronització? */
@@ -119,6 +129,7 @@ export function TrackerView() {
   const sendOnRef = useRef(false);
   const [slotMsg, setSlotMsg] = useState<Record<number, SlotMsg>>({});
   const [camMoved, setCamMoved] = useState(false);
+  const [boardOn, setBoardOn] = useState(false);
   /** On era cada figureta (càmera, 0..1) l'últim cop que es va donar per bona. `null` = encara no se sap. */
   const settledRef = useRef<(Point | null)[]>([]);
   /** Enquadrament del DM quan figuretes i tokens coincidien (per avisar si el DM fa pan o zoom). */
@@ -199,7 +210,7 @@ export function TrackerView() {
       const w = world.current;
       const hm = homRef.current;
       const scr = tableScreen(s, screensRef.current);
-      const cam = w.cam;
+      const cam = tableCam(w, scr);
       const g = gridInfo(w.gridSize, w.gridOriginX, w.gridOriginY, w.gridSnap);
       const toMap = hm && scr && cam
         ? (p: Point) => { const q = applyH(hm.fwd, p); return { map: screenToMap(q.x, q.y, scr.W, scr.H, cam), inside: q.x >= -0.02 && q.x <= 1.02 && q.y >= -0.02 && q.y <= 1.02 }; }
@@ -220,8 +231,8 @@ export function TrackerView() {
           // la figureta canvia de casella respecte d'on era (no quan el DM mou el token a mà).
           if (!prev || samePlace(toMap(prev).map, now.map, g, R)) return;
           const target = tokenPosFor(now.map, R, g);
-          const at = w.pos[id];
-          if (at && Math.hypot(at.x - target.x, at.y - target.y) < 1) return;
+          // S'envia encara que el token ja hi sigui: si el DM l'havia rebutjat, la figureta que
+          // torna al seu lloc li treu l'avís de moviment pendent.
           moveToken(id, target.x, target.y);
         });
       }
@@ -287,7 +298,9 @@ export function TrackerView() {
       if (now - lastUi > 200) {
         lastUi = now;
         setStatus(res.best.map((b, i) => ({ state: states[i], area: b?.area ?? 0, extra: res.extra[i], cx: b?.cx ?? 0, cy: b?.cy ?? 0 })));
-        setCamMoved(sendOnRef.current && camMovedSince(camAtSyncRef.current, w.cam));
+        if (sendOnRef.current && !camAtSyncRef.current && cam && scr) camAtSyncRef.current = cam;
+        setCamMoved(sendOnRef.current && camMovedSince(camAtSyncRef.current, cam));
+        setBoardOn(!!w.board?.on);
       }
       if (now - t0 > 1000) {
         setPerf({ fps: Math.round((frames * 1000) / (now - t0)), ms: Math.round((acc / frames) * 10) / 10, vw, vh, pw, ph });
@@ -407,14 +420,16 @@ export function TrackerView() {
     // En engegar, la posició actual de cada figureta és la referència: no es mou res fins
     // que algú en mogui una.
     settledRef.current = [];
-    camAtSyncRef.current = world.current.cam;
-  }, [world]);
+    // La referència de l'enquadrament es pren al bucle, quan ja se sap la pantalla del tauler.
+    camAtSyncRef.current = null;
+  }, []);
 
   /** Mou cada token assignat a on hi ha ara la seva figureta (per començar o després d'un pan del DM). */
   const syncAll = useCallback(() => {
     const s = settingsRef.current, w = world.current, hm = homRef.current, last = lastRef.current;
     const scr = tableScreen(s, screensRef.current);
-    if (!hm || !scr || !w.cam || !last) return;
+    const cam = tableCam(w, scr);
+    if (!hm || !scr || !cam || !last) return;
     const g = gridInfo(w.gridSize, w.gridOriginX, w.gridOriginY, w.gridSnap);
     let n = 0;
     last.best.forEach((b, i) => {
@@ -423,14 +438,14 @@ export function TrackerView() {
       const q = applyH(hm.fwd, { x: b.cx, y: b.cy });
       if (q.x < 0 || q.x > 1 || q.y < 0 || q.y > 1) return;
       const id = `pl_${sl.playerId}`, R = w.tokenSize[id] ?? 22;
-      const t = tokenPosFor(screenToMap(q.x, q.y, scr.W, scr.H, w.cam!), R, g);
+      const t = tokenPosFor(screenToMap(q.x, q.y, scr.W, scr.H, cam), R, g);
       settledRef.current[i] = { x: b.cx, y: b.cy };
       const at = w.pos[id];
       if (at && Math.hypot(at.x - t.x, at.y - t.y) < 1) return;
       moveToken(id, t.x, t.y);
       n++;
     });
-    camAtSyncRef.current = w.cam;
+    camAtSyncRef.current = cam;
     setCamMoved(false);
     setError(n === 0 ? 'Cap token per moure: o ja són al seu lloc, o no hi ha cap figureta assignada dins del tauler.' : '');
   }, [world, moveToken]);
@@ -473,8 +488,9 @@ export function TrackerView() {
         )}
         {camMoved && (
           <Notice color={C.warn}>
-            El DM ha mogut o ampliat el mapa: les figuretes ja no són a sobre dels seus tokens. Recol·loqueu-les, o premeu
-            «Posar els tokens on són les figuretes».
+            El mapa del tauler s&apos;ha mogut (el DM ha fet pan o zoom, o ha centrat el tauler en un altre lloc): les figuretes ja
+            no són a sobre dels seus tokens. Recol·loqueu-les, o premeu «Posar els tokens on són les figuretes».
+            {!boardOn && <> Amb el «Tauler de figuretes» encès (menú Pantalles del DM), el pan i el zoom del DM no mouen el tauler.</>}
           </Notice>
         )}
 
@@ -545,11 +561,11 @@ export function TrackerView() {
             }}
             style={inputStyle}
           >
-            <option value="">{screens.length === 1 ? `Automàtica (${screens[0].w}×${screens[0].h})` : 'Tria-la…'}</option>
+            <option value="">{(() => { const t = screens.find(x => x.tauler) ?? (screens.length === 1 ? screens[0] : null); return t ? `Automàtica (${t.w}×${t.h}${t.tauler ? ', la del tauler' : ''})` : 'Tria-la…'; })()}</option>
             {settings.screenW > 0 && !screens.some(x => x.w === settings.screenW && x.h === settings.screenH) && (
               <option value={`${settings.screenW}x${settings.screenH}`}>{settings.screenW}×{settings.screenH} (ara no es veu)</option>
             )}
-            {screens.map(x => <option key={x.id} value={`${x.w}x${x.h}`}>Pantalla de {x.w}×{x.h}</option>)}
+            {screens.map(x => <option key={x.id} value={`${x.w}x${x.h}`}>Pantalla de {x.w}×{x.h}{x.tauler ? ' (tauler)' : ''}</option>)}
           </select>
           {screens.length === 0 && (
             <span style={{ color: C.warn, fontSize: FS.xs }}>No es veu cap pantalla de jugador. Obre <code>/player</code> a pantalla completa al monitor del tauler, en aquest mateix PC.</span>
@@ -564,6 +580,11 @@ export function TrackerView() {
               ● {connected ? `Connectat · ${players.length} jugador${players.length === 1 ? '' : 's'}` : 'Esperant el DM (obre l\'app del DM en aquest PC)'}
             </span>
           )}
+          {connected && (
+            <span style={{ color: C.dim, fontSize: FS.xs }}>
+              {boardOn ? 'Tauler de figuretes encès: escala fixa d\'1 casella = 1 polzada.' : 'Tauler de figuretes apagat: la pantalla del tauler segueix el pan i el zoom del DM.'}
+            </span>
+          )}
           <Row label="Moure tokens">
             <Seg value={sendOn ? 'on' : 'off'} options={[['off', 'No'], ['on', 'Sí']]} onChange={v => toggleSend(v === 'on')} />
           </Row>
@@ -572,7 +593,7 @@ export function TrackerView() {
               Encara no es pot moure res: {[!connected && 'falta el DM', !hom && 'falta calibrar el tauler', !tableScreen(settings, screens) && 'falta triar la pantalla del tauler'].filter(Boolean).join(', ')}.
             </span>
           )}
-          <Button size="sm" disabled={!hom || !connected || !running} onClick={syncAll} title="Mou cada token assignat a on hi ha ara la seva figureta">
+          <Button size="sm" disabled={!hom || !connected || !running || !tableScreen(settings, screens)} onClick={syncAll} title="Mou cada token assignat a on hi ha ara la seva figureta">
             Posar els tokens on són les figuretes
           </Button>
           <span style={{ color: C.dim, fontSize: FS.xs }}>

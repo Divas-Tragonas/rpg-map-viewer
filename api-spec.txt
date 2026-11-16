@@ -257,6 +257,13 @@ client→dm. El DM en fa la llista de pantalles connectades del seu HUD i hi
 calcula quant de mapa veu de més cadascuna. Entre finestres del MATEIX ordinador
 viatja pel BroadcastChannel, així que el xip funciona igualment sense la API.
 
+Camps opcionals afegits pel frontend (v5.37, figuretes físiques; cap canvi obligat
+al servidor): `VIEWPORT.tauler: true` (la pantalla oberta amb `/player?tauler=1`) i
+`TOKEN_MOVE.src: 'figureta'` (el moviment ve del tracker `/tracker`). El tracker
+només parla pel BroadcastChannel; si el servidor descarta aquests camps en reenviar
+pel WebSocket, el DM simplement no marca aquella pantalla com a tauler. El camp
+`board` del STATE/STRUCT (`BoardView | null`, mode tauler) viatja opac com `cam`.
+
 El camp `cam` de STATE/STRUCT no va requerir cap canvi al servidor: és un camp
 més dins d'un missatge que ja es reenvia opac. Igual el camp `spellPreview`
 (SpellPreview | null: la màgia que el DM està apuntant, perquè els jugadors en

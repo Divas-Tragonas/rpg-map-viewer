@@ -21,7 +21,7 @@
 | `/player` | `PlayerView` | Vista del jugador (pantalla secundària) |
 | `/player?embed=1` | `PlayerView` | La mateixa, incrustada al tauler de missions de la wiki (veure «Pantalla de jugador dins de la wiki») |
 | `/expositor` | `ExpositorPage` | **Visor local** per a un monitor de recanvi: obres un fitxer a mà i es veu a pantalla completa. **No és l'Expositor del DM** (no rep res del BC ni del WS) |
-| `/tracker` | `TrackerView` | **Figuretes físiques amb càmera**: detecta les bases de color i mou els tokens de jugador amb `TOKEN_MOVE`. Veure «Figuretes físiques amb càmera» a `tokens-i-combat.md` |
+| `/tracker` | `TrackerView` | **Figuretes físiques amb càmera**: detecta les bases de color i mou els tokens de jugador amb `TOKEN_MOVE`. La pantalla del tauler és `/player?tauler=1`. Veure «Figuretes físiques amb càmera» a `tokens-i-combat.md` |
 | `/login` | `SiteLoginPage` | Contrasenya de la web (veure «Contrasenya de la web»). Pública |
 | `/admin/*` | back office | Enemics i personatges de la API; demana també el login de la API (`/admin/login`) |
 
@@ -65,6 +65,7 @@ src/
 │   │   ├── SceneEnemiesPanel   # Tots els enemics i aliats de l'escena, en files com les DIVAS (miniatura + ull)
 │   │   ├── FloatingToolbar, GridPanel, EnemyLibraryPanel (plantilles)
 │   │   ├── TopBar          # Barra superior: nom del mapa, Preparar·Jugar, pantalles, partida, ☰ (vista, app, ajuda); RightRail: Mostrar als jugadors i Història
+│   │   ├── PhysPendingPanel # «Figuretes fora de lloc»: moviments de figuretes rebutjats (Acceptar / Ignorar)
 │   │   ├── TilePalette, PixelMapPanel, PixelPickers  # App Píxel: paleta de caselles, paquet + mapa, figureta i retrat
 │   │   ├── ShowPanelHeader # Pestanyes Imatge o vídeo / Text / Diàleg del panell «Mostrar als jugadors»
 │   │   ├── DialogPanel, DialogControls  # Diàlegs: pestanya per escriure el guió i barra del DM mentre corre
@@ -109,6 +110,7 @@ src/
 │   └── useWheelZoom.ts
 ├── lib/
 │   ├── camera.ts           # Càmera en coords de mapa (viewRect/clampCamToMap/camToView)
+│   ├── board.ts            # Mode tauler de les figuretes físiques (boardCam: 1 casella = 1 polzada; PhysPending). Capa del DM: render/board.ts
 │   ├── bg-reduce.ts        # Còpia reduïda del fons per a les pantalles de jugador (4096 px, WebP)
 │   ├── turn.ts             # Primitives de la cua d'iniciativa (budgetFor, nextActive, removeFromTurn)
 │   ├── relay.ts            # Pont del canal amb el tauler de missions de la wiki (postMessage, sense API)

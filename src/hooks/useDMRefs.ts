@@ -4,8 +4,9 @@ import type {
   PosMap, Player, Spell, PaintedZone,
   ConditionsMap, DefeatedMap, TokenSizeMap, StrokeAnimState, StrokeData,
   Point, DrawTool, MapSize, BBox, LibEnemy, SpellPreview, AreaSpellPending,
-  Wall, Room, Door, TurnState, CamRect, AppStyle, DialogSync, SavedDialog,
+  Wall, Room, Door, TurnState, CamRect, AppStyle, DialogSync, SavedDialog, BoardView,
 } from '@/types';
+import type { PhysPending } from '@/lib/board';
 import type { TileMap } from '@/lib/tilemap/model';
 import type { SheetShow } from '@/types';
 import type { TileLive } from '@/lib/tilemap/render';
@@ -185,7 +186,11 @@ export function useDMRefs() {
   const rDmCam            = useRef<CamRect | null>(null);
   // Pantalles de jugador connectades (missatge VIEWPORT): id → format i últim contacte.
   // Serveix per avisar el DM de quant de mapa veuen fora del seu marc.
-  const rPlayerScreens    = useRef<Record<string, { w: number; h: number; ts: number }>>({});
+  const rPlayerScreens    = useRef<Record<string, { w: number; h: number; ts: number; tauler?: boolean }>>({});
+  // Mode tauler de les figuretes físiques (`lib/board.ts`) i moviments de figuretes que el DM
+  // ha rebutjat i esperen que decideixi (silueta al canvas + panell).
+  const rBoard            = useRef<BoardView | null>(null);
+  const rPhysPending      = useRef<Record<string, PhysPending>>({});
   const zoneAppearRef     = useRef<Record<string, number>>({});
   // Pan toggle modes (tap key once to activate, tap again to deactivate + restore)
   const rCtrlPanToggle   = useRef(false);
@@ -270,7 +275,7 @@ export function useDMRefs() {
     rCtrlPanToggle, rCtrlPanSnapshot, rShiftPanToggle, rSpaceHeld,
     rAppStyle, rPhosphor, rTileMap, rTileCanvas, rTileLive, rTileBrush, rTileDrag, rTileHover, rTileHoverPx, rTileSel, rTileFocus, rTileRestore, rTileRegen,
     rDialog, rDialogT0, rDialogs, dialogHostRef,
-    rSheetShow,
+    rSheetShow, rBoard, rPhysPending,
   };
 }
 

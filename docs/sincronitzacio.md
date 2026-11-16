@@ -21,11 +21,12 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `DELETE_SPELL` | DM→Jugador | Eliminar un spell d'àrea actiu |
 | `BOSS_INTRO` | DM→Jugador | Cinematica boss reveal. `style` (absent = la de sempre) + `sprite` i `party` per a les de pixel art |
 | `BOSS_INTRO_SKIP` | DM→Jugador | Saltar cinematica |
-| `PLAYER_READY` | Jugador→DM | Sol·licita estat complet |
-| `VIEWPORT` | Jugador→DM | Mida del canvas d'aquella pantalla (`{id,w,h}`). El DM en fa la llista del menú de pantalles de la barra superior |
+| `PLAYER_READY` | Jugador→DM | Sol·licita estat complet. Les altres pantalles de jugador del mateix PC hi contesten amb el seu `VIEWPORT` (el tracker de figuretes necessita la mida de la pantalla del tauler de seguida) |
+| `VIEWPORT` | Jugador→DM | Mida del canvas d'aquella pantalla (`{id,w,h}`, i `tauler: true` si és `/player?tauler=1`). El DM en fa la llista del menú de pantalles de la barra superior |
 | `TOKEN_MOVE` | Jugador→DM | Token mogut des de la pantalla de jugador (BC i WS). Només tokens de jugador (`pl_*`): el DM descarta la resta. També l'envia el tracker de figuretes (`/tracker`, només BC: veure «Figuretes físiques amb càmera» a `tokens-i-combat.md`) |
 | `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
 | `STATE.appStyle` / `STATE.tileLive` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat. Els sprites NO viatgen: cada pantalla els carrega de `public/sprites/` |
+| `STATE.board` / `STRUCT.board` | DM→Jugador | Mode tauler de les figuretes físiques (`BoardView \| null`, lleuger, sempre). Només el fa servir la pantalla oberta amb `?tauler=1` (i `/tracker`). Veure «Figuretes físiques amb càmera» a `tokens-i-combat.md` |
 | `STATE.phosphor` / `STRUCT.phosphor` | DM→Jugador | Mode Fòsfor (boolean, lleuger, sempre): la pantalla de jugador es veu com una TV de tub antiga. Veure «Mode Fòsfor» |
 | `STATE.dialog` / `STRUCT.dialog` | DM→Jugador | Diàleg en curs (`DialogSync`, camp lleuger, sempre; `null` = cap). Veure «Diàlegs de personatges» |
 | `STATE.sheet` / `STRUCT.sheet` | DM→Jugador | Fitxa d'un personatge a les pantalles (`SheetShow`, camp **pesat**: només quan canvia; `null` = amagada). Veure «Fitxes de personatge i experiència» |

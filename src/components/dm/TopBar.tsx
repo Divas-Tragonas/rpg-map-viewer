@@ -10,6 +10,7 @@ import { Button, IconButton } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { C, FS, RADIUS, SHADOW, APP_VERSION, FONT_SERIF, tint } from '@/constants';
 import { extraSeen } from '@/lib/camera';
+import { boardCells } from '@/lib/board';
 import { agoLabel } from '@/lib/autosave';
 import type { DMMode } from '@/lib/dm-mode';
 import { CompactContext, useCompact, useCompactLayout } from '@/hooks/useCompact';
@@ -20,6 +21,8 @@ export const TOP_BAR_H = 48;
 const IDENTITY_W = 250;
 
 type MenuId = 'screens' | 'game' | 'more';
+
+interface BoardProps { on: boolean; widthCm: number; hasGrid: boolean }
 
 interface Props {
   /** Nom del fitxer del mapa; null = encara no n'hi ha cap de carregat. */
@@ -32,8 +35,16 @@ interface Props {
   undoLabel: string | null; onUndo: () => void;
   /** Què refaria el «Refer» (Ctrl+Maj+Z / Ctrl+Y); null = res. */
   redoLabel: string | null; onRedo: () => void;
-  /** Pantalles de jugador connectades (id → mida en píxels CSS del seu canvas). */
-  playerScreens: Record<string, { w: number; h: number; ts: number }>;
+  /** Pantalles de jugador connectades (id → mida en píxels CSS del seu canvas; `tauler` = oberta amb `?tauler=1`). */
+  playerScreens: Record<string, { w: number; h: number; ts: number; tauler?: boolean }>;
+  /** Mode tauler de les figuretes físiques (`lib/board.ts`). */
+  board: BoardProps;
+  onToggleBoard: (on: boolean) => void;
+  onBoardWidth: (cm: number) => void;
+  /** Centra el tauler on mira ara el DM. */
+  onCenterBoard: () => void;
+  /** Obre la pantalla de jugador del tauler (`/player?tauler=1`). */
+  onOpenTable: () => void;
   /** Format (amplada/alçada) de l'enquadrament actual del DM; null si encara no n'hi ha. */
   camAr: number | null;
   onOpenPlayer: () => void;
@@ -184,16 +195,58 @@ function CopyRow({ url }: { url: string }) {
 // ── Els quatre menús ─────────────────────────────────────────────────────────
 
 /**
+ * Tauler de figuretes físiques (`lib/board.ts`): la pantalla oberta amb `?tauler=1` va a escala
+ * fixa (1 casella = 1 polzada física) i no segueix el pan/zoom del DM, perquè les figuretes no
+ * es desquadrin. El DM en diu l'amplada física i on es centra.
+ */
+function BoardSection({ board, table, onToggleBoard, onBoardWidth, onCenterBoard, onOpenTable }: {
+  board: BoardProps; table: { w: number; h: number } | null;
+  onToggleBoard: (on: boolean) => void; onBoardWidth: (cm: number) => void; onCenterBoard: () => void; onOpenTable: () => void;
+}) {
+  const cells = table && board.widthCm > 0 ? boardCells({ on: true, widthCm: board.widthCm, cx: 0, cy: 0 }, table.w, table.h) : null;
+  const problem = !board.hasGrid ? 'Cal una graella al mapa (la mida de la casella és la polzada).'
+    : !(board.widthCm > 0) ? 'Escriu l\'amplada de la imatge del monitor del tauler.'
+    : !table ? 'Obre la pantalla del tauler (botó de sota) al monitor del tauler, a pantalla completa.'
+    : null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: '8px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+        title="Per jugar amb figuretes damunt d'un monitor: la pantalla del tauler mostra el mapa a 1 casella = 1 polzada i no segueix el teu pan ni el zoom.">
+        <span style={{ flex: 1, fontSize: FS.md, fontWeight: 600, color: C.text }}>Tauler de figuretes</span>
+        <Switch on={board.on} onChange={() => onToggleBoard(!board.on)} label="Tauler de figuretes" />
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: FS.sm, color: C.text }}
+        title="Amplada de la imatge que es veu al monitor del tauler, de vora a vora, en centímetres (un monitor de 24 polzades fa uns 53 cm).">
+        <span style={{ flex: 1 }}>Amplada de la imatge</span>
+        <input type="number" min={10} max={300} step={0.1} value={board.widthCm || ''} placeholder="53"
+          onChange={e => onBoardWidth(Number(e.target.value))}
+          style={{ width: 70, background: C.dark, color: C.text, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: '3px 6px', fontSize: FS.sm }} />
+        <span style={{ color: C.dim }}>cm</span>
+      </label>
+      {board.on && problem && <div style={{ fontSize: FS.xs, color: C.warn }}>{problem}</div>}
+      {board.on && !problem && cells && (
+        <div style={{ fontSize: FS.xs, color: C.dim }}>Hi caben {cells.cols}×{cells.rows} caselles. El rectangle discontinu del mapa és el que s&apos;hi veu.</div>
+      )}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <Button size="sm" disabled={!board.on} onClick={onCenterBoard}
+          title="El tauler passa a mostrar on mires ara. Les figuretes s'han de recol·locar.">Centrar on mires</Button>
+        <Button size="sm" onClick={onOpenTable} title="Obre /player?tauler=1: arrossega-la al monitor del tauler i posa-la a pantalla completa">Obrir la pantalla del tauler</Button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Pantalles de jugador. Substitueix el botó «Modo Jugador» del lateral i el xip 🖥 del HUD,
  * que feien el mateix. Amb l'enquadrament sincronitzat en coordenades de MAPA cap pantalla
  * no veu menys que el DM, però una de format diferent en veu MÉS als costats: el menú diu
  * quantes n'hi ha i quant en veuen de més. Sense cap, el botó surt en color d'avís.
  */
-function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlayer, onOpenBoard, phosphor, onTogglePhosphor }: {
+function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlayer, onOpenBoard, phosphor, onTogglePhosphor, board, onToggleBoard, onBoardWidth, onCenterBoard, onOpenTable }: {
   open: boolean; onToggle: () => void; onClose: () => void;
   playerScreens: Props['playerScreens']; camAr: Props['camAr']; onOpenPlayer: () => void; onOpenBoard: () => void;
   phosphor: boolean; onTogglePhosphor: () => void;
-}) {
+} & Pick<Props, 'board' | 'onToggleBoard' | 'onBoardWidth' | 'onCenterBoard' | 'onOpenTable'>) {
   const [urls, setUrls] = useState<string[]>([]);
   const ids = Object.keys(playerScreens);
   const rows = ids.map(id => {
@@ -224,7 +277,7 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
                   <div key={r.id} style={{ fontSize: FS.sm, color: C.text, display: 'flex', gap: 6 }}>
                     <span style={{ color: C.bright, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.s.w}×{r.s.h}</span>
                     <span style={{ color: C.dim }}>
-                      {r.ex && r.ex.pct > 0 ? `veu un ${r.ex.pct}% més d'${r.ex.axis === 'w' ? 'amplada' : 'alçada'}` : 'veu el mateix que tu'}
+                      {r.s.tauler && board.on ? 'tauler de figuretes' : r.ex && r.ex.pct > 0 ? `veu un ${r.ex.pct}% més d'${r.ex.axis === 'w' ? 'amplada' : 'alçada'}` : 'veu el mateix que tu'}
                     </span>
                   </div>
                 ))}
@@ -237,6 +290,9 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
               <span style={{ flex: 1, fontSize: FS.md, fontWeight: 600, color: C.text }}>Mode Fòsfor</span>
               <Switch on={phosphor} onChange={onTogglePhosphor} label="Mode Fòsfor" />
             </div>
+            <BoardSection board={board} table={rows.find(r => r.s.tauler)?.s ?? null}
+              onToggleBoard={onToggleBoard} onBoardWidth={onBoardWidth} onCenterBoard={onCenterBoard}
+              onOpenTable={() => { onOpenTable(); onClose(); }} />
             <Button variant="primary" block onClick={() => { onOpenPlayer(); onClose(); }} style={{ gap: 6 }}>
               <Maximize2 size={12} /> Obrir-ne una en aquest dispositiu
             </Button>
@@ -544,7 +600,9 @@ export function TopBar(p: Props) {
         </Button>
         <ScreensMenu open={menu === 'screens'} onToggle={toggle('screens')} onClose={close}
           playerScreens={p.playerScreens} camAr={p.camAr} onOpenPlayer={p.onOpenPlayer} onOpenBoard={p.onOpenBoard}
-          phosphor={p.phosphor} onTogglePhosphor={p.onTogglePhosphor} />
+          phosphor={p.phosphor} onTogglePhosphor={p.onTogglePhosphor}
+          board={p.board} onToggleBoard={p.onToggleBoard} onBoardWidth={p.onBoardWidth}
+          onCenterBoard={p.onCenterBoard} onOpenTable={p.onOpenTable} />
         <GameMenu open={menu === 'game'} onToggle={toggle('game')} onClose={close} hasMap={hasMap}
           autosaveEnabled={p.autosaveEnabled} autosaveAt={p.autosaveAt} autosaveFailing={p.autosaveFailing}
           onToggleAutosave={p.onToggleAutosave} onSaveNow={p.onSaveNow}

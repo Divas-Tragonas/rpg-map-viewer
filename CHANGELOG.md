@@ -3,6 +3,12 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.37 — Figuretes amb càmera: mode tauler i moviments pendents al DM
+- Menú Pantalles → «Tauler de figuretes»: la pantalla oberta amb «Obrir la pantalla del tauler» (`/player?tauler=1`) mostra el mapa a 1 casella = 1 polzada real i ja no segueix el pan ni el zoom del DM; el DM n'escriu l'amplada en cm i la centra amb «Centrar on mires». Al mapa del DM es veu el rectangle del tauler
+- Si el DM no permet el moviment d'una figureta (no és el seu torn, sense peus, paret…), el token no es mou però el DM veu una silueta i el panell «Figuretes fora de lloc» amb el motiu: «Acceptar» hi porta el token (sense gastar peus) i «Ignorar» el deixa; si el jugador torna la figureta, l'avís marxa sol
+- El tracker fa servir l'enquadrament del tauler, reconeix sol la pantalla del tauler i en sap la mida de seguida
+- Cap canvi obligat a la API (camps opcionals `tauler` i `src`; veure `api-spec.txt`) ni a les partides desades
+
 ### v5.36 — Figuretes amb càmera: les figuretes mouen els tokens (fase 1)
 - `/tracker` es connecta amb el DM (mateix PC) i, quan una figureta queda quieta en una altra casella, mou el token del jugador assignat al seu color, encaixat a la casella com si l'hagués arrossegat
 - Calibratge del tauler clicant les 4 cantonades del monitor al vídeo, i tria de la pantalla de jugador del tauler; damunt del vídeo es veuen la graella del mapa i on són els tokens, per comprovar-ho

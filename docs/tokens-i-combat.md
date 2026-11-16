@@ -235,19 +235,19 @@
 - **Escena dels tokens** (`renderTokenScene`, DM i jugador): tokens → (`between`) → noms. Els noms es pinten en una capa i s'esvaeixen (`NAME_FADE`, `destination-out`) allà on hi ha la silueta d'una figureta (`fc.figMask`, que omple `maskFigure` amb la mateixa funció que pinta la figura).
 - **Portes de caselles**: el token que hi passa va per sobre de la porta i per sota de la PARET (`DoorPiece.edge`: la vora de dalt del tram de baix d'una porta lateral). `drawTileDoorEdgesOver` torna a pintar la vora, menys els píxels de la porta que hi van a sobre (`edgeMinus`), després dels tokens: al DM com a `between`; a la pantalla de jugador, els tokens i els noms es queden en capes (`keepTokens`) que es tornen a posar retallades a les caselles de les portes (`clipTileDoors`) després de `drawTileDoorsOver`, amb la vora entre totes dues. ⚠️ Un token dins d'una sala fosca no revelada que sigui sobre la casella d'una porta s'hi veuria.
 
-## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `useTrackerSync`, v5.35–v5.36)
+## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.37)
 
 Objectiu: les figuretes reals que els jugadors mouen damunt d'un monitor fet servir de tauler mouen els tokens de
-jugador de l'app. **Fet: detecció (fase 0) i moviment dels tokens (fase 1).**
+jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tauler i moviments pendents al DM (v5.37).
 
-- **Muntatge previst**: monitor LCD horitzontal dins d'una estructura (el tauler), mostrant `/player` a pantalla
+- **Muntatge previst**: monitor LCD horitzontal dins d'una estructura (el tauler), amb `/player?tauler=1` a pantalla
   completa; càmera zenital fixada a l'estructura (iPhone 11 com a webcam del PC amb Càmera de Continuïtat, Camo o
   DroidCam; la GoPro HERO4 només per HDMI amb capturadora). **Polaritzador lineal davant de la càmera** (el vidre
   d'unes ulleres de sol polaritzades): la llum de l'LCD és polaritzada i, girant-lo, el mapa es veu gairebé negre per a
   la càmera; les figuretes no. Cada figureta (5) porta la vora de la base pintada d'un color viu i mat, **sense vermells
   ni taronges** (la pell de les mans).
-- ⚠️ **Tot al mateix PC**: el DM, la pantalla de jugador del tauler i `/tracker`. La càmera només s'obre en una pàgina
-  segura (`http://localhost:3001/tracker` o `https`), i el tracker parla amb el DM **només pel BroadcastChannel**.
+- ⚠️ **Tot al mateix PC**: el DM, la pantalla del tauler i `/tracker`. La càmera només s'obre en una pàgina segura
+  (`http://localhost:3001/tracker` o `https`), i el tracker parla amb el DM **només pel BroadcastChannel**.
 
 ### Detecció (`lib/tracker/detect.ts`)
 - Imatge reduïda (`procW` 320/480/640), cada píxel a HSV i assignat al color de to més proper dins del seu marge
@@ -258,38 +258,57 @@ jugador de l'app. **Fet: detecció (fase 0) i moviment dels tokens (fase 1).**
   color, vistes Càmera / Barrejat / Màscara, fixar l'exposició (`single-shot`) si la càmera ho permet. Tot es desa al
   navegador (`rpg_tracker_v1`, `useStoredString`), **menys «Moure tokens», que sempre comença apagat**.
 
+### Mode tauler (`lib/board.ts`, `BoardView`)
+- **Per què**: una figureta física no es mou quan el DM fa pan o zoom. Amb el mode tauler, la pantalla oberta amb
+  `?tauler=1` (`isTableScreenUrl`) **no segueix l'enquadrament del DM**: mostra el mapa a **1 casella = 1 polzada
+  física**, centrat a `BoardView.cx/cy`. `boardCam(board, W, H, gs)` en dona el rectangle de mapa (px per polzada =
+  `W / widthCm × 2,54`); sense graella o sense amplada torna `null` i mana `cam`, com sempre.
+- **DM** (menú **Pantalles → Tauler de figuretes**, `BoardSection` a `TopBar`): interruptor, **amplada de la imatge**
+  en cm (`rpg_board_cm`, es recorda al navegador), **«Centrar on mires»** (el centre passa a ser el de l'enquadrament
+  del DM; en encendre'l per primer cop també) i **«Obrir la pantalla del tauler»** (`openPlayerWindow(true)`). Diu
+  quantes caselles hi caben (`boardCells`). L'encès i el centre no es desen amb la partida.
+- **Rectangle del tauler al mapa del DM** (`renderBoardOverlay`, `lib/render/board.ts`, cridat des de `useRafLoop`
+  dins d'un `translate/scale` propi): discontinu i daurat, amb la mida de la pantalla que ha enviat `VIEWPORT` amb
+  `tauler: true` (`rPlayerScreens`).
+- Viatja com a camp lleuger `board` del `STATE` i del `STRUCT` (`R.rBoard`, efecte a `DMView` com el del Fòsfor).
+
 ### De la càmera al mapa (`lib/tracker/geometry.ts`)
 - **Calibratge**: el DM clica al vídeo les 4 cantonades de la imatge del monitor (en l'ordre de `CORNER_NAMES`, tal
   com la veu el DM). `homography` (4 punts, eliminació gaussiana) porta càmera (0..1) → pantalla (0..1).
-- **Pantalla → mapa**: la mateixa regla «contain» que `camToView` (`screenToMap`), amb l'enquadrament `cam` del DM i
-  la mida de la pantalla del tauler. La mida surt dels `VIEWPORT` que les pantalles de jugador ja envien (es tria a
-  «Pantalla de jugador del tauler»; si només n'hi ha una, és aquella). El tracker **no envia `VIEWPORT`**: el DM no el
-  compta com a pantalla.
+- **Pantalla → mapa**: la regla «contain» de `camToView` (`screenToMap`) amb l'enquadrament que mostra la pantalla
+  del tauler (`tableCam`: el del mode tauler si està encès, si no el `cam` del DM) i la seva mida. La pantalla del
+  tauler es tria sola: la triada a mà, si no la que porta `tauler: true`, si no l'única. Les pantalles de jugador
+  contesten el `PLAYER_READY` del tracker amb el seu `VIEWPORT` (sense això, fins a 15 s sense mida). El tracker
+  **no envia `VIEWPORT`**: el DM no el compta com a pantalla.
 - **Comprovació visual**: damunt del vídeo es pinten la graella del mapa i on són ara els tokens de jugador (cercles
-  discontinus), passats per la homografia inversa. Si no cauen sobre el monitor, el calibratge o la pantalla triada no
-  són bons.
+  discontinus), passats per la homografia inversa.
 
 ### Moure els tokens (`useTrackerSync` + bucle de `TrackerView`)
 - El tracker demana l'estat amb `PLAYER_READY` (cada 3 s fins que arriba un `STRUCT`) i n'escolta `players`, `pos`,
-  `cam`, la graella i `tokenSizeOverride` del `STATE`/`STRUCT`, i `TOKEN_RELAY`.
+  `cam`, `board`, la graella i `tokenSizeOverride`, i `TOKEN_RELAY`.
 - Cada color s'assigna a un jugador. Quan la figureta passa a «quieta» **en una altra casella respecte d'on era la
   darrera vegada** (`settledRef`, en coordenades de càmera i comparat amb la transformació d'ara), s'envia
-  `TOKEN_MOVE {id: 'pl_N', x, y}` amb la posició encaixada com el drag de `/player` (`tokenPosFor` = `snapPos`). El
-  primer cop que es veu una figureta només en pren la referència. Per tant **només envia quan algú mou una figureta**:
-  si el DM mou el token a mà, el tracker no el torna on és la figureta.
-- El DM valida com sempre (`handlePlayerTokenMove`: torn, bloqueig, parets, peus). La resposta és un `TOKEN_RELAY`: a
-  la posició enviada = acceptat; a una altra = rebutjat → «el DM no ho permet: torna la figureta on era»; res en 2,5 s
-  → «el DM no respon».
-- **«Posar els tokens on són les figuretes»**: envia la posició de totes les figuretes quietes (per començar la
-  partida o després d'un pan del DM).
-- **Pan o zoom del DM**: les figuretes físiques no es mouen amb el mapa. Si l'enquadrament canvia des de l'última
-  sincronització (`camMovedSince`), el tracker avisa. Les que es moguin després van bé (es calcula amb el `cam` d'ara).
-- **Proves sense càmera ni DM**: Chromium accepta un vídeo `.y4m` com a webcam falsa
-  (`--use-fake-device-for-media-stream --use-file-for-fake-video-capture=fitxer.y4m`), i una pàgina del mateix origen
-  pot fer de DM pel BroadcastChannel (respondre `PLAYER_READY` amb un `STRUCT`, enviar `VIEWPORT` i contestar
-  `TOKEN_MOVE` amb `TOKEN_RELAY`).
+  `TOKEN_MOVE {id: 'pl_N', x, y, src: 'figureta'}` amb la posició encaixada com el drag de `/player` (`tokenPosFor` =
+  `snapPos`). El primer cop que es veu una figureta només en pren la referència. **Només envia quan algú mou una
+  figureta**: si el DM mou el token a mà, el tracker no el torna on és la figureta.
+- **«Posar els tokens on són les figuretes»**: envia la posició de totes les figuretes quietes (per començar, o
+  després de «Centrar on mires» o d'un pan del DM sense mode tauler). Si l'enquadrament del tauler canvia des de
+  l'última sincronització (`camMovedSince`), el tracker avisa.
 
-**Pendent**:
-1. **Mode tauler**: la pantalla del tauler a escala fixa (1 casella = 1 polzada física) i sense seguir el pan/zoom del
-   DM; canviar el tros visible amb una acció explícita.
-2. **Combat**: en lloc de només avisar del rebuig, una silueta de moviment pendent al DM (acceptar / ignorar).
+### Moviments rebutjats: silueta al DM (`PhysPending`, `PhysPendingPanel`)
+- El DM valida com sempre (`handlePlayerTokenMove`: bloqueig, 0 de vida, torn, estats, peus, parets). Una figureta,
+  però, **no pot rebotar**: si el `TOKEN_MOVE` porta `src: 'figureta'` i es rebutja, a més del `TOKEN_RELAY` a la
+  posició vella es desa a `R.rPhysPending` amb el **motiu** (l'argument de `bounceBack`).
+- El DM veu al mapa una silueta «?» del color del jugador amb una fletxa des del token, i el panell **«Figuretes fora
+  de lloc»** (a dalt al mig de l'escenari) amb el motiu: **«Acceptar»** hi porta el token igualment
+  (`handlePlayerTokenMove(..., { force: true })`: se salten les regles i **no gasta peus**; desfeible en combat com
+  qualsevol moviment) i **«Ignorar»** el deixa on era. El tracker diu al jugador «el DM no ho permet: torna la
+  figureta on era».
+- L'avís desapareix sol quan la figureta torna a la casella del token: el tracker envia el moviment encara que el
+  token ja hi sigui, i el DM, en rebre aquest «eco» d'una figureta, esborra el pendent i contesta amb `TOKEN_RELAY`.
+  També desapareix quan aquell token fa un moviment vàlid.
+
+- **Proves sense càmera**: Chromium accepta un vídeo `.y4m` com a webcam falsa
+  (`--use-fake-device-for-media-stream --use-file-for-fake-video-capture=fitxer.y4m`). Amb Playwright, cada pàgina és
+  una pestanya i **només la del davant pinta** (`requestAnimationFrame`): `bringToFront()` abans de mirar-la o
+  d'esperar que el tracker processi fotogrames.

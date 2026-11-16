@@ -22,7 +22,8 @@ import { advanceTokenSpread } from '@/lib/render/token-geom';
 import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mapSizeFor, viewRect } from '@/lib/camera';
-import type { MapSize, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview } from '@/types';
+import { boardCam, isTableScreenUrl } from '@/lib/board';
+import type { MapSize, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview, BoardView } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle, SheetShow } from '@/types';
 import { ensurePack, packReady, subscribePack } from '@/lib/sprites/pack';
@@ -187,6 +188,11 @@ export function PlayerView() {
   // format i la mida de pantalla deixen de canviar què es veu. `rZoom`/`rPanOffset`
   // (píxels del DM) només s'usen si el DM és una versió antiga que no envia `cam`.
   const rCam          = useRef<CamRect | null>(null);
+  // Mode tauler (figuretes físiques, `lib/board.ts`): només a la pantalla oberta amb `?tauler=1`.
+  // Escala fixa d'1 casella = 1 polzada, i no segueix el pan/zoom del DM.
+  const rBoard        = useRef<BoardView | null>(null);
+  const isTableRef    = useRef(false);
+  useEffect(() => { isTableRef.current = isTableScreenUrl(window.location.search); }, []);
   const visualZoomRef = useRef(1);
   const visualPanRef  = useRef({ x: 0, y: 0 });
   const visualPosRef  = useRef<PosMap>({});
@@ -237,7 +243,7 @@ export function PlayerView() {
     const w = c.clientWidth, h = c.clientHeight;
     if (!w || !h) return;
     if (!screenIdRef.current) screenIdRef.current = Math.random().toString(36).slice(2, 8);
-    const msg = { type: 'VIEWPORT', id: screenIdRef.current, w, h };
+    const msg = { type: 'VIEWPORT', id: screenIdRef.current, w, h, ...(isTableRef.current ? { tauler: true } : {}) };
     bcRef.current?.postMessage(msg);
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
@@ -551,6 +557,7 @@ export function PlayerView() {
         if (msg.difficult) rDifficult.current = msg.difficult;
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
         if (msg.cam)           rCam.current           = msg.cam;
+        if (msg.board !== undefined) rBoard.current = msg.board;
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
         if (msg.gridSnap      !== undefined) rGridSnap.current      = msg.gridSnap;
@@ -618,6 +625,7 @@ export function PlayerView() {
         if (msg.zoom  !== undefined) rZoom.current = msg.zoom;
         if (msg.panOffset) rPanOffset.current = msg.panOffset;
         if (msg.cam) rCam.current = msg.cam;
+        if (msg.board !== undefined) rBoard.current = msg.board;
         if (msg.players)   rPlayers.current = msg.players;
         if (msg.conditions)  rConditions.current = msg.conditions;
         if (msg.defeated) {
@@ -672,6 +680,11 @@ export function PlayerView() {
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
           if (msg.dmPreviewPan  != null) rDMPreviewPan.current  = msg.dmPreviewPan;
         }
+      } else if (msg.type === 'PLAYER_READY') {
+        // Una altra pantalla (o el tracker de figuretes, `/tracker`) acaba d'arribar: li diem la
+        // nostra mida ara, sense esperar el heartbeat de 15 s (el tracker la necessita per
+        // passar de pantalla a mapa). Només arriba pel BroadcastChannel, del mateix PC.
+        _reportViewport();
       } else if (msg.type === 'TOKEN_RELAY') {
         // Relay del DM d'un token mogut des d'una altra pantalla de jugador (p. ex.
         // una tablet). Es FUSIONA només aquest token dins rPos: no reemplaça tot
@@ -923,8 +936,11 @@ export function PlayerView() {
       // així un canvi de mida (rotar la tablet, pantalla completa, barra del navegador)
       // reenquadra tot sol sense esperar cap missatge del DM. Es desa a `rZoom`/`rPanOffset`
       // perquè la resta del codi (LERP i hit-test del drag) el llegeixi com sempre.
-      if (rCam.current) {
-        const t = camToView(rCam.current, W, H, mw, mh);
+      // Pantalla del tauler en mode tauler: l'enquadrament és el del tauler, no el del DM.
+      const tableCam = isTableRef.current ? boardCam(rBoard.current, W, H, rGridSize.current) : null;
+      const camNow = tableCam ?? rCam.current;
+      if (camNow) {
+        const t = camToView(camNow, W, H, mw, mh);
         rZoom.current = t.zoom; rPanOffset.current = t.pan;
       }
 

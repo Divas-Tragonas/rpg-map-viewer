@@ -61,7 +61,10 @@ import { activeKeys, budgetFor, firstActive, isTurnToken, nextActive } from '@/l
 import { movementLimit } from '@/lib/rules/conditions';
 import { terrainCost } from '@/lib/rules/terrain';
 import { useAutosave } from '@/hooks/useAutosave';
-import { useStoredFlag } from '@/hooks/useStoredFlag';
+import { useStoredFlag, useStoredString } from '@/hooks/useStoredFlag';
+import type { BoardView } from '@/types';
+import type { PhysPending } from '@/lib/board';
+import { PhysPendingPanel } from '@/components/dm/PhysPendingPanel';
 import { clearAutosave, readAutosave, readAutosaveMeta, type AutosaveMeta } from '@/lib/autosave';
 import { useTileMap, type TileMenuState, type TileMenuAction } from '@/hooks/useTileMap';
 import { TilePalette } from '@/components/dm/TilePalette';
@@ -126,7 +129,15 @@ export function DMView() {
   // Què desfaria el proper «Desfer» (Ctrl+Z) i què refaria el «Refer» (Ctrl+Maj+Z); null = res.
   const [undoNext, setUndoNext] = useState<{ undo: string | null; redo: string | null }>({ undo: null, redo: null });
   // Pantalles de jugador connectades (id → mida), reportades pel missatge VIEWPORT.
-  const [playerScreens, setPlayerScreens] = useState<Record<string, { w: number; h: number; ts: number }>>({});
+  const [playerScreens, setPlayerScreens] = useState<Record<string, { w: number; h: number; ts: number; tauler?: boolean }>>({});
+  // Mode tauler de les figuretes físiques (`lib/board.ts`): amplada física del monitor (es
+  // recorda al navegador), si està encès i on és el centre del tauler al mapa.
+  const [boardCmStr, setBoardCmStr] = useStoredString('rpg_board_cm', '');
+  const boardCm = Number(boardCmStr) || 0;
+  const [boardOn, setBoardOn] = useState(false);
+  const [boardCenter, setBoardCenter] = useState<{ x: number; y: number } | null>(null);
+  // Moviments de figuretes que el DM ha rebutjat i esperen decisió (silueta + panell).
+  const [physPending, setPhysPendingState] = useState<Record<string, PhysPending>>({});
   // Format de l'enquadrament compartit (rDmCam, que es recalcula a cada frame): es mostreja
   // a baixa freqüència perquè el HUD no re-renderitzi a 60fps mentre el DM fa pan/zoom.
   const [camAr, setCamAr] = useState<number | null>(null);
@@ -378,6 +389,32 @@ export function DMView() {
     _broadcastState({});
   }, [phosphor, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Mode tauler: com el Fòsfor, viatja dins de cada STATE i del STRUCT.
+  const board = useMemo<BoardView | null>(
+    () => (boardOn && boardCenter ? { on: true, widthCm: boardCm, cx: boardCenter.x, cy: boardCenter.y } : null),
+    [boardOn, boardCenter, boardCm],
+  );
+  useEffect(() => {
+    R.rBoard.current = board;
+    _broadcastState({});
+  }, [board, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Centra el tauler on mira ara el DM (acció explícita: les figuretes s'han de recol·locar). */
+  const centerBoardHere = useCallback(() => {
+    const c = R.rDmCam.current;
+    const ms = R.rMapSize.current;
+    if (c) setBoardCenter({ x: c.cx, y: c.cy });
+    else if (ms) setBoardCenter({ x: ms.width / 2, y: ms.height / 2 });
+  }, [R]);
+  const toggleBoard = useCallback((on: boolean) => {
+    if (on && !boardCenter) centerBoardHere();
+    setBoardOn(on);
+  }, [boardCenter, centerBoardHere]);
+  const setPhysPending = useCallback((fn: (p: Record<string, PhysPending>) => Record<string, PhysPending>) => {
+    const next = fn(R.rPhysPending.current);
+    R.rPhysPending.current = next;
+    setPhysPendingState(next);
+  }, [R]);
+
   // ── Mapa de caselles ───────────────────────────────────────────────────────
   const setTileGrid = useCallback((gs: number) => {
     R.rGridSize.current = gs; setGridSize(gs);
@@ -577,9 +614,13 @@ export function DMView() {
   // valida el bloqueig manual i, si hi ha combat, que sigui el token del torn actiu i que el
   // moviment no superi el saldo de peus (mateixa mètrica de disc que el clamp del drag). Si
   // rebutja, retorna la posició autoritzada (TOKEN_RELAY) perquè el token torni al lloc a l'instant.
-  const handlePlayerTokenMove = useCallback((id: number | string, x: number, y: number) => {
+  // `src: 'figureta'`: el mou una figureta física (`/tracker`). Si es rebutja, la figureta ja
+  // és allà i no pot rebotar: es desa com a moviment pendent (silueta + «Acceptar»/«Ignorar»).
+  // `force`: el DM accepta un moviment pendent; se salten les regles i no gasta peus.
+  const handlePlayerTokenMove = useCallback((id: number | string, x: number, y: number, opts: { src?: string; force?: boolean } = {}) => {
     const sid = String(id);
     if (!sid.startsWith('pl_')) return;
+    const fromFig = opts.src === 'figureta';
     // ECO DEL MATEIX MOVIMENT: la pantalla de jugador envia cada TOKEN_MOVE pel
     // BroadcastChannel **i** pel WebSocket, o sigui que una pantalla del mateix ordinador
     // (amb la API engegada) el fa arribar DUES vegades. La segona còpia ja no mou res
@@ -587,20 +628,24 @@ export function DMView() {
     // primera → el token semblava teletransportar-se al DM. Descartar-la del tot també
     // evita un TOKEN_RELAY i una entrada de rMoveHistory duplicats.
     const prev = R.rPos.current[id];
-    if (prev && prev.x === x && prev.y === y) return;
-    const bounceBack = () => {
+    if (prev && prev.x === x && prev.y === y) {
+      // Una figureta que torna a la casella del seu token (p. ex. després d'un rebuig): ja no
+      // hi ha res pendent, i es contesta perquè el tracker sàpiga que està bé.
+      if (fromFig) {
+        if (R.rPhysPending.current[sid]) setPhysPending(p => { const n = { ...p }; delete n[sid]; return n; });
+        const ok = { type: 'TOKEN_RELAY', id, x, y };
+        R.bcRef.current?.postMessage(ok);
+      }
+      return;
+    }
+    const bounceBack = (reason: string) => {
+      if (fromFig) setPhysPending(p => ({ ...p, [sid]: { x, y, reason, t: Date.now() } }));
       const auth = R.rPos.current[id];
       if (!auth) return;
       const back = { type: 'TOKEN_RELAY', id, x: auth.x, y: auth.y };
       R.bcRef.current?.postMessage(back);
       R.wsRef.current?.send(JSON.stringify(back));
     };
-    const player = R.rPlayers.current.find(p => `pl_${p.id}` === sid);
-    if (player?.canMove === false) { bounceBack(); return; }
-    // A 0 de vida el jugador no pot moure el token (fins recuperar-ne). El DM sí que pot
-    // (el seu drag no passa per aquesta via).
-    if (player && player.hpMax > 0 && player.hp <= 0) { bounceBack(); return; }
-
     const turn = R.rTurn.current;
     // Parets efectives: els trams de porta no bloquegen (per allà sí que es passa).
     const walls = effectiveWalls(R.rWalls.current, R.rDoors.current);
@@ -608,48 +653,58 @@ export function DMView() {
     // mateixa regla que pinta el rang del jugador, `tileBlocker`).
     const blocked = tileBlocker(R.rTileLive.current, R.rDoors.current);
     let consumedFt = 0;
-    if (turn.active && !isTurnToken(turn, sid)) { bounceBack(); return; }  // no és el seu torn
-    // Estats que limiten el moviment (Agafat, Retingut, Paralitzat… → 0; Tombat → meitat).
-    // Mateix `movementLimit` que fa servir el clamp del drag i la pintura del rang, perquè
-    // el jugador no vegi un rang que aquí li rebotem.
-    const limit = movementLimit(
-      turn.active ? turn.activeRemainingFt : (player?.speed ?? DEFAULT_SPEED_FT),
-      R.rConditions.current[sid],
-    );
-    if (limit.immobile) { bounceBack(); return; }
-    const gs = R.rGridSize.current;
-    if (gs > 0) {
-      const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
-      const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
-      const Rv = R.rTokenSizeOverride.current[id] ?? 22;
-      const cur = R.rPos.current[id] ?? { x, y };
-      const col = (px: number) => Math.floor((px + Rv - gox) / gs);
-      const row = (py: number) => Math.floor((py + Rv - goy) / gs);
-      if (turn.active) {
-        const cells = Math.max(0, Math.ceil(Math.hypot(col(x) - col(cur.x), row(y) - row(cur.y)) - 0.5));
-        consumedFt = cells * 5;
-        if (consumedFt > limit.ft + 0.001) { bounceBack(); return; }
-      }
-      // Parets: la casella de destí ha de tenir camí transitable des de l'origen (mateix
-      // Dijkstra que el clamp/pintura del drag: no es travessa cap paret, cal una porta).
-      // En combat, el cost passa a ser el del CAMÍ (vorejar una paret cobra el desvium).
-      // Terreny difícil (cost doble): mateixa font que el drag del jugador (`terrainCost`).
-      const cost = terrainCost(R.rDifficult.current, gs, gox, goy);
-      if (walls.length > 0 || blocked || cost) {
-        const budgetFt = limit.ft;
-        const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy }, blocked, cost);
-        if (reach) {
-          const pathCost = reach.get(`${col(x) - col(cur.x)},${row(y) - row(cur.y)}`);
-          if (pathCost === undefined) { bounceBack(); return; }
-          if (turn.active) consumedFt = Math.max(0, Math.ceil(pathCost - 0.5)) * 5;
+    if (!opts.force) {
+      const player = R.rPlayers.current.find(p => `pl_${p.id}` === sid);
+      if (player?.canMove === false) { bounceBack('té el moviment bloquejat'); return; }
+      // A 0 de vida el jugador no pot moure el token (fins recuperar-ne). El DM sí que pot
+      // (el seu drag no passa per aquesta via).
+      if (player && player.hpMax > 0 && player.hp <= 0) { bounceBack('és a 0 de vida'); return; }
+
+      if (turn.active && !isTurnToken(turn, sid)) { bounceBack('no és el seu torn'); return; }  // no és el seu torn
+      // Estats que limiten el moviment (Agafat, Retingut, Paralitzat… → 0; Tombat → meitat).
+      // Mateix `movementLimit` que fa servir el clamp del drag i la pintura del rang, perquè
+      // el jugador no vegi un rang que aquí li rebotem.
+      const limit = movementLimit(
+        turn.active ? turn.activeRemainingFt : (player?.speed ?? DEFAULT_SPEED_FT),
+        R.rConditions.current[sid],
+      );
+      if (limit.immobile) { bounceBack('un estat li impedeix moure\'s'); return; }
+      const gs = R.rGridSize.current;
+      if (gs > 0) {
+        const gox = ((R.rGridOriginX.current % gs) + gs) % gs;
+        const goy = ((R.rGridOriginY.current % gs) + gs) % gs;
+        const Rv = R.rTokenSizeOverride.current[id] ?? 22;
+        const cur = R.rPos.current[id] ?? { x, y };
+        const col = (px: number) => Math.floor((px + Rv - gox) / gs);
+        const row = (py: number) => Math.floor((py + Rv - goy) / gs);
+        if (turn.active) {
+          const cells = Math.max(0, Math.ceil(Math.hypot(col(x) - col(cur.x), row(y) - row(cur.y)) - 0.5));
+          consumedFt = cells * 5;
+          if (consumedFt > limit.ft + 0.001) { bounceBack(`li queden ${limit.ft} peus i en vol fer ${consumedFt}`); return; }
         }
+        // Parets: la casella de destí ha de tenir camí transitable des de l'origen (mateix
+        // Dijkstra que el clamp/pintura del drag: no es travessa cap paret, cal una porta).
+        // En combat, el cost passa a ser el del CAMÍ (vorejar una paret cobra el desvium).
+        // Terreny difícil (cost doble): mateixa font que el drag del jugador (`terrainCost`).
+        const cost = terrainCost(R.rDifficult.current, gs, gox, goy);
+        if (walls.length > 0 || blocked || cost) {
+          const budgetFt = limit.ft;
+          const reach = computeReachableCells(walls, col(cur.x), row(cur.y), Math.max(0, Math.floor(budgetFt / 5)), { gs, gox, goy }, blocked, cost);
+          if (reach) {
+            const pathCost = reach.get(`${col(x) - col(cur.x)},${row(y) - row(cur.y)}`);
+            if (pathCost === undefined) { bounceBack('no hi arriba sense travessar una paret'); return; }
+            if (turn.active) consumedFt = Math.max(0, Math.ceil(pathCost - 0.5)) * 5;
+          }
+        }
+      } else if (walls.length > 0) {
+        // Sense grid: el tram directe entre centres no pot creuar cap paret.
+        const Rv = R.rTokenSizeOverride.current[id] ?? 22;
+        const cur = R.rPos.current[id] ?? { x, y };
+        if (segmentBlocked({ x: cur.x + Rv, y: cur.y + Rv }, { x: x + Rv, y: y + Rv }, walls)) { bounceBack('travessaria una paret'); return; }
       }
-    } else if (walls.length > 0) {
-      // Sense grid: el tram directe entre centres no pot creuar cap paret.
-      const Rv = R.rTokenSizeOverride.current[id] ?? 22;
-      const cur = R.rPos.current[id] ?? { x, y };
-      if (segmentBlocked({ x: cur.x + Rv, y: cur.y + Rv }, { x: x + Rv, y: y + Rv }, walls)) { bounceBack(); return; }
     }
+    // Moviment vàlid (o acceptat pel DM): el que hi hagués pendent d'aquest token ja no val.
+    if (R.rPhysPending.current[sid]) setPhysPending(p => { const n = { ...p }; delete n[sid]; return n; });
 
     if (turn.active) {
       // Desfeible amb Ctrl+Z fins que canviï el torn: torna la posició i els peus gastats.
@@ -713,7 +768,17 @@ export function DMView() {
       }
       _broadcastState({});
     }
-  }, [R, _broadcastState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [R, _broadcastState, setPhysPending]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Moviments pendents de les figuretes: el DM decideix.
+  const acceptPhys = useCallback((sid: string) => {
+    const p = R.rPhysPending.current[sid];
+    if (!p) return;
+    handlePlayerTokenMove(sid, p.x, p.y, { force: true });
+  }, [R, handlePlayerTokenMove]);
+  const ignorePhys = useCallback((sid: string) => {
+    setPhysPending(p => { const n = { ...p }; delete n[sid]; return n; });
+  }, [setPhysPending]);
 
   // Embolcalls que refresquen el menú contextual de sala al moment (sense re-seleccionar).
   const handleSetRoomDark = useCallback((id: string, dark: boolean) => {
@@ -788,12 +853,12 @@ export function DMView() {
   // Cada pantalla reporta la seva mida (VIEWPORT). Amb l'enquadrament en coords de mapa
   // ningú no veu MENYS que el DM, però una pantalla d'un altre format veu MÉS: el HUD ho
   // mostra perquè el DM sàpiga què hi ha realment a l'altra banda.
-  const _registerScreen = useCallback((id: string, w: number, h: number) => {
+  const _registerScreen = useCallback((id: string, w: number, h: number, tauler = false) => {
     if (!w || !h) return;
     const prev = R.rPlayerScreens.current[id];
-    R.rPlayerScreens.current = { ...R.rPlayerScreens.current, [id]: { w, h, ts: Date.now() } };
+    R.rPlayerScreens.current = { ...R.rPlayerScreens.current, [id]: { w, h, ts: Date.now(), ...(tauler ? { tauler } : {}) } };
     // Re-render només quan canvia alguna cosa visible (el heartbeat cada 15s no en fa).
-    if (!prev || prev.w !== w || prev.h !== h) setPlayerScreens(R.rPlayerScreens.current);
+    if (!prev || prev.w !== w || prev.h !== h || !!prev.tauler !== tauler) setPlayerScreens(R.rPlayerScreens.current);
   }, [R]);
 
   // Oblidar les pantalles que fa massa que no reporten (pestanya tancada): el heartbeat
@@ -826,16 +891,16 @@ export function DMView() {
     const bc = new BroadcastChannel(BC_CHANNEL);
     R.bcRef.current = bc;
     const onMsg = (e: { data: unknown }) => {
-      const msg = e.data as { type?: string; id?: string | number; w?: number; h?: number; x?: number; y?: number } | null;
+      const msg = e.data as { type?: string; id?: string | number; w?: number; h?: number; x?: number; y?: number; tauler?: boolean; src?: string } | null;
       if (msg?.type === 'PLAYER_READY') {
         _sendFullState();
         sceneResendRef.current();
       } else if (msg?.type === 'VIEWPORT' && msg.id) {
-        _registerScreen(String(msg.id), msg.w ?? 0, msg.h ?? 0);
+        _registerScreen(String(msg.id), msg.w ?? 0, msg.h ?? 0, msg.tauler === true);
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment fet des de la pantalla de jugador (mateix ordinador via BC). La validació
         // (bloqueig, torn actiu i saldo de peus) i la propagació viuen a handlePlayerTokenMove.
-        handlePlayerTokenMove(msg.id, msg.x, msg.y);
+        handlePlayerTokenMove(msg.id, msg.x, msg.y, { src: msg.src });
       }
     };
     bc.onmessage = onMsg;
@@ -847,13 +912,13 @@ export function DMView() {
   // ── WebSocket setup (network sync for cross-device iPad/player) ───────────
   useEffect(() => {
     const ws = createSyncSocket('dm', (ev) => {
-      let msg: { type: string; id?: number | string; x?: number; y?: number; w?: number; h?: number };
+      let msg: { type: string; id?: number | string; x?: number; y?: number; w?: number; h?: number; tauler?: boolean };
       try { msg = JSON.parse(ev.data as string); } catch { return; }
       if (msg.type === 'PLAYER_READY') {
         _sendFullState();
         sceneResendRef.current();
       } else if (msg.type === 'VIEWPORT' && msg.id !== undefined && msg.w && msg.h) {
-        _registerScreen(String(msg.id), msg.w, msg.h);
+        _registerScreen(String(msg.id), msg.w, msg.h, msg.tauler === true);
       } else if (msg.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment des de la pantalla de jugador (per xarxa). Mateixa validació + propagació
         // que la via BC (bloqueig, torn actiu i saldo de peus) a handlePlayerTokenMove.
@@ -1682,6 +1747,9 @@ export function DMView() {
         undoLabel={undoNext.undo} onUndo={undo} redoLabel={undoNext.redo} onRedo={redo}
         playerScreens={playerScreens} camAr={camAr} onOpenPlayer={openPlayerWindow}
         phosphor={phosphor} onTogglePhosphor={() => setPhosphor(!phosphor)}
+        board={{ on: boardOn, widthCm: boardCm, hasGrid: gridSize > 0 }} onToggleBoard={toggleBoard}
+        onBoardWidth={cm => setBoardCmStr(cm > 0 ? String(cm) : '')} onCenterBoard={centerBoardHere}
+        onOpenTable={() => openPlayerWindow(true)}
         onOpenBoard={() => { if (!openBoard()) notify("El navegador no ha deixat obrir el tauler de missions: permet les finestres emergents d'aquesta pàgina."); }}
         autosaveEnabled={autosaveEnabled} autosaveAt={autosaveAt} autosaveFailing={autosaveFailing}
         onToggleAutosave={toggleAutosave} onSaveNow={() => void autosaveNow()}
@@ -1804,6 +1872,7 @@ export function DMView() {
           canShow={mode === 'jugar' || showPanelOpen || scene.active || !!dlg.ui || !!sheetShowId}
           showOpen={showPanelOpen} showActive={scene.active || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
           storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => !v)} />
+        <PhysPendingPanel pending={physPending} players={players} onAccept={acceptPhys} onIgnore={ignorePhys} />
         <CanvasHUD
           gridCalibrating={gridCalibrating} hasMap={bgLoaded}
           zoom={zoom} onZoomChange={onZoomChange} onResetView={onResetView}

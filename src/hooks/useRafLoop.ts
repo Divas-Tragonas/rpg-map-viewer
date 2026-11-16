@@ -14,6 +14,7 @@ import { objectBox } from '@/lib/tilemap/objects';
 import { itemAt, itemBox, refreshItem } from '@/lib/tilemap/layers';
 import { WALL_BY_ID } from '@/lib/tilemap/palette';
 import { FramePacer, wake, installWakeListeners, anyKey } from '@/lib/render/wake';
+import { renderBoardOverlay } from '@/lib/render/board';
 import { spellsSettled } from '@/lib/render/spells';
 import { subscribePack } from '@/lib/sprites/pack';
 import type { DMRefs } from './useDMRefs';
@@ -310,6 +311,17 @@ export function useRafLoop(R: DMRefs, opts: RafLoopOpts) {
       renderGrid(ctx, fc);
       renderDifficult(ctx, R.rDifficult.current, fc);
       renderGridCalib(ctx, fc);
+      // Figuretes físiques: rectangle del tauler i moviments rebutjats que esperen el DM.
+      if (R.rBoard.current || Object.keys(R.rPhysPending.current).length > 0) {
+        const tables = Object.values(R.rPlayerScreens.current).filter(x => x.tauler).sort((x, y) => y.ts - x.ts);
+        ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+        renderBoardOverlay(ctx, {
+          board: R.rBoard.current, table: tables[0] ?? null, gs: R.rGridSize.current,
+          pending: R.rPhysPending.current, players: R.rPlayers.current, pos: R.rPos.current,
+          tokenSize: R.rTokenSizeOverride.current, sc, t: performance.now() / 1000,
+        });
+        ctx.restore();
+      }
 
       // Eina Caselles: casella sota el cursor i rectangle en curs (sala o Maj).
       if (tileTool && R.rTileMap.current) {

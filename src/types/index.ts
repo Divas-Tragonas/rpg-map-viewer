@@ -376,6 +376,20 @@ export type TokenSizeMap = Record<string, number>;
  */
 export interface CamRect { cx: number; cy: number; w: number; h: number }
 
+/**
+ * Mode tauler (figuretes físiques, `lib/board.ts`): la pantalla de jugador oberta amb
+ * `?tauler=1` no segueix l'enquadrament del DM sinó una escala fixa (1 casella = 1 polzada
+ * física) centrada a (`cx`, `cy`) del mapa. Camp lleuger del STATE i del STRUCT.
+ */
+export interface BoardView {
+  on: boolean;
+  /** Amplada física de la imatge de la pantalla del tauler, en cm. */
+  widthCm: number;
+  /** Centre del tauler en coordenades de mapa. */
+  cx: number;
+  cy: number;
+}
+
 // ── Diàlegs de personatges (veure `lib/dialog/`) ──────────────────────────────
 /** Com es diu una línia: canvia el color, la velocitat i la finestra. */
 export type DialogStyle = 'normal' | 'crit' | 'xiuxiueig' | 'pensament';
@@ -475,6 +489,8 @@ export interface BCStateMessage {
   appStyle?: AppStyle;
   // Mode Fòsfor (lleuger, sempre): les pantalles de jugador es veuen com una TV de tub antiga.
   phosphor?: boolean;
+  // Mode tauler de les figuretes físiques (lleuger, sempre; `null` = apagat). Veure `BoardView`.
+  board?: BoardView | null;
   // Parts vives del mapa de caselles (aigua, torxes, portes): camp pesat (per referència).
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   // Diàleg en curs (camp lleuger, sempre; `null` = cap). Absent → DM antic, no tocar res.
@@ -526,6 +542,8 @@ export interface BCStructMessage {
   spellPreview?: SpellPreview | null;
   appStyle?: AppStyle;
   phosphor?: boolean;
+  // Mode tauler de les figuretes físiques (lleuger, sempre; `null` = apagat). Veure `BoardView`.
+  board?: BoardView | null;
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   dialog?: DialogSync | null;
   sheet?: SheetShow | null;
@@ -562,8 +580,8 @@ export type BCMessage =
   | { type: 'PLAYER_READY' }
   // Format de pantalla d'un client (jugador→DM): el DM llista les pantalles connectades
   // i avisa de quant de mapa veuen fora del seu enquadrament.
-  | { type: 'VIEWPORT'; id: string; w: number; h: number }
-  | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number }
+  | { type: 'VIEWPORT'; id: string; w: number; h: number; tauler?: boolean }
+  | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number; src?: 'figureta' }
   | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number }
   // Reset de la memòria d'explorat d'una sala: torna a ser negra del tot (fog of war).
   | { type: 'RESET_EXPLORED'; points: Point[] }
