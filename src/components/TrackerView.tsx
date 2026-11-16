@@ -7,7 +7,7 @@ import type { CamRect, Point } from '@/types';
 import { C, FS, RADIUS, FONT_SERIF } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import {
-  type BlobState, type ColorSlot, DEFAULT_SLOTS, StillTracker,
+  type BlobState, type ColorSlot, DEFAULT_SLOTS, FigureTracker, ActivityMeter,
   detect, hsvToHex, looksLikeSkin, sampleHsv, slotFromSample,
 } from '@/lib/tracker/detect';
 import {
@@ -40,11 +40,13 @@ interface Settings {
   /** Mida (px CSS) de la pantalla de jugador del tauler, triada de les que envien `VIEWPORT`. 0 = cap. */
   screenW: number;
   screenH: number;
+  /** Amagar la rodona de la pantalla de figures mentre la seva figureta es mou de debò. */
+  hideOnMove: boolean;
 }
 
 const DEFAULTS: Settings = {
   slots: DEFAULT_SLOTS, procW: 480, minArea: 40, view: 'camera', deviceId: '', res: 1080,
-  corners: null, screenW: 0, screenH: 0,
+  corners: null, screenW: 0, screenH: 0, hideOnMove: true,
 };
 
 function parseSettings(raw: string): Settings {
@@ -55,7 +57,13 @@ function parseSettings(raw: string): Settings {
   } catch { return DEFAULTS; }
 }
 
-interface Status { state: BlobState; area: number; extra: number; cx: number; cy: number }
+interface Status {
+  state: BlobState; area: number; extra: number; cx: number; cy: number;
+  /** Hi ha una mà a sobre (activitat al voltant). */
+  hand: boolean;
+  /** Es veu aquest fotograma (una figureta «quieta» pot no veure's uns instants). */
+  seen: boolean;
+}
 interface SlotMsg { text: string; color: string }
 
 /**
@@ -81,6 +89,9 @@ function camMovedSince(a: CamRect | null, b: CamRect | null): boolean {
 }
 
 const noSubscribe = () => () => {};
+
+/** Fracció de píxels canviats al voltant d'una figureta a partir de la qual hi ha «una mà a sobre». */
+const ACTIVITY_FRAC = 0.18;
 
 /**
  * Rellotge del bucle de detecció. **No és `requestAnimationFrame`**: el navegador l'atura quan la
@@ -131,7 +142,13 @@ export function TrackerView() {
   const maskRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const frameRef = useRef<ImageData | null>(null);
-  const trackerRef = useRef(new StillTracker());
+  const trackerRef = useRef(new FigureTracker());
+  const activityRef = useRef(new ActivityMeter());
+  /** Fins quan es considera que hi ha «una mà a sobre» de cada figureta (ms, `performance.now`). */
+  const activityUntilRef = useRef<number[]>([]);
+  /** Període de gràcia després de tornar a ensenyar una rodona: que la rodona que apareix no compti com a mà. */
+  const graceUntilRef = useRef<number[]>([]);
+  const prevHiddenRef = useRef<Set<string>>(new Set());
   /** Rellotge del bucle (`startTicker`): s'atura amb `stopTickRef.current()`. */
   const stopTickRef = useRef<() => void>(() => {});
 
@@ -141,7 +158,7 @@ export function TrackerView() {
   const calibratingRef = useRef<number | null>(null);
   const setCalibrating = useCallback((v: number | null) => { calibratingRef.current = v; setCalibratingState(v); }, []);
   /** Última detecció (per a «Posar els tokens on són les figuretes»). */
-  const lastRef = useRef<{ best: (import('@/lib/tracker/detect').Blob | null)[]; states: BlobState[] } | null>(null);
+  const lastRef = useRef<{ best: (import('@/lib/tracker/detect').Blob | null)[]; states: BlobState[]; anchors: (Point | null)[] } | null>(null);
   const [draftCorners, setDraftCorners] = useState<Point[]>([]);
   const draftRef = useRef<Point[]>([]);
   // Enviar moviments: no es desa (cada sessió comença apagat, per no moure res per sorpresa).
@@ -227,8 +244,20 @@ export function TrackerView() {
       const img = pctx.getImageData(0, 0, pw, ph);
       frameRef.current = img;
       const res = detect(img.data, pw, ph, s.slots, s.minArea);
-      const states = trackerRef.current.update(res.best, tStart);
-      lastRef.current = { best: res.best, states };
+      const tracks = trackerRef.current.update(res.all, tStart);
+      const chosen = tracks.map(t => t.blob);
+      const states = tracks.map(t => t.state);
+      lastRef.current = { best: chosen, states, anchors: tracks.map(t => t.anchor) };
+      // Mà (o figureta agafada) al voltant de cada figureta assignada: canvis bruscos de brillantor.
+      const act = activityRef.current.measure(img.data, pw, ph, s.slots.map((sl, i) => {
+        const a = tracks[i].anchor ?? tracks[i].pos;
+        if (!a || !sl.enabled || sl.playerId == null) return null;
+        return { x: a.x, y: a.y, r: Math.max(Math.sqrt(Math.max(tracks[i].area, 1) / Math.PI) * 2.5, pw * 0.04) };
+      }), tStart);
+      act.forEach((f, i) => {
+        if (f !== null && f > ACTIVITY_FRAC && (graceUntilRef.current[i] ?? 0) < tStart) activityUntilRef.current[i] = tStart + 700;
+      });
+      const active = s.slots.map((_, i) => (activityUntilRef.current[i] ?? 0) > tStart);
       const ms = performance.now() - tStart;
 
       // ── Càmera → mapa i enviament de moviments ──
@@ -241,12 +270,13 @@ export function TrackerView() {
         ? (p: Point) => { const q = applyH(hm.fwd, p); return { map: screenToMap(q.x, q.y, scr.W, scr.H, cam), inside: q.x >= -0.02 && q.x <= 1.02 && q.y >= -0.02 && q.y <= 1.02 }; }
         : null;
       if (toMap && sendOnRef.current) {
-        res.best.forEach((b, i) => {
+        tracks.forEach((tr, i) => {
           const sl = s.slots[i];
-          if (!b || !sl?.enabled || sl.playerId == null || states[i] !== 'quieta') return;
+          // Només figuretes quietes i a la vista (si s'ha perdut, encara és «quieta» però sense taca).
+          if (!tr.blob || !tr.anchor || !sl?.enabled || sl.playerId == null || tr.state !== 'quieta') return;
           const id = `pl_${sl.playerId}`;
           if (!w.players.some(p => p.id === sl.playerId)) return;
-          const cur = { x: b.cx, y: b.cy };
+          const cur = { x: tr.anchor.x, y: tr.anchor.y };
           const now = toMap(cur);
           if (!now.inside) return; // fora del tauler (a la vora de la taula, a la mà…)
           const R = w.tokenSize[id] ?? 22;
@@ -263,19 +293,26 @@ export function TrackerView() {
       }
 
       // ── Pantalla de figures: amagar el token d'una figureta que es mou ──
-      // Mentre la figureta es mou (o s'aixeca) i fins que el DM contesta, el seu token no es pinta
-      // a la pantalla de figures: la càmera no el pot confondre amb la base. En confirmar-se, torna
-      // a sortir ja a la casella nova (o a la vella, si el DM no ho permet).
+      // Només quan hi ha moviment DE DEBÒ: la taca s'ha allunyat de la seva àncora, o hi ha una mà
+      // a sobre (molts píxels canvien de cop), i fins que el DM contesta. Una figureta que la
+      // càmera perd uns instants sense que res es mogui NO amaga la rodona (abans parpellejava).
       {
         const hide: string[] = [];
-        if (sendOnRef.current) {
-          res.best.forEach((b, i) => { if (b) seenRef.current[i] = true; });
+        if (sendOnRef.current && s.hideOnMove) {
+          chosen.forEach((b, i) => { if (b) seenRef.current[i] = true; });
           s.slots.forEach((sl, i) => {
             if (!sl.enabled || sl.playerId == null || !seenRef.current[i]) return;
             const id = `pl_${sl.playerId}`;
-            if (states[i] !== 'quieta' || isPending(id)) hide.push(id);
+            if (states[i] === 'movent' || active[i] || isPending(id)) hide.push(id);
           });
         }
+        // Una rodona que torna a sortir canvia píxels sota la figureta: gràcia d'1 s per a la mà.
+        const nowHidden = new Set(hide);
+        s.slots.forEach((sl, i) => {
+          const id = sl.playerId != null ? `pl_${sl.playerId}` : '';
+          if (id && prevHiddenRef.current.has(id) && !nowHidden.has(id)) graceUntilRef.current[i] = tStart + 1000;
+        });
+        prevHiddenRef.current = nowHidden;
         const key = hide.sort().join(',');
         const now = performance.now();
         if (key !== hideSentRef.current.key || (hide.length > 0 && now - hideSentRef.current.t > 1000)) {
@@ -321,7 +358,16 @@ export function TrackerView() {
       octx.lineWidth = 3;
       octx.lineJoin = 'round';
       octx.font = `bold ${FS.xl}px sans-serif`;
-      res.best.forEach((b, i) => {
+      // Cercle taronja: «mà a sobre» d'aquesta figureta (activitat).
+      tracks.forEach((tr, i) => {
+        const a = tr.anchor ?? tr.pos;
+        if (!active[i] || !a) return;
+        octx.strokeStyle = C.warn; octx.lineWidth = 3; octx.setLineDash([6, 6]);
+        const r = Math.max(Math.sqrt(Math.max(tr.area, 1) / Math.PI) * 2.5, pw * 0.04) * 2;
+        octx.beginPath(); octx.arc(a.x * ow, a.y * oh, r, 0, Math.PI * 2); octx.stroke();
+        octx.setLineDash([]);
+      });
+      chosen.forEach((b, i) => {
         if (!b) return;
         const sl = s.slots[i];
         const st = states[i];
@@ -344,7 +390,7 @@ export function TrackerView() {
       const now = performance.now();
       if (now - lastUi > 200) {
         lastUi = now;
-        setStatus(res.best.map((b, i) => ({ state: states[i], area: b?.area ?? 0, extra: res.extra[i], cx: b?.cx ?? 0, cy: b?.cy ?? 0 })));
+        setStatus(chosen.map((b, i) => ({ state: states[i], area: b?.area ?? 0, extra: res.extra[i], cx: b?.cx ?? 0, cy: b?.cy ?? 0, hand: active[i], seen: !!b })));
         if (sendOnRef.current && !camAtSyncRef.current && cam && scr) camAtSyncRef.current = cam;
         setCamMoved(sendOnRef.current && camMovedSince(camAtSyncRef.current, cam));
         setBoardOn(!!w.board?.on);
@@ -385,7 +431,8 @@ export function TrackerView() {
       setExpo(modes?.includes('single-shot') || modes?.includes('manual') ? 'auto' : 'cap');
       const id = track.getSettings().deviceId;
       if (id && id !== s.deviceId) setSettings(p => ({ ...p, deviceId: id }));
-      trackerRef.current = new StillTracker();
+      trackerRef.current = new FigureTracker();
+      activityRef.current = new ActivityMeter();
       loop();
     } catch (e) {
       const name = (e as Error).name;
@@ -483,12 +530,13 @@ export function TrackerView() {
     let n = 0;
     last.best.forEach((b, i) => {
       const sl = s.slots[i];
-      if (!b || last.states[i] !== 'quieta' || !sl?.enabled || sl.playerId == null || !w.players.some(p => p.id === sl.playerId)) return;
-      const q = applyH(hm.fwd, { x: b.cx, y: b.cy });
+      const a = last.anchors[i];
+      if (!b || !a || last.states[i] !== 'quieta' || !sl?.enabled || sl.playerId == null || !w.players.some(p => p.id === sl.playerId)) return;
+      const q = applyH(hm.fwd, a);
       if (q.x < 0 || q.x > 1 || q.y < 0 || q.y > 1) return;
       const id = `pl_${sl.playerId}`, R = w.tokenSize[id] ?? 22;
       const t = tokenPosFor(screenToMap(q.x, q.y, scr.W, scr.H, cam), R, g);
-      settledRef.current[i] = { x: b.cx, y: b.cy };
+      settledRef.current[i] = { x: a.x, y: a.y };
       const at = w.pos[id];
       if (at && Math.hypot(at.x - t.x, at.y - t.y) < 1) return;
       moveToken(id, t.x, t.y);
@@ -634,6 +682,9 @@ export function TrackerView() {
               {boardOn ? 'Tauler de figuretes encès: escala fixa d\'1 casella = 1 polzada.' : 'Tauler de figuretes apagat: la pantalla de figures segueix el pan i el zoom del DM.'}
             </span>
           )}
+          <Row label="Amagar la rodona en moure-la">
+            <Seg value={settings.hideOnMove ? 'on' : 'off'} options={[['off', 'No'], ['on', 'Sí']]} onChange={v => setSettings(p => ({ ...p, hideOnMove: v === 'on' }))} />
+          </Row>
           <Row label="Moure tokens">
             <Seg value={sendOn ? 'on' : 'off'} options={[['off', 'No'], ['on', 'Sí']]} onChange={v => toggleSend(v === 'on')} />
           </Row>
@@ -674,7 +725,10 @@ export function TrackerView() {
                   <span style={{ width: 16, height: 16, borderRadius: RADIUS.pill, background: sl.swatch, flexShrink: 0, border: `1px solid ${C.border}` }} />
                   <input value={sl.name} onChange={e => patchSlot(i, { name: e.target.value })} style={{ ...inputStyle, flex: 1, padding: '2px 6px' }} />
                   {st && sl.enabled && (
-                    <span style={{ color: STATE_COLOR[st.state], fontSize: FS.sm, whiteSpace: 'nowrap' }}>● {STATE_LABEL[st.state]}</span>
+                    <span style={{ color: st.hand ? C.warn : STATE_COLOR[st.state], fontSize: FS.sm, whiteSpace: 'nowrap' }}
+                      title={st.state === 'quieta' && !st.seen ? 'Ara no es veu, però no s\'ha mogut: es manté quieta' : undefined}>
+                      ● {st.hand ? 'mà a sobre' : STATE_LABEL[st.state]}{st.state === 'quieta' && !st.seen ? ' (no es veu)' : ''}
+                    </span>
                   )}
                 </div>
                 <select

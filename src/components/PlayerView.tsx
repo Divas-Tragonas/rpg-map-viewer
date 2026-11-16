@@ -105,6 +105,9 @@ function ConnDiag({ conn, info, reachable }: { conn: SyncState; info: ConnInfo |
   );
 }
 
+/** Color de les rodones de la pantalla de figures: gris clar (saturació ~5 %, mai una base de color). */
+const FIG_TOKEN_GREY = '#c3c7cc';
+
 export function PlayerView() {
   const [bgLoaded,   setBgLoaded]   = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
@@ -197,6 +200,11 @@ export function PlayerView() {
   // el tracker diu que s'estan movent (`FIG_HIDE`) no es pinten fins que es confirma el moviment.
   const classicStyleRef = useRef<AppStyle>('classic');
   const rHiddenTokens   = useRef<Set<string>>(new Set());
+  // I en gris, no del color del jugador: la càmera classifica les bases per color (saturació
+  // mínima), i una rodona grisa no pot passar mai per una base encara que el polaritzador no
+  // l'apagui del tot. Còpia dels jugadors amb el color canviat (es refà quan canvien).
+  const figPlayersSrc   = useRef<Player[] | null>(null);
+  const figPlayers      = useRef<Player[]>([]);
   const hiddenAtRef     = useRef(0);
   const visualZoomRef = useRef(1);
   const visualPanRef  = useRef({ x: 0, y: 0 });
@@ -1025,6 +1033,10 @@ export function PlayerView() {
 
       rSpellPreview.current = followSpellPreview(rSpellPreview.current, rSpellPreviewTarget.current, 0.35);
 
+      if (isTableRef.current && figPlayersSrc.current !== rPlayers.current) {
+        figPlayersSrc.current = rPlayers.current;
+        figPlayers.current = rPlayers.current.map(p => ({ ...p, color: FIG_TOKEN_GREY }));
+      }
       const fc = {
         sc, ox, oy, mw, mh, isDM: false, pp,
         labelScale: nameScaleFor(W), nameTags: [],  // noms més grossos a la TV, pintats a `renderNameTags`
@@ -1035,7 +1047,7 @@ export function PlayerView() {
         rConditions, rDefeated,
         defeatedAnimRef, invisAlphaRef,
         rEnemyHighlight, rHighlightAlpha, rHighlightLocked, highlightStartRef,
-        visualPosRef, rPlayers, rTokenSizeOverride, rDragPreview, rMovePath,
+        visualPosRef, rPlayers: isTableRef.current ? figPlayers : rPlayers, rTokenSizeOverride, rDragPreview, rMovePath,
         rGridVisible, rGridSize, rGridLineWidth, rGridOriginX, rGridOriginY,
         rGridCalibrating, rGridDmAlpha,
         gridCalibRef, gridCalibCurrRef, gridCalibHoverRef,

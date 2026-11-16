@@ -45,6 +45,12 @@ export interface DetectResult {
   best: (Blob | null)[];
   /** Quantes taques prou grosses de més hi ha de cada color (soroll o colors que es confonen). */
   extra: number[];
+  /**
+   * Totes les taques de cada color, de més grossa a més petita, fins a la meitat de `minArea`
+   * (el `FigureTracker` accepta una taca una mica més petita si és on era la figureta: una base
+   * mig tapada per la figura o per un reflex no s'ha de perdre).
+   */
+  all: Blob[][];
   /** Etiqueta de cada píxel: 0 = res, i + 1 = slot i. Per pintar la màscara. */
   labels: Uint8Array;
   w: number;
@@ -154,6 +160,8 @@ export function detect(data: Uint8ClampedArray, w: number, h: number, slots: Col
 
   const best: (Blob | null)[] = slots.map(() => null);
   const extra = slots.map(() => 0);
+  const all: Blob[][] = slots.map(() => []);
+  const keepArea = Math.max(3, minArea * 0.5);
   for (let p = 0; p < n; p++) {
     const lab = labels[p];
     if (lab === 0 || seen[p]) continue;
@@ -171,9 +179,11 @@ export function detect(data: Uint8ClampedArray, w: number, h: number, slots: Col
       if (y > 0 && !seen[q - w] && labels[q - w] === lab) { seen[q - w] = 1; stack[sp++] = q - w; }
       if (y < h - 1 && !seen[q + w] && labels[q + w] === lab) { seen[q + w] = 1; stack[sp++] = q + w; }
     }
-    if (area < minArea) continue;
+    if (area < keepArea) continue;
     const slot = lab - 1;
     const blob: Blob = { slot, area, x: sx / area, y: sy / area, cx: sx / area / w, cy: sy / area / h, minX, minY, maxX, maxY };
+    all[slot].push(blob);
+    if (area < minArea) continue;
     const cur = best[slot];
     if (!cur) best[slot] = blob;
     else {
@@ -181,35 +191,140 @@ export function detect(data: Uint8ClampedArray, w: number, h: number, slots: Col
       if (blob.area > cur.area) best[slot] = blob;
     }
   }
-  return { best, extra, labels, w, h };
+  for (const list of all) list.sort((a, b) => b.area - a.area);
+  return { best, extra, all, labels, w, h };
 }
 
 export type BlobState = 'perduda' | 'movent' | 'quieta';
 
 /**
- * Estat de cada figureta al llarg del temps: «quieta» quan fa `stillMs` que no es mou més de
- * `tol` (normalitzat); «perduda» si fa més de `lostMs` que no es veu. La fase 1 enviarà la
- * posició al DM només quan passi a «quieta» en un lloc diferent.
+ * Seguiment estable de cada figureta (v5.39). Substitueix l'antic `StillTracker`, que marcava
+ * «es mou» qualsevol fotograma en què la taca no hi era: un parpelleig de la detecció amagava la
+ * rodona de la pantalla de figures i la tornava a ensenyar.
+ *
+ * - **Àncora**: on era la figureta l'últim cop que es va quedar quieta. Només hi ha moviment si
+ *   el centre (suavitzat) se n'allunya més de `moveTol` (normalitzat a l'amplada). El tremolor
+ *   de la detecció (1–3 px) no hi arriba.
+ * - **Pèrdues curtes**: si la taca no hi és, l'estat **no canvia** (si era quieta, continua
+ *   quieta). Només passa a «perduda» al cap de `lostMs`, i «perduda» **no és moviment**: si torna
+ *   a aparèixer a l'àncora, torna a ser quieta de seguida (la mà ha passat per sobre).
+ * - **Quina taca**: si n'hi ha diverses del mateix color, la més propera a on era (dins de
+ *   `maxJump`) i de mida semblant a la de sempre (entre `0,35×` i `3×` l'àrea mitjana). Una taca
+ *   petita d'un reflex o una de grossa del mapa no li prenen el lloc.
  */
-export class StillTracker {
-  private hist: { t: number; cx: number; cy: number }[][] = [];
-  private lastSeen: number[] = [];
+export interface Track {
+  state: BlobState;
+  /** Taca triada aquest fotograma (`null` si no n'hi ha cap de bona). */
+  blob: Blob | null;
+  /** Centre suavitzat (normalitzat) i àncora (on era quieta). */
+  pos: { x: number; y: number } | null;
+  anchor: { x: number; y: number } | null;
+  /** Àrea mitjana de la taca quan es veu bé (px de la imatge processada). */
+  area: number;
+}
 
-  constructor(public stillMs = 500, public tol = 0.01, public lostMs = 400) {}
+export class FigureTracker {
+  private t: (Track & { lastSeen: number; still: { x: number; y: number; t: number } | null })[] = [];
 
-  update(best: (Blob | null)[], t: number): BlobState[] {
-    return best.map((b, i) => {
-      const h = (this.hist[i] ??= []);
-      if (b) {
-        h.push({ t, cx: b.cx, cy: b.cy });
-        this.lastSeen[i] = t;
+  constructor(
+    public moveTol = 0.02,
+    public stillTol = 0.008,
+    public stillMs = 500,
+    public lostMs = 700,
+    public maxJump = 0.25,
+  ) {}
+
+  /** `all[i]`: taques del color `i` (de `detect`). */
+  update(all: Blob[][], now: number): Track[] {
+    return all.map((cands, i) => {
+      const tr = (this.t[i] ??= { state: 'perduda', blob: null, pos: null, anchor: null, area: 0, lastSeen: -Infinity, still: null });
+      const ref = tr.pos ?? tr.anchor;
+      let pick: Blob | null = null;
+      if (ref) {
+        let bestD = Infinity;
+        for (const c of cands) {
+          if (tr.area > 0 && (c.area < tr.area * 0.35 || c.area > tr.area * 3)) continue;
+          const d = Math.hypot(c.cx - ref.x, c.cy - ref.y);
+          if (d < bestD && d <= this.maxJump) { bestD = d; pick = c; }
+        }
+        // Lluny d'on era (l'han moguda d'una revolada o s'havia perdut): la més grossa prou gran.
+        if (!pick && tr.state === 'perduda') pick = cands.find(c => tr.area <= 0 || c.area >= tr.area * 0.35) ?? null;
+      } else {
+        pick = cands[0] ?? null;
       }
-      while (h.length > 0 && h[0].t < t - this.stillMs * 2) h.shift();
-      if (!b) return t - (this.lastSeen[i] ?? -Infinity) > this.lostMs ? 'perduda' : 'movent';
-      const recent = h.filter(p => p.t >= t - this.stillMs);
-      if (h[0].t > t - this.stillMs) return 'movent'; // encara no fa prou que la veiem
-      const moved = recent.some(p => Math.hypot(p.cx - b.cx, p.cy - b.cy) > this.tol);
-      return moved ? 'movent' : 'quieta';
+      tr.blob = pick;
+
+      if (!pick) {
+        if (now - tr.lastSeen > this.lostMs) { tr.state = 'perduda'; tr.pos = null; tr.still = null; }
+        return snapshot(tr);
+      }
+      tr.lastSeen = now;
+      tr.area = tr.area > 0 ? tr.area * 0.9 + pick.area * 0.1 : pick.area;
+      const p = tr.pos ? { x: tr.pos.x * 0.5 + pick.cx * 0.5, y: tr.pos.y * 0.5 + pick.cy * 0.5 } : { x: pick.cx, y: pick.cy };
+      tr.pos = p;
+
+      const farFromAnchor = !tr.anchor || Math.hypot(p.x - tr.anchor.x, p.y - tr.anchor.y) > this.moveTol;
+      if (tr.state === 'quieta' && !farFromAnchor) return snapshot(tr);
+      if (tr.state === 'perduda' && !farFromAnchor) { tr.state = 'quieta'; tr.still = null; return snapshot(tr); }
+      // Es mou (o ha aparegut en un altre lloc): quieta quan fa `stillMs` que no surt d'un cercle petit.
+      tr.state = 'movent';
+      if (!tr.still || Math.hypot(p.x - tr.still.x, p.y - tr.still.y) > this.stillTol) tr.still = { x: p.x, y: p.y, t: now };
+      else if (now - tr.still.t >= this.stillMs) { tr.state = 'quieta'; tr.anchor = { x: p.x, y: p.y }; tr.still = null; }
+      return snapshot(tr);
+    });
+  }
+}
+
+function snapshot(tr: Track): Track {
+  return { state: tr.state, blob: tr.blob, pos: tr.pos, anchor: tr.anchor, area: tr.area };
+}
+
+/**
+ * «Hi passa alguna cosa» al voltant de cada figureta: fracció de píxels que han canviat de
+ * brillantor respecte del fotograma de fa ~250 ms en un cercle al voltant de l'àncora. Una mà (o una
+ * figureta agafada) canvia de cop molts píxels; un parpelleig de la detecció o el tremolor de la
+ * càmera, no. Amb el polaritzador la pantalla es veu fosca, així que el que hi passa a sota
+ * (una rodona que apareix) gairebé no hi compta, i a més es fa un període de gràcia.
+ */
+export class ActivityMeter {
+  /** Fotogrames recents (brillantor) per comparar amb el de fa `lagMs`: una mà lenta també es veu. */
+  private hist: { t: number; lum: Uint8Array }[] = [];
+  private w = 0;
+  private h = 0;
+
+  constructor(public lagMs = 250) {}
+
+  /**
+   * `centers`: on mirar (normalitzat) i amb quin radi (px de la imatge processada). Torna la
+   * fracció de píxels del cercle que han canviat respecte del fotograma de fa `lagMs` (0..1), o
+   * `null` si no hi ha on mirar (o encara no hi ha prou història).
+   */
+  measure(data: Uint8ClampedArray, w: number, h: number, centers: ({ x: number; y: number; r: number } | null)[], now: number, diff = 28): (number | null)[] {
+    const n = w * h;
+    if (w !== this.w || h !== this.h) { this.hist = []; this.w = w; this.h = h; }
+    // Reaprofitar el buffer més vell que ja no cal.
+    const old = this.hist.length > 1 && this.hist[1].t <= now - this.lagMs ? this.hist.shift()! : null;
+    const lum = old && old.lum.length === n ? old.lum : new Uint8Array(n);
+    for (let p = 0, k = 0; p < n; p++, k += 4) lum[p] = (data[k] * 77 + data[k + 1] * 150 + data[k + 2] * 29) >> 8;
+    // El de referència: el més nou que tingui almenys `lagMs`.
+    let ref: Uint8Array | null = null;
+    for (const f of this.hist) if (f.t <= now - this.lagMs) ref = f.lum;
+    this.hist.push({ t: now, lum });
+    if (this.hist.length > 40) this.hist.shift();
+    return centers.map(c => {
+      if (!c || !ref) return null;
+      const cx = c.x * w, cy = c.y * h, r = Math.max(3, c.r), r2 = r * r;
+      let tot = 0, ch = 0;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(h - 1, Math.ceil(cy + r)); y++) {
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(w - 1, Math.ceil(cx + r)); x++) {
+          const dx = x - cx, dy = y - cy;
+          if (dx * dx + dy * dy > r2) continue;
+          const q = y * w + x;
+          tot++;
+          if (Math.abs(lum[q] - ref[q]) > diff) ch++;
+        }
+      }
+      return tot ? ch / tot : null;
     });
   }
 }
