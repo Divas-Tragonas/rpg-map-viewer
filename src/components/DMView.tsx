@@ -414,6 +414,8 @@ export function DMView() {
     R.rPhysPending.current = next;
     setPhysPendingState(next);
   }, [R]);
+  // La pantalla de figures pinta «Torna-la aquí» als tokens amb un moviment rebutjat (`figBack`).
+  useEffect(() => { _broadcastState({}); }, [physPending, _broadcastState]);
 
   // ── Mapa de caselles ───────────────────────────────────────────────────────
   const setTileGrid = useCallback((gs: number) => {

@@ -376,3 +376,27 @@ Decisions de l'usuari: model aprovat + eliminar tokens també es desfà; «sala 
 - [x] Fora Cony Cirera i el sistema de missions sencer (decisió de l'usuari): mapa, cases, full de poble, scripts, ajust de color, escenes/llocs, mòduls d'exemple. Es manté la demo de la taverna i el tauler de missions de la wiki
 - [x] Colors i figuretes de la colla (v4.95)
 - [x] Ventall dels apilats amb pulsació llarga a la pantalla de jugador (v4.95)
+
+## Figuretes físiques — pendents per més endavant (anotat el 2026-11-16)
+
+Apuntat a petició de l'usuari («deixa apuntat per si ho pregunto»). Context: «Figuretes físiques amb càmera» a
+`docs/tokens-i-combat.md`. Fet de la llista de millores: 3, 4, 7, 8, 9 i 10 (v5.40).
+
+- [ ] **16. Tracker en un altre PC que el DM.** Ara el tracker (`/tracker`) parla només pel BroadcastChannel, o sigui
+  que ha d'anar al mateix ordinador que el DM i la pantalla de figures. Per fer-lo anar per la xarxa caldria:
+  - Al frontend: que `useTrackerSync` obri també un `createSyncSocket('client', …)` com la pantalla de jugador, i que
+    la pantalla de figures escolti `FIG_HIDE` i `FIG_PLACE` també pel WS.
+  - **A la API (cal el prompt per a la sessió de `divas_tragonas_api`, regla de CLAUDE.md)**: el servidor només
+    reenvia una llista tancada de tipus (`ROUTABLE_TO_CLIENTS` a `sync.routes.ts`). Caldria que reenviés `FIG_HIDE` i
+    `FIG_PLACE` (tracker → pantalles, rol client → clients), i que el `TOKEN_MOVE` dels clients conservés el camp
+    opcional `src` (i el `VIEWPORT`, `tauler`). Alternativa sense tipus nous: que el tracker enviï aquests avisos
+    dins d'un missatge que ja es reenvia (com es fa amb els camps del `STATE`), però el tracker no és el DM.
+  - Pendent de decidir abans: quin PC fa de què (p. ex. un portàtil vell amb la càmera al costat del tauler).
+- [ ] **17. Proves amb vídeos reals.** Gravar uns minuts del muntatge real (càmera zenital, polaritzador, llum de la
+  sala, mans, les 5 figuretes, moviments vàlids i rebutjats) i fer-ne una prova automàtica: convertir-lo a `.y4m`
+  (`ffmpeg -i video.mp4 -pix_fmt yuv420p video.y4m`, a 640×360 per mida), passar-lo pel tracker amb Playwright com
+  a webcam falsa (`--use-file-for-fake-video-capture`) i un DM simulat pel BroadcastChannel, i comprovar quins
+  `TOKEN_MOVE`, `FIG_HIDE` i `FIG_PLACE` en surten (els guions de prova d'aquesta sessió feien això amb vídeos
+  sintètics). Serveix també per ajustar `moveTol`, `ACTIVITY_FRAC` i els llindars amb dades de debò.
+  **Cal que l'usuari passi el vídeo.** No desar vídeos grossos al repositori (o només un tros curt).
+

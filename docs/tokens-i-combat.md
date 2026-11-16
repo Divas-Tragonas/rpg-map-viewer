@@ -235,7 +235,7 @@
 - **Escena dels tokens** (`renderTokenScene`, DM i jugador): tokens → (`between`) → noms. Els noms es pinten en una capa i s'esvaeixen (`NAME_FADE`, `destination-out`) allà on hi ha la silueta d'una figureta (`fc.figMask`, que omple `maskFigure` amb la mateixa funció que pinta la figura).
 - **Portes de caselles**: el token que hi passa va per sobre de la porta i per sota de la PARET (`DoorPiece.edge`: la vora de dalt del tram de baix d'una porta lateral). `drawTileDoorEdgesOver` torna a pintar la vora, menys els píxels de la porta que hi van a sobre (`edgeMinus`), després dels tokens: al DM com a `between`; a la pantalla de jugador, els tokens i els noms es queden en capes (`keepTokens`) que es tornen a posar retallades a les caselles de les portes (`clipTileDoors`) després de `drawTileDoorsOver`, amb la vora entre totes dues. ⚠️ Un token dins d'una sala fosca no revelada que sigui sobre la casella d'una porta s'hi veuria.
 
-## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.39)
+## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.40)
 
 Objectiu: les figuretes reals que els jugadors mouen damunt d'un monitor fet servir de tauler mouen els tokens de
 jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tauler i moviments pendents al DM (v5.37).
@@ -262,6 +262,20 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
     només al cap de `lostMs` (700 ms), i «perduda» **no és moviment** (si torna a sortir a l'àncora, torna a ser
     quieta de seguida).
   - **Quina taca**: la més propera a on era (dins de `maxJump`) i de mida semblant a la mitjana (0,35×–3×).
+- **Detectar els colors d'un sol clic** (`autoColors`, v5.40): amb totes les figuretes al tauler, agrupa píxels
+  saturats veïns de to semblant (≤ 20°: una anella a cavall de dues franges de to no es parteix), descarta taques
+  petites o allargades (> 2,2:1) i, si dues tenen to semblant (< 22°), es queda la més grossa. Només dins del tauler
+  calibrat, si n'hi ha. Cada color trobat va al slot de to més proper (aparellament de la parella més semblant a la
+  menys: el jugador del «Verd» continua al verd); marge de to = la meitat de la distància al color veí − 2 (8–22°);
+  saturació i brillantor mínimes al 55 % i 45 % del que es veu. Els noms per defecte es canvien pel del to
+  (`hueName`); els posats a mà, no. Els slots sense color trobat es desactiven, i surt un avís.
+- **Adaptar-se a la llum** (`baseStats`, opció per defecte encesa, v5.40): amb la figureta quieta, a la vista i
+  sense mà a sobre, es mira com es veu ara la seva base (amb llindars més baixos que els de detecció, a la seva caixa
+  ampliada) i els llindars efectius s'hi acosten a poc a poc (`k` = 0,03 per fotograma): saturació mínima al 55 %
+  (mínim 0,15: una rodona grisa de la pantalla de figures mai no hi arriba), brillantor al 45 %, i el to a ±8° del
+  triat com a màxim. No es desen (`adaptRef`); tornen a començar si es toca el color. Prova sintètica (colors que es
+  desaturen fins a un 17 %): sense adaptació es perdien 2–3 de 3 figuretes a partir d'un 50 % de desaturació; amb
+  adaptació, cap fins al ~70 %.
 - **Mà a sobre** (`ActivityMeter`): fracció de píxels que han canviat de brillantor (> 28) respecte del fotograma
   de fa ~250 ms en un cercle al voltant de l'àncora. Per sobre d'`ACTIVITY_FRAC` (0,18) hi ha «mà a sobre» durant
   700 ms (cercle taronja al vídeo). Comparar amb el de fa 250 ms (i no amb l'anterior) fa que també es vegi una mà
@@ -287,6 +301,17 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
   sortir: a la casella nova si l'ha acceptat, a la vella si no. Es renova cada segon i, sense notícies en 3 s
   (tracker tancat o aturat), es tornen a pintar tots.
 - El DM **no compta** la pantalla de figures com a pantalla de jugadors (indicador del botó Pantalles).
+- **Ajudes als jugadors** (`lib/render/figures.ts`, v5.40), **tot en blanc** (res amb color que el tracker pugui
+  prendre per una base):
+  - **Rang del torn**: en combat, les caselles on pot arribar el jugador que té el torn (`activeRange`: peus que li
+    queden, `movementLimit`, parets i portes, mapa de caselles, terreny difícil; la mateixa regla que el drag de
+    `/player` i que valida el DM). `renderMoveRange` amb color `255,255,255`. Cachejat per posició, peus i refs.
+  - **«Torna-la aquí»**: anella discontínua que batega als tokens amb un moviment de figureta rebutjat. El DM ho envia
+    al camp lleuger `figBack` del STATE/STRUCT (`Object.keys(R.rPhysPending)`; efecte a `DMView` quan canvia).
+  - **Pols de moviment confirmat**: ona blanca (`PULSE_MS` 700 ms) quan un `TOKEN_RELAY` porta un token de jugador a
+    una posició nova.
+  - **Recol·locació** (`FIG_PLACE {off, ok}`, només BC, cada 400 ms): «Posa-la aquí» a les que falten i una marca a
+    les que ja hi són. Caduca als 3 s sense notícies.
 
 ### Mode tauler (`lib/board.ts`, `BoardView`)
 - **Per què**: una figureta física no es mou quan el DM fa pan o zoom. Amb el mode tauler, la pantalla oberta amb
@@ -325,8 +350,12 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
   `snapPos`). El primer cop que es veu una figureta només en pren la referència. **Només envia quan algú mou una
   figureta**: si el DM mou el token a mà, el tracker no el torna on és la figureta.
 - **«Posar els tokens on són les figuretes»**: envia la posició de totes les figuretes quietes (per començar, o
-  després de «Centrar on mires» o d'un pan del DM sense mode tauler). Si l'enquadrament del tauler canvia des de
-  l'última sincronització (`camMovedSince`), el tracker avisa.
+  després de «Centrar on mires» o d'un pan del DM sense mode tauler). També acaba la recol·locació.
+- **Mode recol·locació** (v5.40): quan l'enquadrament del tauler canvia des de l'última sincronització
+  (`camMovedSince`: «Centrar on mires», o pan/zoom del DM sense mode tauler) el tracker hi entra sol; també amb el
+  botó «Recol·locar les figuretes». Mentrestant **no mou cap token ni n'amaga cap**: compara cada figureta quieta
+  amb la casella del seu token (`samePlace`) i ho envia a la pantalla de figures (`FIG_PLACE`). Quan totes hi són
+  durant 1 s, s'acaba sol (o amb «Ja està»), i la posició de cada figureta torna a ser la referència.
 
 ### Moviments rebutjats: silueta al DM (`PhysPending`, `PhysPendingPanel`)
 - El DM valida com sempre (`handlePlayerTokenMove`: bloqueig, 0 de vida, torn, estats, peus, parets). Una figureta,

@@ -329,6 +329,94 @@ export class ActivityMeter {
   }
 }
 
+/** Nom català d'un to (per anomenar els colors trobats automàticament). */
+export function hueName(h: number): string {
+  const names: [number, string][] = [[15, 'Vermell'], [40, 'Taronja'], [70, 'Groc'], [160, 'Verd'], [200, 'Cian'], [255, 'Blau'], [290, 'Lila'], [340, 'Magenta'], [361, 'Vermell']];
+  return names.find(([lim]) => h < lim)![1];
+}
+
+/** Noms que es poden canviar sols (els per defecte o els posats per la detecció automàtica). */
+export const AUTO_NAMES = new Set(['Vermell', 'Taronja', 'Groc', 'Verd', 'Cian', 'Blau', 'Lila', 'Magenta']);
+
+export interface ColorCandidate { hue: number; sat: number; val: number; area: number; cx: number; cy: number }
+
+/**
+ * Detecció automàtica dels colors de les bases (v5.40): amb totes les figuretes al tauler, troba
+ * les taques de color saturat que hi ha, agrupant píxels veïns de to semblant (no per caixes de
+ * to fixes: una anella amb un to a cavall de dues caixes no es partiria). Descarta les taques
+ * petites i les molt allargades (no són una base) i, si n'hi ha dues de to semblant, es queda la
+ * més grossa. `inside(x, y)`: només dins del tauler calibrat (si n'hi ha). Torna fins a `k`
+ * candidats, de més gran a més petit.
+ */
+export function autoColors(data: Uint8ClampedArray, w: number, h: number, k: number, minArea: number,
+  inside?: (x: number, y: number) => boolean): ColorCandidate[] {
+  const n = w * h;
+  const hue = new Float32Array(n), sat = new Float32Array(n), val = new Float32Array(n);
+  const ok = new Uint8Array(n);
+  for (let p = 0, q = 0; p < n; p++, q += 4) {
+    const [hh, ss, vv] = rgbToHsv(data[q], data[q + 1], data[q + 2]);
+    hue[p] = hh; sat[p] = ss; val[p] = vv;
+    if (ss >= 0.35 && vv >= 0.2 && (!inside || inside(p % w, (p - (p % w)) / w))) ok[p] = 1;
+  }
+  const seen = new Uint8Array(n), stack = new Int32Array(n);
+  const comps: (ColorCandidate & { fill: number; aspect: number })[] = [];
+  for (let p = 0; p < n; p++) {
+    if (!ok[p] || seen[p]) continue;
+    let sp = 0, area = 0, sx = 0, sy = 0, hx = 0, hy = 0, ssum = 0, vsum = 0;
+    let minX = w, minY = h, maxX = 0, maxY = 0;
+    stack[sp++] = p; seen[p] = 1;
+    while (sp > 0) {
+      const q = stack[--sp];
+      const x = q % w, y = (q - x) / w;
+      area++; sx += x; sy += y; ssum += sat[q]; vsum += val[q];
+      const a = (hue[q] * Math.PI) / 180; hx += Math.cos(a); hy += Math.sin(a);
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      const nb = [x > 0 ? q - 1 : -1, x < w - 1 ? q + 1 : -1, y > 0 ? q - w : -1, y < h - 1 ? q + w : -1];
+      for (const r of nb) {
+        if (r < 0 || seen[r] || !ok[r] || hueDist(hue[r], hue[q]) > 20) continue;
+        seen[r] = 1; stack[sp++] = r;
+      }
+    }
+    if (area < minArea) continue;
+    const bw = maxX - minX + 1, bh = maxY - minY + 1;
+    let hm = (Math.atan2(hy, hx) * 180) / Math.PI; if (hm < 0) hm += 360;
+    comps.push({ hue: hm, sat: ssum / area, val: vsum / area, area, cx: sx / area / w, cy: sy / area / h, fill: area / (bw * bh), aspect: Math.max(bw, bh) / Math.min(bw, bh) });
+  }
+  comps.sort((a, b) => b.area - a.area);
+  const out: ColorCandidate[] = [];
+  for (const c of comps) {
+    if (c.aspect > 2.2) continue;                                // una línia o una franja: no és una base
+    if (out.some(o => hueDist(o.hue, c.hue) < 22)) continue;      // mateix color que una de més grossa
+    out.push({ hue: c.hue, sat: c.sat, val: c.val, area: c.area, cx: c.cx, cy: c.cy });
+    if (out.length >= k) break;
+  }
+  return out;
+}
+
+/**
+ * Com es veu ara la base d'una figureta (per adaptar-se als canvis de llum, v5.40): to, saturació
+ * i brillantor mitjanes dels píxels de la seva caixa (una mica ampliada) amb un to proper al del
+ * color, **amb llindars més baixos que els de detecció**. Així, si la llum baixa a poc a poc, es
+ * veu que la base perd saturació abans que deixi de detectar-se. `null` si hi ha massa pocs píxels.
+ */
+export function baseStats(data: Uint8ClampedArray, w: number, h: number, b: Blob, slot: Pick<ColorSlot, 'hue' | 'hueTol'>): { hue: number; sat: number; val: number } | null {
+  const pad = 3;
+  let n = 0, hx = 0, hy = 0, ss = 0, vv = 0;
+  for (let y = Math.max(0, b.minY - pad); y <= Math.min(h - 1, b.maxY + pad); y++) {
+    for (let x = Math.max(0, b.minX - pad); x <= Math.min(w - 1, b.maxX + pad); x++) {
+      const k = (y * w + x) * 4;
+      const [hh, s, v] = rgbToHsv(data[k], data[k + 1], data[k + 2]);
+      if (s < 0.12 || v < 0.06 || hueDist(hh, slot.hue) > slot.hueTol * 1.5) continue;
+      const a = (hh * Math.PI) / 180;
+      hx += Math.cos(a); hy += Math.sin(a); ss += s; vv += v; n++;
+    }
+  }
+  if (n < 12) return null;
+  let hm = (Math.atan2(hy, hx) * 180) / Math.PI; if (hm < 0) hm += 360;
+  return { hue: hm, sat: ss / n, val: vv / n };
+}
+
 export const DEFAULT_SLOTS: ColorSlot[] = [
   { id: 's1', name: 'Verd',    enabled: true, hue: 125, hueTol: 18, satMin: 0.35, valMin: 0.2, swatch: '#2ecc40' },
   { id: 's2', name: 'Blau',    enabled: true, hue: 220, hueTol: 18, satMin: 0.35, valMin: 0.2, swatch: '#1f6fff' },

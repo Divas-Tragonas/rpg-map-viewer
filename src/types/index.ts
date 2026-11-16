@@ -491,6 +491,8 @@ export interface BCStateMessage {
   phosphor?: boolean;
   // Mode tauler de les figuretes físiques (lleuger, sempre; `null` = apagat). Veure `BoardView`.
   board?: BoardView | null;
+  // Pantalla de figures: tokens de jugador amb un moviment de figureta rebutjat (lleuger, sempre).
+  figBack?: string[];
   // Parts vives del mapa de caselles (aigua, torxes, portes): camp pesat (per referència).
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   // Diàleg en curs (camp lleuger, sempre; `null` = cap). Absent → DM antic, no tocar res.
@@ -544,6 +546,8 @@ export interface BCStructMessage {
   phosphor?: boolean;
   // Mode tauler de les figuretes físiques (lleuger, sempre; `null` = apagat). Veure `BoardView`.
   board?: BoardView | null;
+  // Pantalla de figures: tokens de jugador amb un moviment de figureta rebutjat (lleuger, sempre).
+  figBack?: string[];
   tileLive?: import('@/lib/tilemap/render').TileLive | null;
   dialog?: DialogSync | null;
   sheet?: SheetShow | null;
@@ -584,6 +588,7 @@ export type BCMessage =
   // Només BroadcastChannel (mateix PC): una pantalla de jugador es tanca / el tracker amaga tokens a la de figures.
   | { type: 'SCREEN_BYE'; id: string }
   | { type: 'FIG_HIDE'; ids: string[] }
+  | { type: 'FIG_PLACE'; off: string[]; ok: string[] }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number; src?: 'figureta' }
   | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number }
   // Reset de la memòria d'explorat d'una sala: torna a ser negra del tot (fog of war).

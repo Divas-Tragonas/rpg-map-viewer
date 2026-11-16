@@ -6,11 +6,12 @@ import type { MoveRange } from '@/hooks/usePlayerTokenDrag';
  * Caselles on el jugador pot moure el token durant el drag (pantalla de jugador).
  * Es dibuixa en espai de mapa (ctx ja translladat/escalat); selecció suau en groc.
  * Cercle de moviment (distància euclidiana): abastable si dc² + dr² ≤ (maxCells + 0.5)².
+ * `rgb`: color (groc per defecte; blanc a la pantalla de figures, on res pot tenir color de base).
  * Dóna un disc rasteritzat (cercle pixelat) igual que les taules de cercles pixel-art.
  * Amb parets, la regió és `range.reach` (caselles amb camí transitable, cost de camí
  * real), amb la MATEIXA condició que el clamp del drag perquè pintura i límit coincideixin.
  */
-export function renderMoveRange(ctx: CanvasRenderingContext2D, range: MoveRange, mw: number, mh: number, sc: number): void {
+export function renderMoveRange(ctx: CanvasRenderingContext2D, range: MoveRange, mw: number, mh: number, sc: number, rgb = '255,214,64'): void {
   const { startCol, startRow, maxCells, gs, gox, goy, reach } = range;
   const r2 = (maxCells + 0.5) * (maxCells + 0.5);
   const inRange = (dc: number, dr: number) => reach ? reach.has(`${dc},${dr}`) : dc * dc + dr * dr <= r2;
@@ -20,8 +21,8 @@ export function renderMoveRange(ctx: CanvasRenderingContext2D, range: MoveRange,
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, mw, mh); ctx.clip();
   // farciment de les caselles del disc + línies de cel·la molt subtils
-  ctx.fillStyle = 'rgba(255,214,64,0.13)';
-  ctx.strokeStyle = 'rgba(255,214,64,0.22)';
+  ctx.fillStyle = `rgba(${rgb},0.13)`;
+  ctx.strokeStyle = `rgba(${rgb},0.22)`;
   ctx.lineWidth = Math.max(0.5 / sc, 1 / sc);
   for (let dr = -lim; dr <= lim; dr++) {
     for (let dc = -lim; dc <= lim; dc++) {
@@ -32,7 +33,7 @@ export function renderMoveRange(ctx: CanvasRenderingContext2D, range: MoveRange,
     }
   }
   // perímetre esglaonat: només les arestes que toquen fora del disc
-  ctx.strokeStyle = 'rgba(255,214,64,0.55)';
+  ctx.strokeStyle = `rgba(${rgb},0.55)`;
   ctx.lineWidth = 2 / sc;
   ctx.beginPath();
   for (let dr = -lim; dr <= lim; dr++) {

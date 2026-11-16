@@ -278,6 +278,8 @@ export function useDMActions(R: DMRefs, S: Setters) {
       phosphor: R.rPhosphor.current,
       // Mode tauler de les figuretes físiques (lleuger, sempre).
       board: R.rBoard.current,
+      // Figuretes amb un moviment rebutjat: la pantalla de figures hi pinta «Torna-la aquí».
+      figBack: Object.keys(R.rPhysPending.current),
       // Diàleg en curs (lleuger, sempre): així qui es connecta o reconnecta a mitja
       // conversa veu la línia d'ara mateix. Veure `useDialog`.
       dialog: _dialogNow(),
@@ -327,6 +329,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
       appStyle: R.rAppStyle.current,
       phosphor: R.rPhosphor.current,
       board: R.rBoard.current,
+      figBack: Object.keys(R.rPhysPending.current),
       tileLive: R.rTileLive.current,
       dialog: _dialogNow(),
       sheet: R.rSheetShow.current,

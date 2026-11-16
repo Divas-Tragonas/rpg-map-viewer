@@ -23,6 +23,7 @@ import { buildMovePath, cellOf } from '@/lib/rooms/pathing';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { camToView, mapSizeFor, viewRect } from '@/lib/camera';
 import { boardCam, isTableScreenUrl } from '@/lib/board';
+import { renderFigOverlay, figOverlayAnimating } from '@/lib/render/figures';
 import type { MapSize, PosMap, Player, PaintedZone, Spell, ConditionsMap, DefeatedMap, TokenSizeMap, LibEnemy, Room, Wall, Door, TurnState, CamRect, Point, SpellPreview, BoardView } from '@/types';
 import type { SyncSocket, SyncState } from '@/lib/ws';
 import type { AppStyle, SheetShow } from '@/types';
@@ -205,6 +206,11 @@ export function PlayerView() {
   // l'apagui del tot. Còpia dels jugadors amb el color canviat (es refà quan canvien).
   const figPlayersSrc   = useRef<Player[] | null>(null);
   const figPlayers      = useRef<Player[]>([]);
+  // Ajudes de la pantalla de figures (`lib/render/figures.ts`): figuretes que el DM vol que tornin
+  // (`figBack` del STATE), recol·locació del tracker (`FIG_PLACE`) i pols de moviment confirmat.
+  const rFigBack        = useRef<string[]>([]);
+  const rFigPlace       = useRef<{ off: string[]; ok: string[]; at: number } | null>(null);
+  const rFigPulse       = useRef<Record<string, number>>({});
   const hiddenAtRef     = useRef(0);
   const visualZoomRef = useRef(1);
   const visualPanRef  = useRef({ x: 0, y: 0 });
@@ -571,6 +577,7 @@ export function PlayerView() {
         if (msg.panOffset)     rPanOffset.current     = msg.panOffset;
         if (msg.cam)           rCam.current           = msg.cam;
         if (msg.board !== undefined) rBoard.current = msg.board;
+        if (msg.figBack !== undefined) rFigBack.current = msg.figBack ?? [];
         if (msg.gridVisible   !== undefined) rGridVisible.current   = msg.gridVisible;
         if (msg.gridSize      !== undefined) rGridSize.current      = msg.gridSize;
         if (msg.gridSnap      !== undefined) rGridSnap.current      = msg.gridSnap;
@@ -639,6 +646,7 @@ export function PlayerView() {
         if (msg.panOffset) rPanOffset.current = msg.panOffset;
         if (msg.cam) rCam.current = msg.cam;
         if (msg.board !== undefined) rBoard.current = msg.board;
+        if (msg.figBack !== undefined) rFigBack.current = msg.figBack ?? [];
         if (msg.players)   rPlayers.current = msg.players;
         if (msg.conditions)  rConditions.current = msg.conditions;
         if (msg.defeated) {
@@ -693,6 +701,9 @@ export function PlayerView() {
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
           if (msg.dmPreviewPan  != null) rDMPreviewPan.current  = msg.dmPreviewPan;
         }
+      } else if (msg.type === 'FIG_PLACE') {
+        // Recol·locació (tracker): quines figuretes encara no són a sobre de la seva rodona.
+        if (isTableRef.current) rFigPlace.current = msg.off.length || msg.ok.length ? { off: msg.off, ok: msg.ok, at: Date.now() } : null;
       } else if ((msg as { type: string }).type === 'FIG_HIDE') {
         // Del tracker de figuretes (`/tracker`, només BroadcastChannel). Es renova cada segon: si
         // el tracker es tanca, als 3 s es tornen a veure tots (veure el tick).
@@ -718,6 +729,11 @@ export function PlayerView() {
           // Token de jugador mogut per una altra pantalla: anima'l vorejant les parets
           // (forma d'L) des de la posició actual fins a la nova, no en línia recta.
           if (idStr.startsWith('pl_')) _setMovePath(idStr, rPos.current[msg.id], { x: msg.x, y: msg.y });
+          // Pantalla de figures: ona de «moviment confirmat» si el token ha canviat de lloc.
+          const was = rPos.current[msg.id];
+          if (isTableRef.current && idStr.startsWith('pl_') && (!was || was.x !== msg.x || was.y !== msg.y)) {
+            rFigPulse.current = { ...rFigPulse.current, [idStr]: performance.now() };
+          }
           rPos.current = { ...rPos.current, [msg.id]: { x: msg.x, y: msg.y } };
         }
       } else if (msg.type === 'RESET_EXPLORED') {
@@ -920,7 +936,8 @@ export function PlayerView() {
         || !!rSpellPreview.current || !!rSpellPreviewTarget.current || !!rPointerPos.current
         || (spells.length > 0 && !spellsSettled(spells, now));
       // Pantalla de figures amb tokens amagats: cal repintar quan caduquin (tracker tancat).
-      const ambient = hot || rHiddenTokens.current.size > 0 || !!rTurn.current?.active || anyKey(rConditions.current)
+      const figAnim = isTableRef.current && figOverlayAnimating({ back: rFigBack.current, place: rFigPlace.current, pulses: rFigPulse.current, now: performance.now() });
+      const ambient = hot || figAnim || rHiddenTokens.current.size > 0 || !!rTurn.current?.active || anyKey(rConditions.current)
         || rPaintedZones.current.length > 0 || spells.length > 0
         || (rTileLive.current?.anims.length ?? 0) > 0
         // Vídeo de fons amb sales fosques: el terreny memoritzat es pinta al canvas a partir del vídeo.
@@ -1131,6 +1148,20 @@ export function PlayerView() {
         if (drag?.range) renderMoveRange(ctx, drag.range, mw, mh, sc);
       }
       renderDragGhost(ctx, fc);
+
+      // Pantalla de figures: rang del torn, «torna-la / posa-la aquí» i ones de confirmació.
+      if (isTableRef.current) {
+        if (rFigPlace.current && Date.now() - rFigPlace.current.at > 3000) rFigPlace.current = null; // tracker tancat
+        const gsF = rGridSize.current;
+        renderFigOverlay(ctx, {
+          turn: rTurn.current ?? undefined, players: rPlayers.current, pos: rPos.current, tokenSize: rTokenSizeOverride.current,
+          conditions: rConditions.current, walls: rWalls.current, doors: rDoors.current, tileLive: rTileLive.current,
+          difficult: rDifficult.current, gs: gsF,
+          gox: gsF > 0 ? ((rGridOriginX.current % gsF) + gsF) % gsF : 0, goy: gsF > 0 ? ((rGridOriginY.current % gsF) + gsF) % gsF : 0,
+          back: rFigBack.current, place: rFigPlace.current, pulses: rFigPulse.current,
+          now: performance.now(), sc, mw, mh,
+        });
+      }
 
       ctx.restore();
 

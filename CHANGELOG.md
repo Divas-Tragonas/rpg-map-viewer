@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.40 — Figuretes: colors automàtics, llum, recol·locació i ajudes a la pantalla de figures
+- Tracker → «Detectar els colors de les figuretes»: amb totes les figuretes al tauler, troba els colors de les bases i n'ajusta els marges d'un sol clic, mantenint cada jugador al seu color
+- «Adaptar-se a la llum» (per defecte, sí): els llindars de cada color segueixen a poc a poc com es veu la base quan la llum canvia (es veuen a la llista com «Llum: …»)
+- Pantalla de figures, tot en blanc perquè la càmera no ho confongui: el rang de moviment del jugador que té el torn, «Torna-la aquí» quan el DM no permet un moviment, i una ona quan un moviment es confirma
+- Recol·locació: quan el tauler canvia de lloc (o amb el botó «Recol·locar les figuretes»), no es mou cap token; la pantalla de figures diu «Posa-la aquí» a les que falten i marca les que ja hi són, i quan totes hi són s'acaba sola
+- Apuntats per a més endavant (docs/millores.md): tracker en un altre PC i proves amb vídeos reals
+- Cap canvi a la API ni a les partides desades
+
 ### v5.39 — Figuretes: seguiment estable i rodones grises
 - El tracker ja no fa parpellejar les rodones de la pantalla de figures: si perd una figureta uns instants però no s'ha mogut, es manté quieta (abans comptava com a moviment)
 - La rodona només s'amaga quan la figureta es mou de debò (s'allunya d'on era) o quan hi ha una mà a sobre (molts canvis de cop al voltant); al vídeo del tracker la mà es veu amb un cercle taronja i a la llista com «mà a sobre»

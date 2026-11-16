@@ -125,6 +125,10 @@ export function useTrackerSync(onResult: (id: string, result: MoveResult) => voi
     bcRef.current?.postMessage({ type: 'FIG_HIDE', ids });
   }, []);
   const isPending = useCallback((id: string) => !!pending.current[id], []);
+  /** Recol·locació: quines figuretes encara no són a sobre de la seva rodona (`off`) i quines sí (`ok`). */
+  const placeStatus = useCallback((off: string[], ok: string[]) => {
+    bcRef.current?.postMessage({ type: 'FIG_PLACE', off, ok });
+  }, []);
 
-  return { world, connected, players, screens, available, moveToken, hideTokens, isPending };
+  return { world, connected, players, screens, available, moveToken, hideTokens, isPending, placeStatus };
 }

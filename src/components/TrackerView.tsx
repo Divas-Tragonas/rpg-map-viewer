@@ -8,7 +8,7 @@ import { C, FS, RADIUS, FONT_SERIF } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import {
   type BlobState, type ColorSlot, DEFAULT_SLOTS, FigureTracker, ActivityMeter,
-  detect, hsvToHex, looksLikeSkin, sampleHsv, slotFromSample,
+  detect, hsvToHex, looksLikeSkin, sampleHsv, slotFromSample, autoColors, baseStats, hueDist, hueName, AUTO_NAMES,
 } from '@/lib/tracker/detect';
 import {
   CORNER_NAMES, SCREEN_CORNERS, type Homography, applyH, gridInfo, homography, mapToScreen,
@@ -42,11 +42,13 @@ interface Settings {
   screenH: number;
   /** Amagar la rodona de la pantalla de figures mentre la seva figureta es mou de debò. */
   hideOnMove: boolean;
+  /** Ajustar sols els llindars de cada color als canvis de llum (`baseStats`). */
+  adaptLight: boolean;
 }
 
 const DEFAULTS: Settings = {
   slots: DEFAULT_SLOTS, procW: 480, minArea: 40, view: 'camera', deviceId: '', res: 1080,
-  corners: null, screenW: 0, screenH: 0, hideOnMove: true,
+  corners: null, screenW: 0, screenH: 0, hideOnMove: true, adaptLight: true,
 };
 
 function parseSettings(raw: string): Settings {
@@ -92,6 +94,12 @@ const noSubscribe = () => () => {};
 
 /** Fracció de píxels canviats al voltant d'una figureta a partir de la qual hi ha «una mà a sobre». */
 const ACTIVITY_FRAC = 0.18;
+
+/** Llindars d'un color ajustats a la llum d'ara (per sobre dels del slot, sense desar). */
+interface Adapt { hue: number; satMin: number; valMin: number }
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+/** Diferència de to amb signe (−180..180). */
+const hueDelta = (a: number, b: number) => ((a - b + 540) % 360) - 180;
 
 /**
  * Rellotge del bucle de detecció. **No és `requestAnimationFrame`**: el navegador l'atura quan la
@@ -149,6 +157,16 @@ export function TrackerView() {
   /** Període de gràcia després de tornar a ensenyar una rodona: que la rodona que apareix no compti com a mà. */
   const graceUntilRef = useRef<number[]>([]);
   const prevHiddenRef = useRef<Set<string>>(new Set());
+  /** Adaptació a la llum de cada color (`null` = els llindars del slot). */
+  const adaptRef = useRef<(Adapt | null)[]>([]);
+  const [adaptView, setAdaptView] = useState<(Adapt | null)[]>([]);
+  /** Mode recol·locació: els jugadors posen cada figureta a sobre de la seva rodona; no es mou cap token. */
+  const [recol, setRecolState] = useState(false);
+  const recolRef = useRef(false);
+  const [recolOff, setRecolOff] = useState<string[]>([]);
+  const [autoMsg, setAutoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const recolSentRef = useRef(0);
+  const recolOkSinceRef = useRef(0);
   /** Rellotge del bucle (`startTicker`): s'atura amb `stopTickRef.current()`. */
   const stopTickRef = useRef<() => void>(() => {});
 
@@ -165,7 +183,6 @@ export function TrackerView() {
   const [sendOn, setSendOn] = useState(false);
   const sendOnRef = useRef(false);
   const [slotMsg, setSlotMsg] = useState<Record<number, SlotMsg>>({});
-  const [camMoved, setCamMoved] = useState(false);
   const [boardOn, setBoardOn] = useState(false);
   /** On era cada figureta (càmera, 0..1) l'últim cop que es va donar per bona. `null` = encara no se sap. */
   const settledRef = useRef<(Point | null)[]>([]);
@@ -190,10 +207,23 @@ export function TrackerView() {
       : { text: 'el DM no respon', color: C.warn });
   }, [flashSlot]);
 
-  const { world, connected, players, screens, available, moveToken, hideTokens, isPending } = useTrackerSync(onResult);
+  const { world, connected, players, screens, available, moveToken, hideTokens, isPending, placeStatus } = useTrackerSync(onResult);
   /** Figuretes vistes almenys un cop des que es va engegar «Moure tokens» (una que no hi és mai no amaga res). */
   const seenRef = useRef<boolean[]>([]);
   const hideSentRef = useRef({ key: '', t: 0 });
+  /**
+   * Mode recol·locació: s'hi entra sol quan el tauler canvia de lloc (el DM centra el tauler, o fa
+   * pan sense mode tauler) i amb el botó. Mentrestant no es mou cap token: la pantalla de figures
+   * diu a cada jugador on ha de posar la figureta («Posa-la aquí») i marca les que ja hi són. En
+   * sortir, la posició de cada figureta torna a ser la referència.
+   */
+  const recolOffRef = useRef<string[]>([]);
+  const setRecol = useCallback((on: boolean) => {
+    recolRef.current = on;
+    setRecolState(on);
+    recolOkSinceRef.current = 0;
+    if (!on) { settledRef.current = []; placeStatus([], []); recolOffRef.current = []; setRecolOff([]); }
+  }, [placeStatus]);
   const screensRef = useRef(screens);
   useEffect(() => { screensRef.current = screens; }, [screens]);
 
@@ -243,7 +273,9 @@ export function TrackerView() {
       pctx.drawImage(video, 0, 0, pw, ph);
       const img = pctx.getImageData(0, 0, pw, ph);
       frameRef.current = img;
-      const res = detect(img.data, pw, ph, s.slots, s.minArea);
+      // Llindars efectius: els del slot, ajustats a la llum d'ara si l'adaptació està encesa.
+      const eff = s.slots.map((sl, i) => (s.adaptLight && adaptRef.current[i] ? { ...sl, ...adaptRef.current[i]! } : sl));
+      const res = detect(img.data, pw, ph, eff, s.minArea);
       const tracks = trackerRef.current.update(res.all, tStart);
       const chosen = tracks.map(t => t.blob);
       const states = tracks.map(t => t.state);
@@ -258,6 +290,27 @@ export function TrackerView() {
         if (f !== null && f > ACTIVITY_FRAC && (graceUntilRef.current[i] ?? 0) < tStart) activityUntilRef.current[i] = tStart + 700;
       });
       const active = s.slots.map((_, i) => (activityUntilRef.current[i] ?? 0) > tStart);
+
+      // ── Adaptació a la llum (v5.40) ──
+      // Amb la figureta quieta, a la vista i sense cap mà a sobre, es mira com es veu ara la seva base
+      // i els llindars s'hi acosten a poc a poc: saturació i brillantor mínimes al 55 % i 45 % del que
+      // es veu, i el to a ±8° com a màxim del triat (no pot anar derivant cap al color del mapa).
+      if (s.adaptLight) {
+        tracks.forEach((tr, i) => {
+          const base = s.slots[i];
+          if (!base?.enabled || tr.state !== 'quieta' || !tr.blob || active[i]) return;
+          const st = baseStats(img.data, pw, ph, tr.blob, eff[i]);
+          if (!st) return;
+          const cur = adaptRef.current[i] ?? { hue: base.hue, satMin: base.satMin, valMin: base.valMin };
+          const k = 0.03;
+          const hueT = (base.hue + clamp(hueDelta(st.hue, base.hue), -8, 8) + 360) % 360;
+          adaptRef.current[i] = {
+            hue: (cur.hue + hueDelta(hueT, cur.hue) * k + 360) % 360,
+            satMin: cur.satMin + (clamp(st.sat * 0.55, 0.15, 0.8) - cur.satMin) * k,
+            valMin: cur.valMin + (clamp(st.val * 0.45, 0.08, 0.8) - cur.valMin) * k,
+          };
+        });
+      }
       const ms = performance.now() - tStart;
 
       // ── Càmera → mapa i enviament de moviments ──
@@ -269,7 +322,7 @@ export function TrackerView() {
       const toMap = hm && scr && cam
         ? (p: Point) => { const q = applyH(hm.fwd, p); return { map: screenToMap(q.x, q.y, scr.W, scr.H, cam), inside: q.x >= -0.02 && q.x <= 1.02 && q.y >= -0.02 && q.y <= 1.02 }; }
         : null;
-      if (toMap && sendOnRef.current) {
+      if (toMap && sendOnRef.current && !recolRef.current) {
         tracks.forEach((tr, i) => {
           const sl = s.slots[i];
           // Només figuretes quietes i a la vista (si s'ha perdut, encara és «quieta» però sense taca).
@@ -298,7 +351,7 @@ export function TrackerView() {
       // càmera perd uns instants sense que res es mogui NO amaga la rodona (abans parpellejava).
       {
         const hide: string[] = [];
-        if (sendOnRef.current && s.hideOnMove) {
+        if (sendOnRef.current && s.hideOnMove && !recolRef.current) {
           chosen.forEach((b, i) => { if (b) seenRef.current[i] = true; });
           s.slots.forEach((sl, i) => {
             if (!sl.enabled || sl.playerId == null || !seenRef.current[i]) return;
@@ -319,6 +372,28 @@ export function TrackerView() {
           hideTokens(hide);
           hideSentRef.current = { key, t: now };
         }
+      }
+
+      // ── Recol·locació: quines figuretes ja són a sobre de la seva rodona ──
+      if (recolRef.current) {
+        const off: string[] = [], ok: string[] = [];
+        s.slots.forEach((sl, i) => {
+          if (!sl.enabled || sl.playerId == null || !w.players.some(p => p.id === sl.playerId)) return;
+          const id = `pl_${sl.playerId}`, at = w.pos[id];
+          if (!at) return;
+          const R = w.tokenSize[id] ?? 22, tc = { x: at.x + R, y: at.y + R };
+          const tr = tracks[i];
+          let good = false;
+          if (toMap && tr.state === 'quieta' && tr.anchor) { const m = toMap(tr.anchor); good = m.inside && samePlace(m.map, tc, g, R); }
+          (good ? ok : off).push(id);
+        });
+        recolOffRef.current = off;
+        if (tStart - recolSentRef.current > 400) { placeStatus(off, ok); recolSentRef.current = tStart; }
+        // Totes al seu lloc durant 1 s: s'ha acabat.
+        if (off.length === 0 && ok.length > 0) {
+          if (!recolOkSinceRef.current) recolOkSinceRef.current = tStart;
+          else if (tStart - recolOkSinceRef.current > 1000) setRecol(false);
+        } else recolOkSinceRef.current = 0;
       }
 
       // Capa de dibuix a 2× la imatge processada (prou nítida per a les etiquetes).
@@ -392,7 +467,13 @@ export function TrackerView() {
         lastUi = now;
         setStatus(chosen.map((b, i) => ({ state: states[i], area: b?.area ?? 0, extra: res.extra[i], cx: b?.cx ?? 0, cy: b?.cy ?? 0, hand: active[i], seen: !!b })));
         if (sendOnRef.current && !camAtSyncRef.current && cam && scr) camAtSyncRef.current = cam;
-        setCamMoved(sendOnRef.current && camMovedSince(camAtSyncRef.current, cam));
+        // El tauler ha canviat de lloc: les figuretes ja no són a sobre dels seus tokens → recol·locació.
+        if (sendOnRef.current && !recolRef.current && camMovedSince(camAtSyncRef.current, cam)) { camAtSyncRef.current = cam; setRecol(true); }
+        setRecolOff(prev => (prev.join() === recolOffRef.current.join() ? prev : recolOffRef.current));
+        setAdaptView(prev => {
+          const nx = adaptRef.current.map(a => (a ? { ...a } : null));
+          return prev.length === nx.length && prev.every((p, i) => (!p && !nx[i]) || (p && nx[i] && Math.abs(p.satMin - nx[i]!.satMin) < 0.005 && Math.abs(p.valMin - nx[i]!.valMin) < 0.005)) ? prev : nx;
+        });
         setBoardOn(!!w.board?.on);
       }
       if (now - t0 > 1000) {
@@ -402,7 +483,7 @@ export function TrackerView() {
     };
     stopTickRef.current();
     stopTickRef.current = startTicker(step, 30);
-  }, [world, moveToken, hideTokens, isPending]);
+  }, [world, moveToken, hideTokens, isPending, placeStatus, setRecol]);
 
   const start = useCallback(async () => {
     setError('');
@@ -496,6 +577,7 @@ export function TrackerView() {
       return;
     }
     setError('');
+    adaptRef.current[selected] = null;
     const th = slotFromSample(hsv);
     setSettings(p => ({
       ...p,
@@ -522,6 +604,7 @@ export function TrackerView() {
 
   /** Mou cada token assignat a on hi ha ara la seva figureta (per començar o després d'un pan del DM). */
   const syncAll = useCallback(() => {
+    if (recolRef.current) setRecol(false);
     const s = settingsRef.current, w = world.current, hm = homRef.current, last = lastRef.current;
     const scr = tableScreen(s, screensRef.current);
     const cam = tableCam(w, scr);
@@ -543,11 +626,12 @@ export function TrackerView() {
       n++;
     });
     camAtSyncRef.current = cam;
-    setCamMoved(false);
     setError(n === 0 ? 'Cap token per moure: o ja són al seu lloc, o no hi ha cap figureta assignada dins del tauler.' : '');
-  }, [world, moveToken]);
+  }, [world, moveToken, setRecol]);
 
-  const patchSlot = (i: number, patch: Partial<ColorSlot>) =>
+  const patchSlot = (i: number, patch: Partial<ColorSlot>) => {
+    // Llindars tocats a mà: l'adaptació a la llum torna a començar des d'aquí.
+    if (patch.hue !== undefined || patch.hueTol !== undefined || patch.satMin !== undefined || patch.valMin !== undefined) adaptRef.current[i] = null;
     setSettings(p => ({
       ...p,
       slots: p.slots.map((sl, j) => {
@@ -557,6 +641,52 @@ export function TrackerView() {
         return next;
       }),
     }));
+  };
+
+  /**
+   * Punt 3 (v5.40): amb totes les figuretes al tauler, troba els seus colors d'un sol clic. Cada
+   * color trobat va al slot de to més semblant (així el jugador assignat a «Verd» continua al verd);
+   * el marge de to es fa tan ample com es pot sense tocar el color veí.
+   */
+  const autoDetect = useCallback(() => {
+    const img = frameRef.current;
+    if (!img) return;
+    const s = settingsRef.current;
+    const hm = homRef.current;
+    const want = s.slots.filter(sl => sl.enabled).length || s.slots.length;
+    const inside = hm ? (x: number, y: number) => { const q = applyH(hm.fwd, { x: x / img.width, y: y / img.height }); return q.x >= 0 && q.x <= 1 && q.y >= 0 && q.y <= 1; } : undefined;
+    const found = autoColors(img.data, img.width, img.height, want, Math.max(8, s.minArea * 0.6), inside);
+    if (found.length === 0) { setAutoMsg({ ok: false, text: 'No s\'ha trobat cap base de color. Hi ha les figuretes al tauler i el polaritzador ben girat?' }); return; }
+    // Aparellar slots i colors trobats pel to més proper (de la parella més semblant a la menys).
+    const pairs: [number, number, number][] = [];
+    s.slots.forEach((sl, i) => found.forEach((f, j) => pairs.push([hueDist(sl.hue, f.hue), i, j])));
+    pairs.sort((a, b) => a[0] - b[0]);
+    const slotOf = new Map<number, number>(), usedSlot = new Set<number>();
+    for (const [, i, j] of pairs) { if (usedSlot.has(i) || slotOf.has(j)) continue; usedSlot.add(i); slotOf.set(j, i); }
+    setSettings(p => ({
+      ...p,
+      slots: p.slots.map((sl, i) => {
+        const j = [...slotOf.entries()].find(([, si]) => si === i)?.[0];
+        if (j === undefined) return { ...sl, enabled: false };
+        const f = found[j];
+        const nearest = Math.min(180, ...found.filter((_, k) => k !== j).map(o => hueDist(o.hue, f.hue)));
+        adaptRef.current[i] = null;
+        return {
+          ...sl, enabled: true,
+          hue: Math.round(f.hue),
+          hueTol: Math.round(clamp(nearest / 2 - 2, 8, 22)),
+          satMin: Math.round(Math.max(0.2, f.sat * 0.55) * 100) / 100,
+          valMin: Math.round(Math.max(0.12, f.val * 0.45) * 100) / 100,
+          swatch: hsvToHex(f.hue, Math.max(0.6, f.sat), Math.max(0.7, f.val)),
+          name: AUTO_NAMES.has(sl.name) ? hueName(f.hue) : sl.name,
+        };
+      }),
+    }));
+    setAutoMsg(found.length >= want
+      ? { ok: true, text: `Trobades ${found.length} bases de color. Comprova que cada color tingui el jugador bo.` }
+      : { ok: false, text: `Només s'han trobat ${found.length} bases de ${want}. Els colors que falten s'han desactivat: mira que totes les figuretes siguin al tauler i es vegin bé.` });
+    setTimeout(() => setAutoMsg(null), 9000);
+  }, [setSettings]);
 
   const aspect = perf.vw && perf.vh ? `${perf.vw} / ${perf.vh}` : '16 / 9';
 
@@ -583,13 +713,21 @@ export function TrackerView() {
             imatge del monitor (tal com la veu el DM, no com la veu la càmera). Si el polaritzador fa negra la pantalla, gira&apos;l mentre calibres.
           </Notice>
         )}
-        {camMoved && (
+        {recol && (
           <Notice color={C.warn}>
-            El mapa del tauler s&apos;ha mogut (el DM ha fet pan o zoom, o ha centrat el tauler en un altre lloc): les figuretes ja
-            no són a sobre dels seus tokens. Recol·loqueu-les, o premeu «Posar els tokens on són les figuretes».
+            <b>Recol·locació</b>: poseu cada figureta a sobre de la seva rodona (la pantalla de figures diu «Posa-la aquí» i marca les
+            que ja hi són). Mentrestant no es mou cap token.{' '}
+            {recolOff.length > 0
+              ? <>Falten: {recolOff.map(id => players.find(p => `pl_${p.id}` === id)?.name ?? id).join(', ')}.</>
+              : <>Totes al seu lloc.</>}
             {!boardOn && <> Amb el «Tauler de figuretes» encès (menú Pantalles del DM), el pan i el zoom del DM no mouen el tauler.</>}
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <Button size="sm" onClick={syncAll} title="Al revés: els tokens van on són ara les figuretes">Posar els tokens on són les figuretes</Button>
+              <Button size="sm" variant="ghost" onClick={() => setRecol(false)}>Ja està</Button>
+            </div>
           </Notice>
         )}
+        {autoMsg && <Notice color={autoMsg.ok ? C.ok : C.warn}>{autoMsg.text}</Notice>}
 
         <div
           onClick={onVideoClick}
@@ -696,6 +834,10 @@ export function TrackerView() {
           <Button size="sm" disabled={!hom || !connected || !running || !tableScreen(settings, screens)} onClick={syncAll} title="Mou cada token assignat a on hi ha ara la seva figureta">
             Posar els tokens on són les figuretes
           </Button>
+          <Button size="sm" disabled={!hom || !connected || !running || recol} onClick={() => { camAtSyncRef.current = null; setRecol(true); }}
+            title="Els jugadors posen cada figureta a sobre de la seva rodona; la pantalla de figures els guia. No es mou cap token.">
+            Recol·locar les figuretes
+          </Button>
           <span style={{ color: C.dim, fontSize: FS.xs }}>
             Quan una figureta queda quieta mig segon en una altra casella, el seu token s&apos;hi mou. El DM ho valida com si el jugador
             l&apos;hagués arrossegat: en combat, només el del torn i dins dels peus que li queden.
@@ -711,6 +853,10 @@ export function TrackerView() {
         </Section>
 
         <Section title="Colors de les bases">
+          <Button variant="secondary" disabled={!running} onClick={autoDetect}
+            title="Amb totes les figuretes al tauler: troba'n els colors i ajusta'n els marges d'un sol clic">
+            Detectar els colors de les figuretes
+          </Button>
           {settings.slots.map((sl, i) => {
             const st = status[i];
             const isSel = i === selected;
@@ -757,12 +903,20 @@ export function TrackerView() {
                     {st.extra > 0 && <span style={{ color: C.warn }}> · {st.extra} taca{st.extra > 1 ? 'ques' : ''} més del mateix color</span>}
                   </span>
                 )}
+                {settings.adaptLight && adaptView[i] && sl.enabled && (
+                  <span style={{ color: C.dim, fontSize: FS.xs }} title="Llindars ajustats a la llum d'ara (no es desen; tornen a començar si toques el color)">
+                    Llum: to {Math.round(adaptView[i]!.hue)}° · sat. ≥ {adaptView[i]!.satMin.toFixed(2)} · brill. ≥ {adaptView[i]!.valMin.toFixed(2)}
+                  </span>
+                )}
                 {looksLikeSkin(sl) && sl.enabled && (
                   <span style={{ color: C.warn, fontSize: FS.xs }}>Aquest to s&apos;assembla al de la pell: les mans es poden confondre amb la base.</span>
                 )}
               </div>
             );
           })}
+          <Row label="Adaptar-se a la llum">
+            <Seg value={settings.adaptLight ? 'on' : 'off'} options={[['off', 'No'], ['on', 'Sí']]} onChange={v => { adaptRef.current = []; setSettings(p => ({ ...p, adaptLight: v === 'on' })); }} />
+          </Row>
           <Button size="sm" variant="ghost" onClick={() => setSettings(p => ({ ...p, slots: DEFAULT_SLOTS }))}>Tornar als colors per defecte</Button>
         </Section>
 
