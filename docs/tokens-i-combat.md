@@ -235,7 +235,7 @@
 - **Escena dels tokens** (`renderTokenScene`, DM i jugador): tokens → (`between`) → noms. Els noms es pinten en una capa i s'esvaeixen (`NAME_FADE`, `destination-out`) allà on hi ha la silueta d'una figureta (`fc.figMask`, que omple `maskFigure` amb la mateixa funció que pinta la figura).
 - **Portes de caselles**: el token que hi passa va per sobre de la porta i per sota de la PARET (`DoorPiece.edge`: la vora de dalt del tram de baix d'una porta lateral). `drawTileDoorEdgesOver` torna a pintar la vora, menys els píxels de la porta que hi van a sobre (`edgeMinus`), després dels tokens: al DM com a `between`; a la pantalla de jugador, els tokens i els noms es queden en capes (`keepTokens`) que es tornen a posar retallades a les caselles de les portes (`clipTileDoors`) després de `drawTileDoorsOver`, amb la vora entre totes dues. ⚠️ Un token dins d'una sala fosca no revelada que sigui sobre la casella d'una porta s'hi veuria.
 
-## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.38)
+## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.39)
 
 Objectiu: les figuretes reals que els jugadors mouen damunt d'un monitor fet servir de tauler mouen els tokens de
 jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tauler i moviments pendents al DM (v5.37).
@@ -252,8 +252,20 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
 ### Detecció (`lib/tracker/detect.ts`)
 - Imatge reduïda (`procW` 320/480/640), cada píxel a HSV i assignat al color de to més proper dins del seu marge
   (`hueTol`, `satMin`, `valMin`), flood fill de taques connexes i, de cada color, la més grossa (`extra` = quantes més
-  n'hi ha: soroll). `StillTracker`: «quieta» si fa 500 ms que no es mou més de l'1 % de l'amplada, «perduda» si fa
-  400 ms que no es veu.
+  n'hi ha: soroll); `all` les guarda totes fins a la meitat de `minArea`.
+- **Seguiment estable** (`FigureTracker`, v5.39; abans `StillTracker`, que marcava «es mou» qualsevol fotograma
+  en què la taca no hi era i feia parpellejar la rodona de la pantalla de figures):
+  - **Àncora** = on era quieta. Només és «es mou» si el centre suavitzat se n'allunya més de `moveTol` (2 % de
+    l'amplada, ~1 cm en un monitor de 53 cm); torna a «quieta» quan fa `stillMs` (500 ms) que no surt d'un cercle
+    de `stillTol`, i l'àncora passa a ser allà.
+  - **Pèrdues curtes no canvien res**: sense taca, l'estat es manté («quieta (no es veu)» a la llista); «perduda»
+    només al cap de `lostMs` (700 ms), i «perduda» **no és moviment** (si torna a sortir a l'àncora, torna a ser
+    quieta de seguida).
+  - **Quina taca**: la més propera a on era (dins de `maxJump`) i de mida semblant a la mitjana (0,35×–3×).
+- **Mà a sobre** (`ActivityMeter`): fracció de píxels que han canviat de brillantor (> 28) respecte del fotograma
+  de fa ~250 ms en un cercle al voltant de l'àncora. Per sobre d'`ACTIVITY_FRAC` (0,18) hi ha «mà a sobre» durant
+  700 ms (cercle taronja al vídeo). Comparar amb el de fa 250 ms (i no amb l'anterior) fa que també es vegi una mà
+  lenta. Gràcia d'1 s després de tornar a ensenyar una rodona, perquè la rodona que apareix no compti com a mà.
 - UI: clicar una base al vídeo en dona el color al slot seleccionat (`sampleHsv` + `slotFromSample`), lliscadors per
   color, vistes Càmera / Barrejat / Màscara, fixar l'exposició (`single-shot`) si la càmera ho permet. Tot es desa al
   navegador (`rpg_tracker_v1`, `useStoredString`), **menys «Moure tokens», que sempre comença apagat**.
@@ -264,9 +276,13 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
   veuen els moviments confirmats.
 - A la pantalla de figures, els tokens són **sempre rodones clàssiques** (encara que l'app sigui Píxel):
   `rAppStyle` del `fc` és un ref fix a `'classic'` en aquella pantalla.
-- **Tokens amagats mentre es mou la figureta**: el tracker envia `FIG_HIDE {ids}` (només BC) amb els tokens de les
-  figuretes que no són «quietes» (es mouen o s'han aixecat, si s'havien vist des que es va engegar «Moure tokens»)
-  o que esperen la resposta del DM (`isPending`). La pantalla de figures no els pinta (`fc.rHiddenTokens`,
+- **Rodones en gris** (`FIG_TOKEN_GREY`, v5.39): a la pantalla de figures els jugadors es pinten amb una còpia
+  de `rPlayers` amb el color canviat a gris clar. La càmera classifica per color amb saturació mínima, així que
+  una rodona grisa **no pot passar mai per una base**, encara que el polaritzador no l'apagui del tot.
+- **Tokens amagats mentre es mou la figureta** (opció «Amagar la rodona en moure-la», per defecte sí): el tracker
+  envia `FIG_HIDE {ids}` (només BC) amb els tokens de les figuretes que **es mouen de debò** (`movent`: lluny de
+  l'àncora), que tenen **una mà a sobre** o que esperen la resposta del DM (`isPending`). **Una figureta que la
+  càmera perd uns instants sense que res es mogui no amaga la rodona** (v5.39). La pantalla de figures no els pinta (`fc.rHiddenTokens`,
   `renderTokenScene`), així la càmera no pot confondre la rodona amb la base. Quan el DM contesta, la rodona torna a
   sortir: a la casella nova si l'ha acceptat, a la vella si no. Es renova cada segon i, sense notícies en 3 s
   (tracker tancat o aturat), es tornen a pintar tots.

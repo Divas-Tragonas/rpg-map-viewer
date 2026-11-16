@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.39 — Figuretes: seguiment estable i rodones grises
+- El tracker ja no fa parpellejar les rodones de la pantalla de figures: si perd una figureta uns instants però no s'ha mogut, es manté quieta (abans comptava com a moviment)
+- La rodona només s'amaga quan la figureta es mou de debò (s'allunya d'on era) o quan hi ha una mà a sobre (molts canvis de cop al voltant); al vídeo del tracker la mà es veu amb un cercle taronja i a la llista com «mà a sobre»
+- Si hi ha diverses taques del mateix color, el tracker es queda amb la més propera a on era la figureta i de mida semblant
+- Les rodones de la pantalla de figures són grises: la càmera no les pot confondre mai amb una base de color
+- Opció «Amagar la rodona en moure-la» al tracker (per defecte, sí)
+- Cap canvi a la API ni a les partides desades
+
 ### v5.38 — Pantalla de figures i indicador de pantalles de jugadors
 - Tres pantalles: DM, jugadors i **figures** (la del monitor del tauler, «Obrir la pantalla de figures» al menú Pantalles). La de figures pinta els tokens sempre com a rodones clàssiques, encara que l'app sigui Píxel
 - Quan el tracker veu que una figureta es mou, la seva rodona desapareix de la pantalla de figures fins que el DM confirma el moviment (així la càmera no la confon amb la base); la pantalla de jugadors ho reflecteix com sempre
