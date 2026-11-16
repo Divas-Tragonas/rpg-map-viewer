@@ -897,6 +897,14 @@ export function DMView() {
         sceneResendRef.current();
       } else if (msg?.type === 'VIEWPORT' && msg.id) {
         _registerScreen(String(msg.id), msg.w ?? 0, msg.h ?? 0, msg.tauler === true);
+      } else if (msg?.type === 'SCREEN_BYE' && msg.id) {
+        // Pantalla de jugador tancada (mateix PC): fora de la llista de seguida.
+        const id = String(msg.id);
+        if (R.rPlayerScreens.current[id]) {
+          const rest = { ...R.rPlayerScreens.current };
+          delete rest[id];
+          R.rPlayerScreens.current = rest; setPlayerScreens(rest);
+        }
       } else if (msg?.type === 'TOKEN_MOVE' && msg.id !== undefined && msg.x !== undefined && msg.y !== undefined) {
         // Moviment fet des de la pantalla de jugador (mateix ordinador via BC). La validació
         // (bloqueig, torn actiu i saldo de peus) i la propagació viuen a handlePlayerTokenMove.

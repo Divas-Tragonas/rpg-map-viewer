@@ -82,6 +82,25 @@ function camMovedSince(a: CamRect | null, b: CamRect | null): boolean {
 
 const noSubscribe = () => () => {};
 
+/**
+ * Rellotge del bucle de detecció. **No és `requestAnimationFrame`**: el navegador l'atura quan la
+ * finestra del tracker queda darrere de la del DM o minimitzada, i a la partida és on serà. Els
+ * temporitzadors normals d'una pestanya de fons també s'alenteixen (1 per segon o menys); els d'un
+ * *web worker*, no. El worker només fa tic-tac i el bucle corre al fil principal.
+ */
+function startTicker(fn: () => void, fps: number): () => void {
+  try {
+    const src = `setInterval(() => postMessage(0), ${Math.round(1000 / fps)});`;
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    w.onmessage = () => fn();
+    return () => { w.terminate(); URL.revokeObjectURL(url); };
+  } catch {
+    const iv = setInterval(fn, Math.round(1000 / fps));
+    return () => clearInterval(iv);
+  }
+}
+
 const STATE_LABEL: Record<BlobState, string> = { quieta: 'quieta', movent: 'es mou', perduda: 'no es veu' };
 const STATE_COLOR: Record<BlobState, string> = { quieta: C.ok, movent: C.warn, perduda: C.dim };
 
@@ -113,7 +132,8 @@ export function TrackerView() {
   const streamRef = useRef<MediaStream | null>(null);
   const frameRef = useRef<ImageData | null>(null);
   const trackerRef = useRef(new StillTracker());
-  const rafRef = useRef(0);
+  /** Rellotge del bucle (`startTicker`): s'atura amb `stopTickRef.current()`. */
+  const stopTickRef = useRef<() => void>(() => {});
 
   // ── Tauler i connexió amb el DM (fase 1) ──────────────────────────────────
   /** Índex de la cantonada que s'espera en calibrar (`null` = no s'està calibrant). */
@@ -153,7 +173,10 @@ export function TrackerView() {
       : { text: 'el DM no respon', color: C.warn });
   }, [flashSlot]);
 
-  const { world, connected, players, screens, available, moveToken } = useTrackerSync(onResult);
+  const { world, connected, players, screens, available, moveToken, hideTokens, isPending } = useTrackerSync(onResult);
+  /** Figuretes vistes almenys un cop des que es va engegar «Moure tokens» (una que no hi és mai no amaga res). */
+  const seenRef = useRef<boolean[]>([]);
+  const hideSentRef = useRef({ key: '', t: 0 });
   const screensRef = useRef(screens);
   useEffect(() => { screensRef.current = screens; }, [screens]);
 
@@ -174,12 +197,15 @@ export function TrackerView() {
   }, []);
 
   const stop = useCallback(() => {
-    cancelAnimationFrame(rafRef.current);
+    stopTickRef.current();
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setRunning(false);
-  }, []);
+    // Sense càmera no es veu cap figureta: la pantalla de figures torna a ensenyar tots els tokens.
+    hideTokens([]);
+    hideSentRef.current = { key: '', t: 0 };
+  }, [hideTokens]);
 
   useEffect(() => stop, [stop]);
 
@@ -187,7 +213,6 @@ export function TrackerView() {
     const video = videoRef.current, overlay = overlayRef.current;
     let frames = 0, acc = 0, t0 = performance.now(), lastUi = 0;
     const step = () => {
-      rafRef.current = requestAnimationFrame(step);
       if (!video || !overlay || video.readyState < 2 || !video.videoWidth) return;
       const s = settingsRef.current;
       const vw = video.videoWidth, vh = video.videoHeight;
@@ -235,6 +260,28 @@ export function TrackerView() {
           // torna al seu lloc li treu l'avís de moviment pendent.
           moveToken(id, target.x, target.y);
         });
+      }
+
+      // ── Pantalla de figures: amagar el token d'una figureta que es mou ──
+      // Mentre la figureta es mou (o s'aixeca) i fins que el DM contesta, el seu token no es pinta
+      // a la pantalla de figures: la càmera no el pot confondre amb la base. En confirmar-se, torna
+      // a sortir ja a la casella nova (o a la vella, si el DM no ho permet).
+      {
+        const hide: string[] = [];
+        if (sendOnRef.current) {
+          res.best.forEach((b, i) => { if (b) seenRef.current[i] = true; });
+          s.slots.forEach((sl, i) => {
+            if (!sl.enabled || sl.playerId == null || !seenRef.current[i]) return;
+            const id = `pl_${sl.playerId}`;
+            if (states[i] !== 'quieta' || isPending(id)) hide.push(id);
+          });
+        }
+        const key = hide.sort().join(',');
+        const now = performance.now();
+        if (key !== hideSentRef.current.key || (hide.length > 0 && now - hideSentRef.current.t > 1000)) {
+          hideTokens(hide);
+          hideSentRef.current = { key, t: now };
+        }
       }
 
       // Capa de dibuix a 2× la imatge processada (prou nítida per a les etiquetes).
@@ -307,8 +354,9 @@ export function TrackerView() {
         frames = 0; acc = 0; t0 = now;
       }
     };
-    step();
-  }, [world, moveToken]);
+    stopTickRef.current();
+    stopTickRef.current = startTicker(step, 30);
+  }, [world, moveToken, hideTokens, isPending]);
 
   const start = useCallback(async () => {
     setError('');
@@ -420,6 +468,7 @@ export function TrackerView() {
     // En engegar, la posició actual de cada figureta és la referència: no es mou res fins
     // que algú en mogui una.
     settledRef.current = [];
+    seenRef.current = [];
     // La referència de l'enquadrament es pren al bucle, quan ja se sap la pantalla del tauler.
     camAtSyncRef.current = null;
   }, []);
@@ -552,7 +601,7 @@ export function TrackerView() {
             </div>
           </Row>
           {draftCorners.length > 0 && calibrating !== null && <span style={{ color: C.dim, fontSize: FS.xs }}>{draftCorners.length} de 4 cantonades</span>}
-          <span style={{ fontSize: FS.sm }}>Pantalla de jugador del tauler</span>
+          <span style={{ fontSize: FS.sm }}>Pantalla de figures</span>
           <select
             value={settings.screenW > 0 ? `${settings.screenW}x${settings.screenH}` : ''}
             onChange={e => {
@@ -561,14 +610,14 @@ export function TrackerView() {
             }}
             style={inputStyle}
           >
-            <option value="">{(() => { const t = screens.find(x => x.tauler) ?? (screens.length === 1 ? screens[0] : null); return t ? `Automàtica (${t.w}×${t.h}${t.tauler ? ', la del tauler' : ''})` : 'Tria-la…'; })()}</option>
+            <option value="">{(() => { const t = screens.find(x => x.tauler) ?? (screens.length === 1 ? screens[0] : null); return t ? `Automàtica (${t.w}×${t.h}${t.tauler ? ', la de figures' : ''})` : 'Tria-la…'; })()}</option>
             {settings.screenW > 0 && !screens.some(x => x.w === settings.screenW && x.h === settings.screenH) && (
               <option value={`${settings.screenW}x${settings.screenH}`}>{settings.screenW}×{settings.screenH} (ara no es veu)</option>
             )}
-            {screens.map(x => <option key={x.id} value={`${x.w}x${x.h}`}>Pantalla de {x.w}×{x.h}{x.tauler ? ' (tauler)' : ''}</option>)}
+            {screens.map(x => <option key={x.id} value={`${x.w}x${x.h}`}>Pantalla de {x.w}×{x.h}{x.tauler ? ' (figures)' : ''}</option>)}
           </select>
           {screens.length === 0 && (
-            <span style={{ color: C.warn, fontSize: FS.xs }}>No es veu cap pantalla de jugador. Obre <code>/player</code> a pantalla completa al monitor del tauler, en aquest mateix PC.</span>
+            <span style={{ color: C.warn, fontSize: FS.xs }}>No es veu la pantalla de figures. Obre-la des del DM (Pantalles → «Obrir la pantalla de figures») i posa-la a pantalla completa al monitor del tauler, en aquest mateix PC.</span>
           )}
         </Section>
 
@@ -582,7 +631,7 @@ export function TrackerView() {
           )}
           {connected && (
             <span style={{ color: C.dim, fontSize: FS.xs }}>
-              {boardOn ? 'Tauler de figuretes encès: escala fixa d\'1 casella = 1 polzada.' : 'Tauler de figuretes apagat: la pantalla del tauler segueix el pan i el zoom del DM.'}
+              {boardOn ? 'Tauler de figuretes encès: escala fixa d\'1 casella = 1 polzada.' : 'Tauler de figuretes apagat: la pantalla de figures segueix el pan i el zoom del DM.'}
             </span>
           )}
           <Row label="Moure tokens">
@@ -590,7 +639,7 @@ export function TrackerView() {
           </Row>
           {sendOn && (!hom || !tableScreen(settings, screens) || !connected) && (
             <span style={{ color: C.warn, fontSize: FS.xs }}>
-              Encara no es pot moure res: {[!connected && 'falta el DM', !hom && 'falta calibrar el tauler', !tableScreen(settings, screens) && 'falta triar la pantalla del tauler'].filter(Boolean).join(', ')}.
+              Encara no es pot moure res: {[!connected && 'falta el DM', !hom && 'falta calibrar el tauler', !tableScreen(settings, screens) && 'falta la pantalla de figures'].filter(Boolean).join(', ')}.
             </span>
           )}
           <Button size="sm" disabled={!hom || !connected || !running || !tableScreen(settings, screens)} onClick={syncAll} title="Mou cada token assignat a on hi ha ara la seva figureta">

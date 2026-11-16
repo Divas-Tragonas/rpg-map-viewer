@@ -116,5 +116,15 @@ export function useTrackerSync(onResult: (id: string, result: MoveResult) => voi
     bc.postMessage({ type: 'TOKEN_MOVE', id, x, y, src: 'figureta' });
   }, []);
 
-  return { world, connected, players, screens, available, moveToken };
+  /**
+   * Tokens que la pantalla de figures (`/player?tauler=1`) no ha de pintar: els de les figuretes
+   * que es mouen o esperen la resposta del DM. Només BroadcastChannel; la pantalla els torna a
+   * ensenyar si en 3 s no rep res.
+   */
+  const hideTokens = useCallback((ids: string[]) => {
+    bcRef.current?.postMessage({ type: 'FIG_HIDE', ids });
+  }, []);
+  const isPending = useCallback((id: string) => !!pending.current[id], []);
+
+  return { world, connected, players, screens, available, moveToken, hideTokens, isPending };
 }

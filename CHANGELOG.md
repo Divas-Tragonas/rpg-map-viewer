@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.38 — Pantalla de figures i indicador de pantalles de jugadors
+- Tres pantalles: DM, jugadors i **figures** (la del monitor del tauler, «Obrir la pantalla de figures» al menú Pantalles). La de figures pinta els tokens sempre com a rodones clàssiques, encara que l'app sigui Píxel
+- Quan el tracker veu que una figureta es mou, la seva rodona desapareix de la pantalla de figures fins que el DM confirma el moviment (així la càmera no la confon amb la base); la pantalla de jugadors ho reflecteix com sempre
+- El tracker continua funcionant amb la seva finestra darrere de la del DM o minimitzada
+- Botó Pantalles: punt amb el nombre de pantalles de jugadors obertes, verd si n'hi ha una i vermell si n'hi ha més d'una; la de figures no hi compta. Una pantalla que es tanca al mateix PC desapareix de seguida
+- Cap canvi a la API ni a les partides desades
+
 ### v5.37 — Figuretes amb càmera: mode tauler i moviments pendents al DM
 - Menú Pantalles → «Tauler de figuretes»: la pantalla oberta amb «Obrir la pantalla del tauler» (`/player?tauler=1`) mostra el mapa a 1 casella = 1 polzada real i ja no segueix el pan ni el zoom del DM; el DM n'escriu l'amplada en cm i la centra amb «Centrar on mires». Al mapa del DM es veu el rectangle del tauler
 - Si el DM no permet el moviment d'una figureta (no és el seu torn, sense peus, paret…), el token no es mou però el DM veu una silueta i el panell «Figuretes fora de lloc» amb el motiu: «Acceptar» hi porta el token (sense gastar peus) i «Ignorar» el deixa; si el jugador torna la figureta, l'avís marxa sol

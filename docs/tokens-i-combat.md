@@ -235,7 +235,7 @@
 - **Escena dels tokens** (`renderTokenScene`, DM i jugador): tokens → (`between`) → noms. Els noms es pinten en una capa i s'esvaeixen (`NAME_FADE`, `destination-out`) allà on hi ha la silueta d'una figureta (`fc.figMask`, que omple `maskFigure` amb la mateixa funció que pinta la figura).
 - **Portes de caselles**: el token que hi passa va per sobre de la porta i per sota de la PARET (`DoorPiece.edge`: la vora de dalt del tram de baix d'una porta lateral). `drawTileDoorEdgesOver` torna a pintar la vora, menys els píxels de la porta que hi van a sobre (`edgeMinus`), després dels tokens: al DM com a `between`; a la pantalla de jugador, els tokens i els noms es queden en capes (`keepTokens`) que es tornen a posar retallades a les caselles de les portes (`clipTileDoors`) després de `drawTileDoorsOver`, amb la vora entre totes dues. ⚠️ Un token dins d'una sala fosca no revelada que sigui sobre la casella d'una porta s'hi veuria.
 
-## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.37)
+## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.38)
 
 Objectiu: les figuretes reals que els jugadors mouen damunt d'un monitor fet servir de tauler mouen els tokens de
 jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tauler i moviments pendents al DM (v5.37).
@@ -257,6 +257,20 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
 - UI: clicar una base al vídeo en dona el color al slot seleccionat (`sampleHsv` + `slotFromSample`), lliscadors per
   color, vistes Càmera / Barrejat / Màscara, fixar l'exposició (`single-shot`) si la càmera ho permet. Tot es desa al
   navegador (`rpg_tracker_v1`, `useStoredString`), **menys «Moure tokens», que sempre comença apagat**.
+
+### Tres pantalles: DM, jugadors i **figures** (v5.38)
+- La **pantalla de figures** és la que va al monitor del tauler: `/player?tauler=1` («Obrir la pantalla de figures» al
+  menú Pantalles). La **pantalla de jugadors** (`/player`, tele o tablet) funciona com sempre: segueix el DM i hi
+  veuen els moviments confirmats.
+- A la pantalla de figures, els tokens són **sempre rodones clàssiques** (encara que l'app sigui Píxel):
+  `rAppStyle` del `fc` és un ref fix a `'classic'` en aquella pantalla.
+- **Tokens amagats mentre es mou la figureta**: el tracker envia `FIG_HIDE {ids}` (només BC) amb els tokens de les
+  figuretes que no són «quietes» (es mouen o s'han aixecat, si s'havien vist des que es va engegar «Moure tokens»)
+  o que esperen la resposta del DM (`isPending`). La pantalla de figures no els pinta (`fc.rHiddenTokens`,
+  `renderTokenScene`), així la càmera no pot confondre la rodona amb la base. Quan el DM contesta, la rodona torna a
+  sortir: a la casella nova si l'ha acceptat, a la vella si no. Es renova cada segon i, sense notícies en 3 s
+  (tracker tancat o aturat), es tornen a pintar tots.
+- El DM **no compta** la pantalla de figures com a pantalla de jugadors (indicador del botó Pantalles).
 
 ### Mode tauler (`lib/board.ts`, `BoardView`)
 - **Per què**: una figureta física no es mou quan el DM fa pan o zoom. Amb el mode tauler, la pantalla oberta amb
@@ -284,6 +298,9 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
   discontinus), passats per la homografia inversa.
 
 ### Moure els tokens (`useTrackerSync` + bucle de `TrackerView`)
+- ⚠️ **El bucle no va amb `requestAnimationFrame`**: el navegador l'atura quan la finestra del tracker queda darrere
+  de la del DM o minimitzada, que és on serà durant la partida. El rellotge és un *web worker* (`startTicker`, 30 per
+  segon): els temporitzadors d'un worker no s'alenteixen a les pestanyes de fons.
 - El tracker demana l'estat amb `PLAYER_READY` (cada 3 s fins que arriba un `STRUCT`) i n'escolta `players`, `pos`,
   `cam`, `board`, la graella i `tokenSizeOverride`, i `TOKEN_RELAY`.
 - Cada color s'assigna a un jugador. Quan la figureta passa a «quieta» **en una altra casella respecte d'on era la
@@ -310,5 +327,5 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
 
 - **Proves sense càmera**: Chromium accepta un vídeo `.y4m` com a webcam falsa
   (`--use-fake-device-for-media-stream --use-file-for-fake-video-capture=fitxer.y4m`). Amb Playwright, cada pàgina és
-  una pestanya i **només la del davant pinta** (`requestAnimationFrame`): `bringToFront()` abans de mirar-la o
-  d'esperar que el tracker processi fotogrames.
+  una pestanya i **només la del davant pinta** (`requestAnimationFrame`): `bringToFront()` abans de mirar-la. El
+  tracker, amb el seu rellotge de worker, continua processant encara que no sigui al davant.

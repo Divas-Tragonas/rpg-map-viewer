@@ -855,6 +855,8 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];
     const isInvis = plCondIds.includes('invisible');
     if (isInvis && !isDM) return;
+    // Pantalla de figures: la figureta d'aquest jugador s'està movent (el tracker l'ha amagat).
+    if (fc.rHiddenTokens?.current.has(key)) return;
     // Pantalla de jugador: a la foscor d'una sala fosca (sense llum pròpia ni d'un altre), sencer amagat.
     if (!isDM && inDarkness(fc, ppos.x + R, ppos.y + R)) return;
     const isDefeated = !!rDefeated.current[`pl_${pl.id}`];

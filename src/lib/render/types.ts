@@ -133,4 +133,7 @@ export interface FrameContext {
   // Estil Píxel: tokens amb figureta (sprites del paquet Oryx) i parts vives del mapa de caselles.
   rAppStyle?:         MutableRefObject<import('@/types').AppStyle>;
   rTileLive?:         MutableRefObject<import('@/lib/tilemap/render').TileLive | null>;
+  // Pantalla de figures (`/player?tauler=1`): tokens de jugador que no es pinten mentre el tracker
+  // veu la seva figureta en moviment (`FIG_HIDE`), perquè la càmera no els confongui amb la base.
+  rHiddenTokens?:     MutableRefObject<Set<string>>;
 }

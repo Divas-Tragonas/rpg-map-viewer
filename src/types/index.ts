@@ -581,6 +581,9 @@ export type BCMessage =
   // Format de pantalla d'un client (jugador→DM): el DM llista les pantalles connectades
   // i avisa de quant de mapa veuen fora del seu enquadrament.
   | { type: 'VIEWPORT'; id: string; w: number; h: number; tauler?: boolean }
+  // Només BroadcastChannel (mateix PC): una pantalla de jugador es tanca / el tracker amaga tokens a la de figures.
+  | { type: 'SCREEN_BYE'; id: string }
+  | { type: 'FIG_HIDE'; ids: string[] }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number; src?: 'figureta' }
   | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number }
   // Reset de la memòria d'explorat d'una sala: torna a ser negra del tot (fog of war).

@@ -193,6 +193,11 @@ export function PlayerView() {
   const rBoard        = useRef<BoardView | null>(null);
   const isTableRef    = useRef(false);
   useEffect(() => { isTableRef.current = isTableScreenUrl(window.location.search); }, []);
+  // Pantalla de figures: tokens sempre en rodona clàssica (encara que l'app sigui Píxel), i els que
+  // el tracker diu que s'estan movent (`FIG_HIDE`) no es pinten fins que es confirma el moviment.
+  const classicStyleRef = useRef<AppStyle>('classic');
+  const rHiddenTokens   = useRef<Set<string>>(new Set());
+  const hiddenAtRef     = useRef(0);
   const visualZoomRef = useRef(1);
   const visualPanRef  = useRef({ x: 0, y: 0 });
   const visualPosRef  = useRef<PosMap>({});
@@ -680,6 +685,14 @@ export function PlayerView() {
           if (msg.dmPreviewZoom != null) rDMPreviewZoom.current = msg.dmPreviewZoom;
           if (msg.dmPreviewPan  != null) rDMPreviewPan.current  = msg.dmPreviewPan;
         }
+      } else if ((msg as { type: string }).type === 'FIG_HIDE') {
+        // Del tracker de figuretes (`/tracker`, només BroadcastChannel). Es renova cada segon: si
+        // el tracker es tanca, als 3 s es tornen a veure tots (veure el tick).
+        if (isTableRef.current) {
+          const ids = (msg as unknown as { ids?: unknown }).ids;
+          rHiddenTokens.current = new Set(Array.isArray(ids) ? ids.map(String) : []);
+          hiddenAtRef.current = Date.now();
+        }
       } else if (msg.type === 'PLAYER_READY') {
         // Una altra pantalla (o el tracker de figuretes, `/tracker`) acaba d'arribar: li diem la
         // nostra mida ara, sense esperar el heartbeat de 15 s (el tracker la necessita per
@@ -851,7 +864,11 @@ export function PlayerView() {
     window.addEventListener('resize', onResize);
     // Heartbeat: el DM oblida les pantalles que fa massa que no diuen res (tancades).
     const iv = setInterval(_reportViewport, 15000);
-    return () => { window.removeEventListener('resize', onResize); clearInterval(iv); };
+    // En tancar la pestanya, avisar el DM perquè no la compti fins que caduqui (50 s). Només pel
+    // BroadcastChannel (mateix PC): pel WS caldria que la API reenviés un tipus nou.
+    const onHide = () => { if (screenIdRef.current) bcRef.current?.postMessage({ type: 'SCREEN_BYE', id: screenIdRef.current }); };
+    window.addEventListener('pagehide', onHide);
+    return () => { window.removeEventListener('resize', onResize); window.removeEventListener('pagehide', onHide); clearInterval(iv); };
   }, [_reportViewport]);
 
   useEffect(() => {
@@ -894,7 +911,8 @@ export function PlayerView() {
         || !!rEnemyHighlight.current || rHighlightAlpha.current > 0
         || !!rSpellPreview.current || !!rSpellPreviewTarget.current || !!rPointerPos.current
         || (spells.length > 0 && !spellsSettled(spells, now));
-      const ambient = hot || !!rTurn.current?.active || anyKey(rConditions.current)
+      // Pantalla de figures amb tokens amagats: cal repintar quan caduquin (tracker tancat).
+      const ambient = hot || rHiddenTokens.current.size > 0 || !!rTurn.current?.active || anyKey(rConditions.current)
         || rPaintedZones.current.length > 0 || spells.length > 0
         || (rTileLive.current?.anims.length ?? 0) > 0
         // Vídeo de fons amb sales fosques: el terreny memoritzat es pinta al canvas a partir del vídeo.
@@ -1026,8 +1044,10 @@ export function PlayerView() {
         rRooms, rWalls, rDoors, rLights, roomRevealAnimRef,
         rSpellPreview,
         mediaEl: media,
-        rAppStyle, rTileLive,
+        rAppStyle: isTableRef.current ? classicStyleRef : rAppStyle, rTileLive,
+        rHiddenTokens,
       };
+      if (rHiddenTokens.current.size > 0 && Date.now() - hiddenAtRef.current > 3000) rHiddenTokens.current = new Set();
 
       ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 

@@ -160,6 +160,25 @@ const StateDot = ({ color }: { color?: string | null }) => (
   <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, display: 'inline-block' }}>{color ? <Dot color={color} /> : null}</span>
 );
 
+/**
+ * Quantes pantalles de JUGADORS hi ha obertes (la de figures no hi compta): verd amb el número si
+ * n'hi ha una, vermell si n'hi ha més d'una (normalment és un error: una finestra oblidada), punt
+ * d'avís buit si no n'hi ha cap. Amplada fixa, com `StateDot`, perquè el botó no balli.
+ */
+const CountDot = ({ n }: { n: number }) => {
+  const color = n === 0 ? C.warn : n === 1 ? C.ok : C.enemy;
+  return (
+    <span aria-hidden style={{ width: 16, height: 16, flexShrink: 0, display: 'inline-grid', placeItems: 'center' }}>
+      {n === 0 ? <Dot color={color} /> : (
+        <span style={{
+          width: 16, height: 16, borderRadius: RADIUS.pill, background: color, boxShadow: `0 0 6px ${color}`,
+          color: C.onAccent, fontSize: FS.xs, fontWeight: 800, lineHeight: '16px', textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+        }}>{n > 9 ? '9+' : n}</span>
+      )}
+    </span>
+  );
+};
+
 /** Botó de la barra. `color` pinta el text i el contorn (estat de pantalles, de desat…). */
 /** Botó de la barra. Sempre neutre: els estats (avís, desat) els diu un punt o la icona,
  *  no el color de tot el botó (el daurat queda per a l'acció principal i el que és actiu). */
@@ -195,7 +214,7 @@ function CopyRow({ url }: { url: string }) {
 // ── Els quatre menús ─────────────────────────────────────────────────────────
 
 /**
- * Tauler de figuretes físiques (`lib/board.ts`): la pantalla oberta amb `?tauler=1` va a escala
+ * Tauler de figuretes físiques (`lib/board.ts`): la pantalla de figures (`/player?tauler=1`) va a escala
  * fixa (1 casella = 1 polzada física) i no segueix el pan/zoom del DM, perquè les figuretes no
  * es desquadrin. El DM en diu l'amplada física i on es centra.
  */
@@ -206,12 +225,12 @@ function BoardSection({ board, table, onToggleBoard, onBoardWidth, onCenterBoard
   const cells = table && board.widthCm > 0 ? boardCells({ on: true, widthCm: board.widthCm, cx: 0, cy: 0 }, table.w, table.h) : null;
   const problem = !board.hasGrid ? 'Cal una graella al mapa (la mida de la casella és la polzada).'
     : !(board.widthCm > 0) ? 'Escriu l\'amplada de la imatge del monitor del tauler.'
-    : !table ? 'Obre la pantalla del tauler (botó de sota) al monitor del tauler, a pantalla completa.'
+    : !table ? 'Obre la pantalla de figures (botó de sota) al monitor del tauler, a pantalla completa.'
     : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: '8px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-        title="Per jugar amb figuretes damunt d'un monitor: la pantalla del tauler mostra el mapa a 1 casella = 1 polzada i no segueix el teu pan ni el zoom.">
+        title="Per jugar amb figuretes damunt d'un monitor: la pantalla de figures mostra el mapa a 1 casella = 1 polzada i no segueix el teu pan ni el zoom.">
         <span style={{ flex: 1, fontSize: FS.md, fontWeight: 600, color: C.text }}>Tauler de figuretes</span>
         <Switch on={board.on} onChange={() => onToggleBoard(!board.on)} label="Tauler de figuretes" />
       </div>
@@ -230,7 +249,7 @@ function BoardSection({ board, table, onToggleBoard, onBoardWidth, onCenterBoard
       <div style={{ display: 'flex', gap: 6 }}>
         <Button size="sm" disabled={!board.on} onClick={onCenterBoard}
           title="El tauler passa a mostrar on mires ara. Les figuretes s'han de recol·locar.">Centrar on mires</Button>
-        <Button size="sm" onClick={onOpenTable} title="Obre /player?tauler=1: arrossega-la al monitor del tauler i posa-la a pantalla completa">Obrir la pantalla del tauler</Button>
+        <Button size="sm" onClick={onOpenTable} title="Obre /player?tauler=1: arrossega-la al monitor del tauler i posa-la a pantalla completa">Obrir la pantalla de figures</Button>
       </div>
     </div>
   );
@@ -255,17 +274,23 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
     const ex = camAr ? extraSeen({ cx: 0, cy: 0, w: camAr, h: 1 }, ar) : null;
     return { id, s, ex };
   });
-  const worst = rows.reduce((m, r) => Math.max(m, r.ex ? r.ex.pct : 0), 0);
+  // La pantalla de figures (`?tauler=1`) no és una pantalla de jugadors: ni compta ni avisa.
+  const playerRows = rows.filter(r => !r.s.tauler);
+  const nPlayers = playerRows.length;
+  const nFigures = rows.length - nPlayers;
+  const worst = playerRows.reduce((m, r) => Math.max(m, r.ex ? r.ex.pct : 0), 0);
   const none = ids.length === 0;
   // Botó neutre: l'estat el diu el punt (avís si no n'hi ha cap). Abans tot el botó anava
   // del color d'avís, que és gairebé el mateix daurat que l'acció principal i hi competia.
   return (
     <div style={{ position: 'relative' }}>
       <BarButton active={open} onClick={() => { setUrls(playerUrls()); onToggle(); }}
-        title={none ? 'Cap pantalla de jugador connectada · clic per obrir-ne una' : `${ids.length} pantalla${ids.length === 1 ? '' : 'es'} de jugador${worst > 0 ? ` · en veuen fins a un ${worst}% més` : ''} · clic per veure-les`}>
+        title={(nPlayers === 0 ? 'Cap pantalla de jugadors oberta · clic per obrir-ne una'
+          : `${nPlayers} pantalla${nPlayers === 1 ? '' : 'es'} de jugadors${nPlayers > 1 ? ' (n\'hi ha més d\'una: potser n\'hi ha alguna d\'oblidada)' : ''}${worst > 0 ? ` · en veuen fins a un ${worst}% més` : ''} · clic per veure-les`)
+          + (nFigures > 0 ? ' · pantalla de figures oberta' : '')}>
         <Monitor size={14} />
         <Label>Pantalles</Label>
-        <StateDot color={none ? C.warn : C.ok} />
+        <CountDot n={nPlayers} />
       </BarButton>
       {open && (
         <Popover onClose={onClose} width={330} padding={12}>
@@ -277,7 +302,7 @@ function ScreensMenu({ open, onToggle, onClose, playerScreens, camAr, onOpenPlay
                   <div key={r.id} style={{ fontSize: FS.sm, color: C.text, display: 'flex', gap: 6 }}>
                     <span style={{ color: C.bright, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.s.w}×{r.s.h}</span>
                     <span style={{ color: C.dim }}>
-                      {r.s.tauler && board.on ? 'tauler de figuretes' : r.ex && r.ex.pct > 0 ? `veu un ${r.ex.pct}% més d'${r.ex.axis === 'w' ? 'amplada' : 'alçada'}` : 'veu el mateix que tu'}
+                      {r.s.tauler ? 'pantalla de figures (no compta com a pantalla de jugadors)' : r.ex && r.ex.pct > 0 ? `veu un ${r.ex.pct}% més d'${r.ex.axis === 'w' ? 'amplada' : 'alçada'}` : 'veu el mateix que tu'}
                     </span>
                   </div>
                 ))}
