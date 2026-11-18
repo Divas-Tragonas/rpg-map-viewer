@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.41 — Figuretes: detecció més estable, tauler buit i orientació del calibratge
+- La detecció ja no varia tant: un píxel que ja era d'una base hi continua amb llindars més fluixos (abans cada fotograma es tornava a classificar de zero i les vores de la base s'encenien i s'apagaven)
+- «Capturar el tauler buit»: sense figuretes al tauler, la càmera aprèn com és el tauler buit durant un segon; després el que ja hi era (un tros de mapa del mateix color que una base, un reflex) no compta mai. S'adapta sol a poc a poc, menys on hi ha figuretes
+- Calibratge: botó «Girar l'orientació» per passar per les 8 orientacions possibles fins que quadra, amb el costat de dalt marcat «DALT» al vídeo
+- «Moure tokens» comença encès
+- Arreglat: si el tracker s'havia quedat amb una taca equivocada molt grossa, la base de debò ja no quedava fora per sempre
+- Cap canvi a la API ni a les partides desades
+
 ### v5.40 — Figuretes: colors automàtics, llum, recol·locació i ajudes a la pantalla de figures
 - Tracker → «Detectar els colors de les figuretes»: amb totes les figuretes al tauler, troba els colors de les bases i n'ajusta els marges d'un sol clic, mantenint cada jugador al seu color
 - «Adaptar-se a la llum» (per defecte, sí): els llindars de cada color segueixen a poc a poc com es veu la base quan la llum canvia (es veuen a la llista com «Llum: …»)

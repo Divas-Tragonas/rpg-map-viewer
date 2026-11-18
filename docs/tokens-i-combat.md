@@ -235,7 +235,7 @@
 - **Escena dels tokens** (`renderTokenScene`, DM i jugador): tokens → (`between`) → noms. Els noms es pinten en una capa i s'esvaeixen (`NAME_FADE`, `destination-out`) allà on hi ha la silueta d'una figureta (`fc.figMask`, que omple `maskFigure` amb la mateixa funció que pinta la figura).
 - **Portes de caselles**: el token que hi passa va per sobre de la porta i per sota de la PARET (`DoorPiece.edge`: la vora de dalt del tram de baix d'una porta lateral). `drawTileDoorEdgesOver` torna a pintar la vora, menys els píxels de la porta que hi van a sobre (`edgeMinus`), després dels tokens: al DM com a `between`; a la pantalla de jugador, els tokens i els noms es queden en capes (`keepTokens`) que es tornen a posar retallades a les caselles de les portes (`clipTileDoors`) després de `drawTileDoorsOver`, amb la vora entre totes dues. ⚠️ Un token dins d'una sala fosca no revelada que sigui sobre la casella d'una porta s'hi veuria.
 
-## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.40)
+## Figuretes físiques amb càmera (`/tracker`, `lib/tracker/`, `lib/board.ts`, v5.35–v5.41)
 
 Objectiu: les figuretes reals que els jugadors mouen damunt d'un monitor fet servir de tauler mouen els tokens de
 jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tauler i moviments pendents al DM (v5.37).
@@ -253,6 +253,23 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
 - Imatge reduïda (`procW` 320/480/640), cada píxel a HSV i assignat al color de to més proper dins del seu marge
   (`hueTol`, `satMin`, `valMin`), flood fill de taques connexes i, de cada color, la més grossa (`extra` = quantes més
   n'hi ha: soroll); `all` les guarda totes fins a la meitat de `minArea`.
+- **Per què variava tant la detecció**: cada fotograma es classificava **de zero**, píxel per píxel, sense recordar
+  res de l'anterior. Amb el soroll de la càmera, la compressió del vídeo i una base a prop dels llindars, els píxels
+  de la vora s'encenien i s'apagaven a cada fotograma: en una prova sintètica només sortia una quarta part de la base
+  i la mida canviava un ±40 % d'un fotograma a l'altre.
+- **Histèresi** (v5.41, `DetectOptions.hysteresis`, per defecte sí): un píxel que el fotograma anterior ja era d'un
+  color hi continua amb llindars més fluixos (`HYST`: saturació i brillantor al 75 %, marge de to ×1,35). A la mateixa
+  prova: la base surt gairebé sencera i la mida només varia un ±16 %. (El buffer d'etiquetes es reaprofita: `labels`
+  encara té les del fotograma anterior quan es classifica.)
+- **Tauler buit** (v5.41, `Background`; la idea de la sostracció de fons de les llibreries de visió, com
+  `BackgroundSubtractorMOG2` d'OpenCV, però amb un sol gaussià per píxel i sense una llibreria de 8 MB): amb el tauler
+  sense figuretes ni mans, «Capturar el tauler buit» en mitjana 30 fotogrames (color mitjà i soroll de cada píxel).
+  Després només pot ser una base el **primer pla** (`mask`: algun canal a més de `max(22, 3·desviació)` del fons), i
+  el que ja hi era (un tros de mapa verd que el polaritzador no apaga, un reflex fix) no compta mai. A la vista
+  «Màscara», el primer pla sense color de base surt en gris. El fons **s'adapta a poc a poc** (`update`: ~3 s on no
+  hi ha res, ~20 s al primer pla, i **gens al voltant de les figuretes**, que si no s'hi integrarien). Només a la
+  memòria: es captura a cada sessió, i es descarta si canvia la resolució de procés. En acabar la captura el seguiment
+  torna a començar. Opció «Fer-lo servir».
 - **Seguiment estable** (`FigureTracker`, v5.39; abans `StillTracker`, que marcava «es mou» qualsevol fotograma
   en què la taca no hi era i feia parpellejar la rodona de la pantalla de figures):
   - **Àncora** = on era quieta. Només és «es mou» si el centre suavitzat se n'allunya més de `moveTol` (2 % de
@@ -261,7 +278,9 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
   - **Pèrdues curtes no canvien res**: sense taca, l'estat es manté («quieta (no es veu)» a la llista); «perduda»
     només al cap de `lostMs` (700 ms), i «perduda» **no és moviment** (si torna a sortir a l'àncora, torna a ser
     quieta de seguida).
-  - **Quina taca**: la més propera a on era (dins de `maxJump`) i de mida semblant a la mitjana (0,35×–3×).
+  - **Quina taca**: la més propera a on era (dins de `maxJump`) i de mida semblant a la mitjana (0,35×–3×). Si fa
+    més de `forgetMs` (2,5 s) que no es veu, n'oblida la mida (v5.41): abans, una taca equivocada presa per la
+    figureta (un tros de mapa gros) deixava fora la base de debò per «massa petita» per sempre.
 - **Detectar els colors d'un sol clic** (`autoColors`, v5.40): amb totes les figuretes al tauler, agrupa píxels
   saturats veïns de to semblant (≤ 20°: una anella a cavall de dues franges de to no es parteix), descarta taques
   petites o allargades (> 2,2:1) i, si dues tenen to semblant (< 22°), es queda la més grossa. Només dins del tauler
@@ -282,7 +301,8 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
   lenta. Gràcia d'1 s després de tornar a ensenyar una rodona, perquè la rodona que apareix no compti com a mà.
 - UI: clicar una base al vídeo en dona el color al slot seleccionat (`sampleHsv` + `slotFromSample`), lliscadors per
   color, vistes Càmera / Barrejat / Màscara, fixar l'exposició (`single-shot`) si la càmera ho permet. Tot es desa al
-  navegador (`rpg_tracker_v1`, `useStoredString`), **menys «Moure tokens», que sempre comença apagat**.
+  navegador (`rpg_tracker_v1`, `useStoredString`). **«Moure tokens» comença encès** (v5.41; abans, apagat): la primera
+  posició que es veu de cada figureta només és la referència, o sigui que obrir el tracker no mou res.
 
 ### Tres pantalles: DM, jugadors i **figures** (v5.38)
 - La **pantalla de figures** és la que va al monitor del tauler: `/player?tauler=1` («Obrir la pantalla de figures» al
@@ -330,6 +350,11 @@ jugador de l'app. Fet: detecció (v5.35), moviment dels tokens (v5.36), mode tau
 ### De la càmera al mapa (`lib/tracker/geometry.ts`)
 - **Calibratge**: el DM clica al vídeo les 4 cantonades de la imatge del monitor (en l'ordre de `CORNER_NAMES`, tal
   com la veu el DM). `homography` (4 punts, eliminació gaussiana) porta càmera (0..1) → pantalla (0..1).
+- **Orientació** (v5.41): si les cantonades es cliquen en un altre ordre (o la càmera mira girada o en mirall), el
+  botó **«Girar l'orientació»** va passant per les 8 combinacions (4 girs × mirall, `orientCorners`, desat a
+  `settings.orient`) fins que quadra. Al vídeo, el costat de dalt de la imatge del monitor surt marcat amb «DALT»,
+  i la graella i els cercles discontinus dels tokens s'han de posar damunt de la pantalla de figures. Tornar a
+  calibrar torna a l'orientació 1.
 - **Pantalla → mapa**: la regla «contain» de `camToView` (`screenToMap`) amb l'enquadrament que mostra la pantalla
   del tauler (`tableCam`: el del mode tauler si està encès, si no el `cam` del DM) i la seva mida. La pantalla del
   tauler es tria sola: la triada a mà, si no la que porta `tauler: true`, si no l'única. Les pantalles de jugador

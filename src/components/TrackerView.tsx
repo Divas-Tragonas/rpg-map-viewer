@@ -7,7 +7,7 @@ import type { CamRect, Point } from '@/types';
 import { C, FS, RADIUS, FONT_SERIF } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import {
-  type BlobState, type ColorSlot, DEFAULT_SLOTS, FigureTracker, ActivityMeter,
+  type BlobState, type ColorSlot, DEFAULT_SLOTS, FigureTracker, ActivityMeter, Background,
   detect, hsvToHex, looksLikeSkin, sampleHsv, slotFromSample, autoColors, baseStats, hueDist, hueName, AUTO_NAMES,
 } from '@/lib/tracker/detect';
 import {
@@ -44,11 +44,18 @@ interface Settings {
   hideOnMove: boolean;
   /** Ajustar sols els llindars de cada color als canvis de llum (`baseStats`). */
   adaptLight: boolean;
+  /**
+   * Orientació del calibratge (0..7): quina de les 4 cantonades clicades és la de dalt a l'esquerra
+   * i si la imatge va en mirall (`orientCorners`). Es canvia amb un clic fins que quadra.
+   */
+  orient: number;
+  /** Fer servir el tauler buit capturat (`Background`) per ignorar el que ja hi era. */
+  useBg: boolean;
 }
 
 const DEFAULTS: Settings = {
   slots: DEFAULT_SLOTS, procW: 480, minArea: 40, view: 'camera', deviceId: '', res: 1080,
-  corners: null, screenW: 0, screenH: 0, hideOnMove: true, adaptLight: true,
+  corners: null, screenW: 0, screenH: 0, hideOnMove: true, adaptLight: true, orient: 0, useBg: true,
 };
 
 function parseSettings(raw: string): Settings {
@@ -94,6 +101,17 @@ const noSubscribe = () => () => {};
 
 /** Fracció de píxels canviats al voltant d'una figureta a partir de la qual hi ha «una mà a sobre». */
 const ACTIVITY_FRAC = 0.18;
+
+/**
+ * Les 8 orientacions possibles de les 4 cantonades clicades: 4 girs × amb o sense mirall. La de dalt
+ * a l'esquerra de la imatge del monitor passa a ser la cantonada `rot`, i el mirall intercanvia
+ * esquerra i dreta (càmera girada cap per avall, o cantonades clicades en un altre sentit).
+ */
+function orientCorners(c: Point[], o: number): Point[] {
+  const base = o >= 4 ? [c[1], c[0], c[3], c[2]] : c;
+  const rot = o % 4;
+  return [0, 1, 2, 3].map(i => base[(i + rot) % 4]);
+}
 
 /** Llindars d'un color ajustats a la llum d'ara (per sobre dels del slot, sense desar). */
 interface Adapt { hue: number; satMin: number; valMin: number }
@@ -152,6 +170,10 @@ export function TrackerView() {
   const frameRef = useRef<ImageData | null>(null);
   const trackerRef = useRef(new FigureTracker());
   const activityRef = useRef(new ActivityMeter());
+  /** Tauler buit (sostracció de fons). Només a la memòria: cal capturar-lo a cada sessió. */
+  const bgRef = useRef(new Background());
+  const [bgState, setBgState] = useState<{ ready: boolean; capturing: boolean; progress: number }>({ ready: false, capturing: false, progress: 0 });
+  const excludeRef = useRef<Uint8Array>(new Uint8Array(0));
   /** Fins quan es considera que hi ha «una mà a sobre» de cada figureta (ms, `performance.now`). */
   const activityUntilRef = useRef<number[]>([]);
   /** Període de gràcia després de tornar a ensenyar una rodona: que la rodona que apareix no compti com a mà. */
@@ -180,8 +202,9 @@ export function TrackerView() {
   const [draftCorners, setDraftCorners] = useState<Point[]>([]);
   const draftRef = useRef<Point[]>([]);
   // Enviar moviments: no es desa (cada sessió comença apagat, per no moure res per sorpresa).
-  const [sendOn, setSendOn] = useState(false);
-  const sendOnRef = useRef(false);
+  // «Moure tokens» comença encès (v5.41): la primera posició de cada figureta només és la referència.
+  const [sendOn, setSendOn] = useState(true);
+  const sendOnRef = useRef(true);
   const [slotMsg, setSlotMsg] = useState<Record<number, SlotMsg>>({});
   const [boardOn, setBoardOn] = useState(false);
   /** On era cada figureta (càmera, 0..1) l'últim cop que es va donar per bona. `null` = encara no se sap. */
@@ -229,11 +252,11 @@ export function TrackerView() {
 
   /** Homografia càmera → pantalla (i la inversa, per pintar el tauler sobre el vídeo). */
   const hom = useMemo(() => {
-    const c = settings.corners;
-    if (!c || c.length !== 4) return null;
+    const c = settings.corners && settings.corners.length === 4 ? orientCorners(settings.corners, settings.orient ?? 0) : null;
+    if (!c) return null;
     const fwd = homography(c, SCREEN_CORNERS), inv = homography(SCREEN_CORNERS, c);
     return fwd && inv ? { fwd, inv } : null;
-  }, [settings.corners]);
+  }, [settings.corners, settings.orient]);
   const homRef = useRef<{ fwd: Homography; inv: Homography } | null>(null);
   useEffect(() => { homRef.current = hom; }, [hom]);
 
@@ -275,7 +298,16 @@ export function TrackerView() {
       frameRef.current = img;
       // Llindars efectius: els del slot, ajustats a la llum d'ara si l'adaptació està encesa.
       const eff = s.slots.map((sl, i) => (s.adaptLight && adaptRef.current[i] ? { ...sl, ...adaptRef.current[i]! } : sl));
-      const res = detect(img.data, pw, ph, eff, s.minArea);
+      // Tauler buit: mentre es captura, s'hi afegeix el fotograma; si ja n'hi ha, el primer pla.
+      const bg = bgRef.current;
+      if (bg.capturing && bg.feed(img.data, pw, ph, tStart)) {
+        setBgState({ ready: true, capturing: false, progress: 1 });
+        // El que s'havia seguit abans (potser coses del mapa) ja no val: es torna a començar.
+        trackerRef.current = new FigureTracker();
+        settledRef.current = [];
+      }
+      const fg = s.useBg && bg.ready && !bg.capturing ? bg.mask(img.data, pw, ph) : null;
+      const res = detect(img.data, pw, ph, eff, s.minArea, { fg });
       const tracks = trackerRef.current.update(res.all, tStart);
       const chosen = tracks.map(t => t.blob);
       const states = tracks.map(t => t.state);
@@ -290,6 +322,25 @@ export function TrackerView() {
         if (f !== null && f > ACTIVITY_FRAC && (graceUntilRef.current[i] ?? 0) < tStart) activityUntilRef.current[i] = tStart + 700;
       });
       const active = s.slots.map((_, i) => (activityUntilRef.current[i] ?? 0) > tStart);
+
+      // ── El tauler buit s'adapta a poc a poc (llum, pantalla), menys on hi ha figuretes ──
+      if (fg) {
+        const n = pw * ph;
+        if (excludeRef.current.length !== n) excludeRef.current = new Uint8Array(n);
+        const ex = excludeRef.current;
+        ex.fill(0);
+        tracks.forEach((tr, i) => {
+          if (!s.slots[i]?.enabled) return;
+          const a = tr.anchor ?? tr.pos;
+          if (!a) return;
+          const r = Math.max(Math.sqrt(Math.max(tr.area, 1) / Math.PI) * 2.5, pw * 0.04) + 3;
+          const cx = a.x * pw, cy = a.y * ph;
+          for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(ph - 1, Math.ceil(cy + r)); y++)
+            for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(pw - 1, Math.ceil(cx + r)); x++)
+              if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) ex[y * pw + x] = 1;
+        });
+        bg.update(img.data, pw, ph, fg, ex);
+      }
 
       // ── Adaptació a la llum (v5.40) ──
       // Amb la figureta quieta, a la vista i sense cap mà a sobre, es mira com es veu ara la seva base
@@ -411,7 +462,12 @@ export function TrackerView() {
           const rgb = s.slots.map(sl => [1, 3, 5].map(i => parseInt(sl.swatch.slice(i, i + 2), 16)));
           for (let p = 0, k = 0; p < res.labels.length; p++, k += 4) {
             const lab = res.labels[p];
-            if (lab === 0) { out.data[k + 3] = s.view === 'mask' ? 255 : 0; continue; }
+            if (lab === 0) {
+              // Primer pla sense color de base (mans, coses noves): gris fosc, per veure què hi ha de «nou».
+              if (fg && fg[p]) { out.data[k] = 70; out.data[k + 1] = 70; out.data[k + 2] = 70; out.data[k + 3] = 255; }
+              else out.data[k + 3] = s.view === 'mask' ? 255 : 0;
+              continue;
+            }
             const c = rgb[lab - 1];
             out.data[k] = c[0]; out.data[k + 1] = c[1]; out.data[k + 2] = c[2]; out.data[k + 3] = 255;
           }
@@ -422,7 +478,7 @@ export function TrackerView() {
         }
       }
       drawBoard(octx, ow, oh, {
-        corners: calibratingRef.current !== null ? draftRef.current : s.corners,
+        corners: calibratingRef.current !== null ? draftRef.current : s.corners && s.corners.length === 4 ? orientCorners(s.corners, s.orient ?? 0) : s.corners,
         closed: calibratingRef.current === null,
         inv: hm?.inv ?? null, scr, cam, g,
         tokens: w.players.filter(p => p.visible !== false).map(p => {
@@ -465,6 +521,7 @@ export function TrackerView() {
       const now = performance.now();
       if (now - lastUi > 200) {
         lastUi = now;
+        if (bg.capturing) setBgState({ ready: bg.ready, capturing: true, progress: bg.progress });
         setStatus(chosen.map((b, i) => ({ state: states[i], area: b?.area ?? 0, extra: res.extra[i], cx: b?.cx ?? 0, cy: b?.cy ?? 0, hand: active[i], seen: !!b })));
         if (sendOnRef.current && !camAtSyncRef.current && cam && scr) camAtSyncRef.current = cam;
         // El tauler ha canviat de lloc: les figuretes ja no són a sobre dels seus tokens → recol·locació.
@@ -565,7 +622,7 @@ export function TrackerView() {
         return;
       }
       setError('');
-      setSettings(p => ({ ...p, corners: next }));
+      setSettings(p => ({ ...p, corners: next, orient: 0 }));
       settledRef.current = [];
       return;
     }
@@ -787,6 +844,19 @@ export function TrackerView() {
             </div>
           </Row>
           {draftCorners.length > 0 && calibrating !== null && <span style={{ color: C.dim, fontSize: FS.xs }}>{draftCorners.length} de 4 cantonades</span>}
+          {hom && calibrating === null && (
+            <>
+              <Row label={`Orientació ${(settings.orient ?? 0) + 1}/8`}>
+                <Button size="sm" onClick={() => { settledRef.current = []; setSettings(p => ({ ...p, orient: ((p.orient ?? 0) + 1) % 8 })); }}
+                  title="Gira (i, a la segona volta, posa en mirall) el calibratge. Clica fins que la graella i els cercles discontinus caiguin sobre la pantalla">
+                  Girar l&apos;orientació
+                </Button>
+              </Row>
+              <span style={{ color: C.dim, fontSize: FS.xs }}>
+                Clica fins que la línia «DALT» sigui el costat de dalt de la imatge del monitor i els cercles discontinus caiguin sobre les rodones de la pantalla de figures.
+              </span>
+            </>
+          )}
           <span style={{ fontSize: FS.sm }}>Pantalla de figures</span>
           <select
             value={settings.screenW > 0 ? `${settings.screenW}x${settings.screenH}` : ''}
@@ -804,6 +874,26 @@ export function TrackerView() {
           </select>
           {screens.length === 0 && (
             <span style={{ color: C.warn, fontSize: FS.xs }}>No es veu la pantalla de figures. Obre-la des del DM (Pantalles → «Obrir la pantalla de figures») i posa-la a pantalla completa al monitor del tauler, en aquest mateix PC.</span>
+          )}
+        </Section>
+
+        <Section title="Tauler buit">
+          <span style={{ color: bgState.ready ? C.ok : C.dim, fontSize: FS.sm }}>
+            ● {bgState.capturing ? `Capturant… ${Math.round(bgState.progress * 100)} %` : bgState.ready ? 'Capturat: el que ja hi era no compta' : 'Sense capturar'}
+          </span>
+          <Button size="sm" variant={bgState.ready ? 'secondary' : 'primary'} disabled={!running || bgState.capturing}
+            onClick={() => { bgRef.current.startCapture(30); setBgState(b => ({ ...b, capturing: true, progress: 0 })); }}
+            title="Traieu les figuretes i les mans del tauler i premeu: durant un segon la càmera aprèn com és el tauler sense res">
+            {bgState.ready ? 'Tornar a capturar el tauler buit' : 'Capturar el tauler buit'}
+          </Button>
+          <span style={{ color: C.dim, fontSize: FS.xs }}>
+            Sense figuretes ni mans al tauler. Després només es busquen bases on hi ha alguna cosa nova (a la vista «Màscara», en gris).
+            S&apos;adapta sol a poc a poc; si la llum o la càmera canvien molt, torneu-lo a capturar.
+          </span>
+          {bgState.ready && (
+            <Row label="Fer-lo servir">
+              <Seg value={settings.useBg ? 'on' : 'off'} options={[['off', 'No'], ['on', 'Sí']]} onChange={v => setSettings(p => ({ ...p, useBg: v === 'on' }))} />
+            </Row>
           )}
         </Section>
 
@@ -847,7 +937,7 @@ export function TrackerView() {
         <Section title="Vista">
           <Seg value={settings.view} options={[['camera', 'Càmera'], ['mix', 'Barrejat'], ['mask', 'Màscara']]} onChange={v => setSettings(p => ({ ...p, view: v }))} />
           <Row label={`Processar a ${settings.procW} px`}>
-            <Seg value={settings.procW} options={[[320, '320'], [480, '480'], [640, '640']]} onChange={v => setSettings(p => ({ ...p, procW: v }))} />
+            <Seg value={settings.procW} options={[[320, '320'], [480, '480'], [640, '640']]} onChange={v => { if (v !== settingsRef.current.procW) { bgRef.current.clear(); setBgState({ ready: false, capturing: false, progress: 0 }); } setSettings(p => ({ ...p, procW: v })); }} />
           </Row>
           <Slider label="Taca mínima" value={settings.minArea} min={5} max={400} step={5} unit=" px" onChange={v => setSettings(p => ({ ...p, minArea: v }))} />
         </Section>
@@ -997,6 +1087,20 @@ function drawBoard(ctx: CanvasRenderingContext2D, ow: number, oh: number, d: Boa
       ctx.beginPath(); ctx.arc(q.x, q.y, 6, 0, Math.PI * 2); ctx.fill();
       ctx.fillText(String(i + 1), q.x + 9, q.y - 9);
     });
+    // Quin costat és el de dalt de la imatge del monitor (per triar l'orientació).
+    if (d.closed && c.length === 4) {
+      const a = P(c[0]), b = P(c[1]);
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const ctr = P({ x: (c[0].x + c[1].x + c[2].x + c[3].x) / 4, y: (c[0].y + c[1].y + c[2].y + c[3].y) / 4 });
+      const dx = mid.x - ctr.x, dy = mid.y - ctr.y, len = Math.hypot(dx, dy) || 1;
+      const lp = { x: mid.x - (dx / len) * 22, y: mid.y - (dy / len) * 22 };
+      ctx.lineWidth = 6; ctx.strokeStyle = C.accent;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.lineWidth = 4; ctx.strokeStyle = '#000';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.strokeText('DALT', lp.x, lp.y); ctx.fillText('DALT', lp.x, lp.y);
+      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    }
   }
 }
 

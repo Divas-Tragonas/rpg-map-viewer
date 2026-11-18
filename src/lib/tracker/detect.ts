@@ -125,8 +125,24 @@ let bufStack = new Int32Array(0);
  * Classifica els píxels i troba les taques. `minArea` en píxels de la imatge processada.
  * Cost: un pas per píxel per classificar + un flood fill; a 480×270 són ~130k píxels.
  */
-export function detect(data: Uint8ClampedArray, w: number, h: number, slots: ColorSlot[], minArea: number): DetectResult {
+/** Quant s'afluixen els llindars d'un píxel que el fotograma anterior ja era d'aquell color (histèresi). */
+const HYST = { sat: 0.75, val: 0.75, hue: 1.35 };
+
+export interface DetectOptions {
+  /**
+   * Primer pla (`Background.mask`): 1 = aquest píxel no és com el tauler buit. Si n'hi ha, només
+   * els píxels de primer pla poden ser una base: el que ja hi era amb el tauler buit (un tros de
+   * mapa verd que el polaritzador no apaga, un reflex fix) no compta mai.
+   */
+  fg?: Uint8Array | null;
+  /** Histèresi (per defecte, sí): el que ja era d'un color hi continua amb llindars més fluixos. */
+  hysteresis?: boolean;
+}
+
+export function detect(data: Uint8ClampedArray, w: number, h: number, slots: ColorSlot[], minArea: number, opts: DetectOptions = {}): DetectResult {
   const n = w * h;
+  const fg = opts.fg && opts.fg.length === n ? opts.fg : null;
+  const hyst = opts.hysteresis !== false;
   if (bufLabels.length !== n) {
     bufLabels = new Uint8Array(n);
     bufSeen = new Uint8Array(n);
@@ -139,16 +155,30 @@ export function detect(data: Uint8ClampedArray, w: number, h: number, slots: Col
   // Llindars globals per descartar ràpid el fons fosc sense calcular el to.
   let gSat = 1, gVal = 1;
   for (const { s } of active) { gSat = Math.min(gSat, s.satMin); gVal = Math.min(gVal, s.valMin); }
+  if (hyst) { gSat *= HYST.sat; gVal *= HYST.val; }
   const gMaxMin = gVal * 255;
 
   for (let p = 0, k = 0; p < n; p++, k += 4) {
+    // `labels` encara té l'etiqueta del fotograma anterior (el buffer es reaprofita).
+    const prev = hyst ? labels[p] : 0;
     labels[p] = 0;
     if (active.length === 0) continue;
+    if (fg && !fg[p]) continue;
     const r = data[k], g = data[k + 1], b = data[k + 2];
     const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
     if (max < gMaxMin) continue;
     const [hh, s, v] = rgbToHsv(r, g, b);
     if (s < gSat) continue;
+    // Histèresi: si el fotograma anterior aquest píxel ja era d'aquest color, s'hi queda amb
+    // llindars més fluixos. Un píxel de la vora de la base que oscil·la per soroll ja no
+    // s'encén i s'apaga a cada fotograma, i la taca no canvia de mida tota l'estona.
+    if (prev > 0) {
+      const sl = slots[prev - 1];
+      if (sl?.enabled && s >= sl.satMin * HYST.sat && v >= sl.valMin * HYST.val && hueDist(hh, sl.hue) <= sl.hueTol * HYST.hue) {
+        labels[p] = prev;
+        continue;
+      }
+    }
     let bestD = 999, bestI = -1;
     for (const { s: sl, i } of active) {
       if (s < sl.satMin || v < sl.valMin) continue;
@@ -232,6 +262,7 @@ export class FigureTracker {
     public stillMs = 500,
     public lostMs = 700,
     public maxJump = 0.25,
+    public forgetMs = 2500,
   ) {}
 
   /** `all[i]`: taques del color `i` (de `detect`). */
@@ -256,6 +287,10 @@ export class FigureTracker {
 
       if (!pick) {
         if (now - tr.lastSeen > this.lostMs) { tr.state = 'perduda'; tr.pos = null; tr.still = null; }
+        // Fa estona que no es veu: s'oblida la mida. Si no, una taca equivocada que s'havia pres per
+        // la figureta (un tros de mapa gros, abans de capturar el tauler buit) deixaria fora per
+        // «massa petita» la base de debò per sempre.
+        if (now - tr.lastSeen > this.forgetMs) tr.area = 0;
         return snapshot(tr);
       }
       tr.lastSeen = now;
@@ -415,6 +450,93 @@ export function baseStats(data: Uint8ClampedArray, w: number, h: number, b: Blob
   if (n < 12) return null;
   let hm = (Math.atan2(hy, hx) * 180) / Math.PI; if (hm < 0) hm += 360;
   return { hue: hm, sat: ss / n, val: vv / n };
+}
+
+/**
+ * Model del **tauler buit** (v5.41, «sostracció de fons», la idea de `BackgroundSubtractorMOG2`
+ * d'OpenCV però simplificada: un sol gaussià per píxel i sense dependre d'una llibreria de 8 MB).
+ *
+ * - **Captura**: amb el tauler sense figuretes ni mans, es mitjana ~1 s de fotogrames: color
+ *   mitjà de cada píxel i quant varia (soroll de la càmera).
+ * - **Primer pla**: un píxel és «nou» si s'allunya del seu color de fons més de `max(minDiff,
+ *   k·desviació)` en algun canal. Només el primer pla pot ser una base (`DetectOptions.fg`).
+ * - **Adaptació lenta**: el fons s'actualitza a poc a poc amb el que es veu, per seguir els canvis
+ *   de llum i de la pantalla (p. ex. el tauler centrat en un altre lloc): de pressa on no hi ha res
+ *   (`alphaBg`), molt a poc a poc al primer pla (`alphaFg`) i **gens on hi ha una figureta**
+ *   (`exclude`), que si no, quieta molta estona, acabaria formant part del fons.
+ */
+export class Background {
+  mean: Float32Array | null = null;
+  dev: Float32Array | null = null;
+  w = 0;
+  h = 0;
+  capturedAt = 0;
+  private cap: { n: number; target: number; sum: Float64Array; sq: Float64Array } | null = null;
+  private fgBuf = new Uint8Array(0);
+
+  get ready() { return !!this.mean; }
+  get capturing() { return !!this.cap; }
+  /** 0..1 mentre es captura. */
+  get progress() { return this.cap ? this.cap.n / this.cap.target : this.mean ? 1 : 0; }
+
+  startCapture(frames = 30) { this.cap = { n: 0, target: frames, sum: new Float64Array(0), sq: new Float64Array(0) }; }
+  clear() { this.mean = null; this.dev = null; this.cap = null; this.capturedAt = 0; }
+
+  /** Afegeix un fotograma a la captura. Torna `true` quan s'acaba. */
+  feed(data: Uint8ClampedArray, w: number, h: number, now: number): boolean {
+    const c = this.cap;
+    if (!c) return false;
+    const n = w * h;
+    if (c.sum.length !== n * 3 || this.w !== w || this.h !== h) { c.sum = new Float64Array(n * 3); c.sq = new Float64Array(n * 3); c.n = 0; this.w = w; this.h = h; }
+    for (let p = 0, k = 0, j = 0; p < n; p++, k += 4, j += 3) {
+      for (let ch = 0; ch < 3; ch++) { const v = data[k + ch]; c.sum[j + ch] += v; c.sq[j + ch] += v * v; }
+    }
+    c.n++;
+    if (c.n < c.target) return false;
+    const mean = new Float32Array(n * 3), dev = new Float32Array(n);
+    for (let p = 0, j = 0; p < n; p++, j += 3) {
+      let varSum = 0;
+      for (let ch = 0; ch < 3; ch++) {
+        const m = c.sum[j + ch] / c.n;
+        mean[j + ch] = m;
+        varSum += Math.max(0, c.sq[j + ch] / c.n - m * m);
+      }
+      dev[p] = Math.sqrt(varSum / 3);
+    }
+    this.mean = mean; this.dev = dev; this.cap = null; this.capturedAt = now;
+    return true;
+  }
+
+  /** Primer pla d'aquest fotograma (1 = diferent del tauler buit). `null` si no hi ha fons o és d'una altra mida. */
+  mask(data: Uint8ClampedArray, w: number, h: number, k = 3, minDiff = 22): Uint8Array | null {
+    const mean = this.mean, dev = this.dev;
+    if (!mean || !dev || w !== this.w || h !== this.h) return null;
+    const n = w * h;
+    if (this.fgBuf.length !== n) this.fgBuf = new Uint8Array(n);
+    const fg = this.fgBuf;
+    for (let p = 0, q = 0, j = 0; p < n; p++, q += 4, j += 3) {
+      const th = Math.max(minDiff, k * dev[p]);
+      fg[p] = Math.abs(data[q] - mean[j]) > th || Math.abs(data[q + 1] - mean[j + 1]) > th || Math.abs(data[q + 2] - mean[j + 2]) > th ? 1 : 0;
+    }
+    return fg;
+  }
+
+  /**
+   * Adaptació lenta. `exclude(x, y)`: píxels on hi ha (o hi havia) una figureta, que no s'aprenen.
+   * Al voltant de 3 s on no hi ha res i ~20 s al primer pla, a 30 fotogrames per segon.
+   */
+  update(data: Uint8ClampedArray, w: number, h: number, fg: Uint8Array | null, exclude: Uint8Array | null, alphaBg = 0.01, alphaFg = 0.0015) {
+    const mean = this.mean;
+    if (!mean || w !== this.w || h !== this.h) return;
+    const n = w * h;
+    for (let p = 0, q = 0, j = 0; p < n; p++, q += 4, j += 3) {
+      if (exclude && exclude[p]) continue;
+      const a = fg && fg[p] ? alphaFg : alphaBg;
+      mean[j] += (data[q] - mean[j]) * a;
+      mean[j + 1] += (data[q + 1] - mean[j + 1]) * a;
+      mean[j + 2] += (data[q + 2] - mean[j + 2]) * a;
+    }
+  }
 }
 
 export const DEFAULT_SLOTS: ColorSlot[] = [
