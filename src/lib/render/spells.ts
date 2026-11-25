@@ -1,5 +1,6 @@
 import type { Spell, SpellPreview, Point } from '@/types';
 import { renderForcedPreview } from '@/lib/render/forced';
+import { RIPPLE_DUR, drawRipple } from '@/lib/render/ripple';
 import type { FrameContext } from './types';
 import { cellOfPoint, cellsPaths, circleCells, gridOf, rangePaths, tokenCells, type Grid } from '@/lib/rules/cells';
 import { AREA_SPELL_DATA, PERSISTENT_SPELLS, SPELL_BY_TYPE, FX_SLOW } from '@/constants';
@@ -61,6 +62,7 @@ export function spellImpactS(type: string, pts: Point[], gridSize: number, pixel
 }
 
 const SPELL_DURATIONS: Record<string, number> = {
+  ripple:           RIPPLE_DUR,
   fireball:         FIREBALL_DUR,
   lightning:        LIGHTNING_DUR,
   magic_beam:       MAGIC_BEAM_DUR,
@@ -382,7 +384,8 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     }
     if (isArea !== (layer === 'ground')) continue;  // each spell draws in its own pass
     const renderElapsed = isArea ? Math.min(elapsed, dur * 0.5) : elapsed;  // area spells: clamp to full-alpha state
-    if      (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
+    if      (sp.type === 'ripple')           drawRipple(ctx, sp.points, renderElapsed, dur, sc, gridSize);
+    else if (sp.type === 'fireball')         drawSpellFireball(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
     else if (sp.type === 'lightning')        drawSpellLightning(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed, sp.id);
     else if (sp.type === 'magic_beam')       drawSpellMagicBeam(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);
     else if (sp.type === 'magic_missile')    drawSpellMagicMissile(ctx, sp.points, renderElapsed, dur, sc, gridSize, seed);

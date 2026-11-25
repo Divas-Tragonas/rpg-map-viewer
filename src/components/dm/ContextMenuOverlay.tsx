@@ -57,6 +57,8 @@ interface Props {
   onOpenActions?: (tokenKey: string) => void;
   /** Moure el token a la força (empènyer, estirar, l'Empenta): el ratolí tria la direcció. */
   onForceMove?: (tokenKey: string, ft: number) => void;
+  /** Token invisible: una ona a les pantalles on és (fa soroll, deixa petjades). */
+  onRipple?: (tokenKey: string) => void;
   /** Diàlegs preparats de cada token (veure `useDialog`). */
   dialogs: Record<string, SavedDialog[]>;
   /** Frase improvisada: globus sobre el token (combat) o escena (barres i càmera). */
@@ -209,7 +211,7 @@ export function ContextMenuOverlay({
   setDefeated, setConditions,
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onOpenActions, onForceMove,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onOpenActions, onForceMove, onRipple,
   dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat, characters,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
@@ -449,6 +451,15 @@ export function ContextMenuOverlay({
             <Button key={ft} size="sm" variant="secondary" onMouseDown={e => { e.stopPropagation(); onForceMove(t.key, ft); onClose(); }}>{ft}</Button>
           ))}
           <span style={{ fontSize: FS.xs, color: C.dim }}>ft</span>
+        </div>
+      )}
+
+      {onRipple && (conditions[t.key] ?? []).includes('invisible') && (
+        <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
+          <Button size="sm" block variant="secondary" title="Invisible: una ona breu on és, a totes les pantalles (passes, una porta que grinyola). Saben on és, però no el veuen"
+            onMouseDown={e => { e.stopPropagation(); onRipple(t.key); }}>
+            Fer soroll (ona on és)
+          </Button>
         </div>
       )}
 

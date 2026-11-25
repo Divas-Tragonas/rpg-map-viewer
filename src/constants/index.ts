@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v5.44';
+export const APP_VERSION = 'v5.45';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -34,6 +34,10 @@ export const CONDITIONS: Condition[] = [
   { id: 'shielded',      label: 'Escut',       es: 'Escudo',       en: 'Shield',        color: '#8b5cf6', buff: true },
   { id: 'blessed',       label: 'Beneït',      es: 'Bendecido',    en: 'Blessed',       color: '#eab308', buff: true },
   { id: 'mage_armored',  label: 'Armadura de mag', es: 'Armadura de mago', en: 'Mage Armor', color: '#6366f1', buff: true },
+  // Invisibilitat (v5.45): contornejat pel Foc feèric (es veu encara que sigui invisible, i els atacs
+  // contra ell tenen avantatge) i qui veu les criatures invisibles (Veure la invisibilitat, vista cega).
+  { id: 'outlined',      label: 'Contornejat', es: 'Perfilado',    en: 'Outlined',      color: '#c084fc' },
+  { id: 'see_invisible', label: 'Veu l\'invisible', es: 'Ve lo invisible', en: 'Sees invisible', color: '#22d3ee', buff: true },
 ];
 
 export const CONDITIONS_BY_ID = new Map(CONDITIONS.map(c => [c.id, c]));

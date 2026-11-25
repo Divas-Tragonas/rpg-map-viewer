@@ -75,7 +75,7 @@ export interface SpellGuide {
   adv?: string[]; dis?: string[];
 }
 
-export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose, fxOverride, title, info, guide = {}, onPushPreview }: {
+export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose, fxOverride, title, info, guide = {}, onPushPreview, endInvis }: {
   spellType: string;
   /** Poder d'una criatura: el seu efecte (en lloc del de la taula), el seu nom i la CD / daus. */
   fxOverride?: import('@/lib/rules/spell-effects').SpellEffect | null;
@@ -84,9 +84,11 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   guide?: SpellGuide;
   /** Empenta: el DM pinta on acabarà cadascú (claus dels empesos; `null` = res). */
   onPushPreview?: (keys: string[] | null) => void;
+  /** El llançador és invisible: llançar un conjur acaba la Invisibilitat (no la superior ni la natural). */
+  endInvis?: { name: string; defaultOn: boolean };
   anchor: { l: number; r: number; t: number; b: number };
   targets: SpellTarget[];
-  onApply: (out: SpellOutcome[]) => void;
+  onApply: (out: SpellOutcome[], opts?: { endInvis?: boolean }) => void;
   /** Llança l'animació sense aplicar res (el DM ho farà a mà). */
   onCastOnly: () => void;
   /** Cancel·la el conjur: no es llança res. */
@@ -103,6 +105,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
     [{ raw: '', type: (fx?.damageType ?? '') as DamageType | '' }, ...(fx?.extra ?? []).map(r => ({ raw: '', type: (r.type ?? '') as DamageType | '' }))]);
   const setPart = (i: number, patch: Partial<{ raw: string; type: DamageType | '' }>) => setParts(ps => ps.map((p, j) => j === i ? { ...p, ...patch } : p));
   const [crit, setCrit] = useState(false);
+  const [endInv, setEndInv] = useState(!!endInvis?.defaultOn);
   const raw = parts[0]?.raw ?? '';
   const type = parts[0]?.type ?? '';
   const [rows, setRows] = useState<Record<string, Row>>(() =>
@@ -150,7 +153,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
       ...(fx.buff ? { note: `${t.name}: ${buffText(fx.buff, t)}` } : {}),
       saved: rows[t.key].saved, reasons: outcomeOf(t).reasons, type: type || undefined,
       push: !!fx.push && rows[t.key].push,
-    })));
+    })), { endInvis: !!endInvis && endInv });
   };
   const saveText = fx.save ? `Salvació ${SAVE_LABEL[fx.save]}${fx.damageType ? (fx.half ? ' · meitat si la supera' : ' · res si la supera') : ''}` : null;
   // ── Guia de tirada ──
@@ -281,6 +284,12 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
           );
         })}
       </div>
+      {endInvis && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: FS.sm, color: endInv ? C.text : C.dim }}
+          title="L'encanteri Invisibilitat s'acaba quan ataca o llança un conjur. La Invisibilitat superior i la natural no">
+          <input type="checkbox" checked={endInv} onChange={e => setEndInv(e.target.checked)} /> S&apos;acaba la invisibilitat de {endInvis.name}
+        </label>
+      )}
       {fx.push && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: FS.xs, color: C.dim }}
           title="Regla de la casa: estampar-se contra una paret o una criatura fa 1d6 contundent per cada 10 ft que no s'han pogut fer">

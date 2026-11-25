@@ -62,10 +62,13 @@ export function buildTurnBanner({ turn, players, libEnemies, conditions }: Sourc
     sprite = p?.sprite ?? null;
   } else if (sid.startsWith('lib_')) {
     const e = libEnemies.find(en => `lib_${en.id}` === sid);
-    name = e?.name ?? '?';
+    // Un enemic que els jugadors no veuen (amagat o invisible sense contornejar) no es delata al rètol.
+    const cs = conditions[sid] ?? [];
+    const unseen = !!e && (e.visible === false || (cs.includes('invisible') && !cs.includes('outlined')));
+    name = unseen ? '???' : e?.name ?? '?';
     color = e?.color ?? '#b0424a';
-    img = e?.imageData ?? null;
-    sprite = e?.sprite ?? null;
+    img = unseen ? null : e?.imageData ?? null;
+    sprite = unseen ? null : e?.sprite ?? null;
   }
 
   // Un grup que juga junt: al rètol hi surt el nom del grup.

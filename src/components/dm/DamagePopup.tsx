@@ -49,17 +49,20 @@ export function partsText(parts: readonly DamagePart[]): string {
  * tret els daus i el resultat segons les defenses de l'objectiu. Enter aplica la suma (un sol pas de
  * desfer), Esc cancel·la. Els atacs del menú compten com a armes NO màgiques.
  */
-export function DamagePopup({ prompt, target, adv = [], dis = [], onApply, onClose }: {
+export function DamagePopup({ prompt, target, adv = [], dis = [], endInvis, onApply, onClose }: {
   prompt: DamagePrompt;
   target: { name: string; hp: number; hpMax: number; defenses?: Defenses; ac?: number };
   /** Motius d'avantatge i de desavantatge de l'atac (per a la guia). */
   adv?: string[]; dis?: string[];
+  /** L'atacant és invisible: atacar acaba la Invisibilitat (no la superior ni la natural). */
+  endInvis?: { name: string; defaultOn: boolean };
   /** Dany final total i els trossos (per a l'historial). */
-  onApply: (amount: number, info: { rolled: number; reasons: string[]; type?: DamageType; parts: DamagePart[] }) => void;
+  onApply: (amount: number, info: { rolled: number; reasons: string[]; type?: DamageType; parts: DamagePart[]; endInvis?: boolean }) => void;
   onClose: () => void;
 }) {
   const [parts, setParts] = useState<Part[]>(() => partsFrom(prompt));
   const [crit, setCrit] = useState(false);
+  const [endInv, setEndInv] = useState(!!endInvis?.defaultOn);
   const setPart = (i: number, patch: Partial<Part>) => setParts(ps => ps.map((p, j) => j === i ? { ...p, ...patch } : p));
   const live = parts.filter(p => p.on && p.raw.trim() !== '');
   const results: DamagePart[] = live.map(p => {
@@ -72,7 +75,7 @@ export function DamagePopup({ prompt, target, adv = [], dis = [], onApply, onClo
   const hpAfter = Math.max(0, target.hp - total);
   const apply = () => {
     if (!live.length) return;
-    onApply(total, { rolled: rolledTotal, reasons: results.flatMap(r => r.reasons), type: results[0]?.type, parts: results });
+    onApply(total, { rolled: rolledTotal, reasons: results.flatMap(r => r.reasons), type: results[0]?.type, parts: results, endInvis: !!endInvis && endInv });
   };
   // Esc tanca també si el focus ja no és al pop-up (el DM ha clicat el mapa).
   const closeRef = useRef(onClose);
@@ -142,6 +145,12 @@ export function DamagePopup({ prompt, target, adv = [], dis = [], onApply, onClo
           {total !== rolledTotal && <span> (de {rolledTotal})</span>}</span>
         {target.hpMax > 0 && <span style={{ marginLeft: 'auto' }}>PV {target.hp} → <b style={{ color: hpAfter === 0 ? C.enemy : C.text }}>{hpAfter}</b></span>}
       </div>
+      {endInvis && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: FS.sm, color: endInv ? C.text : C.dim }}
+          title="L'encanteri Invisibilitat s'acaba quan ataca o llança un conjur. La Invisibilitat superior i la natural (caçador invisible) no">
+          <input type="checkbox" checked={endInv} onChange={e => setEndInv(e.target.checked)} /> S&apos;acaba la invisibilitat de {endInvis.name}
+        </label>
+      )}
       <div style={{ display: 'flex', gap: 6 }}>
         <Button variant="primary" disabled={!live.length} onClick={apply} style={{ flex: 1 }}>Aplicar ↵</Button>
         <Button variant="secondary" onClick={onClose}>Cancel·lar</Button>

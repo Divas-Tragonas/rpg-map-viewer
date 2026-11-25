@@ -3,6 +3,15 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.45 — Invisibilitat amb efecte
+- Un jugador invisible ja no desapareix de la pantalla de jugador: es veu com un rastre tènue (sense nom) i es pot continuar movent
+- Quan un invisible ataca, llança un conjur o rep un cop, surt una ona on és (saben on és, però no el veuen). Al menú del token invisible, «Fer soroll» fa el mateix quan el DM vulgui
+- Els pop-ups d'atac i de conjur pregunten si s'acaba la invisibilitat (marcat per defecte; desmarcat per a la Invisibilitat superior i els invisibles de natura, com el caçador invisible)
+- La guia de tirada diu l'avantatge (atacant invisible, objectiu contornejat) i el desavantatge (objectiu invisible)
+- Estats nous: **Contornejat** (el posa el *Foc feèric*, que ara té efecte: es veuen encara que siguin invisibles) i **Veu l'invisible** (si algú de la party el té, els invisibles es veuen com un rastre)
+- El rètol de torn ja no delata un enemic invisible o amagat: surt «???»
+- Cap canvi a la API ni a les partides desades
+
 ### v5.44 — Empènyer i estirar
 - Menú del token → «Moure a la força» 5/10/15/20 ft: el ratolí tria cap on surt (es veu la fletxa i on acabarà) i el clic el mou. Per a l'Empenta, envestides o el que s'improvisi; no gasta peus del seu torn
 - L'*Ona atronadora* empeny 10 ft qui no supera la salvació i el *Fuet d'espines* estira 10 ft (criatures Grans o més petites). Al pop-up, un xip per afectat i, mentre és obert, el mapa mostra on acabarà cadascú

@@ -128,7 +128,9 @@ export type SpellType =
   | 'light' | 'sacred_flame' | 'thaumaturgy' | 'bless' | 'cure_wounds' | 'charm_person'
   // Efectes de les criatures (v5 snapshot 9): alès, rajos, mirades… (veure `lib/monster-powers.ts`).
   | 'breath_fire' | 'breath_cold' | 'breath_poison' | 'breath_acid' | 'fire_bolt' | 'necrotic_ray' | 'eye_ray'
-  | 'hold' | 'dread' | 'cloud' | 'vanish' | 'thunder' | 'entangle' | 'radiant_bolt' | 'acid_arrow';
+  | 'hold' | 'dread' | 'cloud' | 'vanish' | 'thunder' | 'entangle' | 'radiant_bolt' | 'acid_arrow'
+  // Ona d'una criatura invisible (v5.45, `render/ripple.ts`): no és cap màgia.
+  | 'ripple';
 
 export interface Spell {
   id: string;

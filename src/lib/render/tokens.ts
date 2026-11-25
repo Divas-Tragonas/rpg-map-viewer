@@ -423,6 +423,15 @@ const PATH_BRAKE  = 0.14;  // ease-out de frenada a prop del destí
  * l'entrada de `rMovePath`. La fa servir tant la pantalla de jugador com la del DM (allà,
  * per als moviments que arriben d'una pantalla de jugador).
  */
+/**
+ * Algú de la party veu les criatures invisibles (estat `see_invisible`: Veure la invisibilitat, vista
+ * cega): a la pantalla de jugador, els invisibles surten com un rastre tènue.
+ */
+function partySeesInvisible(fc: FrameContext): boolean {
+  const cond = fc.rConditions.current;
+  return fc.rPlayers.current.some(p => p.visible !== false && (cond[`pl_${p.id}`] ?? []).includes('see_invisible'));
+}
+
 function advanceMovePath(fc: FrameContext, key: string): { x: number; y: number } | null {
   const mp = fc.rMovePath?.current[key];
   if (!mp || mp.pts.length < 2) return null;
@@ -559,7 +568,11 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
     } else {
       // A la foscor d'una sala fosca, el token s'amaga SENCER (la foscor només tapa el polígon de la
       // sala i el cap de la figureta, o el que en sobresortís, es veia per fora).
-      const target = (!isVis || isInvis || inDarkness(fc, ep.x, ep.y)) ? 0 : 1;
+      // Invisible (v5.45): contornejat pel Foc feèric es veu sencer; si algú de la party veu
+      // l'invisible, un rastre tènue; si no, res.
+      const outlined = enCondIds.includes('outlined');
+      const invisA = !isInvis || outlined ? 1 : partySeesInvisible(fc) ? 0.35 : 0;
+      const target = (!isVis || inDarkness(fc, ep.x, ep.y)) ? 0 : invisA;
       const prev = (invisAlphaRef.current[`lib_${en.id}`] as number | undefined) ?? target;
       const next = prev + (target - prev) * 0.07;
       invisAlphaRef.current[`lib_${en.id}`] = Math.abs(next - target) < 0.004 ? target : next;
@@ -589,7 +602,7 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
 
     let fig: ((c?: CanvasRenderingContext2D) => void) | null = null;
     if (libSprite) {
-      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis, conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined, hpMax: en.hpMax, hpHit: en.hpHit });
+      fig = drawPixelFigure(ctx, fc, `lib_${en.id}`, libSprite, ep.x, ep.y, R, { defeated: isDefeated ? colorProg : 0, alpha: enAlpha, invis: isInvis && (isDM || !enCondIds.includes('outlined')), conds: enCondIds, hp: en.hpMax > 0 ? Math.max(0, en.hp ?? en.hpMax) : undefined, hpMax: en.hpMax, hpHit: en.hpHit });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -860,7 +873,9 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
     if (k !== 1) ppos = { x: ppos.x - baseR * (k - 1), y: ppos.y - baseR * (k - 1) };
     const plCondIds = rConditions.current[`pl_${pl.id}`] || [];
     const isInvis = plCondIds.includes('invisible');
-    if (isInvis && !isDM) return;
+    // Jugador invisible a la pantalla de jugador (v5.45): rastre tènue perquè la taula sàpiga on és
+    // el seu company (i el pugui arrossegar), però no el veu sencer.
+    const plGhost = isInvis && !isDM && !plCondIds.includes('outlined') ? 0.55 : 1;
     // Pantalla de figures: la figureta d'aquest jugador s'està movent (el tracker l'ha amagat).
     if (fc.rHiddenTokens?.current.has(key)) return;
     // Pantalla de jugador: a la foscor d'una sala fosca (sense llum pròpia ni d'un altre), sencer amagat.
@@ -876,13 +891,13 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
         colorProg = Math.min(1, prog * 2); crossProg = Math.max(0, prog * 2 - 1);
       }
     }
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = plGhost;
     const plSprite = pixelSprite(fc, pl.sprite);
     const glow = isTurnToken(_turn, `pl_${pl.id}`) && !isDefeated ? 1 : 0;  // torn: el halo de color resplendeix
     if (!plSprite) drawDiscShadow(ctx, ppos.x + R, ppos.y + R, R, sc);
     let fig: ((c?: CanvasRenderingContext2D) => void) | null = null;
     if (plSprite) {
-      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, { defeated: isDefeated ? colorProg : 0, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax, hpHit: pl.hpHit });
+      fig = drawPixelFigure(ctx, fc, `pl_${pl.id}`, plSprite, ppos.x + R, ppos.y + R, R, { defeated: isDefeated ? colorProg : 0, alpha: plGhost, invis: isInvis, conds: plCondIds, hp: pl.hpMax > 0 ? pl.hp ?? pl.hpMax : undefined, hpMax: pl.hpMax, hpHit: pl.hpHit });
     } else if (isDefeated && colorProg > 0) {
       ctx.save();
       ctx.filter = `grayscale(${Math.round(colorProg * 100)}%)`;
@@ -909,7 +924,8 @@ function renderPlayerTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, onl
       ctx.fillText(pl.name.slice(0, 2).toUpperCase(), ppos.x + R, ppos.y + R);
     }
     ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
-    nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, head: !!plSprite && hasStatusFx(plCondIds), size: 10, gap: 3, boxH: 12,
+    // Invisible a la pantalla de jugador: sense nom (el rastre ja diu on és).
+    if (plGhost === 1) nameTag(ctx, fc, { key: `pl_${pl.id}`, text: pl.name, cx: ppos.x + R, cy: ppos.y + R, r: R, fig: !!plSprite, head: !!plSprite && hasStatusFx(plCondIds), size: 10, gap: 3, boxH: 12,
       color: pl.color, bg: 'rgba(8,12,18,.8)', alpha: 1, pri: 0,
       ...(isDM && pl.hpMax > 0 ? { hp: { hp: pl.hp ?? pl.hpMax, max: pl.hpMax } } : {}) });
     ctx.textAlign = 'left';

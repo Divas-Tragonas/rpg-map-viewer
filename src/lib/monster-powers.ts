@@ -59,7 +59,7 @@ export const SPELL_CATALOG: Record<string, PowerDef> = {
   'detect magic':     { ca: 'Detectar màgia', anim: 'detect_magic', mode: 'self', rangeFt: 0, fx: null },
   'disguise self':    { ca: 'Disfressar-se', anim: 'vanish', mode: 'self', rangeFt: 0, fx: null },
   'entangle':         { ca: 'Enredar', anim: 'entangle', mode: 'area', rangeFt: 90, aoeFt: 10, fx: { shape: 'circle', sizeFt: 10, save: 'str', conditions: ['restrained'], rounds: 10 } },
-  'faerie fire':      { ca: 'Foc feèric', anim: 'radiant_bolt', mode: 'area', rangeFt: 60, aoeFt: 10, fx: null },
+  'faerie fire':      { ca: 'Foc feèric', anim: 'radiant_bolt', mode: 'area', rangeFt: 60, aoeFt: 10, fx: { shape: 'circle', sizeFt: 10, save: 'dex', conditions: ['outlined'], rounds: 10, tip: 'Contornejats: es veuen encara que siguin invisibles i els atacs contra ells tenen avantatge (concentració)' } },
   'fog cloud':        { ca: 'Núvol de boira', anim: 'cloud', mode: 'area', rangeFt: 120, aoeFt: 20, fx: null },
   'guiding bolt':     { ca: 'Projectil guia', anim: 'radiant_bolt', mode: 'line', rangeFt: 120, fx: single({ damageType: 'radiant' }), dice: '4d6' },
   'longstrider':      { ca: 'Gambada llarga', anim: 'vanish', mode: 'self', rangeFt: 0, fx: null },

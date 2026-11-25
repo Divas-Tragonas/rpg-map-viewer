@@ -35,6 +35,7 @@ import { camToView } from '@/lib/camera';
 import { effectiveWalls } from '@/lib/rooms/doors';
 import { forcedImpactStore, forcedMove, forcedMoveAll, forcedText, impactDice, type ForcedResult } from '@/lib/rules/forced-move';
 import { setForcedPreview } from '@/lib/render/forced';
+import { naturalInvisible, sightAdv } from '@/lib/rules/invisibility';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { RoomsPanel } from '@/components/dm/RoomsPanel';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
@@ -1186,6 +1187,25 @@ export function DMView() {
     return true;
   }, [R, markPowerUsed]);
 
+  // ── Invisibilitat (v5.45) ───────────────────────────────────────────────────
+  /** Ona on és un token invisible (ataca, llança, rep un cop o «Fer soroll»): sabeu on és, no el veieu. */
+  const invisRipple = useCallback((key: string) => {
+    const sl = tokenSlots(R, false).find(x => x.key === key);
+    if (sl) addSpell('ripple', [{ x: sl.x, y: sl.y }], () => {});
+  }, [R, addSpell]);
+  /** L'encanteri Invisibilitat s'acaba (ha atacat o llançat un conjur). */
+  const endInvisibility = useCallback((key: string) => {
+    if (!(R.rConditions.current[key] ?? []).includes('invisible')) return;
+    toggleCondition(key, 'invisible');
+    notify(`${tokNameOf(key)} torna a ser visible`, 'info');
+  }, [R, toggleCondition, notify]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Invisible de natura o amb la superior: atacar no la trenca (per defecte, la casella desmarcada). */
+  const naturalInvisKey = (key: string) => {
+    if (!key.startsWith('lib_')) return false;
+    const en = libEnemies.find(e => `lib_${e.id}` === key);
+    return naturalInvisible(en ? monsterForEnemy(en) : null);
+  };
+
   // ── Moviment forçat: empènyer i estirar (v5.44) ─────────────────────────────
   // Pop-ups de dany en cua: el cop per estampar-se (regla de la casa) pot afectar dos tokens alhora.
   const damageQueueRef = useRef<import('@/types').DamagePrompt[]>([]);
@@ -2227,23 +2247,28 @@ export function DMView() {
         const casterPl = !spPow && spellPrompt.caster?.startsWith('pl_') ? players.find(p => `pl_${p.id}` === spellPrompt.caster) : undefined;
         const casterCh = casterPl ? characterFor(casterPl, chars.characters) : null;
         const casting = casterCh ? spellcastingOf(sheetOf(casterCh)) : null;
+        const spCaster = spPow?.key ?? spellPrompt.caster;
+        const spSight = sightAdv(conditions, spCaster, spellPrompt.keys.length === 1 ? spellPrompt.keys[0] : undefined);
+        const spCasterInvis = !!spCaster && (conditions[spCaster] ?? []).includes('invisible');
         const spGuide: SpellGuide = spPow
-          ? { attack: spPow.attack ?? null, dc: spPow.dc ?? null, dice: spPow.dice }
-          : { attack: casting?.attack ?? null, dc: casting?.dc ?? null, level: casterCh?.level };
+          ? { attack: spPow.attack ?? null, dc: spPow.dc ?? null, dice: spPow.dice, adv: spSight.adv, dis: spSight.dis }
+          : { attack: casting?.attack ?? null, dc: casting?.dc ?? null, level: casterCh?.level, adv: spSight.adv, dis: spSight.dis };
         return (
           <SpellEffectPopup key={`${spellPrompt.type}:${spellPrompt.keys.join(',')}`} spellType={spellPrompt.type}
             fxOverride={spellPrompt.power ? spellPrompt.power.fx : undefined}
             title={spellPrompt.power ? `${spellPrompt.power.title} · ${tokNameOf(spellPrompt.power.key)}` : undefined}
             info={spellPrompt.power ? [spellPrompt.power.dc ? `CD ${spellPrompt.power.dc}` : '', spellPrompt.power.attack !== undefined ? `atac +${spellPrompt.power.attack}` : '', spellPrompt.power.dice ?? ''].filter(Boolean).join(' · ') : undefined}
             anchor={spellPrompt.anchor} targets={targets} guide={spGuide} onClose={() => setSpellPrompt(null)}
+            endInvis={spCasterInvis && spCaster && !(spFx?.shape === 'self' && spFx.conditions?.includes('invisible')) ? { name: tokNameOf(spCaster), defaultOn: !naturalInvisKey(spCaster) } : undefined}
             onPushPreview={spFx?.push && pushOrigin ? keys => {
               const rs = keys && keys.length ? planForced(keys, pushOrigin, spFx.push!.ft, pushCaster) : null;
               setForcedPreview(rs ? forcedArrows(rs) : null);
             } : undefined}
             onCastOnly={() => { addSpell(spellPrompt.type, spellPrompt.points, () => {}, spellPrompt.power?.aoeFt); markPowerUsed(spellPrompt.power); setSpellPrompt(null); }}
-            onApply={outs => {
+            onApply={(outs, opts) => {
               // Ara sí: l'animació, i el dany i els estats quan l'efecte arriba als afectats.
               const { type: st, points: pts } = spellPrompt;
+              if (spCasterInvis && spCaster) { invisRipple(spCaster); if (opts?.endInvis) endInvisibility(spCaster); }
               addSpell(st, pts, () => {}, spellPrompt.power?.aoeFt);
               markPowerUsed(spellPrompt.power);
               setSpellPrompt(null);
@@ -2272,6 +2297,7 @@ export function DMView() {
                     else adjustLibEnemyHp(parseInt(o.key.slice(4)), -o.delta, 'spell', caster);
                     if (o.delta > 0) {
                       effectsOnDamage(o.key);
+                      if ((R.rConditions.current[o.key] ?? []).includes('invisible')) invisRipple(o.key);
                       attachUndoSide(undoLogSide(spellLog, o.key.startsWith('pl_') ? tokNameOf(o.key) : undefined, spellAt));
                     }
                   }
@@ -2304,10 +2330,18 @@ export function DMView() {
         const tgt = pl ? { name: pl.name, hp: pl.hp, hpMax: pl.hpMax, ac: characterFor(pl, chars.characters)?.ac }
           : en ? { name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en), ac: monsterForEnemy(en)?.ac } : null;
         if (!tgt) return null;
+        const atkKey = damagePrompt.attackerKey;
+        const sight = sightAdv(conditions, atkKey, k);
+        const atkInvis = !!atkKey && (conditions[atkKey] ?? []).includes('invisible');
         return (
           <DamagePopup key={`${k}:${damagePrompt.label}`} prompt={damagePrompt} target={tgt} onClose={closeDamage}
+            adv={sight.adv} dis={sight.dis}
+            endInvis={atkInvis && atkKey ? { name: tokNameOf(atkKey), defaultOn: !naturalInvisKey(atkKey) } : undefined}
             onApply={(amount, info) => {
               const hitAt = Date.now();
+              // Invisibles: l'atacant es delata amb una ona (i potser torna a ser visible); l'objectiu, si rep.
+              if (atkInvis && atkKey) { invisRipple(atkKey); if (info.endInvis) endInvisibility(atkKey); }
+              if (amount > 0 && (conditions[k] ?? []).includes('invisible') && !info.endInvis) invisRipple(k);
               if (amount > 0) {
                 if (pl) adjustPlayerHp(pl.id, -amount, damagePrompt.hitKind, damagePrompt.attackerKey);
                 else if (en) adjustLibEnemyHp(en.id, -amount, damagePrompt.hitKind, damagePrompt.attackerKey);
@@ -2340,7 +2374,7 @@ export function DMView() {
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
         onAddDoor={handleAddDoorToRoom}
         onResetExplored={onResetExplored}
-        onOpenActions={openActionsFor} onForceMove={startForced}
+        onOpenActions={openActionsFor} onForceMove={startForced} onRipple={invisRipple}
         dialogs={dlg.dialogs}
         onSpeak={dlg.speak}
         onPlayDialog={dlg.playSaved}

@@ -56,6 +56,16 @@ export const CONDITION_ICONS: Record<string, IconPart[]> = {
   // Beneït: una estrella de quatre puntes.
   blessed: [{ d: 'M256 32L306 206L480 256L306 306L256 480L206 306L32 256L206 206Z' }],
 
+  // Contornejat (Foc feèric): silueta de traç ple amb una espurna.
+  outlined: [
+    { d: HUMAN_HEAD, w: 30 },
+    { d: HUMAN_BODY, w: 30 },
+    { d: 'M418 40L432 92L484 106L432 120L418 172L404 120L352 106L404 92Z' },
+  ],
+
+  // Veu l'invisible: un ull obert amb la pupil·la buida.
+  see_invisible: [{ d: 'M40 256C116 140 396 140 472 256C396 372 116 372 40 256Z' + 'M256 186A70 70 0 1 0 256.1 186Z' + 'M256 226A30 30 0 1 1 255.9 226Z' }],
+
   // Armadura de mag: escut amb un rombe buit al mig.
   mage_armored: [{ d: SHIELD + 'M256 150L340 252L256 354L172 252Z' }],
 
