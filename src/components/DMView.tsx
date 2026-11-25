@@ -88,6 +88,7 @@ import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
 import { creatureStats } from '@/lib/bestiary';
 import { RightRail } from '@/components/dm/RightRail';
+import { CombatActionsPanel } from '@/components/dm/CombatActionsPanel';
 import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
 import type { CapsuleScene } from '@/lib/capsules';
 import { useStory } from '@/hooks/useStory';
@@ -241,6 +242,10 @@ export function DMView() {
   const sceneHideRef = React.useRef<() => void>(() => {});
   // ── Història: mòduls i diari (panell a la dreta del mapa, veure `StoryPanel`) ──
   const [storyOpen, setStoryOpen] = useState(false);
+  // ── Panell d'accions de la dreta (v5.42): atacs, poders i conjurs del token del torn ──
+  const [actionsOpen, setActionsOpen] = useState(false);
+  /** Token triat a mà al panell (o des del menú d'un token); si no, el del torn o el seleccionat. */
+  const [actionsPick, setActionsPick] = useState<string | null>(null);
   const [storyTab, setStoryTab] = useState<StoryTab>('modul');
   const [noteFocus, setNoteFocus] = useState(0);
 
@@ -530,10 +535,11 @@ export function DMView() {
   }, [R, _broadcastState, refreshUndo]);
 
   const startTurnCombat = useCallback((includeIds: (number | string)[], groups: { id: string; name: string; ids: (number | string)[] }[] = []) => {
-    // Tots els jugadors s'afegeixen automàticament; després els enemics/grups triats. Dedup.
+    // `includeIds`: tots els participants en l'ordre de torn que ha triat el DM al diàleg d'iniciar
+    // (v5.42; abans s'hi afegien sempre tots els jugadors al davant). Dedup.
     const order: (number | string)[] = [];
     const seen = new Set<string>();
-    [...R.rPlayers.current.map(p => `pl_${p.id}` as string | number), ...includeIds].forEach(id => {
+    includeIds.forEach(id => {
       const k = String(id);
       if (!seen.has(k)) { seen.add(k); order.push(id); }
     });
@@ -1286,6 +1292,36 @@ export function DMView() {
     R.rSpellPreview.current = null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Panell d'accions (v5.42) ────────────────────────────────────────────────
+  /** Conjur del grimori d'un jugador des del panell: l'origen és el centre del token ara mateix. */
+  const castSpellFromKey = useCallback((key: string, type: import('@/types').SpellType) => {
+    const me = tokenSlots(R, false).find(s => s.key === key);
+    if (me) castFromToken(type, { x: me.x, y: me.y });
+  }, [castFromToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Quina acció espera el clic de destí (per ressaltar-la al panell). */
+  const getArmedAction = useCallback((): string | null => {
+    const a = R.rAttackPending.current;
+    if (a) return `atk:${a.label}`;
+    const p = R.rAreaPlacementPending.current;
+    if (p?.power) return `pow:${p.power.powerId}`;
+    if (p) return `spell:${p.type}`;
+    return null;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  /** «Accions» del menú d'un token: obre el panell amb aquest token. */
+  const openActionsFor = useCallback((key: string) => {
+    setActionsPick(key); setActionsOpen(true); setStoryOpen(false);
+  }, []);
+  // En començar un combat el panell s'obre sol; en acabar, es tanca. El triat a mà dura un torn.
+  // (Ajust durant el render en canviar el torn, no un efecte: evita un render de més.)
+  const turnSig = `${turn.active}:${turn.round}:${turn.turnIndex}`;
+  const [prevTurnSig, setPrevTurnSig] = useState(turnSig);
+  const [prevTurnActive, setPrevTurnActive] = useState(turn.active);
+  if (turnSig !== prevTurnSig) {
+    setPrevTurnSig(turnSig);
+    setActionsPick(null);
+    if (turn.active !== prevTurnActive) { setPrevTurnActive(turn.active); setActionsOpen(turn.active); }
+  }
+
   // ── Token groups (double-click a member to select the whole group) ─────────
   // Finestreta flotant per posar-li nom al grup recent, allà on s'ha clicat per crear-lo.
   const [groupNaming, setGroupNaming] = useState<{ groupId: string; x: number; y: number; name: string } | null>(null);
@@ -1745,6 +1781,24 @@ export function DMView() {
     ...libEnemies.map(en => ({ id: `lib_${en.id}`, name: en.name })),
   ], [libEnemies]);
 
+  // Fitxa dels tokens (vida, camps): la fan servir el menú del clic dret i el panell d'accions.
+  const tokenEdit = {
+    players, libEnemies, tokenSizeOverride, gridSize,
+    onRenamePlayer: renamePlayer, onAdjustPlayerHp: adjustPlayerHp, onSetPlayerHpMax: setPlayerHpMaxAndSheet,
+    onSetPlayerSpeed: setPlayerSpeed, onSetPlayerVision: setPlayerVision, onSetPlayerCanMove: setPlayerCanMove,
+    onAdjustLibHp: adjustLibEnemyHp, onSetLibProps: setLibEnemyProps,
+    onSetTokenSize: setTokenSize,
+    pixel, onSetPlayerLook: setPlayerLook,
+  };
+  // Panell d'accions: en combat, el token del torn (o el triat a mà); fora, el triat o el seleccionat.
+  const inCombat = turn.active && mode === 'jugar';
+  const turnKey = turn.active ? String(turn.order[turn.turnIndex] ?? '') : '';
+  const selKey = selectedToken !== null && /^(pl|lib)_/.test(String(selectedToken)) ? String(selectedToken) : null;
+  const actionsKey = actionsPick ?? (inCombat ? turnKey || null : selKey);
+  const actionsChoices = inCombat
+    ? turn.order.map(String).map(k => ({ key: k, name: sceneTokenList.find(t => t.key === k)?.name ?? '?' }))
+    : sceneTokenList.map(t => ({ key: t.key, name: t.name }));
+
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
     <div className="full-stage dm-root" style={{ display: 'flex', flexDirection: 'column', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
@@ -1881,7 +1935,23 @@ export function DMView() {
         <RightRail
           canShow={mode === 'jugar' || showPanelOpen || scene.active || !!dlg.ui || !!sheetShowId}
           showOpen={showPanelOpen} showActive={scene.active || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
-          storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => !v)} />
+          storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => { if (!v) setActionsOpen(false); return !v; })}
+          canActions={bgLoaded} actionsOpen={actionsOpen && !storyOpen}
+          onToggleActions={() => { const open = !(actionsOpen && !storyOpen); setActionsOpen(open); if (open) setStoryOpen(false); }} />
+        {bgLoaded && actionsOpen && !storyOpen && (
+          <CombatActionsPanel
+            tokenKey={actionsKey} choices={actionsChoices}
+            onPick={k => setActionsPick(k || null)} onClose={() => setActionsOpen(false)}
+            isTurn={inCombat && !!actionsKey && isTurnToken(turn, actionsKey)}
+            remainingFt={inCombat && actionsKey === turnKey && actionsKey.startsWith('pl_') ? turn.activeRemainingFt : undefined}
+            bottom={inCombat ? (compact ? 96 : 100) : 16}
+            edit={tokenEdit} conditions={conditions} getArmed={getArmedAction}
+            actions={{
+              characters: chars.characters, powerSpent,
+              onAttack: attackFromToken, onCastPower: castPower, onCastSpell: castSpellFromKey,
+              onAdjustAmmo: characterMenu.onAdjustAmmo,
+            }} />
+        )}
         <PhysPendingPanel pending={physPending} players={players} onAccept={acceptPhys} onIgnore={ignorePhys} />
         <CanvasHUD
           gridCalibrating={gridCalibrating} hasMap={bgLoaded}
@@ -1923,6 +1993,7 @@ export function DMView() {
           tokenGroupsRef={R.rTokenGroups}
           groupNamesRef={R.rGroupNames}
           onStart={startTurnCombat}
+          characters={chars.characters}
           onEnd={finishCombat}
           onAdvance={advanceTurn}
           onAdvanceRound={advanceRound}
@@ -2131,14 +2202,7 @@ export function DMView() {
         contextMenu={contextMenu} conditions={conditions} defeated={defeated}
         rDefeated={R.rDefeated} defeatedAnimRef={R.defeatedAnimRef}
         rConditions={R.rConditions}
-        edit={{
-          players, libEnemies, tokenSizeOverride, gridSize,
-          onRenamePlayer: renamePlayer, onAdjustPlayerHp: adjustPlayerHp, onSetPlayerHpMax: setPlayerHpMaxAndSheet,
-          onSetPlayerSpeed: setPlayerSpeed, onSetPlayerVision: setPlayerVision, onSetPlayerCanMove: setPlayerCanMove,
-          onAdjustLibHp: adjustLibEnemyHp, onSetLibProps: setLibEnemyProps,
-          onSetTokenSize: setTokenSize,
-          pixel, onSetPlayerLook: setPlayerLook,
-        }}
+        edit={tokenEdit}
         onRemovePlayer={removePlayer}
         onClose={() => setContextMenu(null)}
         floatPos={menuFloat} onFloat={setMenuFloat}
@@ -2151,9 +2215,7 @@ export function DMView() {
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
         onAddDoor={handleAddDoorToRoom}
         onResetExplored={onResetExplored}
-        onCastSpell={castFromToken}
-        onAttack={attackFromToken}
-        onCastPower={castPower} powerSpent={powerSpent}
+        onOpenActions={openActionsFor}
         dialogs={dlg.dialogs}
         onSpeak={dlg.speak}
         onPlayDialog={dlg.playSaved}

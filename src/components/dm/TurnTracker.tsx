@@ -9,6 +9,8 @@ import { movementLimit, type MovementLimit } from '@/lib/rules/conditions';
 import { budgetFor, isTurnToken } from '@/lib/turn';
 import { creatureThumb } from '@/lib/sprites/draw';
 import { useCompactLayout } from '@/hooks/useCompact';
+import { CombatStartDialog } from '@/components/dm/CombatStartDialog';
+import type { ApiCharacter } from '@/lib/api';
 
 interface Props {
   turn: TurnState;
@@ -21,7 +23,10 @@ interface Props {
   tokenGroupsRef: MutableRefObject<Map<number | string, string>>;
   /** Nom de cada grup (`groupId` → nom). */
   groupNamesRef: MutableRefObject<Map<string, string>>;
-  /** `groups`: els grups triats, que juguen junts (un sol torn per a tots els seus membres). */
+  /** Fitxes de la API: el modificador d'iniciativa dels jugadors al diàleg d'iniciar. */
+  characters: ApiCharacter[];
+  /** `ids`: tots els participants en ordre de torn (els tria i ordena el DM al diàleg d'iniciar).
+   *  `groups`: els grups triats, que juguen junts (un sol torn per a tots els seus membres). */
   onStart: (ids: (number | string)[], groups: { id: string; name: string; ids: (number | string)[] }[]) => void;
   onEnd: () => void;
   onAdvance: () => void;
@@ -135,12 +140,11 @@ interface DragSession {
 }
 
 export function TurnTracker({
-  turn, players, libEnemies, defeated, conditions, tokenGroupsRef, groupNamesRef,
+  turn, players, libEnemies, defeated, conditions, tokenGroupsRef, groupNamesRef, characters,
   onStart, onEnd, onAdvance, onAdvanceRound, onRecoverTurn, onReorder, pixel, log = [],
 }: Props) {
-  const [selecting, setSelecting] = useState(false);
-  const [selEnemies, setSelEnemies] = useState<Set<string>>(new Set());
-  const [selGroups, setSelGroups] = useState<Set<string>>(new Set());
+  // Diàleg d'iniciar obert, amb una foto dels grups del moment d'obrir-lo (són refs del DM).
+  const [selecting, setSelecting] = useState<null | { groups: Map<number | string, string>; names: Map<string, string> }>(null);
   // Barra activa. Un sol globus obert alhora a sobre de la barra: les confirmacions de
   // «Ronda» i de finalitzar, i el «Recuperar el torn» del clic dret.
   const [pop, setPop] = useState<Pop>(null);
@@ -208,37 +212,8 @@ export function TurnTracker({
     return { name: '?', color: '#b0424a', img: null };
   };
 
-  // ── Popover de selecció (combat inactiu) ───────────────────────────────────
-  const openSelect = () => { setSelEnemies(new Set()); setSelGroups(new Set()); setSelecting(true); };
-
-  const libVisible = libEnemies.filter(en => en.visible !== false);
-
-  const groupMap = new Map<string, (number | string)[]>();
-  tokenGroupsRef.current.forEach((gid, tid) => {
-    const arr = groupMap.get(gid) ?? [];
-    arr.push(tid);
-    groupMap.set(gid, arr);
-  });
-  const groups = [...groupMap.entries()];
-
-  const toggle = (set: Set<string>, setSet: (s: Set<string>) => void, key: string) => {
-    const n = new Set(set);
-    if (n.has(key)) n.delete(key); else n.add(key);
-    setSet(n);
-  };
-
-  // «Tots / Cap»: selecciona (o treu) d'un cop tots els enemics visibles de la llista.
-  const allEnemyKeys = [...libVisible.map(en => `lib_${en.id}`)];
-  const allEnemiesSelected = allEnemyKeys.length > 0 && allEnemyKeys.every(k => selEnemies.has(k));
-  const toggleAllEnemies = () => setSelEnemies(allEnemiesSelected ? new Set() : new Set(allEnemyKeys));
-
-  const confirmStart = () => {
-    const ids = new Set<number | string>();
-    selGroups.forEach(gid => (groupMap.get(gid) ?? []).forEach(id => ids.add(id)));
-    selEnemies.forEach(id => ids.add(id.startsWith('lib_') || id.startsWith('pl_') ? id : Number(id)));
-    setSelecting(false);
-    onStart([...ids], [...selGroups].map(gid => ({ id: gid, name: groupNamesRef.current.get(gid) ?? 'Grup', ids: groupMap.get(gid) ?? [] })));
-  };
+  // ── Diàleg d'iniciar (combat inactiu): qui hi entra i en quin ordre (`CombatStartDialog`) ──
+  const openSelect = () => setSelecting({ groups: new Map(tokenGroupsRef.current), names: new Map(groupNamesRef.current) });
 
   const wrap: React.CSSProperties = compact
     // Mòbil: la barra d'eines és a dalt, o sigui que la de torns pot ocupar tot l'ample de baix.
@@ -256,68 +231,14 @@ export function TurnTracker({
     return (
       <div style={wrap}>
         {selecting && (
-          <div style={{
-            position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)',
-            width: 'min(360px, calc(100vw - 24px))', maxHeight: compact ? 'min(380px, calc(100dvh - 200px))' : 380, overflowY: 'auto',
-            background: 'rgba(13,17,23,0.98)', border: `1px solid ${C.border}`, borderRadius: RADIUS.lg,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)', padding: 14,
-          }}>
-            <div style={{ color: C.bright, fontWeight: 700, fontSize: FS.lg, marginBottom: 4 }}>Iniciar combat per torns</div>
-            <div style={{ color: C.dim, fontSize: FS.sm, marginBottom: 10 }} title="Tots els jugadors s'afegeixen automàticament">
-              Enemics o grups a incloure:
-            </div>
-
-            {groups.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Grups</div>
-                {groups.map(([gid, ids]) => (
-                  <label key={gid} style={rowStyle(selGroups.has(gid))} onClick={() => toggle(selGroups, setSelGroups, gid)}>
-                    <span style={{ display: 'flex', marginRight: 8 }}>
-                      {ids.slice(0, 4).map(id => (
-                        <span key={String(id)} style={{ marginLeft: -6 }}><Avatar info={resolve(id)} size={24} /></span>
-                      ))}
-                    </span>
-                    <span style={{ flex: 1, color: C.text, fontSize: FS.lg }}>{groupNamesRef.current.get(gid) ?? 'Grup'}</span>
-                    <span style={{ color: C.dim, fontSize: FS.sm }} title="Tots els seus tokens juguen alhora, en un sol torn">{ids.length} tokens · un torn</span>
-                    {check(selGroups.has(gid))}
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {libVisible.length > 0 && (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 5 }}>
-                  <span style={{ flex: 1, color: C.dim, fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enemics</span>
-                  <Button size="sm" variant="ghost" onClick={toggleAllEnemies} style={{ color: C.text }}>
-                    {allEnemiesSelected ? 'Cap' : 'Tots'}
-                  </Button>
-                </div>
-                {libVisible.map(en => {
-                  const key = `lib_${en.id}`;
-                  return (
-                    <label key={key} style={rowStyle(selEnemies.has(key))} onClick={() => toggle(selEnemies, setSelEnemies, key)}>
-                      <span style={{ marginRight: 8 }}><Avatar info={resolve(key)} size={24} /></span>
-                      <span style={{ flex: 1, color: C.text, fontSize: FS.lg }}>{en.name}</span>
-                      {check(selEnemies.has(key))}
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-
-            {groups.length === 0 && libVisible.length === 0 && (
-              <div style={{ color: C.dim, fontSize: FS.sm, padding: '6px 0' }}>Cap enemic visible. Es començarà només amb els jugadors.</div>
-            )}
-
-            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              <Button style={{ flex: 1 }} onClick={() => setSelecting(false)}>Cancel·lar</Button>
-              <Button variant="primary" style={{ flex: 2 }} onClick={confirmStart}>Començar combat</Button>
-            </div>
-          </div>
+          <CombatStartDialog players={players} libEnemies={libEnemies} defeated={defeated} characters={characters}
+            tokenGroups={selecting.groups} groupNames={selecting.names}
+            avatar={(id, size) => <Avatar info={resolve(id)} size={size} />}
+            onCancel={() => setSelecting(null)}
+            onStart={(ids, groups) => { setSelecting(null); onStart(ids, groups); }} />
         )}
         <button
-          onClick={() => (selecting ? setSelecting(false) : openSelect())}
+          onClick={() => (selecting ? setSelecting(null) : openSelect())}
           title="Iniciar sistema per torns"
           style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px', borderRadius: 22,
@@ -794,16 +715,3 @@ function Bubble({ align, children }: { align: 'center' | 'right'; children: Reac
     </div>
   );
 }
-
-const rowStyle = (sel: boolean): React.CSSProperties => ({
-  display: 'flex', alignItems: 'center', padding: '5px 6px', borderRadius: RADIUS.md, cursor: 'pointer',
-  background: sel ? tint(C.accent, 0.14) : 'transparent', marginBottom: 2,
-});
-
-const check = (sel: boolean) => (
-  <span style={{
-    width: 16, height: 16, marginLeft: 6, borderRadius: RADIUS.sm, flexShrink: 0,
-    border: `1px solid ${sel ? C.accent : '#3a4048'}`, background: sel ? C.accent : 'transparent',
-    color: C.onAccent, fontSize: FS.sm, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  }}>{sel && <CheckIcon size={11} />}</span>
-);

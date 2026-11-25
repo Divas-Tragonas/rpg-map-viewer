@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { PresentIcon, ScrollIcon } from '@/components/icons';
+import { PresentIcon, ScrollIcon, SwordsIcon } from '@/components/icons';
 import { IconButton } from '@/components/ui/Button';
 import { C, RADIUS, SHADOW } from '@/constants';
 import { useCompactLayout } from '@/hooks/useCompact';
@@ -11,15 +11,17 @@ export const RAIL_W = 52;
 export const RAIL_TOP = 56;
 
 /**
- * Rail d'icones a la dreta del mapa: «Mostrar als jugadors» i «Història». Abans eren dos botons
+ * Rail d'icones a la dreta del mapa: «Mostrar als jugadors», «Accions» (v5.42) i «Història». Abans eren dos botons
  * amples a la barra superior. Només icones (el nom és al tooltip); un punt verd a Mostrar diu que
  * s'hi està ensenyant alguna cosa. Al mòbil, en horitzontal.
  */
-export function RightRail({ showOpen, showActive, onToggleShow, canShow, storyOpen, onToggleStory }: {
+export function RightRail({ showOpen, showActive, onToggleShow, canShow, storyOpen, onToggleStory, canActions, actionsOpen, onToggleActions }: {
   showOpen: boolean; showActive: boolean; onToggleShow: () => void;
   /** «Mostrar» només surt jugant, o a Preparar si hi ha alguna cosa en pantalla (per poder-la amagar). */
   canShow: boolean;
   storyOpen: boolean; onToggleStory: () => void;
+  /** Panell d'accions (atacs, poders, conjurs): en combat s'obre sol; fora, amb aquest botó. */
+  canActions: boolean; actionsOpen: boolean; onToggleActions: () => void;
 }) {
   const compact = useCompactLayout();
   const size = 36;
@@ -37,6 +39,12 @@ export function RightRail({ showOpen, showActive, onToggleShow, canShow, storyOp
           </IconButton>
           {showActive && <span aria-hidden style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: C.ok, boxShadow: `0 0 6px ${C.ok}`, pointerEvents: 'none' }} />}
         </span>
+      )}
+      {canActions && (
+        <IconButton variant="ghost" size={size} active={actionsOpen} onClick={onToggleActions} aria-pressed={actionsOpen}
+          aria-label="Accions" title="Accions: atacs, poders i conjurs del token del torn (o del seleccionat, fora de combat)">
+          <SwordsIcon size={17} />
+        </IconButton>
       )}
       <IconButton variant="ghost" size={size} active={storyOpen} onClick={onToggleStory} aria-pressed={storyOpen}
         aria-label="Història" title="Història: mòdul que es juga, biblioteca de mòduls i diari de la sessió (N: nota ràpida)">

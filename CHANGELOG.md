@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.42 — Combat més simple: diàleg d'iniciar gran i panell d'accions
+- «Iniciar torns» obre un diàleg gran en dos passos: primer, qui hi entra (rajoles de tots els tokens de l'escena; jugadors i enemics visibles ja marcats, grups com una sola rajola; Enter = següent); després, l'ordre: escrius la iniciativa que ha tret cadascú, Enter i la fila va al seu lloc (▲▼ per desempatar). Quan totes tenen número, Enter comença el combat. L'app no tira cap dau
+- Els jugadors ja no s'afegeixen sempre al davant: l'ordre és el del diàleg (i es pot deixar algun jugador fora)
+- Panell d'accions nou a la dreta: en combat mostra sol el token que té el torn (vida, CA, peus, estats) i els seus atacs, poders i conjurs. Clic a l'atac i clic a la criatura = pop-up de dany; l'acció armada surt ressaltada i es desarma en aplicar
+- Fora de combat s'obre amb el botó ⚔ de la dreta o amb «Accions» del menú d'un token
+- El menú del clic dret ja no porta atacs, poders ni conjurs (és més curt) i és més ample
+- Cap canvi a la API ni a les partides desades
+
 ### v5.41 — Figuretes: detecció més estable, tauler buit i orientació del calibratge
 - La detecció ja no varia tant: un píxel que ja era d'una base hi continua amb llindars més fluixos (abans cada fotograma es tornava a classificar de zero i les vores de la base s'encenien i s'apagaven)
 - «Capturar el tauler buit»: sense figuretes al tauler, la càmera aprèn com és el tauler buit durant un segon; després el que ja hi era (un tros de mapa del mateix color que una base, un reflex) no compta mai. S'adapta sol a poc a poc, menys on hi ha figuretes

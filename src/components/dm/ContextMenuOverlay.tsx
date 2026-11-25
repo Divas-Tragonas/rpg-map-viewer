@@ -1,20 +1,17 @@
 'use client';
 import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { X, GripIcon, SparklesIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon, SwordsIcon } from '@/components/icons';
+import { X, GripIcon, MoonIcon, Eye, EyeOff, DoorIcon, RotateCcw, Trash2, UnlinkIcon, LinkIcon, SkullIcon, ZapIcon, SpeechIcon, PlayIcon, SwordsIcon } from '@/components/icons';
 import { ConditionPicker } from '@/components/ui/ConditionPicker';
-import { PixelIcon } from '@/components/ui/PixelIcon';
-import { attackIcon, isUiIcon } from '@/lib/sprites/uiicon';
 import { HpControl } from '@/components/ui/HpControl';
 import { Button } from '@/components/ui/Button';
 import { NameField, TokenFields, resolveToken, type TokenEditProps } from '@/components/dm/TokenFields';
 import { CharacterSection, type CharacterMenuProps } from '@/components/dm/CharacterSection';
-import { C, FS, RADIUS, SHADOW, tint, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor, FONT_SERIF } from '@/constants';
-import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog, AttackPending } from '@/types';
-import { type AmmoStack, ammoLeft, attacksOf, attackRanges, characterFor, monsterFromCharacter, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
+import { C, FS, RADIUS, SHADOW, tint, FONT_SERIF } from '@/constants';
+import type { ContextMenuState, ConditionsMap, DefeatedMap, SavedDialog } from '@/types';
+import { characterFor, monsterFromCharacter } from '@/lib/characters';
 import { monsterForEnemy } from '@/lib/db-enemies';
 import { enemyDefenses } from '@/lib/rules/damage';
 import { MonsterBlock } from '@/components/dm/MonsterBlock';
-import { powerDef, powerName, spentKey, REST_SPENT, type MonsterPower } from '@/lib/monster-powers';
 
 /** Posició d'un menú flotant, en píxels de la finestra (cantonada de dalt a l'esquerra). */
 export interface MenuPos { x: number; y: number }
@@ -56,14 +53,8 @@ interface Props {
   onDeleteRoom: (id: string) => void;
   onAddDoor: (id: string) => void;
   onResetExplored: (id: string) => void;
-  /** Llança una màgia del grimori d'un jugador des del seu token (`origin` = centre). */
-  onCastSpell: (type: import('@/types').SpellType, origin: import('@/types').Point) => void;
-  /** Tria un atac del menú: el ratolí apunta l'objectiu amb l'abast al mapa (`aimAttack`). */
-  onAttack: (p: AttackPending) => void;
-  /** Llança un poder d'una criatura (encanteri o acció especial). */
-  onCastPower: (tokenKey: string, power: MonsterPower) => void;
-  /** Poders gastats en combat per token (id → recàrrega que cal al d6). */
-  powerSpent: Record<string, Record<string, number>>;
+  /** Obre el panell d'accions (atacs, poders, conjurs) amb aquest token. */
+  onOpenActions?: (tokenKey: string) => void;
   /** Diàlegs preparats de cada token (veure `useDialog`). */
   dialogs: Record<string, SavedDialog[]>;
   /** Frase improvisada: globus sobre el token (combat) o escena (barres i càmera). */
@@ -117,7 +108,7 @@ function TokenSpeech({ tokenKey, dialogs, onSpeak, onPlay, onEdit }: {
 }
 
 /** Amplada dels menús: prou per als quatre camps de la fitxa d'un jugador en una fila. */
-const MENU_W = 272;
+const MENU_W = 336;
 
 const menuBox = (x: number, y: number, maxH: number): React.CSSProperties => ({
   position: 'fixed',
@@ -199,168 +190,12 @@ function MenuHeader({ title, children, onClose, onDrag, floating }: {
   );
 }
 
-/** Atac genèric dels tokens sense atacs a la fitxa (enemics, amb el seu abast; jugadors sense fitxa). */
-const GENERIC_MELEE: SheetAttack = { name: 'Cos a cos', kind: 'melee', reachFt: 5 };
-
-const rangeText = (a: SheetAttack) => {
-  const { normalFt, longFt } = attackRanges(a);
-  return longFt ? `${normalFt}/${longFt}` : `${normalFt}`;
-};
-
-/**
- * Atacs del token (fitxa del jugador; els enemics, de moment, un cos a cos genèric de 5 ft).
- * Triar-ne un tanca el menú i deixa el ratolí apuntant: anell d'abast, línia i peus fins al
- * token assenyalat (vora a vora). Només informa: si encerta i el dany es decideixen a la taula.
- */
-function AttackList({ attacks, onPick, ammoOf }: { attacks: SheetAttack[]; onPick: (a: SheetAttack) => void; ammoOf?: (a: SheetAttack) => number | null }) {
-  return (
-    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
-      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SwordsIcon size={11} /> Atacs</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-        {attacks.map((a, i) => {
-          const dmg = DAMAGE_TYPES.find(d => d.id === a.damageType)?.label;
-          const left = ammoOf?.(a) ?? null;
-          const out = left === 0;
-          const kind = a.kind === 'melee' ? 'cos a cos' : a.kind === 'thrown' ? 'llançadissa' : 'a distància';
-          return (
-            <Button key={`${a.name}-${i}`} size="sm" variant="tint" color={C.enemy}
-              title={`${a.name} · ${kind} · ${rangeText(a)} ft${a.bonus ? ` · ${a.bonus}` : ''}${a.damage ? ` · ${a.damage}` : ''}${dmg ? ` ${dmg}` : ''}${left !== null ? ` · ${left} ${a.ammo?.toLowerCase()}` : ''}${out ? ' (sense munició)' : ''}\nClic al mapa (o al token objectiu) · Esc o clic dret cancel·la`}
-              disabled={out}
-              onMouseDown={e => { e.stopPropagation(); if (!out) onPick(a); }}
-              style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
-              <PixelIcon name={attackIcon(a.name, a.kind)} />
-              <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{a.name}</span>
-              <span style={{ color: out ? C.enemy : C.dim, fontSize: FS.xs, flexShrink: 0 }}>{left !== null ? `${left}× · ` : ''}{rangeText(a)}</span>
-            </Button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /** Descans d'un jugador (v5.03): el curt torna les habilitats de descans curt; el llarg, totes i tota la vida. */
 function RestButtons({ onRest }: { onRest: (kind: 'short' | 'long') => void }) {
   return (
     <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 4 }}>
       <Button size="sm" variant="tint" title="Torna les habilitats de descans curt" onMouseDown={e => { e.stopPropagation(); onRest('short'); }}>Descans curt</Button>
       <Button size="sm" variant="tint" color={C.ok} title="Torna tota la vida i totes les habilitats" onMouseDown={e => { e.stopPropagation(); onRest('long'); }}>Descans llarg</Button>
-    </div>
-  );
-}
-
-/**
- * Munició del jugador (v5.02): una fila per pila amb − / + per recollir o perdre peces a mà (a banda
- * del tret, que en gasta una sola). Maj+clic = de 5 en 5. Es desa a la fitxa.
- */
-function AmmoControls({ stacks, onAdjust }: { stacks: AmmoStack[]; onAdjust: (name: string, delta: number) => void }) {
-  const btn: React.CSSProperties = { width: 24, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.dark, color: C.text, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, cursor: 'pointer', padding: 0, fontSize: FS.md, lineHeight: 1 };
-  return (
-    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={sectionLabel}>Munició</div>
-      {stacks.map(st => (
-        <div key={st.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ flex: 1, minWidth: 0, color: C.text, fontSize: FS.sm, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.name}</span>
-          <button type="button" title="Perd una (Maj = 5)" style={btn} onMouseDown={e => e.stopPropagation()} onClick={e => onAdjust(st.name, e.shiftKey ? -5 : -1)}>−</button>
-          <span style={{ minWidth: 26, textAlign: 'center', color: st.count === 0 ? C.enemy : C.bright, fontWeight: 700, fontSize: FS.sm }}>{st.count}</span>
-          <button type="button" title="Recupera una (Maj = 5)" style={btn} onMouseDown={e => e.stopPropagation()} onClick={e => onAdjust(st.name, e.shiftKey ? 5 : 1)}>+</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Poders d'una criatura (v5 snapshot 9): els seus encanteris i accions especials, com el grimori dels
- * jugadors. Agrupats: accions (alès, mirades…), a voluntat i trucs, per nivell i per dia. Un poder amb
- * recàrrega gastat en combat surt apagat amb la recàrrega que cal; es pot fer servir igualment.
- */
-function PowerList({ powers, spent, onCast, title = 'Poders i conjurs' }: { powers: MonsterPower[]; spent: Record<string, number>; onCast: (p: MonsterPower) => void; title?: string }) {
-  const groupOf = (p: MonsterPower) => p.def ? 'Accions' : p.atWill ? 'A voluntat' : p.perDay ? `${p.perDay}/dia` : p.level === 0 ? 'Trucs' : `Nivell ${p.level}`;
-  const groups: { g: string; list: MonsterPower[] }[] = [];
-  for (const p of powers) {
-    if (!powerDef(p)) continue;
-    const g = groupOf(p);
-    const e = groups.find(x => x.g === g);
-    if (e) e.list.push(p); else groups.push({ g, list: [p] });
-  }
-  if (!groups.length) return null;
-  return (
-    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
-      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SparklesIcon size={11} /> {title}</div>
-      {groups.map(({ g, list }) => (
-        <div key={g} style={{ marginBottom: 4 }}>
-          <div style={{ fontSize: FS.xs, color: C.dim, margin: '2px 0 3px' }}>{g}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-            {list.map(p => {
-              const d = powerDef(p)!;
-              const meta = SPELL_BY_TYPE.get(d.anim);
-              const used = spent[spentKey(p)];
-              const byRest = used !== undefined && used > 6;
-              const reach = d.mode === 'self' ? (d.aoeFt ? `${d.aoeFt} ft al voltant` : 'personal') : d.lineFt ? `${d.lineFt} ft` : `${d.rangeFt} ft`;
-              const tags = [p.dc ? `CD ${p.dc}` : '', p.attack !== undefined ? `+${p.attack}` : '', d.dice ?? '', p.recharge ? `recàrrega ${p.recharge === 6 ? '6' : `${p.recharge}–6`}` : '', p.rest ? `1 cop per descans ${p.rest === 'short' ? 'curt' : 'llarg'}` : '', d.fx ? '' : 'sense efecte de joc'].filter(Boolean).join(' · ');
-              return (
-                <Button key={p.id} size="sm" variant="tint" color={meta?.color ?? C.magic}
-                  title={`${powerName(p)} · ${reach}${tags ? ` · ${tags}` : ''}${used ? (byRest ? `\nGastat: torna amb un descans ${used === REST_SPENT.short ? 'curt' : 'llarg'} (es pot fer servir igualment)` : `\nGastat: es recarrega amb ${used}–6 a l'inici del seu torn`) : ''}\n${d.mode === 'self' ? 'Surt de la criatura' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
-                  onMouseDown={e => { e.stopPropagation(); onCast(p); }}
-                  style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15, opacity: used ? 0.45 : 1 }}>
-                  {isUiIcon(d.anim) ? <PixelIcon name={d.anim} /> : <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>}
-                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{powerName(p)}</span>
-                  {used ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{byRest ? '⟳' : `${used}–6`}</span>
-                    : p.recharge || p.rest ? <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>⟳</span> : null}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Grimori del jugador (conjurs de la seva fitxa al Notion, `SPELLBOOKS`) agrupat pel gest
- * de l'app: direccionals, a un punt dins d'abast i personals. Triar-ne un tanca el menú i
- * deixa la màgia pendent del clic de destí (les personals surten a l'instant).
- */
-function Spellbook({ playerName, onCast }: { playerName: string; onCast: (type: import('@/types').SpellType) => void }) {
-  const book = spellbookFor(playerName);
-  if (book.length === 0) return null;
-  const groupOf = (t: string) => {
-    const mode = SPELL_BY_TYPE.get(t)?.mode;
-    if (mode === 'self' || AREA_SPELL_DATA[t]?.rangeFt === 0) return 'self';
-    return mode === 'area' ? 'area' : 'line';
-  };
-  const groups = (['line', 'area', 'self'] as const)
-    .map(g => ({ g, spells: book.filter(b => groupOf(b.type) === g) }))
-    .filter(x => x.spells.length > 0);
-  const GROUP_LABEL = { line: SPELL_MODES.line.title, area: 'A un punt', self: SPELL_MODES.self.title };
-  return (
-    <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
-      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SparklesIcon size={11} /> Conjurs</div>
-      {groups.map(({ g, spells }) => (
-        <div key={g} style={{ marginBottom: 4 }}>
-          <div style={{ fontSize: FS.xs, color: C.dim, margin: '2px 0 3px' }}>{GROUP_LABEL[g]}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-            {spells.map(b => {
-              const meta = SPELL_BY_TYPE.get(b.type);
-              const range = spellRangeFt(b.type);
-              const reach = g === 'self' ? 'personal' : range === 5 ? 'toc · 5 ft' : range !== undefined ? `${range} ft` : '';
-              return (
-                <Button key={b.type} size="sm" variant="tint" color={meta?.color ?? C.magic}
-                  title={`${meta?.title ?? b.name} · ${b.level === 0 ? 'truc' : 'nivell 1'}${b.item ? ' · per un objecte' : ''}${reach ? ` · ${reach}` : ''}\n${g === 'self' ? 'Surt del token' : 'Clic al mapa per triar el destí · Esc o clic dret cancel·la'}`}
-                  onMouseDown={e => { e.stopPropagation(); onCast(b.type); }}
-                  style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
-                  {isUiIcon(b.type) ? <PixelIcon name={b.type} /> : <span style={{ flexShrink: 0 }}>{meta?.emoji}</span>}
-                  {/* Els noms del Notion són llargs («Contacto electrizante»): dues línies abans que tallar-los */}
-                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}>{b.name}</span>
-                  {g !== 'self' && <span style={{ color: C.dim, fontSize: FS.xs, flexShrink: 0 }}>{range === 5 ? 'toc' : range}</span>}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -372,7 +207,7 @@ export function ContextMenuOverlay({
   setDefeated, setConditions,
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onCastSpell, onAttack, onCastPower, powerSpent,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onOpenActions,
   dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat, characters,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
@@ -573,10 +408,9 @@ export function ContextMenuOverlay({
   if (!t) return null;
   const lib = t.lib;
   const pl = t.player;
-  const book = contextMenu.casterPos ? spellbookFor(t.name) : [];
   const actionBtn: React.CSSProperties = { flex: '1 1 auto', minWidth: 0 };
   return (
-    <div key={t.key} ref={setMenuEl} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, book.length > 0 ? 680 : 460)}>
+    <div key={t.key} ref={setMenuEl} data-ctxmenu="1" style={box(contextMenu.x, contextMenu.y, 460)}>
       <MenuHeader title={<NameField key={`${t.key}:${t.name}`} value={t.name} onCommit={t.rename} />} {...head}>
         {/* Derrotat és un interruptor amb nom: abans era un ✕ solt just on s'espera el botó
             de tancar el menú, i en tota la resta de l'app ✕ vol dir tancar o eliminar. */}
@@ -595,41 +429,17 @@ export function ContextMenuOverlay({
         <TokenFields t={t} p={edit} />
       </div>
 
-      {contextMenu.canAttack && (() => {
-        const ch = pl ? characterFor(pl, characters.characters) : null;
-        // Enemics: els atacs del seu bloc de 5e (bestiari de l'app) o, si no en té, un cos a cos amb
-        // l'abast de la BD (`defenses.reachFt`, 5 ft si no en té).
-        const mo = lib ? monsterForEnemy(lib) : null;
-        const own = ch ? attacksOf(sheetOf(ch)) : mo ? mo.attacks.filter(a => a.damage) : [];
-        const reach = lib ? enemyDefenses(lib)?.reachFt : undefined;
-        const generic = reach !== undefined ? { ...GENERIC_MELEE, reachFt: reach } : GENERIC_MELEE;
-        const list = own.length > 0 ? own : [generic];
-        return <><AttackList attacks={list} ammoOf={ch ? a => ammoLeft(sheetOf(ch), a) : undefined} onPick={a => {
-          const { normalFt, longFt } = attackRanges(a);
-          onAttack({ key: t.key, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind, ammo: a.ammo });
-          onClose();
-        }} />
-        {ch && sheetOf(ch).ammo?.length ? <AmmoControls stacks={sheetOf(ch).ammo!} onAdjust={(name, d) => characters.onAdjustAmmo(ch.id, name, d)} /> : null}</>;
-      })()}
+      {/* Atacs, poders i conjurs: al panell d'accions de la dreta (v5.42). Aquí, un botó per obrir-lo. */}
+      {contextMenu.canAttack && onOpenActions && (
+        <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}` }}>
+          <Button size="sm" block variant="tint" color={C.enemy} title="Atacs, poders i conjurs d'aquest token al panell de la dreta"
+            onMouseDown={e => { e.stopPropagation(); onOpenActions(t.key); onClose(); }}>
+            <SwordsIcon size={12} /> Accions (atacs, poders, conjurs)
+          </Button>
+        </div>
+      )}
 
       {pl && <RestButtons onRest={k => characters.onRest(pl.id, k)} />}
-
-      {pl && (() => {
-        const ch = characterFor(pl, characters.characters);
-        const sh = ch ? sheetOf(ch) : null;
-        return sh?.powers?.length ? <PowerList title="Habilitats" powers={sh.powers} spent={powerSpent[t.key] ?? {}}
-          onCast={p => { onCastPower(t.key, p); onClose(); }} /> : null;
-      })()}
-
-      {lib && (() => {
-        const mo = monsterForEnemy(lib);
-        return mo?.powers?.length ? <PowerList powers={mo.powers} spent={powerSpent[t.key] ?? {}} onCast={p => { onCastPower(t.key, p); onClose(); }} /> : null;
-      })()}
-
-      {contextMenu.casterPos && (() => {
-        const origin = contextMenu.casterPos;
-        return <Spellbook playerName={t.name} onCast={type => { onCastSpell(type, origin); onClose(); }} />;
-      })()}
 
       {lib && <MonsterBlock monster={monsterForEnemy(lib)} defenses={enemyDefenses(lib)} />}
       {pl && (() => {
