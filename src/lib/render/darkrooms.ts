@@ -95,6 +95,10 @@ let _memCanvas: HTMLCanvasElement | null = null;
 // oblidar en resetejar una sala: `d:<id>|0`/`d:<id>|1` (les dues bandes d'una porta), `i:<x>,<y>` (peça).
 const _seen = new Map<string, Point>();
 const EXPLORED_MAX = 1600;   // costat màxim (px) de la màscara d'explorat
+// Visió a les fosques (v5.46): quanta foscor treu (la resta es queda: hi veu, però fosc) i el
+// llenç on s'acumula on hi veu en gris (pantalla de jugador: es dessatura amb `saturation`).
+const DV_CARVE = 0.5;
+let _dvCanvas: HTMLCanvasElement | null = null;
 const MEM_DIM = 0.38;        // brillantor del terreny memoritzat (0..1)
 
 function ensureExplored(mw: number, mh: number): { canvas: HTMLCanvasElement; scale: number } {
@@ -168,7 +172,7 @@ function accumulateExplored(
   ectx.restore();
 }
 
-interface Light { key: string; x: number; y: number; r: number; intensity: number; }
+interface Light { key: string; x: number; y: number; r: number; intensity: number; /** Visió a les fosques (v5.46): aclareix a mitges i en gris, no il·lumina. */ dv?: boolean; }
 interface LightPoly { li: Light; poly: Point[]; roomPts?: Point[] }
 
 // Estat animat de cada llum (radi + intensitat), per suavitzar canvis de distància de
@@ -194,28 +198,32 @@ function collectLights(fc: FrameContext): Light[] {
     if (!pl.visible) continue;
     const key = `pl_${pl.id}`;
     const visionFt = pl.visionFt ?? DEFAULT_VISION_FT;
-    if (visionFt <= 0) continue;
     const R = fc.rTokenSizeOverride.current[key] ?? 22;
     const pos = fc.visualPosRef.current[key] ?? fc.pp[key];
     if (!pos) continue;
     const blinded = (fc.rConditions.current[key] || []).includes('blinded');
-    // Radi objectiu: cegat → 1 casella; si no, visionFt/5 − 1 casella (mínim 1).
-    const targetCells = blinded ? 1 : Math.max(1, visionFt / 5 - 1);
-    const targetR = targetCells * gs;
     // Intensitat objectiu: derrotat → es manté a 1 mentre dura la X (defeatedAnimRef 0→1) i
     // després baixa a 0 (la llum s'esvaeix); viu → 1.
     const isDefeated = !!fc.rDefeated.current[key];
     const deathProg = fc.defeatedAnimRef.current[key] ?? (isDefeated ? 1 : 0);
     const targetI = isDefeated ? (deathProg >= 0.999 ? 0 : 1) : 1;
-    let a = _lightAnim.get(key);
-    if (!a) { a = { r: targetR, i: targetI }; _lightAnim.set(key, a); }
-    a.r += (targetR - a.r) * LIGHT_R_LERP;
-    a.i += (targetI - a.i) * LIGHT_I_LERP;
-    if (Math.abs(targetR - a.r) < 0.5) a.r = targetR;
-    if (Math.abs(targetI - a.i) < 0.004) a.i = targetI;
-    seen.add(key);
-    if (a.i <= 0.01) continue; // llum apagada del tot
-    lights.push({ key, x: pos.x + R, y: pos.y + R, r: a.r, intensity: a.i });
+    const push = (lkey: string, targetCells: number, dv: boolean) => {
+      const targetR = targetCells * gs;
+      let a = _lightAnim.get(lkey);
+      if (!a) { a = { r: targetR, i: targetI }; _lightAnim.set(lkey, a); }
+      a.r += (targetR - a.r) * LIGHT_R_LERP;
+      a.i += (targetI - a.i) * LIGHT_I_LERP;
+      if (Math.abs(targetR - a.r) < 0.5) a.r = targetR;
+      if (Math.abs(targetI - a.i) < 0.004) a.i = targetI;
+      seen.add(lkey);
+      if (a.i <= 0.01) return; // llum apagada del tot
+      lights.push({ key: lkey, x: pos.x + R, y: pos.y + R, r: a.r, intensity: a.i, ...(dv ? { dv: true } : {}) });
+    };
+    // Llum que porta. Radi objectiu: cegat → 1 casella; si no, visionFt/5 − 1 casella (mínim 1).
+    if (visionFt > 0) push(key, blinded ? 1 : Math.max(1, visionFt / 5 - 1), false);
+    // Visió a les fosques (v5.46): mateix radi «una mica menys»; cegat, cap.
+    const dvFt = blinded ? 0 : pl.darkvisionFt ?? 0;
+    if (dvFt > 0) push(`dv_${pl.id}`, Math.max(1, dvFt / 5 - 1), true);
   }
 
   // Punts de llum (torxes/llànties): NOMÉS s'encenen si un token de jugador VISIBLE i no
@@ -385,7 +393,7 @@ function pointInPoly(px: number, py: number, pts: { x: number; y: number }[]): b
 //  3. Cada llum esborra la foscor directament (`destination-out`), sense capa de llum intermèdia.
 // Els `drawImage` són el que costa; els `fill` no surten ni al perfil (per això la màscara
 // es torna a traçar dues vegades en lloc de copiar-se amb un blit).
-function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSig: string, rooms: Room[], fnow: number): boolean {
+function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSig: string, rooms: Room[], fnow: number, dvctx: CanvasRenderingContext2D | null = null): boolean {
   const lvl = LIGHT_LEVELS[_lodLevel];
   let changed = false;   // alguna llum no ha sortit de la memòria cau tal qual
   const off = octx.canvas;
@@ -406,8 +414,23 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
   octx.save();
   octx.setTransform(1, 0, 0, 1, 0, 0);
   octx.globalCompositeOperation = 'destination-out';
+  // Visió a les fosques (v5.46): esborra la foscor a mitges (`DV_CARVE`). A `dvctx` (pantalla de
+  // jugador) s'acumula on hi veu en gris: les màscares de visió s'hi sumen i les de llum de debò
+  // s'hi resten; per això primer les de visió.
+  const put = (li: Light, cv: HTMLCanvasElement, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number) => {
+    octx.globalAlpha = li.dv ? DV_CARVE : 1;
+    octx.drawImage(cv, sx, sy, sw, sh, dx, dy, dw, dh);
+    octx.globalAlpha = 1;
+    if (dvctx) {
+      // La vora del gradient: el gris ha de manar sobre el que s'aclareix (si no, queda un anell de
+      // color). `lighter` tres cops ≈ alfa ×3: ple fins a ben a prop de la vora.
+      dvctx.globalCompositeOperation = li.dv ? 'lighter' : 'destination-out';
+      for (let n = li.dv ? 3 : 1; n > 0; n--) dvctx.drawImage(cv, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
+  };
+  const ordered = dvctx ? [...polys].sort((a, b) => (b.li.dv ? 1 : 0) - (a.li.dv ? 1 : 0)) : polys;
   const seen = new Set<string>();
-  for (const { li, poly, roomPts } of polys) {
+  for (const { li, poly, roomPts } of ordered) {
     // 0) Rectangle de pantalla que ocupa aquesta llum (el gradient ja la retalla al radi,
     //    així que res del que es pinti fora d'aquí sobreviuria al `source-in`). Es deixa SENCER
     //    (també la part fora de pantalla) mentre no passi d'1,6 vegades la pantalla: així el
@@ -442,7 +465,7 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     }
     const dimsOk = !!ent && ent.bw === bw && ent.bh === bh;
     if (ent && ent.sig === sig && dimsOk && (ent.k === 1 || fnow - ent.t < LIGHT_SETTLE_MS)) {
-      octx.drawImage(ent.cv, 0, 0, ent.cv.width, ent.cv.height, bx, by, bw, bh);
+      put(li, ent.cv, 0, 0, ent.cv.width, ent.cv.height, bx, by, bw, bh);
       if (ent.k < 1) wake();   // en baixa resolució: un fotograma més per fer la passada final a resolució plena
       continue;
     }
@@ -455,7 +478,7 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     if (ent && ent.wsig === wallsSig && ent.full && ((lightSame && fnow - _camChangedAt < LIGHT_SETTLE_MS) || (!lightSame && fnow - ent.t < lvl.throttle))) {
       changed = true;
       const r = T.a / ent.Ta;
-      octx.drawImage(ent.cv, 0, 0, ent.cv.width, ent.cv.height, (ent.bx - ent.Te) * r + T.e, (ent.by - ent.Tf) * r + T.f, ent.bw * r, ent.bh * r);
+      put(li, ent.cv, 0, 0, ent.cv.width, ent.cv.height, (ent.bx - ent.Te) * r + T.e, (ent.by - ent.Tf) * r + T.f, ent.bw * r, ent.bh * r);
       wake();
       continue;
     }
@@ -554,7 +577,7 @@ function carveLights(octx: CanvasRenderingContext2D, polys: LightPoly[], wallsSi
     _maskCache.set(li.key, { sig, wsig: wallsSig, cv, bx, by, bw, bh, k, t: fnow, Ta: T.a, Te: T.e, Tf: T.f, cx: q(cx), cy: q(cy), rr: q(rr), iv: ivs, full });
     // 3) Acumular aquesta llum a la capa de llum (només el seu rectangle: així el que hi
     //    hagi deixat una altra llum fora d'aquest rectangle no s'hi torna a sumar).
-    octx.drawImage(cv, 0, 0, cw, ch, bx, by, bw, bh);
+    put(li, cv, 0, 0, cw, ch, bx, by, bw, bh);
     if (k < 1) wake();
   }
   for (const k of _maskCache.keys()) if (!seen.has(k)) _maskCache.delete(k);
@@ -837,8 +860,18 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
       octx.setTransform(ctx.getTransform());
       fillDarkness(octx, visFills);
       const wallsSig = lw!.sig;
+      // Visió a les fosques a la pantalla de jugador: llenç d'on hi veu en gris.
+      let dvctx: CanvasRenderingContext2D | null = null;
+      if (!isDM && lights.some(l => l.dv)) {
+        if (!_dvCanvas) _dvCanvas = document.createElement('canvas');
+        if (_dvCanvas.width !== main.width || _dvCanvas.height !== main.height) { _dvCanvas.width = main.width; _dvCanvas.height = main.height; }
+        dvctx = _dvCanvas.getContext('2d')!;
+        dvctx.setTransform(1, 0, 0, 1, 0, 0);
+        dvctx.globalCompositeOperation = 'source-over';
+        dvctx.clearRect(0, 0, main.width, main.height);
+      }
       // Esborra la llum actual del tot: unió de la sala pròpia + vessament per portes.
-      if (carveLights(octx, polys, wallsSig, rooms, fnow)) {
+      if (carveLights(octx, polys, wallsSig, rooms, fnow, dvctx)) {
         // Qualitat adaptativa: veure `LIGHT_LEVELS`.
         const dt = fnow - _lastMotionAt;
         if (dt < 100) {
@@ -938,6 +971,27 @@ export function renderRooms(ctx: CanvasRenderingContext2D, fc: FrameContext): vo
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(off, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
+        ctx.restore();
+      }
+      if (hasDark && dvctx && _dvCanvas) {
+        // On només hi veu amb visió a les fosques (dins de sales fosques, fora de la llum): en gris.
+        // La màscara es retalla a les sales fosques visibles i es tenyeix de gris; amb
+        // `saturation`, el gris pren la tonalitat i la lluminositat del que hi ha a sota.
+        dvctx.save();
+        dvctx.setTransform(ctx.getTransform());
+        dvctx.globalCompositeOperation = 'destination-in';
+        dvctx.beginPath();
+        for (const f of visFills) { if (f.alpha < 0.5) continue; f.room.points.forEach((pt, i) => i === 0 ? dvctx!.moveTo(pt.x, pt.y) : dvctx!.lineTo(pt.x, pt.y)); dvctx.closePath(); }
+        dvctx.fillStyle = '#fff'; dvctx.fill();
+        dvctx.setTransform(1, 0, 0, 1, 0, 0);
+        dvctx.globalCompositeOperation = 'source-in';
+        dvctx.fillStyle = '#808080';
+        dvctx.fillRect(dx0, dy0, dw, dh);
+        dvctx.restore();
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = 'saturation';
+        ctx.drawImage(_dvCanvas, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
         ctx.restore();
       }
       if (hasDark && terr && isDM) {

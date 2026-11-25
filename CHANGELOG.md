@@ -3,6 +3,13 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.46 — Llum i visió a les fosques, separades
+- Al menú del token d'un jugador, «Llum · ft» (la que porta: torxa 40, llanterna 60, el conjur Llum 40) i «Fosc · ft» (visió a les fosques)
+- La visió a les fosques deixa veure dins de les sales fosques **en gris i fosc**, sense il·luminar: els enemics que hi ha es veuen, però sense color. On arriba la llum d'una torxa, color
+- Els jugadors sense valor agafen el de la raça de la seva fitxa (elf, nan… 60; drow 120; humans i mitjans, 0). Cegat, no hi veu
+- Les partides desades no canvien: la «Visió» d'abans continua sent la llum
+- Cap canvi a la API
+
 ### v5.45 — Invisibilitat amb efecte
 - Un jugador invisible ja no desapareix de la pantalla de jugador: es veu com un rastre tènue (sense nom) i es pot continuar movent
 - Quan un invisible ataca, llança un conjur o rep un cop, surt una ona on és (saben on és, però no el veuen). Al menú del token invisible, «Fer soroll» fa el mateix quan el DM vulgui

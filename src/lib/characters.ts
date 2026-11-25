@@ -260,6 +260,17 @@ export function spellcastingOf(sheet: CharacterSheet): { attack?: number; dc?: n
   return null;
 }
 
+/**
+ * Visió a les fosques per la raça de la fitxa (v5.46), en peus: elfs, nans, gnoms, mig-orcs, mig-elfs i
+ * tieflings 60; drows 120; la resta (humans, mitjans…) 0.
+ */
+export function darkvisionForRace(race: string | undefined): number {
+  const r = (race ?? '').toLowerCase();
+  if (/drow|elf fosc|elfo oscuro/.test(r)) return 120;
+  if (/elf|elfo|nan\b|enano|dwarf|gnom|orc|tiefling/.test(r)) return 60;
+  return 0;
+}
+
 /** Seccions que s'ofereixen en una fitxa nova (el DM en pot afegir o treure). */
 /**
  * Seccions només per al DM: el títol comença per «Només DM». Mai viatgen a les pantalles de
