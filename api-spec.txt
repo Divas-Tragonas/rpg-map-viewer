@@ -242,7 +242,7 @@ Els missatges binaris (ArrayBuffer) es reenvien directament sense parsing.
 | BOSS_INTRO_SKIP     | —                                                               | Saltar cinematica                  |
 | EXPOSITOR_HIDE      | —                                                               | (des de la v5 el frontend ja no l'envia) |
 | EXPOSITOR_SYNC      | { zoom, panXNorm, panYNorm, kbTxPct, kbTyPct }                  | (des de la v5 el frontend ja no l'envia) |
-| TOKEN_RELAY         | { id: number | string, x: number, y: number }                   | Relay d'un TOKEN_MOVE d'un client a la resta de clients (veure sota) |
+| TOKEN_RELAY         | { id: number | string, x: number, y: number, fast?: boolean }  | Relay d'un TOKEN_MOVE d'un client a la resta de clients (veure sota). `fast` (v5.44, opcional): moviment forçat |
 | (binary frame)      | ArrayBuffer (imatge o vídeo)                                    | Segueix BG_META o EXPOSITOR_SHOW_META |
 
 #### Client → Servidor → DM (rol=dm rep aquests tipus)
@@ -325,6 +325,9 @@ reben el moviment i les seves pantalles no es refresquen (només es veu al
 mateix ordinador via BroadcastChannel, no cross-device via WebSocket).
 
 `TOKEN_RELAY` NO s'ha de cachejar com a estat (no és STRUCT); només reenviar.
+
+v5.44: camp opcional `fast: true` (empènyer/estirar). El servidor el reenvia tal qual (reenvia el
+missatge sencer); si el traiés, la pantalla de jugador animaria el moviment al pas normal. Cap canvi obligat.
 
 ### Late join
 
