@@ -92,6 +92,7 @@ import { monsterSave } from '@/lib/monsters';
 import { creatureStats } from '@/lib/bestiary';
 import { RightRail } from '@/components/dm/RightRail';
 import { CombatActionsPanel } from '@/components/dm/CombatActionsPanel';
+import { CombatColumn } from '@/components/dm/CombatColumn';
 import { StoryPanel, type StoryTab } from '@/components/dm/StoryPanel';
 import type { CapsuleScene } from '@/lib/capsules';
 import { useStory } from '@/hooks/useStory';
@@ -103,6 +104,9 @@ import { logJournal, setJournalRemoveHook, takeEntries, restoreEntries } from '@
 const SHOW_PANEL_W = 560;
 // Amplada del lateral: el bloc del nom del mapa de la barra superior hi queda alineat.
 const SIDEBAR_W = 270;
+/** Columna de combat de la dreta (escriptori). */
+const COMBAT_W = 310;
+
 
 
 export function DMView() {
@@ -247,6 +251,8 @@ export function DMView() {
   const [storyOpen, setStoryOpen] = useState(false);
   // ── Panell d'accions de la dreta (v5.42): atacs, poders i conjurs del token del torn ──
   const [actionsOpen, setActionsOpen] = useState(false);
+  /** Columna de combat de la dreta (escriptori): oberta per defecte, es recorda. */
+  const [colOpen, setColOpen] = useStoredFlag('rpg_combat_col', true);
   /** Token triat a mà al panell (o des del menú d'un token); si no, el del torn o el seleccionat. */
   const [actionsPick, setActionsPick] = useState<string | null>(null);
   const [storyTab, setStoryTab] = useState<StoryTab>('modul');
@@ -1425,8 +1431,10 @@ export function DMView() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /** «Accions» del menú d'un token: obre el panell amb aquest token. */
   const openActionsFor = useCallback((key: string) => {
-    setActionsPick(key); setActionsOpen(true); setStoryOpen(false);
-  }, []);
+    setActionsPick(key); setStoryOpen(false);
+    if (compact) setActionsOpen(true);
+    else setColOpen(true);
+  }, [compact, setColOpen]);
   // En començar un combat el panell s'obre sol; en acabar, es tanca. El triat a mà dura un torn.
   // (Ajust durant el render en canviar el torn, no un efecte: evita un render de més.)
   const turnSig = `${turn.active}:${turn.round}:${turn.turnIndex}`;
@@ -1435,7 +1443,10 @@ export function DMView() {
   if (turnSig !== prevTurnSig) {
     setPrevTurnSig(turnSig);
     setActionsPick(null);
-    if (turn.active !== prevTurnActive) { setPrevTurnActive(turn.active); setActionsOpen(turn.active); }
+    if (turn.active !== prevTurnActive) {
+      setPrevTurnActive(turn.active); setActionsOpen(turn.active);
+      if (turn.active) setColOpen(true);
+    }
   }
 
   // ── Token groups (double-click a member to select the whole group) ─────────
@@ -1915,6 +1926,25 @@ export function DMView() {
     ? turn.order.map(String).map(k => ({ key: k, name: sceneTokenList.find(t => t.key === k)?.name ?? '?' }))
     : sceneTokenList.map(t => ({ key: t.key, name: t.name }));
 
+  const colVisible = bgLoaded && mode === 'jugar' && colOpen;
+  const combatColumn = bgLoaded && mode === 'jugar' ? (
+    <CombatColumn
+      turn={turn} players={players} libEnemies={libEnemies} defeated={defeated} conditions={conditions}
+      pixel={pixel} log={combatLog} characters={chars.characters}
+      tokenGroupsRef={R.rTokenGroups} groupNamesRef={R.rGroupNames}
+      onStart={startTurnCombat} onEnd={finishCombat} onAdvance={advanceTurn} onAdvanceRound={advanceRound}
+      onRecoverTurn={recoverTurn} onReorder={reorderTurn}
+      selectedKey={selKey} pickKey={actionsPick} onPick={setActionsPick}
+      onSelectToken={selectToken}
+      onTokenMenu={(k, e) => openTokenMenu(k, e.clientX, e.clientY)}
+      edit={tokenEdit} getArmed={getArmedAction}
+      actions={{
+        characters: chars.characters, powerSpent,
+        onAttack: attackFromToken, onCastPower: castPower, onCastSpell: castSpellFromKey,
+        onAdjustAmmo: characterMenu.onAdjustAmmo,
+      }} />
+  ) : null;
+
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
     <div className="full-stage dm-root" style={{ display: 'flex', flexDirection: 'column', background: C.bg, color: C.text, fontFamily: 'system-ui,sans-serif', overflow: 'hidden' }}>
@@ -2039,7 +2069,7 @@ export function DMView() {
       <div ref={R.stageRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#000' }}
         onDragEnter={onStageDragEnter} onDragLeave={onStageDragLeave}
         onDragOver={e => { if (isFileDrag(e)) e.preventDefault(); }} onDrop={onStageDrop}>
-        <NoticeStack notices={notices} onClose={dismissNotice} bottom={bgLoaded && mode === 'jugar' ? (turn.active ? 104 : 80) : 16} />
+        <NoticeStack notices={notices} onClose={dismissNotice} bottom={bgLoaded && mode === 'jugar' && compact ? (turn.active ? 104 : 80) : 16} />
         <div ref={R.bgTransitionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
         <canvas
           ref={R.canvasRef}
@@ -2052,9 +2082,12 @@ export function DMView() {
           canShow={mode === 'jugar' || showPanelOpen || scene.active || !!dlg.ui || !!sheetShowId}
           showOpen={showPanelOpen} showActive={scene.active || !!dlg.ui || !!sheetShowId} onToggleShow={toggleShowPanel}
           storyOpen={storyOpen} onToggleStory={() => setStoryOpen(v => { if (!v) setActionsOpen(false); return !v; })}
-          canActions={bgLoaded} actionsOpen={actionsOpen && !storyOpen}
-          onToggleActions={() => { const open = !(actionsOpen && !storyOpen); setActionsOpen(open); if (open) setStoryOpen(false); }} />
-        {bgLoaded && actionsOpen && !storyOpen && (
+          canActions={bgLoaded && (compact || mode === 'jugar')}
+          actionsOpen={compact ? actionsOpen && !storyOpen : colVisible}
+          onToggleActions={compact
+            ? () => { const open = !(actionsOpen && !storyOpen); setActionsOpen(open); if (open) setStoryOpen(false); }
+            : () => setColOpen(!colOpen)} />
+        {compact && bgLoaded && actionsOpen && !storyOpen && (
           <CombatActionsPanel
             tokenKey={actionsKey} choices={actionsChoices}
             onPick={k => setActionsPick(k || null)} onClose={() => setActionsOpen(false)}
@@ -2100,7 +2133,7 @@ export function DMView() {
           }}
         />
         {/* Els torns són de la partida: a Preparar no surten (el combat continua igual). */}
-        {bgLoaded && mode === 'jugar' && <TurnTracker
+        {bgLoaded && mode === 'jugar' && compact && <TurnTracker
           turn={turn}
           players={players}
           libEnemies={libEnemies}
@@ -2154,7 +2187,7 @@ export function DMView() {
         {/* Història: mòdul actiu, biblioteca de mòduls i diari de la sessió (només DM) */}
         {storyOpen && (
           <StoryPanel tab={storyTab} onTab={setStoryTab} onClose={() => setStoryOpen(false)} story={story} notify={notify}
-            noteFocus={noteFocus} onGoLibrary={() => setStoryTab('moduls')} avoidTurnBar={turn.active && mode === 'jugar'} />
+            noteFocus={noteFocus} onGoLibrary={() => setStoryTab('moduls')} avoidTurnBar={turn.active && mode === 'jugar' && compact} />
         )}
         {/* Barra de control del DM mentre corre un diàleg */}
         {dlg.ui && (
@@ -2185,6 +2218,12 @@ export function DMView() {
           </div>
         )}
       </div>
+      {/* Columna de combat a la dreta (escriptori): fixa com el lateral de l'esquerra. */}
+      {!compact && (
+        <div style={{ width: colVisible ? COMBAT_W : 0, flexShrink: 0, overflow: 'hidden', borderLeft: colVisible ? `1px solid ${C.border}` : 'none', transition: 'width .2s ease', background: C.bg }}>
+          <div inert={!colVisible} style={{ width: COMBAT_W, height: '100%' }}>{combatColumn}</div>
+        </div>
+      )}
       </div>
 
       {/* ── Overlays ──────────────────────────────────────────────────────── */}

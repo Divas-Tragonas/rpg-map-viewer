@@ -103,7 +103,7 @@
 
 ## Rail de la dreta (`src/components/dm/RightRail.tsx`, v4.78)
 - Columna d'icones a la dreta del mapa (`top: RAIL_TOP` 56, sota el zoom i la càmera; al mòbil, en horitzontal): **Mostrar als jugadors** (faristol; punt verd si s'hi mostra res; només jugant o si hi ha alguna cosa en pantalla) i **Història** (pergamí). Només icones, el nom és al tooltip. Abans eren dos botons amples a la barra superior.
-- **Accions** (⚔, v5.42; amb mapa, als dos modes): obre o amaga el panell d'accions (atacs, poders i conjurs del token del torn o del seleccionat). En combat s'obre sol. Comparteix lloc amb Història: obrir-ne un tanca l'altre.
+- **Combat** (⚔, v5.46; amb mapa, a Jugar): plega o desplega la **columna de combat** fixa de la dreta (cua d'iniciativa + accions; veure `tokens-i-combat.md`). Al mòbil obre el panell d'accions flotant (v5.42), que comparteix lloc amb Història.
 - El panell d'Història s'obre a l'esquerra de la rail (`right: 12 + RAIL_W`); el de Mostrar, a dalt a l'esquerra de l'escenari. Un panell nou de la dreta ha de deixar lloc a `RAIL_W`.
 
 ## Panell «Mostrar als jugadors» (`ShowPanelHeader` + `DMView`)
