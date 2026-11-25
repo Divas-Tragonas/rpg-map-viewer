@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { C, FS, CONDITIONS_BY_ID } from '@/constants';
-import { ABILITIES, DAMAGE_TYPES, type DamageType } from '@/lib/characters';
+import { ABILITIES, DAMAGE_TYPES, damageRollsOf, rollsText, splitExtraDamage, type DamageType } from '@/lib/characters';
 import { monsterSave, type Monster } from '@/lib/monsters';
 import type { Defenses } from '@/lib/rules/damage';
 
@@ -51,7 +51,7 @@ export function MonsterBlock({ monster, defenses, player }: { monster: Monster |
           {line('Immune', join(dmg(d?.immunities) || undefined, nm(d?.nonMagicImmunities)))}
           {line('Immune a estats', d?.conditionImmunities?.map(c => CONDITIONS_BY_ID.get(c)?.label ?? c).join(', '))}
           {line('Abast', d?.reachFt !== undefined ? `${d.reachFt} ft` : undefined)}
-          {monster?.attacks.map(a => line(a.name, `${a.bonus ?? ''} · ${a.damage ?? '—'} ${DAMAGE_TYPES.find(x => x.id === a.damageType)?.label ?? ''} · ${a.kind === 'ranged' ? `${a.rangeFt}/${a.longFt} ft` : a.kind === 'thrown' ? `${a.reachFt ?? 5} ft o ${a.rangeFt}/${a.longFt} ft` : `${a.reachFt ?? 5} ft`}`))}
+          {monster?.attacks.map(a => line(a.name, `${a.bonus ?? ''} · ${rollsText(damageRollsOf(splitExtraDamage(a))) || '—'} · ${a.kind === 'ranged' ? `${a.rangeFt}/${a.longFt} ft` : a.kind === 'thrown' ? `${a.reachFt ?? 5} ft o ${a.rangeFt}/${a.longFt} ft` : `${a.reachFt ?? 5} ft`}`))}
           {monster?.traits?.map(tr => <div key={tr} style={{ fontSize: FS.xs, color: C.dim, lineHeight: 1.35 }}>• {tr}</div>)}
         </div>
       )}

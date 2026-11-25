@@ -8,7 +8,7 @@ import { EnemyGroupToolbar, GroupHeader } from '@/components/ui/EnemyGroups';
 import { useEnemyGrouping } from '@/hooks/useEnemyGrouping';
 import { apiSupportsGroups, distinctValues, groupEnemies, groupKey } from '@/lib/enemy-groups';
 import type { EnemyGroupField } from '@/lib/enemy-groups';
-import { DAMAGE_TYPES, type DamageType, type SheetAttack, type AttackKind } from '@/lib/characters';
+import { DAMAGE_TYPES, foldExtraDamage, type DamageType, type SheetAttack, type AttackKind } from '@/lib/characters';
 import { MONSTERS, ABILITY_ORDER, type Monster } from '@/lib/monsters';
 import { XP_BY_CR } from '@/lib/bestiary';
 import { CONDITIONS } from '@/constants';
@@ -924,7 +924,7 @@ function cleanBlock(d: EnemyData): EnemyData {
     const sv = Object.fromEntries(Object.entries(d.saves).filter(([, v]) => typeof v === 'number' && Number.isFinite(v)));
     out.saves = sv;
   }
-  if (d.attacks) out.attacks = d.attacks.filter(a => a.name.trim()).map(a => ({ ...a, name: a.name.trim() }));
+  if (d.attacks) out.attacks = d.attacks.filter(a => a.name.trim()).map(a => foldExtraDamage({ ...a, name: a.name.trim() }));
   if (d.traits) out.traits = d.traits.map(t => t.trim()).filter(Boolean);
   for (const k of ['ac', 'speedFt'] as const) if (out[k] === undefined || Number.isNaN(out[k])) delete out[k];
   return out;
@@ -940,7 +940,7 @@ function fromMonster(mo: Monster): Partial<EnemyData> {
     resistances: mo.res ?? [], vulnerabilities: mo.vul ?? [], immunities: mo.imm ?? [],
     nonMagicResistances: mo.nmRes ? ['bludgeoning', 'piercing', 'slashing'] : [],
     nonMagicImmunities: mo.nmImm ? ['bludgeoning', 'piercing', 'slashing'] : [],
-    conditionImmunities: mo.cimm ?? [], attacks: mo.attacks.map(a => ({ ...a })), traits: [...(mo.traits ?? [])],
+    conditionImmunities: mo.cimm ?? [], attacks: mo.attacks.map(foldExtraDamage), traits: [...(mo.traits ?? [])],
   };
 }
 

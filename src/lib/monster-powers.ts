@@ -64,7 +64,7 @@ export const SPELL_CATALOG: Record<string, PowerDef> = {
   'guiding bolt':     { ca: 'Projectil guia', anim: 'radiant_bolt', mode: 'line', rangeFt: 120, fx: single({ damageType: 'radiant' }), dice: '4d6' },
   'longstrider':      { ca: 'Gambada llarga', anim: 'vanish', mode: 'self', rangeFt: 0, fx: null },
   'mage armor':       { ca: 'Armadura de mag', anim: 'mage_armor', mode: 'line', rangeFt: 5, fx: single({ buff: 'mage_armor', conditions: ['mage_armored'] }) },
-  'magic missile':    { ca: 'Projectil màgic', anim: 'magic_missile', mode: 'line', rangeFt: 120, fx: single({ damageType: 'force' }), dice: '3d4+3' },
+  'magic missile':    { ca: 'Projectil màgic', anim: 'magic_missile', mode: 'line', rangeFt: 120, fx: single({ damageType: 'force', autoHit: true }), dice: '3d4+3' },
   'sanctuary':        { ca: 'Santuari', anim: 'bless', mode: 'line', rangeFt: 30, fx: null },
   'shield':           { ca: 'Escut', anim: 'shield', mode: 'self', rangeFt: 0, fx: { shape: 'self', buff: 'shield', rounds: 1, conditions: ['shielded'] } },
   'shield of faith':  { ca: 'Escut de fe', anim: 'bless', mode: 'line', rangeFt: 60, fx: null },

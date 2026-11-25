@@ -59,6 +59,8 @@ Bloc de 5e (v5 snapshot 7, desplegat): camps opcionals de l'Enemy
                        poisoned, prone, restrained, stunned, unconscious)
   attacks: [{ name (1–80), kind: 'melee'|'ranged'|'thrown', reachFt?, rangeFt?, longFt?,
               bonus? (màx. 10), damage? (màx. 40), damageType? }]  ([] per defecte)
+              (v5.43: el dany extra d'un altre tipus va DINS del nom, «Mossegada (+2d6 verí)»; el
+              frontend el separa en `extra` en llegir-lo i el torna al nom en desar. Sense canvi a la API.)
   traits: string[] (cada un màx. 300; [] per defecte)
 GET els retorna sempre (defaults als documents antics); POST opcionals; PUT només toca els que
 vénen. El back office els edita (`StatBlockEditor`, amb «Omplir des del bestiari») i el visor els

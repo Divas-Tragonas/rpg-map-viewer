@@ -9,6 +9,7 @@ import type { ApiEnemy } from '@/lib/api';
 import type { LibEnemy } from '@/types';
 import { ABILITY_ORDER, type Monster } from '@/lib/monsters';
 import { monsterForTemplate } from '@/lib/bestiary';
+import { splitExtraDamage } from '@/lib/characters';
 
 let cache = new Map<string, ApiEnemy>();
 
@@ -26,7 +27,7 @@ export function monsterFromApi(e: ApiEnemy): Monster | null {
   return {
     name: e.name, cr: e.cr || '—', hp: e.hpMax, ac: e.ac ?? 10, speed: e.speedFt ?? 30, move: e.move || undefined,
     abilities: full ? (ABILITY_ORDER.map(k => ab![k]!) as unknown as Monster['abilities']) : undefined,
-    saves: e.saves, attacks: e.attacks ?? [], traits: e.traits,
+    saves: e.saves, attacks: (e.attacks ?? []).map(splitExtraDamage), traits: e.traits,
   };
 }
 

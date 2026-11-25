@@ -4,8 +4,8 @@ import { CONDITIONS_BY_ID, SPELL_BY_TYPE, C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
-import { DamagePopup } from '@/components/dm/DamagePopup';
-import { SpellEffectPopup, type SpellTarget } from '@/components/dm/SpellEffectPopup';
+import { DamagePopup, partsText } from '@/components/dm/DamagePopup';
+import { SpellEffectPopup, type SpellGuide, type SpellTarget } from '@/components/dm/SpellEffectPopup';
 import { spellTargets, SPELL_EFFECTS } from '@/lib/rules/spell-effects';
 import { powerDef, powerName, REST_SPENT, spentKey, type MonsterPower } from '@/lib/monster-powers';
 import { spellImpactS } from '@/lib/render/spells';
@@ -82,7 +82,7 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { GroupNamePopup } from '@/components/dm/GroupNamePopup';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave } from '@/lib/characters';
+import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave, spellcastingOf } from '@/lib/characters';
 import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
 import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
@@ -2111,16 +2111,24 @@ export function DMView() {
           else if (en) {
             const mo = monsterForEnemy(en);
             targets.push({ key: k, name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en), conditions: conditions[k] ?? [],
-              saveBonus: saveAb && mo ? monsterSave(mo, saveAb) : null });
+              ac: mo?.ac, saveBonus: saveAb && mo ? monsterSave(mo, saveAb) : null });
           }
         }
         if (targets.length === 0) return null;
+        // Guia de tirada: bonus i CD del poder, o del jugador que el llança (de la seva fitxa).
+        const spPow = spellPrompt.power;
+        const casterPl = !spPow && spellPrompt.caster?.startsWith('pl_') ? players.find(p => `pl_${p.id}` === spellPrompt.caster) : undefined;
+        const casterCh = casterPl ? characterFor(casterPl, chars.characters) : null;
+        const casting = casterCh ? spellcastingOf(sheetOf(casterCh)) : null;
+        const spGuide: SpellGuide = spPow
+          ? { attack: spPow.attack ?? null, dc: spPow.dc ?? null, dice: spPow.dice }
+          : { attack: casting?.attack ?? null, dc: casting?.dc ?? null, level: casterCh?.level };
         return (
           <SpellEffectPopup key={`${spellPrompt.type}:${spellPrompt.keys.join(',')}`} spellType={spellPrompt.type}
             fxOverride={spellPrompt.power ? spellPrompt.power.fx : undefined}
             title={spellPrompt.power ? `${spellPrompt.power.title} · ${tokNameOf(spellPrompt.power.key)}` : undefined}
             info={spellPrompt.power ? [spellPrompt.power.dc ? `CD ${spellPrompt.power.dc}` : '', spellPrompt.power.attack !== undefined ? `atac +${spellPrompt.power.attack}` : '', spellPrompt.power.dice ?? ''].filter(Boolean).join(' · ') : undefined}
-            anchor={spellPrompt.anchor} targets={targets} onClose={() => setSpellPrompt(null)}
+            anchor={spellPrompt.anchor} targets={targets} guide={spGuide} onClose={() => setSpellPrompt(null)}
             onCastOnly={() => { addSpell(spellPrompt.type, spellPrompt.points, () => {}, spellPrompt.power?.aoeFt); markPowerUsed(spellPrompt.power); setSpellPrompt(null); }}
             onApply={outs => {
               // Ara sí: l'animació, i el dany i els estats quan l'efecte arriba als afectats.
@@ -2175,8 +2183,8 @@ export function DMView() {
         const k = damagePrompt.targetKey;
         const pl = k.startsWith('pl_') ? players.find(p => `pl_${p.id}` === k) : undefined;
         const en = k.startsWith('lib_') ? libEnemies.find(e => `lib_${e.id}` === k) : undefined;
-        const tgt = pl ? { name: pl.name, hp: pl.hp, hpMax: pl.hpMax }
-          : en ? { name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en) } : null;
+        const tgt = pl ? { name: pl.name, hp: pl.hp, hpMax: pl.hpMax, ac: characterFor(pl, chars.characters)?.ac }
+          : en ? { name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en), ac: monsterForEnemy(en)?.ac } : null;
         if (!tgt) return null;
         return (
           <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}
@@ -2188,11 +2196,10 @@ export function DMView() {
                 effectsOnDamage(k);
               }
               const who = damagePrompt.attackerKey ? tokNameOf(damagePrompt.attackerKey) : 'Algú';
-              const dt = info.type ? ` ${damageLabel(info.type)}` : '';
-              const why = info.reasons.length ? ` (${info.rolled} tirat · ${info.reasons.join(', ').toLowerCase()})` : '';
+              const detail = info.parts.length > 1 ? `${amount} (${partsText(info.parts)})` : partsText(info.parts) || String(amount);
               const out = damagePrompt.outOfRange ? " · fora d'abast" : '';
               const falls = tgt.hp > 0 && tgt.hp - amount <= 0 ? ` · ${tgt.name} cau` : '';
-              const hitLog = logCombat(`${who} ataca ${tgt.name} amb ${damagePrompt.label}: ${amount}${dt}${why}${out}${falls}`, 'hit');
+              const hitLog = logCombat(`${who} ataca ${tgt.name} amb ${damagePrompt.label}: ${detail}${out}${falls}`, 'hit');
               if (amount > 0) attachUndoSide(undoLogSide(hitLog, falls && pl ? tgt.name : undefined, hitAt));
               setDamagePrompt(null);
             }} />

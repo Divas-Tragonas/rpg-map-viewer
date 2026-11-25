@@ -6,9 +6,11 @@ import { PixelIcon } from '@/components/ui/PixelIcon';
 import { isUiIcon } from '@/lib/sprites/uiicon';
 import { C, FS, RADIUS, CONDITIONS_BY_ID, SPELL_BY_TYPE } from '@/constants';
 import { anchoredBox } from '@/components/dm/ContextMenuOverlay';
-import { DAMAGE_TYPES, type DamageType } from '@/lib/characters';
+import { DAMAGE_TYPES, critDice, rollsText, type DamageType } from '@/lib/characters';
+import { RollGuide } from '@/components/dm/RollGuide';
+import { advLine, hitLine, saveNeed, saveNeedShort } from '@/lib/rules/roll-guide';
 import { applyDefenses, type Defenses } from '@/lib/rules/damage';
-import { SAVE_LABEL, effectFor } from '@/lib/rules/spell-effects';
+import { SAVE_LABEL, cantripDice, effectFor, needsAttackRoll } from '@/lib/rules/spell-effects';
 
 export interface SpellTarget {
   key: string; name: string; hp: number; hpMax: number; defenses?: Defenses; conditions: string[];
@@ -60,12 +62,20 @@ export function spellDamageFor(amount: number, type: DamageType | undefined, sav
  * llança i aplica el dany i els estats quan l'efecte arriba; «Només l'efecte» la llança sense aplicar
  * res; Esc o Cancel·lar no llancen el conjur.
  */
-export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose, fxOverride, title, info }: {
+/** El que cal per explicar la tirada: bonus d'atac i CD del llançador, daus i nivell (trucs). */
+export interface SpellGuide {
+  attack?: number | null; dc?: number | null; dice?: string; level?: number;
+  /** Motius d'avantatge / desavantatge de l'atac de conjur. */
+  adv?: string[]; dis?: string[];
+}
+
+export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose, fxOverride, title, info, guide = {} }: {
   spellType: string;
   /** Poder d'una criatura: el seu efecte (en lloc del de la taula), el seu nom i la CD / daus. */
   fxOverride?: import('@/lib/rules/spell-effects').SpellEffect | null;
   title?: string;
   info?: string;
+  guide?: SpellGuide;
   anchor: { l: number; r: number; t: number; b: number };
   targets: SpellTarget[];
   onApply: (out: SpellOutcome[]) => void;
@@ -78,11 +88,17 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   const meta = SPELL_BY_TYPE.get(spellType);
   // Dany o cura. Les de protecció i les d'estats, no.
   const hasAmount = !!fx?.damageType || !!fx?.heal;
-  const [raw, setRaw] = useState('');
-  const [type, setType] = useState<DamageType | ''>(fx?.damageType ?? '');
+  // Una fila per tipus de dany: el principal i els extres (Cop de flama: foc + radiant).
+  const [parts, setParts] = useState<{ raw: string; type: DamageType | '' }[]>(() =>
+    [{ raw: '', type: (fx?.damageType ?? '') as DamageType | '' }, ...(fx?.extra ?? []).map(r => ({ raw: '', type: (r.type ?? '') as DamageType | '' }))]);
+  const setPart = (i: number, patch: Partial<{ raw: string; type: DamageType | '' }>) => setParts(ps => ps.map((p, j) => j === i ? { ...p, ...patch } : p));
+  const [crit, setCrit] = useState(false);
+  const raw = parts[0]?.raw ?? '';
+  const type = parts[0]?.type ?? '';
   const [rows, setRows] = useState<Record<string, Row>>(() =>
     Object.fromEntries(targets.map(t => [t.key, { include: true, saved: false, conds: [...(fx?.conditions ?? [])] }])));
   const amount = Math.max(0, parseInt(raw) || 0);
+  const num = (r: string) => Math.max(0, parseInt(r) || 0);
   const setRow = (k: string, patch: Partial<Row>) => setRows(r => ({ ...r, [k]: { ...r[k], ...patch } }));
 
   const closeRef = useRef(onClose);
@@ -98,8 +114,14 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
     const row = rows[t.key];
     if (fx.heal) return { delta: -amount, reasons: [] as string[] };
     if (!fx.damageType) return { delta: 0, reasons: [] as string[] };
-    const r = spellDamageFor(amount, type || undefined, row.saved, !!fx.half, t.defenses);
-    return { delta: r.final, reasons: r.reasons };
+    let delta = 0; const reasons: string[] = [];
+    for (const p of parts) {
+      if (p.raw.trim() === '') continue;
+      const r = spellDamageFor(num(p.raw), p.type || undefined, row.saved, !!fx.half, t.defenses);
+      delta += r.final;
+      for (const x of r.reasons) if (!reasons.includes(x)) reasons.push(x);
+    }
+    return { delta, reasons };
   };
   // Sense número = només l'efecte i els estats (Enter sempre fa alguna cosa).
   const apply = () => {
@@ -111,6 +133,32 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
     })));
   };
   const saveText = fx.save ? `Salvació ${SAVE_LABEL[fx.save]}${fx.damageType ? (fx.half ? ' · meitat si la supera' : ' · res si la supera') : ''}` : null;
+  // ── Guia de tirada ──
+  const attackRoll = needsAttackRoll(fx);
+  const baseDice = guide.dice ?? fx.dice;
+  const dice = baseDice && fx.cantrip ? cantripDice(baseDice, guide.level) : baseDice;
+  const rolls = dice ? [{ dice, type: fx.damageType }, ...(fx.extra ?? [])] : [];
+  const dmgText = rolls.length ? rollsText(rolls, crit) : '';
+  const condNames = (fx.conditions ?? []).map(c => CONDITIONS_BY_ID.get(c)?.label ?? c).join(', ');
+  const single = targets.length === 1 ? targets[0] : null;
+  const steps: (string | null)[] = [];
+  if (attackRoll) {
+    steps.push(hitLine(guide.attack, single?.ac));
+    steps.push(advLine(guide.adv ?? [], guide.dis ?? []));
+  } else if (fx.autoHit) steps.push('Toca sempre: no cal tirar per tocar');
+  if (fx.save) steps.push(single
+    ? `${single.name} tira una salvació de ${SAVE_LABEL[fx.save]} (1d20)${guide.dc ? `: la supera amb ${saveNeed(single.saveBonus, guide.dc)}` : ''}`
+    : `Cada afectat tira una salvació de ${SAVE_LABEL[fx.save]} (1d20)${guide.dc ? ` contra CD ${guide.dc}: a cada fila, el que ha de treure per superar-la` : ''}`);
+  if (fx.heal) steps.push(dice ? `Tira la cura: ${dice}` : 'Tira la cura del conjur');
+  else if (fx.damageType) steps.push(dmgText
+    ? `${attackRoll ? 'Si toca, tira' : 'Tira'} el dany: ${dmgText}${fx.save ? (fx.half ? ' (qui la supera, la meitat)' : ' (qui la supera, res)') : ''}`
+    : `${attackRoll ? 'Si toca, tira' : 'Tira'} el dany del conjur`);
+  else if (dice) steps.push(`Tira ${dice}`);
+  if (condNames && !fx.buff) steps.push(fx.save ? `Qui no la supera: ${condNames}` : `Queda: ${condNames}`);
+  const notes = [
+    fx.tip ?? null,
+    attackRoll && dmgText && !crit ? `Un 20 al dau = crític: ${rollsText(rolls, true)}` : null,
+  ];
 
   return (
     <div data-ctxmenu="1" onMouseDown={e => e.stopPropagation()}
@@ -124,19 +172,28 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
         <Button size="sm" variant="ghost" title="Cancel·lar (Esc)" onClick={onClose}><X size={12} /></Button>
       </div>
       {(saveText || info) && <div style={{ fontSize: FS.sm, color: C.dim }}>{[info, saveText].filter(Boolean).join(' · ')}</div>}
-      {hasAmount && (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input autoFocus inputMode="numeric" placeholder={fx.heal ? 'Cura' : 'Dany'} value={raw}
-            onChange={e => setRaw(e.target.value.replace(/[^\d]/g, ''))}
-            style={{ ...field, width: 80, fontWeight: 700, textAlign: 'center', color: fx.heal ? C.ok : C.bright }} />
-          {!fx.heal && (
-            <select value={type} onChange={e => setType(e.target.value as DamageType | '')} style={{ ...field, flex: 1, fontSize: FS.md }}>
-              <option value="">Sense tipus</option>
-              {DAMAGE_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-            </select>
-          )}
-        </div>
-      )}
+      <RollGuide steps={steps} notes={notes} />
+      {hasAmount && parts.slice(0, fx.heal ? 1 : parts.length).map((p, i) => {
+        const pd = i === 0 ? dice : fx.extra?.[i - 1]?.dice;
+        return (
+          <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input autoFocus={i === 0} inputMode="numeric" placeholder={pd ? (crit ? critDice(pd) : pd) : fx.heal ? 'Cura' : 'Dany'} value={p.raw}
+              onChange={e => setPart(i, { raw: e.target.value.replace(/[^\d]/g, '') })}
+              style={{ ...field, width: 80, fontWeight: 700, textAlign: 'center', color: fx.heal ? C.ok : C.bright }} />
+            {!fx.heal && (
+              <select value={p.type} onChange={e => setPart(i, { type: e.target.value as DamageType | '' })} style={{ ...field, flex: 1, fontSize: FS.md }}>
+                <option value="">Sense tipus</option>
+                {DAMAGE_TYPES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+              </select>
+            )}
+            {i === 0 && attackRoll && !fx.heal && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.sm, color: crit ? C.bright : C.dim }} title="Crític: es doblen els daus">
+                <input type="checkbox" checked={crit} onChange={e => setCrit(e.target.checked)} /> Crític
+              </label>
+            )}
+          </div>
+        );
+      })}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {targets.map((t, i) => {
           const row = rows[t.key];
@@ -152,7 +209,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
                   <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.sm, color: row.saved ? C.ok : C.dim }}>
                     <input type="checkbox" checked={row.saved}
                       onChange={e => setRow(t.key, { saved: e.target.checked, conds: e.target.checked ? [] : [...(fx.conditions ?? [])] })} />
-                    supera{t.saveBonus !== undefined && t.saveBonus !== null ? ` (${t.saveBonus >= 0 ? '+' : ''}${t.saveBonus})` : ''}
+                    <span title={guide.dc ? `Supera la salvació si treu ${saveNeed(t.saveBonus, guide.dc)}` : undefined}>supera{guide.dc && saveNeedShort(t.saveBonus, guide.dc) ? ` amb ${saveNeedShort(t.saveBonus, guide.dc)}` : t.saveBonus !== undefined && t.saveBonus !== null ? ` (${t.saveBonus >= 0 ? '+' : ''}${t.saveBonus})` : ''}</span>
                   </label>
                 )}
                 {hasAmount && t.hpMax > 0 && (

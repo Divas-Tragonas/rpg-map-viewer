@@ -1,5 +1,5 @@
 import type { Point } from '@/types';
-import type { AbilityId, DamageType } from '@/lib/characters';
+import type { AbilityId, DamageRoll, DamageType } from '@/lib/characters';
 import type { TokenSlot } from '@/lib/render/token-geom';
 import { cellCenter, cellKeyOf, cellOfPoint, circleCells, tokenCells, type Cell, type Grid } from '@/lib/rules/cells';
 
@@ -38,25 +38,49 @@ export interface SpellEffect {
   rounds?: number;
   /** L'efecte s'acaba si l'afectat rep dany (Dormir). */
   endsOnDamage?: boolean;
+  /** Daus del dany o de la cura (guia de tirada, v5.43). Els trucs creixen amb el nivell (`cantrip`). */
+  dice?: string;
+  cantrip?: boolean;
+  /** Danys d'altres tipus que s'hi sumen (Cop de flama: foc + radiant): una fila més al pop-up. */
+  extra?: DamageRoll[];
+  /** Atac de conjur (1d20 + bonus contra la CA) en lloc de salvació. Sense: es dedueix (un sol objectiu, dany, sense salvació). */
+  attackRoll?: boolean;
+  /** Toca sempre, sense tirar per tocar (Projectil màgic). */
+  autoHit?: boolean;
+  /** Recordatori curt per a la taula. */
+  tip?: string;
+}
+
+/** Tira per tocar? Explícit, o un sol objectiu amb dany i sense salvació (Raig de gebre, Projectil guia). */
+export function needsAttackRoll(fx: SpellEffect): boolean {
+  if (fx.attackRoll !== undefined) return fx.attackRoll;
+  return fx.shape === 'single' && !fx.save && !fx.heal && !fx.autoHit && !!fx.damageType;
+}
+
+/** Daus d'un truc segons el nivell del llançador (5e: ×2 a nivell 5, ×3 a l'11, ×4 al 17). */
+export function cantripDice(dice: string, level: number | undefined): string {
+  if (!level) return dice;
+  const k = 1 + (level >= 5 ? 1 : 0) + (level >= 11 ? 1 : 0) + (level >= 17 ? 1 : 0);
+  return k === 1 ? dice : dice.replace(/^(\d+)d/, (_, n: string) => `${parseInt(n) * k}d`);
 }
 
 export const SPELL_EFFECTS: Record<string, SpellEffect> = {
-  fireball:         { shape: 'circle', sizeFt: 20, damageType: 'fire', save: 'dex', half: true, impactS: 0.85 },
-  lightning:        { shape: 'line', sizeFt: 5, damageType: 'lightning', save: 'dex', half: true, impactS: 0.15 },
+  fireball:         { shape: 'circle', sizeFt: 20, damageType: 'fire', save: 'dex', half: true, impactS: 0.85, dice: '8d6' },
+  lightning:        { shape: 'line', sizeFt: 5, damageType: 'lightning', save: 'dex', half: true, impactS: 0.15, dice: '8d6' },
   magic_beam:       { shape: 'line', sizeFt: 5, damageType: 'force', impactS: 0.45 },
-  magic_missile:    { shape: 'single', damageType: 'force', impactS: 0.85 },
-  ray_of_frost:     { shape: 'single', damageType: 'cold', impactS: 0.3 },
-  shocking_grasp:   { shape: 'single', damageType: 'lightning', impactS: 0.2 },
-  burning_hands:    { shape: 'cone', sizeFt: 15, damageType: 'fire', save: 'dex', half: true, impactS: 0.35 },
-  sacred_flame:     { shape: 'single', damageType: 'radiant', save: 'dex', impactS: 0.3 },
+  magic_missile:    { shape: 'single', damageType: 'force', impactS: 0.85, dice: '3d4+3', autoHit: true, tip: '3 dards de 1d4+1: es poden repartir entre objectius' },
+  ray_of_frost:     { shape: 'single', damageType: 'cold', impactS: 0.3, dice: '1d8', cantrip: true, tip: 'Si toca, −10 ft de velocitat fins al seu proper torn' },
+  shocking_grasp:   { shape: 'single', damageType: 'lightning', impactS: 0.2, dice: '1d8', cantrip: true, tip: 'Avantatge si porta armadura de metall · si toca, no pot fer reaccions' },
+  burning_hands:    { shape: 'cone', sizeFt: 15, damageType: 'fire', save: 'dex', half: true, impactS: 0.35, dice: '3d6' },
+  sacred_flame:     { shape: 'single', damageType: 'radiant', save: 'dex', impactS: 0.3, dice: '1d8', cantrip: true, tip: 'No té en compte la cobertura' },
   hideous_laughter: { shape: 'single', save: 'wis', conditions: ['prone', 'incapacitated'], impactS: 0.75, rounds: 10 },
   charm_person:     { shape: 'single', save: 'wis', conditions: ['charmed'], impactS: 0.8 },
-  sleep:            { shape: 'circle', sizeFt: 20, conditions: ['unconscious'], impactS: 0.6, rounds: 10, endsOnDamage: true },
+  sleep:            { shape: 'circle', sizeFt: 20, conditions: ['unconscious'], impactS: 0.6, rounds: 10, endsOnDamage: true, dice: '5d8', tip: 'Sense salvació: tira 5d8 i s\'adormen, dels que tenen menys PV als que més, mentre en quedin' },
   grease:           { shape: 'circle', sizeFt: 10, save: 'dex', conditions: ['prone'], impactS: 0.6 },
   shield:           { shape: 'self', buff: 'shield', rounds: 1, conditions: ['shielded'] },
   mage_armor:       { shape: 'single', buff: 'mage_armor', conditions: ['mage_armored'] },
   bless:            { shape: 'single', buff: 'bless', rounds: 10, conditions: ['blessed'] },
-  cure_wounds:      { shape: 'single', heal: true, impactS: 0.5 },
+  cure_wounds:      { shape: 'single', heal: true, impactS: 0.5, dice: '1d8 + mod.', tip: 'mod. = el de la característica de conjurar (SAB del clergue)' },
 };
 
 /**

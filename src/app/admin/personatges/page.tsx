@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { C, tint } from '@/constants';
 import { api, isApiConfigured, type ApiCharacter, type ApiCharacterInput } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import { ABILITIES, DEFAULT_SECTIONS, DAMAGE_TYPES, abilityMod, attacksOf, levelUpTo, parseAttacks, sameCharacter, sheetOf, signed, xpProgress, type AbilityId, type AmmoStack, type AttackKind, type CharacterSheet, type DamageType, type SheetAttack } from '@/lib/characters';
+import { ABILITIES, DEFAULT_SECTIONS, DAMAGE_TYPES, abilityMod, attacksOf, parseRolls, rollsInput, rollsText, type DamageRoll, levelUpTo, parseAttacks, sameCharacter, sheetOf, signed, xpProgress, type AbilityId, type AmmoStack, type AttackKind, type CharacterSheet, type DamageType, type SheetAttack } from '@/lib/characters';
 import { CHARACTER_SEED } from '@/lib/characters-seed';
 
 type Form = ApiCharacterInput & { sheet: CharacterSheet };
@@ -336,6 +336,17 @@ function AmmoEditor({ ammo, onChange }: { ammo: AmmoStack[]; onChange: (a: AmmoS
   );
 }
 
+/**
+ * Camp de tirades («1d6 foc, 2d8 radiant Cop diví»): es llegeix en sortir del camp (escrivint,
+ * una lletra a mitges no s'ha de convertir). Buit = cap.
+ */
+function RollsInput({ value, placeholder, onChange }: { value?: DamageRoll[]; placeholder: string; onChange: (v: DamageRoll[] | undefined) => void }) {
+  const [txt, setTxt] = useState(rollsInput(value));
+  const commit = () => { const r = parseRolls(txt); onChange(r.length ? r : undefined); setTxt(rollsInput(r)); };
+  return <input value={txt} placeholder={placeholder} title="Daus, tipus de dany (opcional) i nom: «1d6 foc», «1d6 Atac furtiu». Separats per comes"
+    onChange={e => setTxt(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); }} style={small} />;
+}
+
 function AttacksEditor({ sheet, onChange }: { sheet: CharacterSheet; onChange: (a: SheetAttack[] | undefined) => void }) {
   const own = sheet.attacks;
   const list = own ?? attacksOf(sheet);
@@ -349,11 +360,12 @@ function AttacksEditor({ sheet, onChange }: { sheet: CharacterSheet; onChange: (
       {!own && (
         <div style={{ fontSize: 12, color: C.dim }}>
           {list.length > 0 ? 'Llegits del text de la secció «Atacs»:' : 'Cap atac: el menú del mapa oferirà un «Cos a cos» de 5 ft.'}
-          {list.map((a, i) => <div key={i} style={{ color: C.text }}>· {a.name} — {KIND_LABEL[a.kind]}, {a.kind === 'ranged' ? `${a.rangeFt}/${a.longFt}` : a.kind === 'thrown' ? `${a.reachFt ?? 5} · ${a.rangeFt}/${a.longFt}` : a.reachFt ?? 5} ft{a.damage ? `, ${a.damage}` : ''} {DAMAGE_TYPES.find(d => d.id === a.damageType)?.label ?? ''}</div>)}
+          {list.map((a, i) => <div key={i} style={{ color: C.text }}>· {a.name} — {KIND_LABEL[a.kind]}, {a.kind === 'ranged' ? `${a.rangeFt}/${a.longFt}` : a.kind === 'thrown' ? `${a.reachFt ?? 5} · ${a.rangeFt}/${a.longFt}` : a.reachFt ?? 5} ft{a.damage ? `, ${a.damage}` : ''} {DAMAGE_TYPES.find(d => d.id === a.damageType)?.label ?? ''}{a.extra?.length ? ` + ${rollsText(a.extra)}` : ''}{a.riders?.length ? ` · opcional: ${rollsText(a.riders)}` : ''}</div>)}
         </div>
       )}
       {own?.map((a, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr 1.2fr 1.1fr auto', gap: 6, alignItems: 'end' }}>
+        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr 1.2fr 1.1fr auto', gap: 6, alignItems: 'end' }}>
           <Field label="Nom"><input value={a.name} onChange={e => setRow(i, { name: e.target.value })} style={small} /></Field>
           <Field label="Tipus">
             <select value={a.kind} onChange={e => setRow(i, { kind: e.target.value as AttackKind })} style={small}>
@@ -373,6 +385,15 @@ function AttacksEditor({ sheet, onChange }: { sheet: CharacterSheet; onChange: (
           </Field>
           <Field label="Munició"><input value={a.ammo ?? ''} placeholder="Fletxes" title="Pila de munició que gasta (veure «Munició»)" onChange={e => setRow(i, { ammo: e.target.value.trim() ? e.target.value : undefined })} style={small} /></Field>
           <Button variant="ghost" onClick={() => onChange(own.filter((_, j) => j !== i))} title="Treure l'atac">Treure</Button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <Field label="Dany extra (sempre)">
+            <RollsInput value={a.extra} placeholder="1d6 foc, 2d6 verí" onChange={v => setRow(i, { extra: v })} />
+          </Field>
+          <Field label="Dany opcional (el DM el marca)">
+            <RollsInput value={a.riders} placeholder="1d6 Atac furtiu" onChange={v => setRow(i, { riders: v })} />
+          </Field>
+        </div>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 8 }}>

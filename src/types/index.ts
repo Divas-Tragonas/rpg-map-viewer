@@ -170,6 +170,10 @@ export interface AttackPending {
   kind?: import('@/lib/characters').AttackKind;
   /** Pila de munició que gasta el tret (`SheetAttack.ammo`). */
   ammo?: string;
+  /** Bonus d'atac («+5») i tirades de dany (principal + extra) i opcionals, per a la guia de tirada. */
+  bonus?: string;
+  rolls?: import('@/lib/characters').DamageRoll[];
+  riders?: import('@/lib/characters').DamageRoll[];
 }
 
 /** Pop-up de dany obert al costat del token objectiu (`DamagePopup`). */
@@ -184,6 +188,12 @@ export interface DamagePrompt {
   /** Qui ataca i si era fora d'abast (per a l'historial del combat). */
   attackerKey?: string;
   outOfRange?: boolean;
+  /** A l'abast llarg (desavantatge). */
+  longRange?: boolean;
+  /** Bonus d'atac i tirades de dany de l'arma (v5.43): una fila per tipus al pop-up i la guia de tirada. */
+  bonus?: string;
+  rolls?: import('@/lib/characters').DamageRoll[];
+  riders?: import('@/lib/characters').DamageRoll[];
 }
 
 /**

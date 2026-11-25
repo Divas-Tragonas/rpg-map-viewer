@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { C, FS, RADIUS, SPELL_BY_TYPE, SPELL_MODES, AREA_SPELL_DATA, spellRangeFt, spellbookFor } from '@/constants';
 import type { AttackPending, Player, LibEnemy, SpellType } from '@/types';
 import type { ApiCharacter } from '@/lib/api';
-import { type AmmoStack, ammoLeft, attacksOf, attackRanges, characterFor, sheetOf, DAMAGE_TYPES, type SheetAttack } from '@/lib/characters';
+import { type AmmoStack, ammoLeft, attacksOf, attackRanges, characterFor, sheetOf, damageRollsOf, rollsText, splitExtraDamage, type SheetAttack } from '@/lib/characters';
 import { monsterForEnemy } from '@/lib/db-enemies';
 import { enemyDefenses } from '@/lib/rules/damage';
 import { powerDef, powerName, spentKey, REST_SPENT, type MonsterPower } from '@/lib/monster-powers';
@@ -42,13 +42,13 @@ function AttackList({ attacks, onPick, ammoOf, armed }: { attacks: SheetAttack[]
       <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 5 }}><SwordsIcon size={11} /> Atacs</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
         {attacks.map((a, i) => {
-          const dmg = DAMAGE_TYPES.find(d => d.id === a.damageType)?.label;
+          const dmg = rollsText(damageRollsOf(a));
           const left = ammoOf?.(a) ?? null;
           const out = left === 0;
           const kind = a.kind === 'melee' ? 'cos a cos' : a.kind === 'thrown' ? 'llançadissa' : 'a distància';
           return (
             <Button key={`${a.name}-${i}`} size="sm" variant="tint" color={C.enemy} active={armed === `atk:${a.name}`}
-              title={`${a.name} · ${kind} · ${rangeText(a)} ft${a.bonus ? ` · ${a.bonus}` : ''}${a.damage ? ` · ${a.damage}` : ''}${dmg ? ` ${dmg}` : ''}${left !== null ? ` · ${left} ${a.ammo?.toLowerCase()}` : ''}${out ? ' (sense munició)' : ''}\nClic al mapa (o al token objectiu) · Esc o clic dret cancel·la`}
+              title={`${a.name} · ${kind} · ${rangeText(a)} ft${a.bonus ? ` · ${a.bonus}` : ''}${dmg ? ` · ${dmg}` : ''}${a.riders?.length ? ` · opcional: ${rollsText(a.riders)}` : ''}${left !== null ? ` · ${left} ${a.ammo?.toLowerCase()}` : ''}${out ? ' (sense munició)' : ''}\nClic al mapa (o al token objectiu) · Esc o clic dret cancel·la`}
               disabled={out}
               onMouseDown={e => { e.stopPropagation(); if (!out) onPick(a); }}
               style={{ justifyContent: 'flex-start', minWidth: 0, gap: 4, height: 'auto', minHeight: 26, padding: '3px 6px', lineHeight: 1.15 }}>
@@ -202,7 +202,7 @@ export function TokenActions({ tokenKey, player: pl, lib, characters, powerSpent
   // Enemics: els atacs del seu bloc de 5e (bestiari de l'app) o, si no en té, un cos a cos amb
   // l'abast de la BD (`defenses.reachFt`, 5 ft si no en té).
   const mo = lib ? monsterForEnemy(lib) : null;
-  const own = sh ? attacksOf(sh) : mo ? mo.attacks.filter(a => a.damage) : [];
+  const own = sh ? attacksOf(sh) : mo ? mo.attacks.filter(a => a.damage).map(splitExtraDamage) : [];
   const reach = lib ? enemyDefenses(lib)?.reachFt : undefined;
   const generic = reach !== undefined ? { ...GENERIC_MELEE, reachFt: reach } : GENERIC_MELEE;
   const list = own.length > 0 ? own : [generic];
@@ -211,7 +211,8 @@ export function TokenActions({ tokenKey, player: pl, lib, characters, powerSpent
     <>
       <AttackList attacks={list} armed={armed} ammoOf={sh ? a => ammoLeft(sh, a) : undefined} onPick={a => {
         const { normalFt, longFt } = attackRanges(a);
-        onAttack({ key: tokenKey, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind, ammo: a.ammo });
+        onAttack({ key: tokenKey, label: a.name, normalFt, longFt, damageType: a.damageType, kind: a.kind, ammo: a.ammo,
+          bonus: a.bonus, rolls: damageRollsOf(a), riders: a.riders });
       }} />
       {ch && sh?.ammo?.length ? <AmmoControls stacks={sh.ammo} onAdjust={(name, d) => onAdjustAmmo(ch.id, name, d)} /> : null}
       {sh?.powers?.length ? <PowerList title="Habilitats" powers={sh.powers} spent={spent} armed={armed} onCast={p => onCastPower(tokenKey, p)} /> : null}

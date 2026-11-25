@@ -82,7 +82,17 @@ export interface SheetAttack {
   damageType?: DamageType;
   /** Nom de la pila de `sheet.ammo` que gasta cada tret (veure `spendAmmo`). */
   ammo?: string;
+  /** Danys que s'hi sumen sempre que toca, cadascun amb el seu tipus (el verí d'una mossegada). */
+  extra?: DamageRoll[];
+  /** Danys opcionals que el DM marca a la taula si escau (Atac furtiu, Cop diví). */
+  riders?: DamageRoll[];
 }
+
+/**
+ * Una tirada de dany: daus («2d6», «1d8+3») i tipus. Sense tipus = el de l'arma (els opcionals
+ * com l'Atac furtiu). `label` = nom que es veu al pop-up («Atac furtiu»).
+ */
+export interface DamageRoll { dice: string; type?: DamageType; label?: string }
 
 const sameAmmo = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -125,8 +135,15 @@ const DAMAGE_WORDS: Record<string, DamageType> = Object.fromEntries(
  */
 export function parseAttacks(text: string): SheetAttack[] {
   const out: SheetAttack[] = [];
+  const riders: DamageRoll[] = [];
   for (const raw of text.split('\n')) {
     const line = raw.trim().replace(/^[-•*]\s*/, '');
+    // «**Atac furtiu:** +1d6 amb avantatge…» = dany opcional de tots els atacs (el DM el marca).
+    const rd = /^\*\*(.+?)\*\*\s*\+\s*(\d+d\d+(?:\s*[+-]\s*\d+)?)\s*([\p{L}]+)?/u.exec(line);
+    if (rd) {
+      riders.push({ dice: rd[2].replace(/\s+/g, ''), label: rd[1].replace(/[:：]\s*$/, '').trim(), ...(DAMAGE_WORDS[(rd[3] ?? '').toLowerCase()] ? { type: DAMAGE_WORDS[(rd[3] ?? '').toLowerCase()] } : {}) });
+      continue;
+    }
     const m = /^\*\*(.+?)\*\*\s*([+-]\s*\d+)?\s*[·:,-]?\s*(\d+d\d+(?:\s*[+-]\s*\d+)?)\s*([\p{L}]+)?(.*)$/u.exec(line);
     if (!m) continue;
     const name = m[1].replace(/[:：]\s*$/, '').trim();
@@ -143,16 +160,104 @@ export function parseAttacks(text: string): SheetAttack[] {
       if (/llançament/i.test(rng[1])) atk.kind = 'thrown';
       else { atk.kind = 'ranged'; delete atk.reachFt; }
     }
+    // «… 1d6+2 contundent + 1d6 foc»: danys extra amb el seu tipus.
+    const extra = [...rest.matchAll(/\+\s*(\d+d\d+(?:\s*[+-]\s*\d+)?)\s*([\p{L}]+)/gu)]
+      .filter(x => DAMAGE_WORDS[x[2].toLowerCase()])
+      .map(x => ({ dice: x[1].replace(/\s+/g, ''), type: DAMAGE_WORDS[x[2].toLowerCase()] }));
+    if (extra.length) atk.extra = extra;
     out.push(atk);
   }
+  if (riders.length) for (const a of out) a.riders = riders.map(r => ({ ...r }));
   return out;
 }
 
 /** Atacs d'una fitxa: els estructurats si n'hi ha, si no els que es llegeixen del text «Atacs». */
 export function attacksOf(sheet: CharacterSheet): SheetAttack[] {
-  if (sheet.attacks) return sheet.attacks;
+  if (sheet.attacks) return sheet.attacks.map(splitExtraDamage);
   const sec = sheet.sections?.find(s => s.title.trim().toLowerCase() === 'atacs');
   return sec ? parseAttacks(sec.text) : [];
+}
+
+// ── Danys de diversos tipus (v5.43) ───────────────────────────────────────────
+
+const EXTRA_IN_NAME = /\s*\(\+\s*(\d+d\d+(?:\s*[+-]\s*\d+)?)\s+([\p{L}]+)\)/gu;
+
+/**
+ * Un atac amb el dany extra escrit al nom («Mossegada (+2d6 verí)», com els desa la API, que no té
+ * camp per a l'extra) → nom net i `extra`. Si ja en té o el nom no en porta, el retorna tal qual.
+ */
+export function splitExtraDamage(a: SheetAttack): SheetAttack {
+  if (a.extra?.length || !a.name.includes('(+')) return a;
+  const extra: DamageRoll[] = [];
+  const name = a.name.replace(EXTRA_IN_NAME, (all, dice: string, word: string) => {
+    const type = DAMAGE_WORDS[word.toLowerCase()];
+    if (!type) return all;
+    extra.push({ dice: dice.replace(/\s+/g, ''), type });
+    return '';
+  }).trim();
+  return extra.length ? { ...a, name, extra } : a;
+}
+
+/** El contrari, per a la API (els atacs del bloc d'un enemic no tenen `extra` ni `riders`). */
+export function foldExtraDamage(a: SheetAttack): SheetAttack {
+  const { extra, riders: _r, ...rest } = a; void _r;
+  if (!extra?.length) return rest;
+  const tail = extra.map(r => ` (+${r.dice}${r.type ? ` ${damageLabel(r.type)}` : ''})`).join('');
+  return { ...rest, name: `${rest.name}${tail}` };
+}
+
+const damageLabel = (t?: DamageType) => DAMAGE_TYPES.find(d => d.id === t)?.label ?? '';
+
+/** Les tirades de dany que fa sempre un atac: la principal i les extra. */
+export function damageRollsOf(a: SheetAttack): DamageRoll[] {
+  const out: DamageRoll[] = [];
+  if (a.damage || a.damageType) out.push({ dice: a.damage ?? '', type: a.damageType });
+  for (const r of a.extra ?? []) out.push(r);
+  return out;
+}
+
+/** Daus d'un crític: el doble de daus, el modificador igual («1d8+3» → «2d8+3»). */
+export function critDice(dice: string): string {
+  return dice.replace(/(\d+)d(\d+)/g, (_, n: string, f: string) => `${parseInt(n) * 2}d${f}`);
+}
+
+/** Text curt d'unes tirades: «1d10+2 perforant + 1d10 verí». */
+export function rollsText(rolls: readonly DamageRoll[], crit = false): string {
+  return rolls.filter(r => r.dice).map(r => `${crit ? critDice(r.dice) : r.dice}${r.type ? ` ${damageLabel(r.type)}` : r.label ? ` (${r.label})` : ''}`).join(' + ');
+}
+
+/**
+ * Llegeix unes tirades escrites a mà (editor del back office): «1d6 foc, 2d8 radiant Cop diví».
+ * Cada peça: daus, tipus opcional i la resta = nom. Separades per comes, punts i coma o « + ».
+ */
+export function parseRolls(text: string): DamageRoll[] {
+  const out: DamageRoll[] = [];
+  for (const raw of text.split(/[,;]|\s\+\s/)) {
+    const m = /^\s*\+?\s*(\d+d\d+(?:\s*[+-]\s*\d+)?)\s*(.*)$/u.exec(raw);
+    if (!m) continue;
+    const words = m[2].trim().split(/\s+/).filter(Boolean);
+    const type = words.length ? DAMAGE_WORDS[words[0].toLowerCase()] : undefined;
+    const label = (type ? words.slice(1) : words).join(' ').replace(/^\(|\)$/g, '').trim();
+    out.push({ dice: m[1].replace(/\s+/g, ''), ...(type ? { type } : {}), ...(label ? { label } : {}) });
+  }
+  return out;
+}
+
+/** El contrari de `parseRolls` (per omplir el camp de l'editor). */
+export function rollsInput(rolls: readonly DamageRoll[] | undefined): string {
+  return (rolls ?? []).map(r => [r.dice, r.type ? damageLabel(r.type) : '', r.label ?? ''].filter(Boolean).join(' ')).join(', ');
+}
+
+/**
+ * Bonus d'atac i CD dels conjurs d'un jugador, llegits de la fitxa («Conjurs d'atac: bonus +5 · CD
+ * de salvació 13», a qualsevol secció). `null` si no en té.
+ */
+export function spellcastingOf(sheet: CharacterSheet): { attack?: number; dc?: number } | null {
+  for (const sec of sheet.sections ?? []) {
+    const m = /conjurs[^\n]*?bonus\s*([+-]\s*\d+)[^\n]*?CD[^\d\n]*(\d+)/i.exec(sec.text);
+    if (m) return { attack: parseInt(m[1].replace(/\s+/g, '')), dc: parseInt(m[2]) };
+  }
+  return null;
 }
 
 /** Seccions que s'ofereixen en una fitxa nova (el DM en pot afegir o treure). */

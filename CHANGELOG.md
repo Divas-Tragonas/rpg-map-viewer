@@ -3,6 +3,15 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.43 — Danys de diversos tipus i guia de què cal tirar
+- Els atacs poden fer danys de més d'un tipus: la mossegada del drac verd fa perforant **i** verí, i cada part passa per les defenses de l'objectiu (abans el verí s'havia de calcular a mà)
+- Els 14 atacs del bestiari que portaven el dany extra al nom («Mossegada (+2d6 verí)») ara el tenen separat. Els enemics de la BD continuen escrivint-lo al nom i l'app el separa sola (cap canvi a la API)
+- Danys opcionals que el DM marca a la taula: la línia «Atac furtiu: +1d6» de la fitxa de la pícara s'afegeix a tots els seus atacs, desmarcada. Al back office de personatges, camps «Dany extra» i «Dany opcional» per atac
+- Pop-up de dany: una fila per tipus, casella «Crític» i un total; s'aplica com un sol pas de desfer i l'historial ho detalla
+- **Guia de tirada** a dalt dels pop-ups d'atac, conjur i poder: què has de treure al d20 per tocar («toca amb 10 o més, +5 contra CA 15»), avantatge o desavantatge, quins daus de dany tirar, el crític, i a les salvacions el número que cal treure a cada objectiu
+- Els conjurs dels jugadors porten els seus daus (Bola de foc 8d6, Raig de gebre 1d8 que creix amb el nivell…) i el bonus i la CD surten de la fitxa
+- Cap canvi a la API ni a les partides desades
+
 ### v5.42 — Combat més simple: diàleg d'iniciar gran i panell d'accions
 - «Iniciar torns» obre un diàleg gran en dos passos: primer, qui hi entra (rajoles de tots els tokens de l'escena; jugadors i enemics visibles ja marcats, grups com una sola rajola; Enter = següent); després, l'ordre: escrius la iniciativa que ha tret cadascú, Enter i la fila va al seu lloc (▲▼ per desempatar). Quan totes tenen número, Enter comença el combat. L'app no tira cap dau
 - Els jugadors ja no s'afegeixen sempre al davant: l'ordre és el del diàleg (i es pot deixar algun jugador fora)
