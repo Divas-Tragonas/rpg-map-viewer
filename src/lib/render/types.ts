@@ -84,7 +84,7 @@ export interface FrameContext {
   // Camí de moviment pendent per token (pantalla de jugador): polilínia (cantonada sup-esq,
   // origen inclòs com a `pts[0]`) que el token recorre vorejant les parets (forma d'L) amb
   // progrés per longitud d'arc `t` (ease-out), en lloc de línia recta.
-  rMovePath?:       MutableRefObject<Record<string, { pts: { x: number; y: number }[]; t: number }>>;
+  rMovePath?:       MutableRefObject<Record<string, { pts: { x: number; y: number }[]; t: number; speed?: number }>>;
 
   rGridVisible:     MutableRefObject<boolean>;
   rGridSize:        MutableRefObject<number>;

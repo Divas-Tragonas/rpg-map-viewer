@@ -1,5 +1,6 @@
 'use client';
 import { useEffect } from 'react';
+import { setForcedPreview } from '@/lib/render/forced';
 import type { DrawTool } from '@/types';
 import type { DMRefs } from './useDMRefs';
 import { toggleLightDebug } from '@/lib/render/darkrooms';
@@ -142,8 +143,9 @@ export function useKeyboardHandlers(R: DMRefs, opts: KBOpts) {
       }
       if (e.key === 'Escape' && R.cinematicActiveRef.current) { R.bcRef.current?.postMessage({ type: 'BOSS_INTRO_SKIP' }); R.wsRef.current?.send(JSON.stringify({ type: 'BOSS_INTRO_SKIP' })); skipBossIntro(); return; }
       // Màgia triada que espera el destí (roda o grimori d'un token): Esc la cancel·la.
-      if (e.key === 'Escape' && (R.rAreaPlacementPending.current || R.rAttackPending.current)) {
+      if (e.key === 'Escape' && (R.rAreaPlacementPending.current || R.rAttackPending.current || R.rForcedPending.current)) {
         R.rAreaPlacementPending.current = null; R.rAttackPending.current = null; R.rSpellPreview.current = null;
+        if (R.rForcedPending.current) { R.rForcedPending.current = null; setForcedPreview(null); }
         return;
       }
       if (e.key === 'Escape' && (R.rAreaSelectMode.current || R.rAreaSelectRect.current)) {

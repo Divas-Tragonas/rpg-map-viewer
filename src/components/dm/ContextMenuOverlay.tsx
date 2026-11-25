@@ -55,6 +55,8 @@ interface Props {
   onResetExplored: (id: string) => void;
   /** Obre el panell d'accions (atacs, poders, conjurs) amb aquest token. */
   onOpenActions?: (tokenKey: string) => void;
+  /** Moure el token a la força (empènyer, estirar, l'Empenta): el ratolí tria la direcció. */
+  onForceMove?: (tokenKey: string, ft: number) => void;
   /** Diàlegs preparats de cada token (veure `useDialog`). */
   dialogs: Record<string, SavedDialog[]>;
   /** Frase improvisada: globus sobre el token (combat) o escena (barres i càmera). */
@@ -207,7 +209,7 @@ export function ContextMenuOverlay({
   setDefeated, setConditions,
   removeLibEnemy,
   onCreateGroup, onDissolveGroup, onLeaveGroup,
-  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onOpenActions,
+  onSetRoomDark, onToggleRoomReveal, onRenameRoom, onDeleteRoom, onAddDoor, onResetExplored, onOpenActions, onForceMove,
   dialogs, onSpeak, onPlayDialog, onEditDialogs, floatPos, onFloat, characters,
 }: Props) {
   // Confirmació d'eliminar sala: esborrar una sala també n'esborra les parets exclusives,
@@ -436,6 +438,17 @@ export function ContextMenuOverlay({
             onMouseDown={e => { e.stopPropagation(); onOpenActions(t.key); onClose(); }}>
             <SwordsIcon size={12} /> Accions (atacs, poders, conjurs)
           </Button>
+        </div>
+      )}
+
+      {onForceMove && (pl || lib) && (
+        <div style={{ padding: '6px 8px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 4 }}
+          title="Empènyer o estirar el token en línia recta (Empenta, una envestida, un conjur): tria els peus, apunta amb el ratolí cap on surt i clica. S'atura a les parets i a les altres criatures; no gasta peus del seu torn. Esc cancel·la">
+          <span style={{ flex: 1, fontSize: FS.xs, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Moure a la força</span>
+          {[5, 10, 15, 20].map(ft => (
+            <Button key={ft} size="sm" variant="secondary" onMouseDown={e => { e.stopPropagation(); onForceMove(t.key, ft); onClose(); }}>{ft}</Button>
+          ))}
+          <span style={{ fontSize: FS.xs, color: C.dim }}>ft</span>
         </div>
       )}
 

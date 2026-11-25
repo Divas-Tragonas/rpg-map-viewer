@@ -135,7 +135,7 @@ export function usePlayerTokenDrag(
   // el token fa l'animació de desplaçament (LERP/camí) fins al destí.
   rDragPreview: RefObject<{ id: string; x: number; y: number } | null>,
   // Camí de moviment pendent per token (vorejant parets, forma d'L; ease-out per arc).
-  rMovePath: RefObject<Record<string, { pts: { x: number; y: number }[]; t: number }>>,
+  rMovePath: RefObject<Record<string, { pts: { x: number; y: number }[]; t: number; speed?: number }>>,
   // Estats dels tokens: Agafat, Retingut, Paralitzat… deixen la velocitat a 0 i Tombat
   // la parteix per la meitat (`lib/rules/conditions.ts`).
   rConditions: RefObject<ConditionsMap>,

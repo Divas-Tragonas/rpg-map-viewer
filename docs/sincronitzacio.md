@@ -28,7 +28,7 @@ Canal: `BC_CHANNEL = 'rpg_map_sync_v18'`
 | `FIG_HIDE` | Tracker→Pantalla de figures | **Només BC**. `{ids}`: tokens que la pantalla de figures (`?tauler=1`) no pinta mentre la figureta es mou. Es renova cada segon; sense notícies en 3 s, es tornen a pintar tots |
 | `FIG_PLACE` | Tracker→Pantalla de figures | **Només BC**. `{off, ok}`: recol·locació (quines figuretes no són a sobre de la seva rodona). Caduca als 3 s |
 | `STATE.figBack` / `STRUCT.figBack` | DM→Jugador | Tokens amb un moviment de figureta rebutjat (lleuger, sempre): la pantalla de figures hi pinta «Torna-la aquí» |
-| `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera |
+| `TOKEN_RELAY` | DM→Jugador | Relay d'un token mogut (id+x+y) a la resta de pantalles de jugador. El jugador el **fusiona** dins `rPos` sense reemplaçar l'estat ni tocar la càmera. `fast: true` (v5.44) = moviment forçat: línia recta i ràpida, sense camí |
 | `STATE.appStyle` / `STATE.tileLive` | DM→Jugador | App Píxel (camps dins del `STATE`, no missatges propis: la API els reenvia opacs). `appStyle` lleuger, `tileLive` pesat. Els sprites NO viatgen: cada pantalla els carrega de `public/sprites/` |
 | `STATE.board` / `STRUCT.board` | DM→Jugador | Mode tauler de les figuretes físiques (`BoardView \| null`, lleuger, sempre). Només el fa servir la pantalla oberta amb `?tauler=1` (i `/tracker`). Veure «Figuretes físiques amb càmera» a `tokens-i-combat.md` |
 | `STATE.phosphor` / `STRUCT.phosphor` | DM→Jugador | Mode Fòsfor (boolean, lleuger, sempre): la pantalla de jugador es veu com una TV de tub antiga. Veure «Mode Fòsfor» |

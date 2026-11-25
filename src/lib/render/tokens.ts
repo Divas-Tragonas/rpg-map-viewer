@@ -432,11 +432,13 @@ function advanceMovePath(fc: FrameContext, key: string): { x: number; y: number 
   let total = 0;
   for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
   const gs = fc.rGridSize.current > 0 ? fc.rGridSize.current : 70;
-  const cruise = gs * PATH_CRUISE;       // velocitat constant (lenta)
+  // `speed` (moviment forçat, v5.44): més ràpid i amb una frenada més seca, com un cop.
+  const k = mp.speed ?? 1;
+  const cruise = gs * PATH_CRUISE * k;   // velocitat constant (lenta)
   const remaining = total - mp.t;
   // min(creuer, frenada): cruise mana la major part; a prop del final la frenada
   // (ease-out) fa que s'aturi suau en lloc d'un tall sec.
-  mp.t += Math.min(cruise, remaining * PATH_BRAKE);
+  mp.t += Math.min(cruise, remaining * (k > 1 ? Math.min(0.5, PATH_BRAKE * k) : PATH_BRAKE));
   if (total - mp.t < 0.5) {
     vp.x = pts[pts.length - 1].x; vp.y = pts[pts.length - 1].y;
     if (fc.rMovePath) delete fc.rMovePath.current[key];
@@ -528,9 +530,13 @@ function renderLibEnemyTokens(ctx: CanvasRenderingContext2D, fc: FrameContext, o
     const rawEp = (pp[`lib_${en.id}`] as { x: number; y: number } | undefined) || { x: 0, y: 0 };
     let ep: { x: number; y: number };
     if (isDM) {
+      // Moviment forçat (empènyer/estirar, v5.44): el DM també el veu desplaçar-se.
+      const anim = fc.rMovePath?.current[`lib_${en.id}`] ? advanceMovePath(fc, `lib_${en.id}`) : null;
+      if (!anim && visualPosRef.current[`lib_${en.id}`]) delete visualPosRef.current[`lib_${en.id}`];
+      const base = anim ? { x: anim.x, y: anim.y } : rawEp;
       // Ventall dels tokens apilats (`token-geom.ts`): offset només visual.
       const so = spreadOffset(`lib_${en.id}`);
-      ep = so.x || so.y ? { x: rawEp.x + so.x, y: rawEp.y + so.y } : rawEp;
+      ep = so.x || so.y ? { x: base.x + so.x, y: base.y + so.y } : base;
     } else {
       const key = `lib_${en.id}`;
       const vp = visualPosRef.current[key];

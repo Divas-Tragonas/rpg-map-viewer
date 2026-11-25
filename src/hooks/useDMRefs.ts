@@ -46,6 +46,8 @@ export function useDMRefs() {
   const rTerrainDrag    = useRef<{ erase: boolean } | null>(null);
   // Atac triat al menú d'un token, esperant l'objectiu (`aimAttack`).
   const rAttackPending  = useRef<import('@/types').AttackPending | null>(null);
+  // Moviment forçat triat al menú d'un token (v5.44): el ratolí tria la direcció, el clic l'aplica.
+  const rForcedPending  = useRef<{ key: string; ft: number } | null>(null);
   // Durades en combat dels estats i beneficis de les màgies (`lib/rules/timed-effects.ts`).
   const rTimedEffects   = useRef<import('@/lib/rules/timed-effects').TimedEffect[]>([]);
   const rLightSelected  = useRef<string | null>(null);   // llum seleccionada (per editar-ne el radi)
@@ -140,7 +142,7 @@ export function useDMRefs() {
   // Camí pendent d'animar per token (tokenId → polilínia + distància recorreguda). Al DM
   // només s'omple amb els moviments que arriben d'una pantalla de jugador, perquè el vegi
   // desplaçar-se (vorejant les parets) en lloc de saltar de cop. El que mou el DM no hi entra.
-  const rMovePath       = useRef<Record<string, { pts: Point[]; t: number }>>({});
+  const rMovePath       = useRef<Record<string, { pts: Point[]; t: number; speed?: number }>>({});
   const currentStrokeRef  = useRef<Point[]>([]);
   const strokeQueueRef    = useRef<StrokeAnimState[]>([]);
   const activeStrokeAnim  = useRef<StrokeAnimState | null>(null);
@@ -257,7 +259,7 @@ export function useDMRefs() {
     stageRef, canvasRef, mediaRef,
     rPos, rZoom, rPlayers, rLibEnemies, rDrawTool, rDrawColor, rDrawSize,
     rConditions, rPaintedZones, rContextMenu, rDefeated,
-    rWalls, rRooms, rDoors, rLights, rDifficult, rTerrainDrag, rAttackPending, rTimedEffects, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
+    rWalls, rRooms, rDoors, rLights, rDifficult, rTerrainDrag, rAttackPending, rForcedPending, rTimedEffects, rLightSelected, rNewLightRadiusFt, rLightDrag, rDoorPlacement, rDoorPreview, rHoveredDoorId, rWallPenLast, rWallChain, rWallCursor, rWallVertexHover, rWallVertexDrag, rHoveredRoomId, roomRevealAnimRef,
     rGridVisible, rGridSize, rGridSnap, rGridAutoSize, rTokenSizeOverride, rGridLineWidth,
     rGridOriginX, rGridOriginY, rGridCalibrating, rEnemyHighlight, rHighlightLocked,
     rSelectedToken, rMultiSelected, rTokenGroups, rGroupNames, rGroupSeq, rTurn, rUndo, rTurnGen, rUndoGesture, rAutosaveDirty, rAreaSelectMode, rAreaSelectRect, groupDragRef, pendingDeselectRef, rHighlightAlpha, rGridDmAlpha, rBgDmOpacity, rActiveSpells, rMapSize,

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useRef } from 'react';
+import { setForcedPreview } from '@/lib/render/forced';
 import { pointInPolygon, getBBox, segmentsIntersect, segmentIntersection } from '@/lib/geometry';
 import { nearestWallHit, doorEndOnWall, doorAt } from '@/lib/rooms/doors';
 import { vertexAt, wallsAtVertex, moveVertex, wallAt } from '@/lib/rooms/walls';
@@ -36,6 +37,7 @@ function paintTerrainAt(R: DMRefs, mx: number, my: number, erase: boolean): bool
 /** Treu la màgia que esperava el clic de destí (i la seva previsualització). */
 function cancelPendingSpell(R: DMRefs): void {
   R.rAreaPlacementPending.current = null; R.rAttackPending.current = null; R.rSpellPreview.current = null;
+  if (R.rForcedPending.current) { R.rForcedPending.current = null; setForcedPreview(null); }
 }
 
 interface MouseHandlerSetters {
@@ -85,6 +87,8 @@ interface MouseHandlerSetters {
   notify: import('@/types').Notify;
   /** Obre el pop-up de dany al costat del token objectiu d'un atac. */
   openDamage: (p: import('@/types').DamagePrompt) => void;
+  /** Moviment forçat del menú del token: previsualitza cap al punt o l'aplica (`commit`). */
+  forcedAim: (p: { x: number; y: number }, commit: boolean) => void;
   /** Gasta una peça de munició de l'atacant (token `pl_*`) en apuntar un atac que en gasta. */
   spendAmmo: (attackerKey: string, ammo: string) => void;
   /**
@@ -221,6 +225,12 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
     // Atac triat al menú d'un token: el clic tria l'objectiu i tanca l'apuntat (dins o fora
     // d'abast: és només un avís). Amb qualsevol eina, com les màgies del grimori.
+    // Moviment forçat (v5.44): el clic tria la direcció i el token surt disparat.
+    if (e.button === 0 && R.rForcedPending.current) {
+      const { mx: fx, my: fy } = mc(e);
+      S.forcedAim({ x: fx, y: fy }, true);
+      e.preventDefault(); return;
+    }
     if (e.button === 0 && R.rAttackPending.current) {
       const pend = R.rAttackPending.current;
       const { mx: amx, my: amy, sc: asc } = mc(e);
@@ -574,6 +584,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
 
     // Màgia triada esperant el destí: centre de l'àrea o punta del raig; fora d'abast = avís en vermell, no es talla.
     // Abans de les branques de cada eina: la del grimori es pot llançar amb qualsevol eina.
+    if (R.rForcedPending.current) { S.forcedAim({ x: mx, y: my }, false); return; }
     if (R.rAttackPending.current) {
       const pv = aimAttack(R, R.rAttackPending.current, { x: mx, y: my }, gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current), sc);
       if (!pv) { cancelPendingSpell(R); return; }   // l'atacant ja no hi és
@@ -1030,7 +1041,7 @@ export function useMouseHandlers(R: DMRefs, S: MouseHandlerSetters, _broadcastSt
     }
     if (R.rDrawTool.current === 'terrain') return;
     // Clic dret amb una màgia per col·locar: la cancel·la (com Esc)
-    if (R.rAreaPlacementPending.current || R.rAttackPending.current) { cancelPendingSpell(R); return; }
+    if (R.rAreaPlacementPending.current || R.rAttackPending.current || R.rForcedPending.current) { cancelPendingSpell(R); return; }
     const { mx, my, sc } = mc(e);
     // Eina Parets: clic dret sobre una porta l'elimina (la paret es tanca de nou).
     if (R.rDrawTool.current === 'wall') {

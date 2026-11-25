@@ -1,7 +1,7 @@
 import type { Condition, Element, SpellType } from '@/types';
 
 // Versió de l'aplicació que es mostra a les pantalles de DM i jugador.
-export const APP_VERSION = 'v5.43';
+export const APP_VERSION = 'v5.44';
 
 // Estats oficials de D&D 5e, en l'ordre de la làmina de referència.
 // Cada estat porta el seu **color propi** (abans eren gairebé tots vermells/grisos):
@@ -288,6 +288,8 @@ export function tint(color: string, alpha: number): string {
 
 export const BC_CHANNEL = 'rpg_map_sync_v18';
 export const TOKEN_LERP  = 0.07;
+/** Moviment forçat (empènyer/estirar, v5.44): velocitat del camí respecte d'un pas normal. */
+export const FORCED_PATH_SPEED = 3;
 /**
  * Lentitud de les animacions d'atacs, conjurs i accions (poders de criatures): 1,15 = un 15 % més
  * lentes. S'aplica al rellotge, no a cada animació: el temps des de l'inici es divideix per aquest

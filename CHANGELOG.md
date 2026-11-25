@@ -3,6 +3,14 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
+### v5.44 — Empènyer i estirar
+- Menú del token → «Moure a la força» 5/10/15/20 ft: el ratolí tria cap on surt (es veu la fletxa i on acabarà) i el clic el mou. Per a l'Empenta, envestides o el que s'improvisi; no gasta peus del seu torn
+- L'*Ona atronadora* empeny 10 ft qui no supera la salvació i el *Fuet d'espines* estira 10 ft (criatures Grans o més petites). Al pop-up, un xip per afectat i, mentre és obert, el mapa mostra on acabarà cadascú
+- S'atura abans d'una paret, d'una porta tancada, d'un objecte sòlid del mapa de caselles o d'una altra criatura (estirant, al costat de qui estira); en vermell a la previsualització. Avís si entra a una zona màgica
+- Surt disparat amb una animació ràpida, també a les pantalles de jugador; un sol pas de desfer
+- Regla de la casa opcional (desactivada): estampar-se fa 1d6 contundent per cada 10 ft que no ha pogut fer, amb el pop-up de dany
+- Cap canvi a la API ni a les partides desades
+
 ### v5.43 — Danys de diversos tipus i guia de què cal tirar
 - Els atacs poden fer danys de més d'un tipus: la mossegada del drac verd fa perforant **i** verí, i cada part passa per les defenses de l'objectiu (abans el verí s'havia de calcular a mà)
 - Els 14 atacs del bestiari que portaven el dany extra al nom («Mossegada (+2d6 verí)») ara el tenen separat. Els enemics de la BD continuen escrivint-lo al nom i l'app el separa sola (cap canvi a la API)

@@ -11,6 +11,8 @@ import { RollGuide } from '@/components/dm/RollGuide';
 import { advLine, hitLine, saveNeed, saveNeedShort } from '@/lib/rules/roll-guide';
 import { applyDefenses, type Defenses } from '@/lib/rules/damage';
 import { SAVE_LABEL, cantripDice, effectFor, needsAttackRoll } from '@/lib/rules/spell-effects';
+import { forcedImpactStore } from '@/lib/rules/forced-move';
+import { useJsonStore } from '@/lib/localStore';
 
 export interface SpellTarget {
   key: string; name: string; hp: number; hpMax: number; defenses?: Defenses; conditions: string[];
@@ -18,6 +20,8 @@ export interface SpellTarget {
   ac?: number; dexMod?: number;
   /** Bonificació de la salvació que demana la màgia (fitxa o bloc del bestiari), per a la taula. */
   saveBonus?: number | null;
+  /** Mida en caselles de costat (per a les empentes que només mouen criatures Grans o més petites). */
+  span?: number;
 }
 
 /** Benefici d'una màgia de protecció per a un afectat (text curt). L'app no el desa enlloc. */
@@ -36,9 +40,11 @@ export interface SpellOutcome {
   key: string; delta: number; addConditions: string[]; /** Benefici (Escut…) per avisar-ne. */ note?: string;
   /** Per a l'historial: si ha superat la salvació, el perquè del canvi de dany i el tipus. */
   saved?: boolean; reasons?: string[]; type?: DamageType;
+  /** L'empeny o l'estira (`fx.push`). */
+  push?: boolean;
 }
 
-interface Row { include: boolean; saved: boolean; conds: string[] }
+interface Row { include: boolean; saved: boolean; conds: string[]; push: boolean }
 
 const field: React.CSSProperties = {
   height: 30, boxSizing: 'border-box', background: C.bg, border: `1px solid ${C.border}`,
@@ -69,13 +75,15 @@ export interface SpellGuide {
   adv?: string[]; dis?: string[];
 }
 
-export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose, fxOverride, title, info, guide = {} }: {
+export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOnly, onClose, fxOverride, title, info, guide = {}, onPushPreview }: {
   spellType: string;
   /** Poder d'una criatura: el seu efecte (en lloc del de la taula), el seu nom i la CD / daus. */
   fxOverride?: import('@/lib/rules/spell-effects').SpellEffect | null;
   title?: string;
   info?: string;
   guide?: SpellGuide;
+  /** Empenta: el DM pinta on acabarà cadascú (claus dels empesos; `null` = res). */
+  onPushPreview?: (keys: string[] | null) => void;
   anchor: { l: number; r: number; t: number; b: number };
   targets: SpellTarget[];
   onApply: (out: SpellOutcome[]) => void;
@@ -85,6 +93,8 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   onClose: () => void;
 }) {
   const fx = fxOverride !== undefined ? fxOverride : effectFor(spellType);
+  const fits = (t: SpellTarget) => !fx?.push?.maxSpan || (t.span ?? 1) <= fx.push.maxSpan;
+  const impact = useJsonStore(forcedImpactStore);
   const meta = SPELL_BY_TYPE.get(spellType);
   // Dany o cura. Les de protecció i les d'estats, no.
   const hasAmount = !!fx?.damageType || !!fx?.heal;
@@ -96,11 +106,20 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
   const raw = parts[0]?.raw ?? '';
   const type = parts[0]?.type ?? '';
   const [rows, setRows] = useState<Record<string, Row>>(() =>
-    Object.fromEntries(targets.map(t => [t.key, { include: true, saved: false, conds: [...(fx?.conditions ?? [])] }])));
+    Object.fromEntries(targets.map(t => [t.key, { include: true, saved: false, conds: [...(fx?.conditions ?? [])], push: !!fx?.push && fits(t) }])));
   const amount = Math.max(0, parseInt(raw) || 0);
   const num = (r: string) => Math.max(0, parseInt(r) || 0);
   const setRow = (k: string, patch: Partial<Row>) => setRows(r => ({ ...r, [k]: { ...r[k], ...patch } }));
 
+  // Previsualització de l'empenta al mapa (fletxes i siluetes) mentre el pop-up és obert.
+  const pushKeys = fx?.push ? targets.filter(t => rows[t.key]?.include && rows[t.key]?.push).map(t => t.key) : [];
+  const pushSig = pushKeys.join(',');
+  const previewRef = useRef(onPushPreview);
+  useEffect(() => { previewRef.current = onPushPreview; });
+  useEffect(() => {
+    previewRef.current?.(pushSig ? pushSig.split(',') : null);
+    return () => previewRef.current?.(null);
+  }, [pushSig]);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });
   useEffect(() => {
@@ -130,6 +149,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
       addConditions: rows[t.key].conds.filter(c => !t.conditions.includes(c) && !t.defenses?.conditionImmunities?.includes(c)),
       ...(fx.buff ? { note: `${t.name}: ${buffText(fx.buff, t)}` } : {}),
       saved: rows[t.key].saved, reasons: outcomeOf(t).reasons, type: type || undefined,
+      push: !!fx.push && rows[t.key].push,
     })));
   };
   const saveText = fx.save ? `Salvació ${SAVE_LABEL[fx.save]}${fx.damageType ? (fx.half ? ' · meitat si la supera' : ' · res si la supera') : ''}` : null;
@@ -155,6 +175,7 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
     : `${attackRoll ? 'Si toca, tira' : 'Tira'} el dany del conjur`);
   else if (dice) steps.push(`Tira ${dice}`);
   if (condNames && !fx.buff) steps.push(fx.save ? `Qui no la supera: ${condNames}` : `Queda: ${condNames}`);
+  if (fx.push) steps.push(`${(fx.push.on ?? 'fail') === 'hit' ? 'Si toca' : fx.save ? 'Qui no la supera' : 'Els afectats'}: ${fx.push.ft > 0 ? `surt empès ${fx.push.ft} ft` : `és estirat ${-fx.push.ft} ft cap al llançador`}${fx.push.maxSpan ? ' (només Gran o més petit)' : ''} · al mapa es veu on acabarà`);
   const notes = [
     fx.tip ?? null,
     attackRoll && dmgText && !crit ? `Un 20 al dau = crític: ${rollsText(rolls, true)}` : null,
@@ -208,7 +229,8 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
                 {fx.save && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: FS.sm, color: row.saved ? C.ok : C.dim }}>
                     <input type="checkbox" checked={row.saved}
-                      onChange={e => setRow(t.key, { saved: e.target.checked, conds: e.target.checked ? [] : [...(fx.conditions ?? [])] })} />
+                      onChange={e => setRow(t.key, { saved: e.target.checked, conds: e.target.checked ? [] : [...(fx.conditions ?? [])],
+                        ...(fx.push && (fx.push.on ?? 'fail') === 'fail' ? { push: !e.target.checked && fits(t) } : {}) })} />
                     <span title={guide.dc ? `Supera la salvació si treu ${saveNeed(t.saveBonus, guide.dc)}` : undefined}>supera{guide.dc && saveNeedShort(t.saveBonus, guide.dc) ? ` amb ${saveNeedShort(t.saveBonus, guide.dc)}` : t.saveBonus !== undefined && t.saveBonus !== null ? ` (${t.saveBonus >= 0 ? '+' : ''}${t.saveBonus})` : ''}</span>
                   </label>
                 )}
@@ -238,6 +260,17 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
                   })}
                 </div>
               )}
+              {fx.push && row.include && (
+                <div style={{ display: 'flex', gap: 4, marginTop: 4, marginLeft: 20 }}>
+                  <button type="button" disabled={!fits(t)}
+                    onClick={() => setRow(t.key, { push: !row.push })}
+                    title={!fits(t) ? 'Massa gran: no es mou' : row.push ? 'Es mourà en aplicar (al mapa, on acabarà)' : 'No es mourà'}
+                    style={{ fontSize: FS.xs, padding: '2px 7px', borderRadius: 10, cursor: fits(t) ? 'pointer' : 'default',
+                      border: `1px solid ${row.push ? C.bright : C.border}`, background: row.push ? `${C.bright}22` : 'transparent', color: row.push ? C.bright : C.dim }}>
+                    {fx.push.ft > 0 ? `↗ Empès ${fx.push.ft} ft` : `↙ Estirat ${-fx.push.ft} ft`}{!fits(t) ? ' · massa gran' : ''}
+                  </button>
+                </div>
+              )}
               {fx.buff && row.include && (
                 <div style={{ marginLeft: 20, marginTop: 3, fontSize: FS.sm, color: C.ok }}>{buffText(fx.buff, t)}</div>
               )}
@@ -248,6 +281,12 @@ export function SpellEffectPopup({ spellType, anchor, targets, onApply, onCastOn
           );
         })}
       </div>
+      {fx.push && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: FS.xs, color: C.dim }}
+          title="Regla de la casa: estampar-se contra una paret o una criatura fa 1d6 contundent per cada 10 ft que no s'han pogut fer">
+          <input type="checkbox" checked={impact} onChange={e => forcedImpactStore.set(e.target.checked)} /> Cops en estampar-se (regla de la casa)
+        </label>
+      )}
       <div style={{ display: 'flex', gap: 6 }}>
         <Button variant="primary" onClick={apply} style={{ flex: 1 }}
 >Aplicar ↵</Button>

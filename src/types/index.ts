@@ -600,7 +600,7 @@ export type BCMessage =
   | { type: 'FIG_HIDE'; ids: string[] }
   | { type: 'FIG_PLACE'; off: string[]; ok: string[] }
   | { type: 'TOKEN_MOVE'; id: number | string; x: number; y: number; src?: 'figureta' }
-  | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number }
+  | { type: 'TOKEN_RELAY'; id: number | string; x: number; y: number; /** Moviment forçat (v5.44): línia recta i ràpida. */ fast?: boolean }
   // Reset de la memòria d'explorat d'una sala: torna a ser negra del tot (fog of war).
   | { type: 'RESET_EXPLORED'; points: Point[] }
   | { type: 'BG_META'; mimeType: string; withFade?: boolean }

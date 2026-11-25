@@ -47,7 +47,7 @@ export const SPELL_CATALOG: Record<string, PowerDef> = {
   'shillelagh':       { ca: 'Shillelagh', anim: 'vanish', mode: 'self', rangeFt: 0, fx: null },
   'shocking grasp':   { ca: 'Toc electritzant', anim: 'shocking_grasp', mode: 'line', rangeFt: 5, fx: single({ damageType: 'lightning' }), dice: '1d8' },
   'thaumaturgy':      { ca: 'Taumatúrgia', anim: 'thaumaturgy', mode: 'self', rangeFt: 0, fx: null },
-  'thorn whip':       { ca: 'Fuet d\'espines', anim: 'entangle', mode: 'line', rangeFt: 30, fx: single({ damageType: 'piercing' }), dice: '1d6' },
+  'thorn whip':       { ca: 'Fuet d\'espines', anim: 'entangle', mode: 'line', rangeFt: 30, fx: single({ damageType: 'piercing', push: { ft: -10, maxSpan: 2, on: 'hit' } }), dice: '1d6' },
   'vicious mockery':  { ca: 'Burla viciosa', anim: 'hold', mode: 'line', rangeFt: 60, fx: single({ damageType: 'psychic', save: 'wis' }), dice: '1d4' },
   // ── Nivell 1 ──────────────────────────────────────────────────────────────────────────
   'animal messenger': { ca: 'Missatger animal', anim: 'prestidigitation', mode: 'area', rangeFt: 30, fx: null },
@@ -70,7 +70,7 @@ export const SPELL_CATALOG: Record<string, PowerDef> = {
   'shield of faith':  { ca: 'Escut de fe', anim: 'bless', mode: 'line', rangeFt: 60, fx: null },
   'sleep':            { ca: 'Dormir', anim: 'sleep', mode: 'area', rangeFt: 90, aoeFt: 20, fx: { shape: 'circle', sizeFt: 20, conditions: ['unconscious'], rounds: 10, endsOnDamage: true } },
   'speak with animals': { ca: 'Parlar amb els animals', anim: 'prestidigitation', mode: 'self', rangeFt: 0, fx: null },
-  'thunderwave':      { ca: 'Ona atronadora', anim: 'thunder', mode: 'self', rangeFt: 0, aoeFt: 10, fx: { shape: 'aura', sizeFt: 10, damageType: 'thunder', save: 'con', half: true }, dice: '2d8' },
+  'thunderwave':      { ca: 'Ona atronadora', anim: 'thunder', mode: 'self', rangeFt: 0, aoeFt: 10, fx: { shape: 'aura', sizeFt: 10, damageType: 'thunder', save: 'con', half: true, push: { ft: 10 } }, dice: '2d8' },
   // ── Nivell 2 ──────────────────────────────────────────────────────────────────────────
   'barkskin':         { ca: 'Pell d\'escorça', anim: 'vanish', mode: 'self', rangeFt: 0, fx: null },
   'darkness':         { ca: 'Foscor', anim: 'cloud', mode: 'area', rangeFt: 60, aoeFt: 15, fx: null },

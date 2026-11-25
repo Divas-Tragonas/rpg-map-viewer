@@ -49,6 +49,8 @@ export interface SpellEffect {
   autoHit?: boolean;
   /** Recordatori curt per a la taula. */
   tip?: string;
+  /** Empeny (o estira, `ft` negatiu) els afectats (v5.44): Ona atronadora, Fuet d'espines. */
+  push?: import('@/lib/rules/forced-move').PushSpec;
 }
 
 /** Tira per tocar? Explícit, o un sol objectiu amb dany i sense salvació (Raig de gebre, Projectil guia). */

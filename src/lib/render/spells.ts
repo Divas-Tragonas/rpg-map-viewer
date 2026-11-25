@@ -1,4 +1,5 @@
 import type { Spell, SpellPreview, Point } from '@/types';
+import { renderForcedPreview } from '@/lib/render/forced';
 import type { FrameContext } from './types';
 import { cellOfPoint, cellsPaths, circleCells, gridOf, rangePaths, tokenCells, type Grid } from '@/lib/rules/cells';
 import { AREA_SPELL_DATA, PERSISTENT_SPELLS, SPELL_BY_TYPE, FX_SLOW } from '@/constants';
@@ -397,4 +398,5 @@ export function renderSpells(ctx: CanvasRenderingContext2D, fc: FrameContext, la
     pruneLightningFx(new Set(alive.map(sp => sp.id)));
   }
   if (layer === 'air' && rSpellPreview?.current) renderSpellPreview(ctx, rSpellPreview.current, sc, gridSize, gridOf(gridSize, fc.rGridOriginX.current, fc.rGridOriginY.current));
+  if (layer === 'air' && fc.isDM) renderForcedPreview(ctx, sc);
 }

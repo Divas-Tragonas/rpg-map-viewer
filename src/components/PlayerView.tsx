@@ -5,7 +5,7 @@ import { TurnBanner } from '@/components/player/TurnBanner';
 import { SheetCard } from '@/components/player/SheetCard';
 import { SceneOverlay, type SceneController } from '@/components/player/SceneOverlay';
 import { buildTurnBanner, sameBanner, EMPTY_BANNER, type TurnBanner as TurnBannerData } from '@/lib/turn-banner';
-import { BC_CHANNEL, APP_VERSION } from '@/constants';
+import { BC_CHANNEL, APP_VERSION, FORCED_PATH_SPEED } from '@/constants';
 import {
   renderPaintedZones, renderShapePreview,
 } from '@/lib/render/zones';
@@ -167,7 +167,7 @@ export function PlayerView() {
   // Previsualització del destí durant el drag d'un token de jugador (ghost).
   const rDragPreview   = useRef<{ id: string; x: number; y: number } | null>(null);
   // Camí de moviment pendent per token (vorejant parets, forma d'L; ease-out per arc).
-  const rMovePath      = useRef<Record<string, { pts: { x: number; y: number }[]; t: number }>>({});
+  const rMovePath      = useRef<Record<string, { pts: { x: number; y: number }[]; t: number; speed?: number }>>({});
   const rTurn          = useRef<TurnState>({ active: false, order: [], turnIndex: 0, round: 1, activeRemainingFt: 0 });
   // App Píxel: estil que mana el DM i parts vives del mapa de caselles (aigua, torxes, portes).
   const rAppStyle      = useRef<AppStyle>('pixel');
@@ -728,7 +728,10 @@ export function PlayerView() {
           const idStr = String(msg.id);
           // Token de jugador mogut per una altra pantalla: anima'l vorejant les parets
           // (forma d'L) des de la posició actual fins a la nova, no en línia recta.
-          if (idStr.startsWith('pl_')) _setMovePath(idStr, rPos.current[msg.id], { x: msg.x, y: msg.y });
+          // Empès o estirat (v5.44): línia recta i ràpida, com un cop.
+          const was0 = rPos.current[msg.id];
+          if (msg.fast && was0 && idStr.startsWith('pl_')) rMovePath.current[idStr] = { pts: [{ ...was0 }, { x: msg.x, y: msg.y }], t: 0, speed: FORCED_PATH_SPEED };
+          else if (idStr.startsWith('pl_')) _setMovePath(idStr, rPos.current[msg.id], { x: msg.x, y: msg.y });
           // Pantalla de figures: ona de «moviment confirmat» si el token ha canviat de lloc.
           const was = rPos.current[msg.id];
           if (isTableRef.current && idStr.startsWith('pl_') && (!was || was.x !== msg.x || was.y !== msg.y)) {

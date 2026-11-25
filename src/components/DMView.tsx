@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { CONDITIONS_BY_ID, SPELL_BY_TYPE, C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, SHADOW } from '@/constants';
+import { CONDITIONS_BY_ID, SPELL_BY_TYPE, C, FS, RADIUS, BC_CHANNEL, WAND_CURSOR, AREA_SPELL_DATA, spellRangeFt, DEFAULT_SPEED_FT, tint, SHADOW, ELEMENTS_BY_ID, FORCED_PATH_SPEED } from '@/constants';
 import { modeForTool, type DMMode } from '@/lib/dm-mode';
 import { peekUndo } from '@/lib/undo';
 import { tokenMenuFor } from '@/lib/token-menu';
@@ -33,6 +33,8 @@ import { tileBlocker } from '@/lib/tilemap/render';
 import { TILE, usedBounds } from '@/lib/tilemap/model';
 import { camToView } from '@/lib/camera';
 import { effectiveWalls } from '@/lib/rooms/doors';
+import { forcedImpactStore, forcedMove, forcedMoveAll, forcedText, impactDice, type ForcedResult } from '@/lib/rules/forced-move';
+import { setForcedPreview } from '@/lib/render/forced';
 import { ImportPanel } from '@/components/dm/ImportPanel';
 import { RoomsPanel } from '@/components/dm/RoomsPanel';
 import { PlayersPanel } from '@/components/dm/PlayersPanel';
@@ -1184,6 +1186,100 @@ export function DMView() {
     return true;
   }, [R, markPowerUsed]);
 
+  // ── Moviment forçat: empènyer i estirar (v5.44) ─────────────────────────────
+  // Pop-ups de dany en cua: el cop per estampar-se (regla de la casa) pot afectar dos tokens alhora.
+  const damageQueueRef = useRef<import('@/types').DamagePrompt[]>([]);
+  const queueDamage = useCallback((p: import('@/types').DamagePrompt) => {
+    setDamagePrompt(cur => { if (cur) { damageQueueRef.current.push(p); return cur; } return p; });
+  }, []);
+  const closeDamage = useCallback(() => { setDamagePrompt(damageQueueRef.current.shift() ?? null); }, []);
+  /** Capsa d'un token a la finestra (per col·locar-hi un pop-up al costat). */
+  const anchorOf = useCallback((key: string) => {
+    const s = tokenSlots(R, false).find(x => x.key === key);
+    if (!s) return null;
+    const a = mapToClient(R, { x: s.x - s.R, y: s.y - s.R }), z = mapToClient(R, { x: s.x + s.R, y: s.y + s.R });
+    return a && z ? { l: a.x, t: a.y, r: z.x, b: z.y } : null;
+  }, [R]);
+  /** Geometria per al moviment forçat: graella, parets efectives, objectes sòlids i zones. */
+  const forcedBase = useCallback(() => {
+    const g = gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current);
+    if (!g) return null;
+    return {
+      grid: g, slots: tokenSlots(R, false),
+      walls: effectiveWalls(R.rWalls.current, R.rDoors.current),
+      blocked: tileBlocker(R.rTileLive.current, R.rDoors.current),
+      zones: R.rPaintedZones.current,
+    };
+  }, [R]);
+  /** Mou els tokens empesos o estirats: animació ràpida, un sol pas de desfer, avisos i historial. */
+  const applyForced = useCallback((results: ForcedResult[], label: string) => {
+    const moved = results.filter(r => r.movedFt > 0);
+    if (moved.length) {
+      _recordTokens(label, moved.map(r => r.key));
+      const np = { ...R.rPos.current };
+      for (const r of moved) {
+        const isPl = r.key.startsWith('pl_');
+        const Rv = isPl ? (R.rTokenSizeOverride.current[r.key] ?? 22) : 0;
+        const from = R.rPos.current[r.key] ?? { x: r.from.x - Rv, y: r.from.y - Rv };
+        const to = { x: r.to.x - Rv, y: r.to.y - Rv };
+        np[r.key] = to;
+        R.rMovePath.current[r.key] = { pts: [{ ...from }, to], t: 0, speed: FORCED_PATH_SPEED };
+        R.visualPosRef.current[r.key] = { ...from };
+        if (isPl) {
+          const relay = { type: 'TOKEN_RELAY', id: r.key, x: to.x, y: to.y, fast: true };
+          R.bcRef.current?.postMessage(relay);
+          R.wsRef.current?.send(JSON.stringify(relay));
+        }
+      }
+      R.rPos.current = np; setPos(np);
+      _broadcastState({});
+    }
+    const impact = forcedImpactStore.get();
+    for (const r of results) {
+      const name = tokNameOf(r.key);
+      const zoneTxt = r.zones.length ? ` · entra a ${r.zones.map(z => `la zona de ${(ELEMENTS_BY_ID.get(z)?.label ?? z).toLowerCase()}`).join(' i ')}` : '';
+      const txt = `${forcedText(r, name, tokNameOf)}${zoneTxt}`;
+      logCombat(txt, 'effect');
+      if (r.stop?.kind === 'wall' || r.stop?.kind === 'creature' || r.zones.length) notify(txt, 'info');
+      const dice = impact ? impactDice(r) : null;
+      if (dice) {
+        const hit = (key: string, what: string) => {
+          const anchor = anchorOf(key);
+          if (anchor) queueDamage({ targetKey: key, label: what, anchor, damageType: 'bludgeoning', rolls: [{ dice, type: 'bludgeoning' }] });
+        };
+        hit(r.key, r.stop?.kind === 'wall' ? 'Cop contra la paret' : `Xoc amb ${r.stop?.who ? tokNameOf(r.stop.who) : 'una criatura'}`);
+        if (r.stop?.kind === 'creature' && r.stop.who) hit(r.stop.who, `Xoc amb ${name}`);
+      }
+    }
+  }, [R, _recordTokens, _broadcastState, setPos, notify, logCombat, anchorOf, queueDamage]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Resultats d'una empenta de diversos afectats (o `null` sense graella). */
+  const planForced = useCallback((keys: string[], origin: import('@/types').Point, ft: number, casterKey?: string) => {
+    const base = forcedBase();
+    if (!base) return null;
+    return forcedMoveAll(keys, { ...base, origin, ft, casterKey });
+  }, [forcedBase]);
+  /** Fletxes de la previsualització a partir d'uns resultats. */
+  const forcedArrows = useCallback((rs: ForcedResult[]) => rs.map(r => {
+    const s = tokenSlots(R, false).find(x => x.key === r.key);
+    return { from: r.from, to: r.to, R: s?.R ?? 20, blocked: !!r.stop && r.stop.kind !== 'caster' && r.movedFt < r.wantedFt, label: r.movedFt < r.wantedFt && r.stop && r.stop.kind !== 'caster' ? `${r.movedFt} de ${r.wantedFt} ft` : `${r.movedFt} ft` };
+  }), [R]);
+
+  /** Menú del token → «Moure a la força»: el ratolí tria la direcció (fletxa i silueta), el clic l'aplica. */
+  const startForced = useCallback((key: string, ft: number) => {
+    if (!gridOf(R.rGridSize.current, R.rGridOriginX.current, R.rGridOriginY.current)) { notify('Per moure a la força cal la graella (les distàncies es mesuren en caselles).', 'warn'); return; }
+    R.rAreaPlacementPending.current = null; R.rAttackPending.current = null; R.rSpellPreview.current = null;
+    R.rForcedPending.current = { key, ft };
+  }, [R, notify]);
+  const forcedAim = useCallback((p: import('@/types').Point, commit: boolean) => {
+    const pend = R.rForcedPending.current;
+    const base = pend ? forcedBase() : null;
+    if (!pend || !base) { R.rForcedPending.current = null; setForcedPreview(null); return; }
+    const r = forcedMove({ ...base, key: pend.key, origin: p, toward: p, ft: pend.ft });
+    if (!commit) { setForcedPreview(r ? forcedArrows([r]) : null); return; }
+    R.rForcedPending.current = null; setForcedPreview(null);
+    if (r) applyForced([r], `moure ${tokNameOf(pend.key)} a la força`);
+  }, [R, forcedBase, forcedArrows, applyForced]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Munició: cada tret d'un jugador (l'atac apuntat a un objectiu) en gasta una peça de la seva fitxa.
   const charsRef = useRef(chars); charsRef.current = chars;
   const spendAmmo = useCallback((attackerKey: string, ammo: string) => {
@@ -1234,7 +1330,7 @@ export function DMView() {
     addLight, removeLight, selectLight, setLights, pushMapEdit: _pushMapEdit, setPanning,
     setRoomRevealed, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
     tileTool: { down: tileDown, move: tileMove, up: tileUp, leave: tileLeave, menu: tileMenuAt },
-    notify, openDamage: setDamagePrompt, onSpellCast, spendAmmo,
+    notify, openDamage: setDamagePrompt, onSpellCast, spendAmmo, forcedAim,
   }), [notify, spendAmmo, onSpellCast, redetectRooms, addDoor, removeDoor, toggleDoor, addLight, removeLight, selectLight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { onMouseDown, onMouseMove, onMouseUp, onMouseLeaveCanvas, onContextMenu, onDoubleClick } =
@@ -2115,6 +2211,17 @@ export function DMView() {
           }
         }
         if (targets.length === 0) return null;
+        // Mida en caselles (empentes que només mouen criatures Grans o més petites).
+        const gsSp = R.rGridSize.current;
+        for (const t of targets) { const sl = tokenSlots(R, false).find(x => x.key === t.key); if (sl && gsSp > 0) t.span = Math.max(1, Math.round((2 * sl.R) / gsSp)); }
+        // Origen de l'empenta: el llançador (o el primer punt del conjur).
+        const spFx = spellPrompt.power ? spellPrompt.power.fx : SPELL_EFFECTS[spellPrompt.type];
+        const pushOrigin = (() => {
+          const ck = spellPrompt.power?.key ?? spellPrompt.caster;
+          const sl = ck ? tokenSlots(R, false).find(x => x.key === ck) : undefined;
+          return sl ? { x: sl.x, y: sl.y } : spellPrompt.points[0];
+        })();
+        const pushCaster = spellPrompt.power?.key ?? spellPrompt.caster;
         // Guia de tirada: bonus i CD del poder, o del jugador que el llança (de la seva fitxa).
         const spPow = spellPrompt.power;
         const casterPl = !spPow && spellPrompt.caster?.startsWith('pl_') ? players.find(p => `pl_${p.id}` === spellPrompt.caster) : undefined;
@@ -2129,6 +2236,10 @@ export function DMView() {
             title={spellPrompt.power ? `${spellPrompt.power.title} · ${tokNameOf(spellPrompt.power.key)}` : undefined}
             info={spellPrompt.power ? [spellPrompt.power.dc ? `CD ${spellPrompt.power.dc}` : '', spellPrompt.power.attack !== undefined ? `atac +${spellPrompt.power.attack}` : '', spellPrompt.power.dice ?? ''].filter(Boolean).join(' · ') : undefined}
             anchor={spellPrompt.anchor} targets={targets} guide={spGuide} onClose={() => setSpellPrompt(null)}
+            onPushPreview={spFx?.push && pushOrigin ? keys => {
+              const rs = keys && keys.length ? planForced(keys, pushOrigin, spFx.push!.ft, pushCaster) : null;
+              setForcedPreview(rs ? forcedArrows(rs) : null);
+            } : undefined}
             onCastOnly={() => { addSpell(spellPrompt.type, spellPrompt.points, () => {}, spellPrompt.power?.aoeFt); markPowerUsed(spellPrompt.power); setSpellPrompt(null); }}
             onApply={outs => {
               // Ara sí: l'animació, i el dany i els estats quan l'efecte arriba als afectats.
@@ -2175,6 +2286,13 @@ export function DMView() {
                     }];
                   }
                 }
+                // Empentes (v5.44): després del dany, totes alhora (es recalculen ara: algú s'hi pot haver mogut).
+                const pushed = outs.filter(o => o.push).map(o => o.key);
+                if (fx?.push && pushed.length && pushOrigin) {
+                  const rs = planForced(pushed, pushOrigin, fx.push.ft, pushCaster);
+                  if (rs) applyForced(rs, `${title}: ${fx.push.ft > 0 ? 'empènyer' : 'estirar'}`);
+                  else notify("Per empènyer cal la graella (les distàncies es mesuren en caselles).", 'warn');
+                }
               }, spellImpactS(st, pts, R.rGridSize.current, R.rAppStyle.current === 'pixel', fx?.impactS ?? 0.4) * 1000);
             }} />
         );
@@ -2187,7 +2305,7 @@ export function DMView() {
           : en ? { name: en.name, hp: en.hp ?? en.hpMax, hpMax: en.hpMax, defenses: enemyDefenses(en), ac: monsterForEnemy(en)?.ac } : null;
         if (!tgt) return null;
         return (
-          <DamagePopup key={k} prompt={damagePrompt} target={tgt} onClose={() => setDamagePrompt(null)}
+          <DamagePopup key={`${k}:${damagePrompt.label}`} prompt={damagePrompt} target={tgt} onClose={closeDamage}
             onApply={(amount, info) => {
               const hitAt = Date.now();
               if (amount > 0) {
@@ -2201,7 +2319,7 @@ export function DMView() {
               const falls = tgt.hp > 0 && tgt.hp - amount <= 0 ? ` · ${tgt.name} cau` : '';
               const hitLog = logCombat(`${who} ataca ${tgt.name} amb ${damagePrompt.label}: ${detail}${out}${falls}`, 'hit');
               if (amount > 0) attachUndoSide(undoLogSide(hitLog, falls && pl ? tgt.name : undefined, hitAt));
-              setDamagePrompt(null);
+              closeDamage();
             }} />
         );
       })()}
@@ -2222,7 +2340,7 @@ export function DMView() {
         onRenameRoom={renameRoom} onDeleteRoom={deleteRoom}
         onAddDoor={handleAddDoorToRoom}
         onResetExplored={onResetExplored}
-        onOpenActions={openActionsFor}
+        onOpenActions={openActionsFor} onForceMove={startForced}
         dialogs={dlg.dialogs}
         onSpeak={dlg.speak}
         onPlayDialog={dlg.playSaved}
