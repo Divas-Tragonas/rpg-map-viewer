@@ -85,7 +85,7 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { XpAwardDialog, type XpAward } from '@/components/dm/XpAwardDialog';
 import { GroupNamePopup } from '@/components/dm/GroupNamePopup';
 import { SheetPanel } from '@/components/dm/SheetPanel';
-import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave, spellcastingOf } from '@/lib/characters';
+import { buildSheetShow, characterFor, adjustAmmo, STATS_PART, sheetOf, abilityMod, sheetSave, spellcastingOf, darkvisionForRace } from '@/lib/characters';
 import { enemyDefenses, damageLabel } from '@/lib/rules/damage';
 import { monsterForEnemy, rememberDbEnemies } from '@/lib/db-enemies';
 import { monsterSave } from '@/lib/monsters';
@@ -367,7 +367,7 @@ export function DMView() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const {
     _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, shiftWorld, extendLastUndo, renamePlayer, loadParty, clearDrawing,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerDarkvision, fillPlayersDarkvision, setPlayerCanMove, setPlayerLook, replaceBgImage, shiftWorld, extendLastUndo, renamePlayer, loadParty, clearDrawing,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
     buildAutosaveRecord, applySessionState, _pushMapEdit,
     undo, redo, commitStroke, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,
@@ -1787,6 +1787,15 @@ export function DMView() {
     });
     if (pairs.length) syncPlayersHpMax(pairs);
   }, [players, chars.characters, syncPlayersHpMax]);
+  // Visió a les fosques (v5.46): els jugadors que encara no en tenen, la de la raça de la seva fitxa.
+  useEffect(() => {
+    const pairs = players.flatMap(p => {
+      if (p.darkvisionFt !== undefined) return [];
+      const c = characterFor(p, chars.characters);
+      return c ? [{ id: p.id, ft: darkvisionForRace(c.race) }] : [];
+    });
+    if (pairs.length) fillPlayersDarkvision(pairs);
+  }, [players, chars.characters, fillPlayersDarkvision]);
   /** Canviar la vida màxima d'un jugador amb fitxa la canvia també a la fitxa (si no, es desfaria). */
   const setPlayerHpMaxAndSheet = useCallback((id: number, hpMax: number) => {
     setPlayerHpMax(id, hpMax);
@@ -1912,7 +1921,7 @@ export function DMView() {
   const tokenEdit = {
     players, libEnemies, tokenSizeOverride, gridSize,
     onRenamePlayer: renamePlayer, onAdjustPlayerHp: adjustPlayerHp, onSetPlayerHpMax: setPlayerHpMaxAndSheet,
-    onSetPlayerSpeed: setPlayerSpeed, onSetPlayerVision: setPlayerVision, onSetPlayerCanMove: setPlayerCanMove,
+    onSetPlayerSpeed: setPlayerSpeed, onSetPlayerVision: setPlayerVision, onSetPlayerDarkvision: setPlayerDarkvision, onSetPlayerCanMove: setPlayerCanMove,
     onAdjustLibHp: adjustLibEnemyHp, onSetLibProps: setLibEnemyProps,
     onSetTokenSize: setTokenSize,
     pixel, onSetPlayerLook: setPlayerLook,

@@ -17,7 +17,7 @@ import type { ApiCharacter } from '@/lib/api';
 import type { CombatLogEntry, ConditionsMap, DefeatedMap, LibEnemy, Player, TurnState } from '@/types';
 
 /**
- * Columna de combat (v5.46, escriptori): la cua d'iniciativa i les accions del token, tot en un lloc
+ * Columna de combat (v5.47, escriptori): la cua d'iniciativa i les accions del token, tot en un lloc
  * fix a la dreta, com el lateral de l'esquerra. Substitueix la barra de torns de baix i el panell
  * flotant d'accions (al mòbil continuen). Una fila per participant; la del torn (o la que es clica)
  * es desplega amb la vida, els estats i les accions. Fora de combat: «Iniciar combat» i les accions

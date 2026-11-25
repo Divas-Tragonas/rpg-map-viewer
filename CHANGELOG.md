@@ -3,7 +3,7 @@
 Historial de versions de l'RPG Map Viewer (format `vMAJOR.MM`, sempre dos dígits a la part petita).
 La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/constants/index.ts`).
 
-### v5.46 — Columna de combat fixa a la dreta (fusiona la barra de torns i el panell d'accions)
+### v5.47 — Columna de combat fixa a la dreta (fusiona la barra de torns i el panell d'accions)
 - A l'escriptori, el combat és en una columna fixa a la dreta, com el lateral de l'esquerra: el mapa s'encongeix en lloc de quedar tapat. Substitueix la barra de torns de baix i el panell flotant d'accions
 - A dalt: ronda, «Següent» gran i botons per ordenar, historial, saltar ronda i acabar el combat
 - La cua d'iniciativa en vertical, amb barra de vida i estats de cadascú; la fila del torn es desplega amb la vida, la CA, els peus i els seus atacs, poders i conjurs
@@ -11,6 +11,13 @@ La versió actual també surt a la pantalla de benvinguda (`APP_VERSION` a `src/
 - Fora de combat: «Iniciar combat» i les accions del token seleccionat. El botó ⚔ de la dreta plega o desplega la columna
 - Al mòbil no canvia res (barra de baix i panell flotant)
 - Cap canvi a la API ni a les partides desades
+
+### v5.46 — Llum i visió a les fosques, separades
+- Al menú del token d'un jugador, «Llum · ft» (la que porta: torxa 40, llanterna 60, el conjur Llum 40) i «Fosc · ft» (visió a les fosques)
+- La visió a les fosques deixa veure dins de les sales fosques **en gris i fosc**, sense il·luminar: els enemics que hi ha es veuen, però sense color. On arriba la llum d'una torxa, color
+- Els jugadors sense valor agafen el de la raça de la seva fitxa (elf, nan… 60; drow 120; humans i mitjans, 0). Cegat, no hi veu
+- Les partides desades no canvien: la «Visió» d'abans continua sent la llum
+- Cap canvi a la API
 
 ### v5.45 — Invisibilitat amb efecte
 - Un jugador invisible ja no desapareix de la pantalla de jugador: es veu com un rastre tènue (sense nom) i es pot continuar movent

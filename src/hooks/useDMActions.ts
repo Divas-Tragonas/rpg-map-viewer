@@ -931,6 +931,25 @@ export function useDMActions(R: DMRefs, S: Setters) {
     rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
   }, [_broadcastState]);
 
+  /** Visió a les fosques (v5.46): en gris dins de sales fosques, sense il·luminar. */
+  const setPlayerDarkvision = useCallback((id: number, ft: number) => {
+    const v = Math.max(0, Math.min(995, Math.round(ft) || 0));
+    const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, darkvisionFt: v } : pl);
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+  /** Omple la visió a les fosques dels jugadors que encara no en tenen (per la raça de la fitxa). */
+  const fillPlayersDarkvision = useCallback((pairs: { id: number; ft: number }[]) => {
+    let changed = false;
+    const updated = rPlayers.current.map(pl => {
+      const want = pairs.find(x => x.id === pl.id)?.ft;
+      if (want === undefined || pl.darkvisionFt !== undefined) return pl;
+      changed = true;
+      return { ...pl, darkvisionFt: want };
+    });
+    if (!changed) return;
+    rPlayers.current = updated; S.setPlayers(updated); _broadcastState({});
+  }, [_broadcastState]);
+
   // Estil Píxel: figureta i retrat del jugador (viatgen dins de `players`, cap camp nou de sync).
   const setPlayerLook = useCallback((id: number, look: { sprite?: string; portrait?: string | undefined }) => {
     const updated = rPlayers.current.map(pl => pl.id === id ? { ...pl, ...look } : pl);
@@ -1492,7 +1511,7 @@ export function useDMActions(R: DMRefs, S: Setters) {
 
   return {
     _broadcastState, _sendFullState, loadBg, loadDemo, snapAllTokens, sizeAllTokens,
-    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerCanMove, setPlayerLook, replaceBgImage, shiftWorld, extendLastUndo, renamePlayer, loadParty, clearDrawing, _capStrokeHistory,
+    addPlayer, removePlayer, adjustPlayerHp, setPlayerHpMax, setPlayerSpeed, setPlayerCharacter, syncPlayersHpMax, setPlayerVision, setPlayerDarkvision, fillPlayersDarkvision, setPlayerCanMove, setPlayerLook, replaceBgImage, shiftWorld, extendLastUndo, renamePlayer, loadParty, clearDrawing, _capStrokeHistory,
     saveSession, loadSession, serverSaveSession, serverLoadSession, addSpell,
     buildAutosaveRecord, applySessionState, _pushMapEdit,
     undo, redo, resetUndo, commitStroke, beginTokenDrag, beginMapGesture, beginZoneDrag, endUndoGesture,

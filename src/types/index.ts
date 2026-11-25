@@ -32,8 +32,10 @@ export interface Player {
   speed?: number;
   /** false → el token no es pot moure des de /player (el DM sempre pot). Absent → true. */
   canMove?: boolean;
-  /** Radi de visió en peus dins de sales fosques (llum que emet el token). Absent → DEFAULT_VISION_FT; 0 → sense llum. */
+  /** Llum que porta (torxa, llanterna, el conjur Llum), en peus: il·lumina en color dins de sales fosques, també per als altres. Absent → DEFAULT_VISION_FT; 0 → sense llum. */
   visionFt?: number;
+  /** Visió a les fosques en peus (v5.46): sense llum, hi veu en gris (només per a ell). Absent → la de la raça de la fitxa, o 0. */
+  darkvisionFt?: number;
   /** Estil Píxel: figureta del token (criatura del paquet Oryx, `CREATURES`). Absent → cercle de color. */
   sprite?: string;
   /** Estil Píxel: retrat (dataURL PNG de 48 px fet amb el generador de retrats). */

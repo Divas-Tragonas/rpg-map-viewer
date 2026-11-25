@@ -227,7 +227,7 @@
 - **Estat recordat** (`useEnemyGrouping(scope)`): `by` (projecte/categoria/cap) i les claus plegades per camp, a `localStorage['rpg_enemy_groups_<scope>']` (només el fa servir el back office, `admin`; la Biblioteca del DM ja no agrupa des de la v4.81). Es llegeix amb `useSyncExternalStore` (`null` al servidor) per no tenir error d'hidratació, i hi ha una còpia en memòria perquè funcioni sense localStorage. Cal desar-ho: la Biblioteca es desmunta a cada canvi de pestanya.
 - **API antiga**: una API sense aquests camps no els retorna i descarta en silenci els que rep. `apiSupportsGroups` ho detecta (cap enemic de la llista porta les claus) i el back office mostra un avís i desactiva els dos camps.
 
-## Columna de combat de la dreta (`CombatColumn`, v5.46) — escriptori
+## Columna de combat de la dreta (`CombatColumn`, v5.47) — escriptori
 - **Problema que resolia**: a la v5.42 el combat estava repartit entre la barra de torns de baix i un panell d'accions **flotant** a la dreta. El DM volia una finestra **fixa com el lateral de l'esquerra** i les dues eines **fusionades**. Es van ensenyar tres propostes amb captures (A columna a la dreta amb la fila del torn desplegada, B columna partida en cua + accions, C pestanya «Combat» al lateral esquerre) i va triar la **A**.
 - **On**: columna fixa a la dreta de l'escenari (`COMBAT_W` = 310 a `DMView`), dins del flux com el lateral esquerre: el mapa s'encongeix, no queda tapat. Només a **Jugar** amb mapa. Es plega i es desplega amb el botó ⚔ de la `RightRail` (`colOpen`, `useStoredFlag('rpg_combat_col')`, es recorda) i s'obre sola en començar un combat. **Al mòbil (`compact`) no hi és**: continuen la barra de torns (`TurnTracker`) i el panell flotant (`CombatActionsPanel`).
 - **Fora de combat**: botó gran «Iniciar combat» (obre `CombatStartDialog`, veure «Iniciar un combat») i, a sota, les accions del token seleccionat al mapa (o del triat amb «Accions» del menú del clic dret).
@@ -265,7 +265,7 @@
 - `onStart(ids, groups)` → `startTurnCombat` amb els ids **en ordre**. La foto dels grups (`rTokenGroups`, `rGroupNames`) es fa en obrir el diàleg (no es llegeixen refs durant el render).
 
 ## Panell d'accions flotant (`CombatActionsPanel` + `TokenActions`, v5.42) — ara només al mòbil
-- ⚠️ Des de la v5.46, a l'escriptori el substitueix la **columna de combat** (veure més amunt); `TokenActions` és compartit.
+- ⚠️ Des de la v5.47, a l'escriptori el substitueix la **columna de combat** (veure més amunt); `TokenActions` és compartit.
 - **Problema que resolia**: per atacar calia clic dret a l'atacant, buscar «Atacs» dins d'un menú llarg, triar, clicar l'objectiu… a cada torn. Ara el panell mostra sol **el token que té el torn**.
 - **On**: a la dreta del mapa, al costat de la rail (`right: 12 + RAIL_W`, `top: RAIL_TOP`), `ACTIONS_W` = 300; a baix deixa lloc a la barra de torns. Amb el panell d'Història obert no surt (ocupen el mateix lloc: obrir-ne un tanca l'altre).
 - **Contingut**: capçalera «Torn de» (o «Accions» si el token no té el torn) amb un **selector** del token (en combat, els de la cua; fora, tots els de l'escena); vida (`HpControl` `md`), CA (bloc de 5e o fitxa), peus que li queden (jugador amb el torn) i estats (només lectura); després **`TokenActions`**: atacs, munició, habilitats/poders i conjurs del grimori — els mateixos components que abans eren al menú (`AttackList`, `AmmoControls`, `PowerList`, `Spellbook`).

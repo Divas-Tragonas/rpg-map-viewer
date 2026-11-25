@@ -21,6 +21,7 @@ export interface TokenEditProps {
   onSetPlayerHpMax: (id: number, hpMax: number) => void;
   onSetPlayerSpeed: (id: number, speed: number) => void;
   onSetPlayerVision: (id: number, visionFt: number) => void;
+  onSetPlayerDarkvision: (id: number, ft: number) => void;
   onSetPlayerCanMove: (id: number, canMove: boolean) => void;
   onAdjustLibHp: (id: number, delta: number) => void;
   onSetLibProps: (id: number, props: Partial<LibEnemy>) => void;
@@ -159,10 +160,11 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
   const sizeFt = feetFromRadius(t.radius, p.gridSize);
   const speed = pl?.speed ?? DEFAULT_SPEED_FT;
   const vision = pl?.visionFt ?? DEFAULT_VISION_FT;
+  const darkvision = pl?.darkvisionFt ?? 0;
   const canMove = pl?.canMove !== false;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${pl || t.setXp ? 4 : 2}, minmax(0, 1fr))`, gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${pl ? 5 : t.setXp ? 4 : 2}, minmax(0, 1fr))`, gap: 6 }}>
         <NumField label="Vida màx." value={t.hpMax} min={pl ? 1 : 0} max={9999} color={C.hpHigh}
           title={pl ? 'Vida màxima' : 'Vida màxima (0 = sense vida)'} onCommit={t.setHpMax} />
         <NumField label="Mida · ft" value={sizeFt} min={1} max={100} step={0.5}
@@ -171,9 +173,12 @@ export function TokenFields({ t, p }: { t: ResolvedToken; p: TokenEditProps }) {
           <>
             <NumField label="Vel. · ft" value={speed} min={0} max={995} step={5}
               title={`Velocitat: ${speed} ft = ${Math.floor(speed / 5)} caselles`} onCommit={v => p.onSetPlayerSpeed(pl.id, v)} />
-            <NumField label="Visió · ft" value={vision} min={0} max={995} step={5}
-              title="Visió a les fosques: radi de llum que emet dins de sales fosques (0 = sense llum)"
+            <NumField label="Llum · ft" value={vision} min={0} max={995} step={5}
+              title="Llum que porta (torxa 40, llanterna 60, el conjur Llum 40; 0 = cap): il·lumina en color dins de sales fosques, també per als altres"
               onCommit={v => p.onSetPlayerVision(pl.id, v)} />
+            <NumField label="Fosc · ft" value={darkvision} min={0} max={995} step={5}
+              title="Visió a les fosques (elfs, nans… 60): sense llum hi veu en gris, i no il·lumina per als altres (0 = cap)"
+              onCommit={v => p.onSetPlayerDarkvision(pl.id, v)} />
           </>
         )}
         {!pl && t.setXp && (
